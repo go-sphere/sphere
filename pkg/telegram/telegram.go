@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-const HTMLNewLine = "<pre>\n\n\n</pre>"
+const HTMLNewLine = "<pre>\n</pre>"
 
 type Telegram[M any] struct {
 	bot                       *API
@@ -205,6 +205,14 @@ func (t *Telegram[M]) SendMessage(num int64, message *chat.Message) error {
 func (t *Telegram[M]) SendRequest(req bot.Chattable) error {
 	_, err := t.bot.Request(req)
 	return err
+}
+
+func (t *Telegram[M]) TrimMemberCache(deletable func(k int64, v M) bool) {
+	for k, v := range t.member {
+		if deletable(k, *v) {
+			delete(t.member, k)
+		}
+	}
 }
 
 func ConvertInlineKeyboardButton(mk []chat.RPCSection) *bot.InlineKeyboardMarkup {
