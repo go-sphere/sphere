@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/tbxark/go-base-api/internal/pkg/encrypt"
 	"github.com/tbxark/go-base-api/pkg/dao"
-	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/keyvaluestore"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
@@ -20,7 +19,7 @@ func NewInitialize(db *dao.Database) *Initialize {
 	return &Initialize{db: db}
 }
 
-func initAdminIfNeed(ctx context.Context, client *ent.Client) error {
+func initAdminIfNeed(ctx context.Context, client *dao.Database) error {
 	count, err := client.Admin.Query().Count(context.Background())
 	if err != nil || count > 0 {
 		return nil
@@ -41,7 +40,7 @@ func (i *Initialize) Identifier() string {
 func (i *Initialize) Run() {
 	ctx := context.Background()
 	key := "did_init"
-	err := dao.WithTxEx(ctx, i.db, func(ctx context.Context, client *ent.Client) error {
+	err := dao.WithTxEx(ctx, i.db, func(ctx context.Context, client *dao.Database) error {
 		exist, err := client.KeyValueStore.Query().Where(keyvaluestore.KeyEQ(key)).Exist(ctx)
 		if err != nil {
 			return err

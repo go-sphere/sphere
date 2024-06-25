@@ -8,7 +8,7 @@ import (
 )
 
 func (d *Database) GetUsers(ctx context.Context, ids []int) (map[int]*ent.User, error) {
-	users, err := d.Client.User.Query().Where(user.IDIn(RemoveDuplicateAndZero(ids)...)).All(ctx)
+	users, err := d.User.Query().Where(user.IDIn(RemoveDuplicateAndZero(ids)...)).All(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -20,7 +20,7 @@ func (d *Database) GetUsers(ctx context.Context, ids []int) (map[int]*ent.User, 
 }
 
 func (d *Database) GetUserPlatforms(ctx context.Context, ids []int) (map[int][]*ent.UserPlatform, error) {
-	userPlatforms, err := d.Client.UserPlatform.Query().Where(userplatform.UserIDIn(RemoveDuplicateAndZero(ids)...)).All(ctx)
+	userPlatforms, err := d.UserPlatform.Query().Where(userplatform.UserIDIn(RemoveDuplicateAndZero(ids)...)).All(ctx)
 	if err != nil {
 		return nil, err
 	}

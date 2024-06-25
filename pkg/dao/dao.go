@@ -2,44 +2,16 @@ package dao
 
 import (
 	"context"
-	"database/sql"
-	"database/sql/driver"
-	"entgo.io/ent/dialect"
-	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
-	"modernc.org/sqlite"
 )
 
 type Config struct {
 	Type  string `json:"type"`
 	Path  string `json:"path"`
 	Debug bool   `json:"debug"`
-}
-
-type sqliteDriver struct {
-	*sqlite.Driver
-}
-
-func (d sqliteDriver) Open(name string) (driver.Conn, error) {
-	conn, err := d.Driver.Open(name)
-	if err != nil {
-		return conn, err
-	}
-	c := conn.(interface {
-		Exec(stmt string, args []driver.Value) (driver.Result, error)
-	})
-	if _, e := c.Exec("PRAGMA foreign_keys = on;", nil); e != nil {
-		conn.Close()
-		return nil, fmt.Errorf("failed to enable enable foreign keys: %w", e)
-	}
-	return conn, nil
-}
-
-func init() {
-	sql.Register(dialect.SQLite, sqliteDriver{Driver: &sqlite.Driver{}})
 }
 
 type Database struct {
@@ -60,7 +32,7 @@ func NewDatabase(config *Config) (*Database, error) {
 	return &Database{client}, nil
 }
 
-func WithTx[T any](ctx context.Context, db *Database, exe func(ctx context.Context, tx *ent.Client) (*T, error)) (*T, error) {
+func WithTx[T any](ctx context.Context, db *Database, exe func(ctx context.Context, tx *Database) (*T, error)) (*T, error) {
 	tx, tErr := db.BeginTx(ctx, nil)
 	if tErr != nil {
 		return nil, tErr
@@ -75,7 +47,7 @@ func WithTx[T any](ctx context.Context, db *Database, exe func(ctx context.Conte
 			return
 		}
 	}()
-	result, err := exe(ctx, tx.Client())
+	result, err := exe(ctx, &Database{tx.Client()})
 	if err != nil {
 		if rErr := tx.Rollback(); rErr != nil {
 			return nil, rErr
@@ -88,7 +60,7 @@ func WithTx[T any](ctx context.Context, db *Database, exe func(ctx context.Conte
 	return result, err
 }
 
-func WithTxEx(ctx context.Context, db *Database, exe func(ctx context.Context, tx *ent.Client) error) error {
+func WithTxEx(ctx context.Context, db *Database, exe func(ctx context.Context, tx *Database) error) error {
 	tx, tErr := db.BeginTx(ctx, nil)
 	if tErr != nil {
 		return tErr
@@ -103,7 +75,7 @@ func WithTxEx(ctx context.Context, db *Database, exe func(ctx context.Context, t
 			return
 		}
 	}()
-	err := exe(ctx, tx.Client())
+	err := exe(ctx, &Database{tx.Client()})
 	if err != nil {
 		if rErr := tx.Rollback(); rErr != nil {
 			return rErr

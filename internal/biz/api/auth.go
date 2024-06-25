@@ -40,7 +40,7 @@ func (w *Web) WxMiniAuth(ctx *gin.Context) (*AuthResponse, error) {
 		return nil, err
 	}
 
-	res, err := dao.WithTx[AuthResponse](ctx, w.db, func(ctx context.Context, client *ent.Client) (*AuthResponse, error) {
+	res, err := dao.WithTx[AuthResponse](ctx, w.db, func(ctx context.Context, client *dao.Database) (*AuthResponse, error) {
 		userPlat, e := client.UserPlatform.Query().
 			Where(userplatform.PlatformEQ(consts.WechatMiniPlatform), userplatform.PlatformIDEQ(wxUser.OpenID)).
 			Only(ctx)
