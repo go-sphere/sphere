@@ -1,0 +1,14 @@
+[Unit]
+Description=Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=nogroup
+LimitNOFILE=32768
+Restart=on-failure
+ExecStart=/usr/local/bin/backend start --config=/etc/backend/config.json
+
+[Install]
+WantedBy=multi-user.target

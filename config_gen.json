@@ -1,0 +1,41 @@
+{
+  "system": {
+    "gin_mode": "debug"
+  },
+  "log": {
+    "file": {
+      "file_name": "/var/log/openkol.log",
+      "max_size": 10,
+      "max_backups": 10,
+      "max_age": 10
+    },
+    "console_out_async": false,
+    "level": "info"
+  },
+  "database": {
+    "type": "mysql",
+    "path": "root:passwd@tcp(localhost:3306)/dbname?charset=utf8mb4\u0026parseTime=True\u0026loc=Local\u0026timeout=10s",
+    "debug": false
+  },
+  "dash": {
+    "jwt": "yS9eoBBDXFAzp9fPgZ30Z2vyyssO7tWs",
+    "address": "127.0.0.1:8800"
+  },
+  "api": {
+    "jwt": "VGtgnvf50Em0p8NgfKGZFNUZMy4HwOyy",
+    "address": "127.0.0.1:8899"
+  },
+  "cdn": {
+    "access_key": "",
+    "secret_key": "",
+    "bucket": "",
+    "dir": "",
+    "domain": "",
+    "host": ""
+  },
+  "wx_mini": {
+    "app_id": "",
+    "app_secret": "",
+    "env": "develop"
+  }
+}
