@@ -28,8 +28,16 @@ func URL(base string, query map[string]string) (string, error) {
 }
 
 func GET[T any](url string) (*T, error) {
+	return GETx[T](url, nil)
+}
+
+func GETx[T any](url string, reqModifier func(req *http.Request)) (*T, error) {
 	client := DefaultHttpClient()
-	resp, err := client.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -43,6 +51,10 @@ func GET[T any](url string) (*T, error) {
 }
 
 func POST[T any](url string, data any) (*T, error) {
+	return POSTx[T](url, data, nil)
+}
+
+func POSTx[T any](url string, data any, reqModifier func(req *http.Request)) (*T, error) {
 	client := DefaultHttpClient()
 	body, err := json.Marshal(data)
 	if err != nil {
@@ -53,6 +65,9 @@ func POST[T any](url string, data any) (*T, error) {
 		return nil, err
 	}
 	req.Header.Add("Content-Type", "application/json; charset=utf-8")
+	if reqModifier != nil {
+		reqModifier(req)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
