@@ -2,14 +2,15 @@ package config
 
 import (
 	"encoding/json"
+	"math/rand"
+	"os"
+
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
 	"github.com/tbxark/go-base-api/pkg/dao"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/qniu"
 	"github.com/tbxark/go-base-api/pkg/wechat"
-	"math/rand"
-	"os"
 )
 
 var BuildVersion = "dev"
@@ -43,7 +44,7 @@ func NewEmptyConfig() *Config {
 		},
 		Log: &log.Options{
 			File: &log.FileOptions{
-				FileName:   "/var/log/openkol.log",
+				FileName:   "/var/log/go-base-api.log",
 				MaxSize:    10,
 				MaxBackups: 10,
 				MaxAge:     10,

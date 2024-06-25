@@ -1,4 +1,4 @@
-BIN_NAME=openkol
+BIN_NAME=go-base-api
 BUILD=$(shell git rev-parse --short HEAD)@$(shell date +%s)
 CURRENT_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 CURRENT_ARCH := $(shell uname -m | tr '[:upper:]' '[:lower:]')
