@@ -56,7 +56,7 @@ func (t *Telegram[M]) readUpdate() {
 	}
 }
 
-func (t *Telegram[M]) createUserIfNotExist(u *bot.User) (*M, error) {
+func (t *Telegram[M]) GetUser(u *bot.User) (*M, error) {
 	if _, exist := t.member[u.ID]; !exist {
 		member, err, _ := t.sf.Do(fmt.Sprintf("create:telegram:%d", u.ID), func() (any, error) {
 			return t.CreateUserIfNotExist(u)
@@ -117,7 +117,7 @@ func (t *Telegram[M]) handleMessage(message *bot.Message) {
 }
 
 func (t *Telegram[M]) handleCallback(callback *bot.CallbackQuery) {
-	if _, err := t.createUserIfNotExist(callback.From); err != nil {
+	if _, err := t.GetUser(callback.From); err != nil {
 		log.Errorf("<telegram> create member error: %v", err)
 		return
 	}
@@ -150,7 +150,7 @@ func (t *Telegram[M]) handleCallback(callback *bot.CallbackQuery) {
 
 func (t *Telegram[M]) CallbackQueryWrapper(handler func(user *M, data string) (*chat.Message, error)) func(callback *bot.CallbackQuery) error {
 	return func(callback *bot.CallbackQuery) error {
-		id, err := t.createUserIfNotExist(callback.From)
+		id, err := t.GetUser(callback.From)
 		if err != nil {
 			return err
 		}
@@ -168,7 +168,7 @@ func (t *Telegram[M]) BindCallbackQueryHandler(action string, handler func(callb
 
 func (t *Telegram[M]) MessageWrapper(handler func(user *M, data string) (*chat.Message, error)) func(message *bot.Message) error {
 	return func(message *bot.Message) error {
-		id, err := t.createUserIfNotExist(message.From)
+		id, err := t.GetUser(message.From)
 		if err != nil {
 			return err
 		}
@@ -215,20 +215,14 @@ func (t *Telegram[M]) TrimMemberCache(deletable func(k int64, v M) bool) {
 	}
 }
 
-func ConvertInlineKeyboardButton(mk []chat.RPCSection) *bot.InlineKeyboardMarkup {
+func ConvertInlineKeyboardButton(sections [][]chat.RPCButton) *bot.InlineKeyboardMarkup {
 	buttons := make([][]bot.InlineKeyboardButton, 0)
-	for _, section := range mk {
-		for _, sec := range section.Sections {
-			row := make([]bot.InlineKeyboardButton, 0)
-			for _, button := range sec {
-				text := button.Text
-				if button.Desc != "" {
-					text += " (" + button.Desc + ")"
-				}
-				row = append(row, bot.NewInlineKeyboardButtonData(text, button.Data))
-			}
-			buttons = append(buttons, row)
+	for _, section := range sections {
+		row := make([]bot.InlineKeyboardButton, 0)
+		for _, btn := range section {
+			row = append(row, bot.NewInlineKeyboardButtonData(btn.Text, btn.Data))
 		}
+		buttons = append(buttons, row)
 	}
 	return &bot.InlineKeyboardMarkup{
 		InlineKeyboard: buttons,

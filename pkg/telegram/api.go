@@ -9,8 +9,9 @@ import (
 )
 
 type APIConfig struct {
-	Token   string `json:"token"`
-	Webhook string `json:"webhook"`
+	Token       string `json:"token"`
+	Webhook     string `json:"webhook"`
+	APIEndpoint string `json:"api_endpoint"`
 }
 
 type API struct {
@@ -20,7 +21,10 @@ type API struct {
 }
 
 func NewAPI(config *APIConfig) *API {
-	api, err := bot.NewBotAPI(config.Token)
+	if config.APIEndpoint == "" {
+		config.APIEndpoint = bot.APIEndpoint
+	}
+	api, err := bot.NewBotAPIWithAPIEndpoint(config.Token, config.APIEndpoint)
 	if err != nil {
 		log.Panic(err)
 	}
