@@ -2,12 +2,12 @@ package config
 
 import (
 	"encoding/json"
+	"github.com/tbxark/go-base-api/pkg/dao/client"
 	"math/rand"
 	"os"
 
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
-	"github.com/tbxark/go-base-api/pkg/dao"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/qniu"
 	"github.com/tbxark/go-base-api/pkg/wechat"
@@ -22,7 +22,7 @@ type SystemConfig struct {
 type Config struct {
 	System   *SystemConfig  `json:"system"`
 	Log      *log.Options   `json:"log"`
-	Database *dao.Config    `json:"database"`
+	Database *client.Config `json:"database"`
 	Dash     *dash.Config   `json:"dash"`
 	API      *api.Config    `json:"api"`
 	CDN      *qniu.Config   `json:"cdn"`
@@ -51,7 +51,7 @@ func NewEmptyConfig() *Config {
 			},
 			Level: "info",
 		},
-		Database: &dao.Config{},
+		Database: &client.Config{},
 		Dash: &dash.Config{
 			Address: "127.0.0.1:8800",
 			JWT:     randJWTPassword(),

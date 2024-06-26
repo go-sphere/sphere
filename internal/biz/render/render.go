@@ -1,7 +1,7 @@
 package render
 
 import (
-	"github.com/tbxark/go-base-api/pkg/dao"
+	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/pkg/qniu"
 )
 

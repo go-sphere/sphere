@@ -1,4 +1,4 @@
-package dao
+package client
 
 import (
 	"database/sql"

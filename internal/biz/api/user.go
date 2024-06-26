@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/pkg/dao"
+	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/user"
 	"github.com/tbxark/go-base-api/pkg/web"
@@ -113,7 +113,7 @@ func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*model.MessageResponse, error) 
 	if number.PhoneInfo.CountryCode != "86" {
 		return nil, model.NewHTTPError(400, "只支持中国大陆手机号")
 	}
-	err = dao.WithTxEx(ctx, w.db, func(ctx context.Context, client *dao.Database) error {
+	err = dao.WithTxEx(ctx, w.db.Client, func(ctx context.Context, client *ent.Client) error {
 		exist, e := client.User.Query().Where(user.PhoneEQ(number.PhoneInfo.PhoneNumber)).Only(ctx)
 		if e != nil {
 			if ent.IsNotFound(e) {

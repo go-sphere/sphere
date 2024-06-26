@@ -55,7 +55,7 @@ func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
 		return nil, err
 	}
 	if len(req.Password) > 8 {
-		req.Password = encrypt.EncryptPassword(req.Password)
+		req.Password = encrypt.CryptPassword(req.Password)
 	} else {
 		return nil, model.NewHTTPError(400, "password is too short")
 	}
@@ -89,9 +89,9 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
 		SetUsername(req.Username).
 		SetPermission(req.Permission)
 	if req.Password != "" {
-		update = update.SetPassword(encrypt.EncryptPassword(req.Password))
+		update = update.SetPassword(encrypt.CryptPassword(req.Password))
 		if len(req.Password) > 8 {
-			req.Password = encrypt.EncryptPassword(req.Password)
+			req.Password = encrypt.CryptPassword(req.Password)
 		} else {
 			return nil, model.NewHTTPError(400, "password is too short")
 		}

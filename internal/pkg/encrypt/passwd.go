@@ -9,7 +9,7 @@ func IsPasswordMatch(pwd, cyPwd string) bool {
 	return err == nil
 }
 
-func EncryptPassword(pwd string) string {
+func CryptPassword(pwd string) string {
 	cyPwd, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
 	if err != nil {
 		return pwd
