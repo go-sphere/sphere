@@ -4,7 +4,7 @@ import (
 	"github.com/google/wire"
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
-	"github.com/tbxark/go-base-api/internal/biz/render"
+	"github.com/tbxark/go-base-api/internal/biz/task"
 )
 
-var ProviderSet = wire.NewSet(api.NewWebServer, dash.NewWebServer, render.NewRender)
+var ProviderSet = wire.NewSet(api.NewWebServer, dash.NewWebServer, task.NewInitialize)

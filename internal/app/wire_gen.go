@@ -9,8 +9,8 @@ package app
 import (
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
+	"github.com/tbxark/go-base-api/internal/biz/task"
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
-	"github.com/tbxark/go-base-api/internal/task"
 	"github.com/tbxark/go-base-api/pkg/cache"
 	"github.com/tbxark/go-base-api/pkg/dao/client"
 	"github.com/tbxark/go-base-api/pkg/qniu"

@@ -5,7 +5,7 @@ import (
 	"github.com/tbxark/go-base-api/config"
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
-	"github.com/tbxark/go-base-api/internal/task"
+	"github.com/tbxark/go-base-api/internal/biz/task"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
 	"sync"
