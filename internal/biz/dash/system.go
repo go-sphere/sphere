@@ -45,7 +45,10 @@ func (w *Web) UploadToken(ctx *gin.Context) (gin.H, error) {
 // @Success 200 {object} model.MessageResponse
 // @Router /api/cache/reset [post]
 func (w *Web) ResetCache(ctx *gin.Context) (*model.MessageResponse, error) {
-	_ = w.cache.Reset()
+	err := w.cache.DelAll(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return model.NewSuccessResponse(), nil
 }
 

@@ -28,12 +28,12 @@ type Web struct {
 	db     *dao.Database
 	wx     *wechat.Wechat
 	cdn    *qniu.CDN
-	cache  cache.Cache
+	cache  cache.ByteCache
 	render *render.Render
 	auth   *middleware.JwtAuth
 }
 
-func NewWebServer(config *Config, db *dao.Database, wx *wechat.Wechat, cdn *qniu.CDN, cache cache.Cache) *Web {
+func NewWebServer(config *Config, db *dao.Database, wx *wechat.Wechat, cdn *qniu.CDN, cache cache.ByteCache) *Web {
 	return &Web{
 		config: config,
 		gin:    gin.New(),
