@@ -2,8 +2,8 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/internal/biz/render"
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
+	"github.com/tbxark/go-base-api/internal/pkg/render"
 	"github.com/tbxark/go-base-api/pkg/cache"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"

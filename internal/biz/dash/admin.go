@@ -3,8 +3,8 @@ package dash
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
-	"github.com/tbxark/go-base-api/internal/biz/render"
 	"github.com/tbxark/go-base-api/internal/pkg/encrypt"
+	"github.com/tbxark/go-base-api/internal/pkg/render"
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/admin"
 	"github.com/tbxark/go-base-api/pkg/web"
