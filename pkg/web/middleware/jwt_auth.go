@@ -2,36 +2,27 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt"
+	"github.com/tbxark/go-base-api/pkg/web/auth/tokens"
 	"net/http"
 	"strconv"
+	"time"
+)
+
+const (
+	ContextKeyID        = "id"
+	ContextKeyUsername  = "username"
+	ContextKeyRoles     = "roles"
+	AuthorizationHeader = "Authorization"
+	AllPermissionRole   = "all"
 )
 
 type JwtAuth struct {
-	Key    string
-	fields JwtFields
+	Generator *tokens.Generator
 }
 
 func NewJwtAuth(key string) *JwtAuth {
 	return &JwtAuth{
-		Key:    key,
-		fields: NewJwtFields(),
-	}
-}
-
-type JwtFields struct {
-	ID                  string `json:"id"`
-	Username            string `json:"username"`
-	Permission          string `json:"permission"`
-	AuthorizationHeader string `json:"authorization_header"`
-}
-
-func NewJwtFields() JwtFields {
-	return JwtFields{
-		ID:                  "id",
-		Username:            "username",
-		Permission:          "permission",
-		AuthorizationHeader: "Authorization",
+		Generator: tokens.NewTokenGenerator(key, time.Hour*24, time.Hour*24*7),
 	}
 }
 
@@ -53,18 +44,8 @@ var (
 	PermissionError = jwtError{403, "permission denied"}
 )
 
-func (w *JwtAuth) CreateJwtToken(id int, username string, permission ...string) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		w.fields.ID:         strconv.Itoa(id),
-		w.fields.Username:   username,
-		w.fields.Permission: permission,
-	})
-	tokenString, err := token.SignedString([]byte(w.Key))
-	return tokenString, err
-}
-
 func (w *JwtAuth) GetCurrentID(ctx *gin.Context) (int, error) {
-	raw, exist := ctx.Get(w.fields.ID)
+	raw, exist := ctx.Get(ContextKeyID)
 	if !exist {
 		return 0, NeedLoginError
 	}
@@ -92,13 +73,13 @@ func (w *JwtAuth) CheckAuthID(ctx *gin.Context, id int) error {
 }
 
 func (w *JwtAuth) CheckAuthPermission(ctx *gin.Context, permission string) error {
-	permissionList, exist := ctx.Get(w.fields.Permission)
+	permissionList, exist := ctx.Get(ContextKeyRoles)
 	if !exist {
 		return PermissionError
 	}
 	permissions := permissionList.([]any)
 	for _, p := range permissions {
-		if p == permission || p == "all" {
+		if p == permission || p == AllPermissionRole {
 			return nil
 		}
 	}
@@ -107,7 +88,7 @@ func (w *JwtAuth) CheckAuthPermission(ctx *gin.Context, permission string) error
 
 func (w *JwtAuth) NewJwtAuthMiddleware(abortOnError bool) func(ctx *gin.Context) {
 	return func(ctx *gin.Context) {
-		token := ctx.GetHeader(w.fields.AuthorizationHeader)
+		token := ctx.GetHeader(AuthorizationHeader)
 		abort := func() {
 			if abortOnError {
 				ctx.JSON(http.StatusUnauthorized, gin.H{
@@ -120,29 +101,19 @@ func (w *JwtAuth) NewJwtAuthMiddleware(abortOnError bool) func(ctx *gin.Context)
 			abort()
 			return
 		}
-		t, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
-			return []byte(w.Key), nil
-		})
-		if err != nil || !t.Valid {
+		claims, err := w.Generator.Validate(token)
+		if err != nil {
 			abort()
 			return
 		}
-		claims, valid := t.Claims.(jwt.MapClaims)
-		if !valid {
+		id, err := strconv.Atoi(claims.UID)
+		if err != nil {
 			abort()
 			return
 		}
-		if idRaw, ok := claims[w.fields.ID].(string); ok {
-			if id, e := strconv.Atoi(idRaw); e == nil {
-				ctx.Set("id", id)
-			}
-		}
-		if username, ok := claims[w.fields.Username].(string); ok {
-			ctx.Set("username", username)
-		}
-		if permission, ok := claims[w.fields.Permission].([]any); ok {
-			ctx.Set("permission", permission)
-		}
+		ctx.Set(ContextKeyID, id)
+		ctx.Set(ContextKeyUsername, claims.Username)
+		ctx.Set(ContextKeyRoles, claims.Roles)
 	}
 }
 

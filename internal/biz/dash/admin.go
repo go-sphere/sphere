@@ -188,7 +188,7 @@ func (w *Web) AdminLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 	if !encrypt.IsPasswordMatch(req.Password, u.Password) {
 		return nil, model.NewHTTPError(400, "password not match")
 	}
-	tokenString, err := w.auth.CreateJwtToken(u.ID, u.Username, u.Roles...)
+	tokenString, err := w.auth.Generator.GenerateSignedToken(strconv.Itoa(u.ID), u.Username, u.Roles...)
 	return &AdminLoginResponse{
 		Token:      tokenString,
 		Permission: u.Roles,

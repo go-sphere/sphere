@@ -9,6 +9,7 @@ import (
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/userplatform"
 	"github.com/tbxark/go-base-api/pkg/web"
+	"strconv"
 	"time"
 )
 
@@ -83,7 +84,7 @@ func (w *Web) WxMiniAuth(ctx *gin.Context) (*AuthResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	res.Token, err = w.auth.CreateJwtToken(res.User.ID, consts.WechatMiniPlatform+":"+wxUser.OpenID)
+	res.Token, err = w.auth.Generator.GenerateSignedToken(strconv.Itoa(res.User.ID), consts.WechatMiniPlatform+":"+wxUser.OpenID)
 	if err != nil {
 		return nil, err
 	}
