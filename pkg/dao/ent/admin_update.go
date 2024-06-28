@@ -76,15 +76,15 @@ func (au *AdminUpdate) SetNillablePassword(s *string) *AdminUpdate {
 	return au
 }
 
-// SetPermission sets the "permission" field.
-func (au *AdminUpdate) SetPermission(s []string) *AdminUpdate {
-	au.mutation.SetPermission(s)
+// SetRoles sets the "roles" field.
+func (au *AdminUpdate) SetRoles(s []string) *AdminUpdate {
+	au.mutation.SetRoles(s)
 	return au
 }
 
-// AppendPermission appends s to the "permission" field.
-func (au *AdminUpdate) AppendPermission(s []string) *AdminUpdate {
-	au.mutation.AppendPermission(s)
+// AppendRoles appends s to the "roles" field.
+func (au *AdminUpdate) AppendRoles(s []string) *AdminUpdate {
+	au.mutation.AppendRoles(s)
 	return au
 }
 
@@ -175,12 +175,12 @@ func (au *AdminUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if value, ok := au.mutation.Password(); ok {
 		_spec.SetField(admin.FieldPassword, field.TypeString, value)
 	}
-	if value, ok := au.mutation.Permission(); ok {
-		_spec.SetField(admin.FieldPermission, field.TypeJSON, value)
+	if value, ok := au.mutation.Roles(); ok {
+		_spec.SetField(admin.FieldRoles, field.TypeJSON, value)
 	}
-	if value, ok := au.mutation.AppendedPermission(); ok {
+	if value, ok := au.mutation.AppendedRoles(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, admin.FieldPermission, value)
+			sqljson.Append(u, admin.FieldRoles, value)
 		})
 	}
 	_spec.AddModifiers(au.modifiers...)
@@ -252,15 +252,15 @@ func (auo *AdminUpdateOne) SetNillablePassword(s *string) *AdminUpdateOne {
 	return auo
 }
 
-// SetPermission sets the "permission" field.
-func (auo *AdminUpdateOne) SetPermission(s []string) *AdminUpdateOne {
-	auo.mutation.SetPermission(s)
+// SetRoles sets the "roles" field.
+func (auo *AdminUpdateOne) SetRoles(s []string) *AdminUpdateOne {
+	auo.mutation.SetRoles(s)
 	return auo
 }
 
-// AppendPermission appends s to the "permission" field.
-func (auo *AdminUpdateOne) AppendPermission(s []string) *AdminUpdateOne {
-	auo.mutation.AppendPermission(s)
+// AppendRoles appends s to the "roles" field.
+func (auo *AdminUpdateOne) AppendRoles(s []string) *AdminUpdateOne {
+	auo.mutation.AppendRoles(s)
 	return auo
 }
 
@@ -381,12 +381,12 @@ func (auo *AdminUpdateOne) sqlSave(ctx context.Context) (_node *Admin, err error
 	if value, ok := auo.mutation.Password(); ok {
 		_spec.SetField(admin.FieldPassword, field.TypeString, value)
 	}
-	if value, ok := auo.mutation.Permission(); ok {
-		_spec.SetField(admin.FieldPermission, field.TypeJSON, value)
+	if value, ok := auo.mutation.Roles(); ok {
+		_spec.SetField(admin.FieldRoles, field.TypeJSON, value)
 	}
-	if value, ok := auo.mutation.AppendedPermission(); ok {
+	if value, ok := auo.mutation.AppendedRoles(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, admin.FieldPermission, value)
+			sqljson.Append(u, admin.FieldRoles, value)
 		})
 	}
 	_spec.AddModifiers(auo.modifiers...)

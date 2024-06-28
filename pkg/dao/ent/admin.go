@@ -26,7 +26,7 @@ type Admin struct {
 	// 密码
 	Password string `json:"-"`
 	// 权限
-	Permission   []string `json:"permission,omitempty"`
+	Roles        []string `json:"roles,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -35,7 +35,7 @@ func (*Admin) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case admin.FieldPermission:
+		case admin.FieldRoles:
 			values[i] = new([]byte)
 		case admin.FieldID, admin.FieldCreatedAt, admin.FieldUpdatedAt:
 			values[i] = new(sql.NullInt64)
@@ -86,12 +86,12 @@ func (a *Admin) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				a.Password = value.String
 			}
-		case admin.FieldPermission:
+		case admin.FieldRoles:
 			if value, ok := values[i].(*[]byte); !ok {
-				return fmt.Errorf("unexpected type %T for field permission", values[i])
+				return fmt.Errorf("unexpected type %T for field roles", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &a.Permission); err != nil {
-					return fmt.Errorf("unmarshal field permission: %w", err)
+				if err := json.Unmarshal(*value, &a.Roles); err != nil {
+					return fmt.Errorf("unmarshal field roles: %w", err)
 				}
 			}
 		default:
@@ -141,8 +141,8 @@ func (a *Admin) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("password=<sensitive>")
 	builder.WriteString(", ")
-	builder.WriteString("permission=")
-	builder.WriteString(fmt.Sprintf("%v", a.Permission))
+	builder.WriteString("roles=")
+	builder.WriteString(fmt.Sprintf("%v", a.Roles))
 	builder.WriteByte(')')
 	return builder.String()
 }

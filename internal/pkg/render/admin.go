@@ -5,9 +5,9 @@ import (
 )
 
 type Admin struct {
-	ID         int      `json:"id"`
-	Username   string   `json:"username"`
-	Permission []string `json:"permission,omitempty"`
+	ID       int      `json:"id"`
+	Username string   `json:"username"`
+	Roles    []string `json:"roles,omitempty"`
 }
 
 func (r *Render) Admin(a *ent.Admin) *Admin {
@@ -20,10 +20,10 @@ func (r *Render) Admin(a *ent.Admin) *Admin {
 	}
 }
 
-func AdminWithPermission(a *ent.Admin) *Admin {
+func AdminWithRoles(a *ent.Admin) *Admin {
 	return &Admin{
-		ID:         a.ID,
-		Username:   a.Username,
-		Permission: a.Permission,
+		ID:       a.ID,
+		Username: a.Username,
+		Roles:    a.Roles,
 	}
 }

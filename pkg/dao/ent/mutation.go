@@ -35,21 +35,21 @@ const (
 // AdminMutation represents an operation that mutates the Admin nodes in the graph.
 type AdminMutation struct {
 	config
-	op               Op
-	typ              string
-	id               *int
-	created_at       *int64
-	addcreated_at    *int64
-	updated_at       *int64
-	addupdated_at    *int64
-	username         *string
-	password         *string
-	permission       *[]string
-	appendpermission []string
-	clearedFields    map[string]struct{}
-	done             bool
-	oldValue         func(context.Context) (*Admin, error)
-	predicates       []predicate.Admin
+	op            Op
+	typ           string
+	id            *int
+	created_at    *int64
+	addcreated_at *int64
+	updated_at    *int64
+	addupdated_at *int64
+	username      *string
+	password      *string
+	roles         *[]string
+	appendroles   []string
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*Admin, error)
+	predicates    []predicate.Admin
 }
 
 var _ ent.Mutation = (*AdminMutation)(nil)
@@ -362,55 +362,55 @@ func (m *AdminMutation) ResetPassword() {
 	m.password = nil
 }
 
-// SetPermission sets the "permission" field.
-func (m *AdminMutation) SetPermission(s []string) {
-	m.permission = &s
-	m.appendpermission = nil
+// SetRoles sets the "roles" field.
+func (m *AdminMutation) SetRoles(s []string) {
+	m.roles = &s
+	m.appendroles = nil
 }
 
-// Permission returns the value of the "permission" field in the mutation.
-func (m *AdminMutation) Permission() (r []string, exists bool) {
-	v := m.permission
+// Roles returns the value of the "roles" field in the mutation.
+func (m *AdminMutation) Roles() (r []string, exists bool) {
+	v := m.roles
 	if v == nil {
 		return
 	}
 	return *v, true
 }
 
-// OldPermission returns the old "permission" field's value of the Admin entity.
+// OldRoles returns the old "roles" field's value of the Admin entity.
 // If the Admin object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *AdminMutation) OldPermission(ctx context.Context) (v []string, err error) {
+func (m *AdminMutation) OldRoles(ctx context.Context) (v []string, err error) {
 	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldPermission is only allowed on UpdateOne operations")
+		return v, errors.New("OldRoles is only allowed on UpdateOne operations")
 	}
 	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldPermission requires an ID field in the mutation")
+		return v, errors.New("OldRoles requires an ID field in the mutation")
 	}
 	oldValue, err := m.oldValue(ctx)
 	if err != nil {
-		return v, fmt.Errorf("querying old value for OldPermission: %w", err)
+		return v, fmt.Errorf("querying old value for OldRoles: %w", err)
 	}
-	return oldValue.Permission, nil
+	return oldValue.Roles, nil
 }
 
-// AppendPermission adds s to the "permission" field.
-func (m *AdminMutation) AppendPermission(s []string) {
-	m.appendpermission = append(m.appendpermission, s...)
+// AppendRoles adds s to the "roles" field.
+func (m *AdminMutation) AppendRoles(s []string) {
+	m.appendroles = append(m.appendroles, s...)
 }
 
-// AppendedPermission returns the list of values that were appended to the "permission" field in this mutation.
-func (m *AdminMutation) AppendedPermission() ([]string, bool) {
-	if len(m.appendpermission) == 0 {
+// AppendedRoles returns the list of values that were appended to the "roles" field in this mutation.
+func (m *AdminMutation) AppendedRoles() ([]string, bool) {
+	if len(m.appendroles) == 0 {
 		return nil, false
 	}
-	return m.appendpermission, true
+	return m.appendroles, true
 }
 
-// ResetPermission resets all changes to the "permission" field.
-func (m *AdminMutation) ResetPermission() {
-	m.permission = nil
-	m.appendpermission = nil
+// ResetRoles resets all changes to the "roles" field.
+func (m *AdminMutation) ResetRoles() {
+	m.roles = nil
+	m.appendroles = nil
 }
 
 // Where appends a list predicates to the AdminMutation builder.
@@ -460,8 +460,8 @@ func (m *AdminMutation) Fields() []string {
 	if m.password != nil {
 		fields = append(fields, admin.FieldPassword)
 	}
-	if m.permission != nil {
-		fields = append(fields, admin.FieldPermission)
+	if m.roles != nil {
+		fields = append(fields, admin.FieldRoles)
 	}
 	return fields
 }
@@ -479,8 +479,8 @@ func (m *AdminMutation) Field(name string) (ent.Value, bool) {
 		return m.Username()
 	case admin.FieldPassword:
 		return m.Password()
-	case admin.FieldPermission:
-		return m.Permission()
+	case admin.FieldRoles:
+		return m.Roles()
 	}
 	return nil, false
 }
@@ -498,8 +498,8 @@ func (m *AdminMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldUsername(ctx)
 	case admin.FieldPassword:
 		return m.OldPassword(ctx)
-	case admin.FieldPermission:
-		return m.OldPermission(ctx)
+	case admin.FieldRoles:
+		return m.OldRoles(ctx)
 	}
 	return nil, fmt.Errorf("unknown Admin field %s", name)
 }
@@ -537,12 +537,12 @@ func (m *AdminMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetPassword(v)
 		return nil
-	case admin.FieldPermission:
+	case admin.FieldRoles:
 		v, ok := value.([]string)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
-		m.SetPermission(v)
+		m.SetRoles(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Admin field %s", name)
@@ -647,8 +647,8 @@ func (m *AdminMutation) ResetField(name string) error {
 	case admin.FieldPassword:
 		m.ResetPassword()
 		return nil
-	case admin.FieldPermission:
-		m.ResetPermission()
+	case admin.FieldRoles:
+		m.ResetRoles()
 		return nil
 	}
 	return fmt.Errorf("unknown Admin field %s", name)

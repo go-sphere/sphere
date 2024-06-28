@@ -28,16 +28,16 @@ func (w *Web) AdminList(ctx *gin.Context) (gin.H, error) {
 	}
 	return gin.H{
 		"admins": lo.Map(all, func(a *ent.Admin, i int) *render.Admin {
-			return render.AdminWithPermission(a)
+			return render.AdminWithRoles(a)
 		}),
 	}, nil
 }
 
 type AdminEditRequest struct {
-	ID         int      `json:"id"`
-	Username   string   `json:"username"`
-	Password   string   `json:"password"`
-	Permission []string `json:"permission"`
+	ID       int      `json:"id"`
+	Username string   `json:"username"`
+	Password string   `json:"password"`
+	Roles    []string `json:"roles"`
 }
 
 // AdminCreate
@@ -62,12 +62,12 @@ func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
 	u, err := w.db.Admin.Create().
 		SetUsername(req.Username).
 		SetPassword(req.Password).
-		SetPermission(req.Permission).Save(ctx)
+		SetRoles(req.Roles).Save(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return gin.H{
-		"admin": render.AdminWithPermission(u),
+		"admin": render.AdminWithRoles(u),
 	}, nil
 }
 
@@ -87,7 +87,7 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
 	}
 	update := w.db.Admin.UpdateOneID(req.ID).
 		SetUsername(req.Username).
-		SetPermission(req.Permission)
+		SetRoles(req.Roles)
 	if req.Password != "" {
 		update = update.SetPassword(encrypt.CryptPassword(req.Password))
 		if len(req.Password) > 8 {
@@ -101,7 +101,7 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
 		return nil, err
 	}
 	return gin.H{
-		"admin": render.AdminWithPermission(u),
+		"admin": render.AdminWithRoles(u),
 	}, nil
 }
 
@@ -123,7 +123,7 @@ func (w *Web) AdminDetail(ctx *gin.Context) (gin.H, error) {
 		return nil, err
 	}
 	return gin.H{
-		"admin": render.AdminWithPermission(user),
+		"admin": render.AdminWithRoles(user),
 	}, nil
 }
 
@@ -188,10 +188,10 @@ func (w *Web) AdminLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 	if !encrypt.IsPasswordMatch(req.Password, u.Password) {
 		return nil, model.NewHTTPError(400, "password not match")
 	}
-	tokenString, err := w.auth.CreateJwtToken(u.ID, u.Username, u.Permission...)
+	tokenString, err := w.auth.CreateJwtToken(u.ID, u.Username, u.Roles...)
 	return &AdminLoginResponse{
 		Token:      tokenString,
-		Permission: u.Permission,
+		Permission: u.Roles,
 	}, nil
 }
 

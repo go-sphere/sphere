@@ -15,7 +15,7 @@ var (
 		{Name: "updated_at", Type: field.TypeInt64, Nullable: true},
 		{Name: "username", Type: field.TypeString, Unique: true},
 		{Name: "password", Type: field.TypeString},
-		{Name: "permission", Type: field.TypeJSON},
+		{Name: "roles", Type: field.TypeJSON},
 	}
 	// AdminsTable holds the schema information for the "admins" table.
 	AdminsTable = &schema.Table{

@@ -19,8 +19,8 @@ const (
 	FieldUsername = "username"
 	// FieldPassword holds the string denoting the password field in the database.
 	FieldPassword = "password"
-	// FieldPermission holds the string denoting the permission field in the database.
-	FieldPermission = "permission"
+	// FieldRoles holds the string denoting the roles field in the database.
+	FieldRoles = "roles"
 	// Table holds the table name of the admin in the database.
 	Table = "admins"
 )
@@ -32,7 +32,7 @@ var Columns = []string{
 	FieldUpdatedAt,
 	FieldUsername,
 	FieldPassword,
-	FieldPermission,
+	FieldRoles,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -54,8 +54,8 @@ var (
 	UpdateDefaultUpdatedAt func() int64
 	// UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	UsernameValidator func(string) error
-	// DefaultPermission holds the default value on creation for the "permission" field.
-	DefaultPermission []string
+	// DefaultRoles holds the default value on creation for the "roles" field.
+	DefaultRoles []string
 )
 
 // OrderOption defines the ordering options for the Admin queries.

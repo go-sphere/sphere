@@ -13,7 +13,7 @@ func (Admin) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("username").Unique().MinLen(1).Comment("用户名"),
 		field.String("password").Comment("密码").Sensitive(),
-		field.Strings("permission").Default([]string{}).Comment("权限"),
+		field.Strings("roles").Default([]string{}).Comment("权限"),
 	}
 }
 
