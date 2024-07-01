@@ -122,8 +122,8 @@ func (l *zapLogger) WithFields(fields Fields) Logger {
 		f = append(f, k)
 		f = append(f, v)
 	}
-	newLogger := l.sugarLogger.With(f...)
-	return &zapLogger{newLogger}
+	logger := l.sugarLogger.With(f...)
+	return &zapLogger{logger}
 }
 
 var _ Logger = &zapLogger{}
@@ -290,4 +290,8 @@ func Panicw(message string, args ...interface{}) {
 
 func Fatalw(message string, args ...interface{}) {
 	std.Fatalw(message, args...)
+}
+
+func ZapLogger() *zap.Logger {
+	return std.sugarLogger.Desugar().WithOptions(zap.WithCaller(false))
 }

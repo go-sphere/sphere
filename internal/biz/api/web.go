@@ -55,11 +55,10 @@ func (w *Web) Identifier() string {
 }
 
 func (w *Web) Run() {
-	logger := log.With(map[string]interface{}{
-		"module": "dash",
-	})
+	logger := log.ZapLogger().With(field.String("module", "api"))
 	loggerMiddleware := middleware.NewZapLoggerMiddleware(logger)
 	recoveryMiddleware := middleware.NewZapRecoveryMiddleware(logger)
+
 	//rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
 	w.gin.Use(loggerMiddleware, recoveryMiddleware)

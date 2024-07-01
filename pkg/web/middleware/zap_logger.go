@@ -36,10 +36,18 @@ func (g *ginZapLogger) Error(msg string, fields ...zap.Field) {
 	g.logger.Errorw(msg, args...)
 }
 
-func NewZapLoggerMiddleware(logger Logger) gin.HandlerFunc {
+func NewLoggerMiddleware(logger Logger) gin.HandlerFunc {
 	return ginzap.Ginzap(NewGinZapLogger(logger), time.RFC3339, true)
 }
 
-func NewZapRecoveryMiddleware(logger Logger) gin.HandlerFunc {
+func NewRecoveryMiddleware(logger Logger) gin.HandlerFunc {
 	return ginzap.RecoveryWithZap(NewGinZapLogger(logger), true)
+}
+
+func NewZapLoggerMiddleware(logger ginzap.ZapLogger) gin.HandlerFunc {
+	return ginzap.Ginzap(logger, time.RFC3339, true)
+}
+
+func NewZapRecoveryMiddleware(logger ginzap.ZapLogger) gin.HandlerFunc {
+	return ginzap.RecoveryWithZap(logger, true)
 }
