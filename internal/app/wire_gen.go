@@ -7,6 +7,7 @@
 package app
 
 import (
+	"github.com/tbxark/go-base-api/config"
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
 	"github.com/tbxark/go-base-api/internal/biz/task"
@@ -19,18 +20,28 @@ import (
 
 // Injectors from wire.go:
 
-func NewApplication(_api *api.Config, _dash *dash.Config, _dao *client.Config, _wx *wechat.Config, _cdn *qiniu.Config) (*Application, error) {
-	entClient, err := client.NewDbClient(_dao)
+func NewApplication(cfg *config.Config) (*Application, error) {
+	dashConfig := cfg.Dash
+	clientConfig := cfg.Database
+	entClient, err := client.NewDbClient(clientConfig)
 	if err != nil {
 		return nil, err
 	}
 	database := dao.NewDatabase(entClient)
-	wechatWechat := wechat.NewWechat(_wx)
-	qiniuQiniu := qiniu.NewQiniu(_cdn)
-	cache := memory.NewMemoryCache()
-	web := dash.NewWebServer(_dash, database, wechatWechat, qiniuQiniu, cache)
-	apiWeb := api.NewWebServer(_api, database, wechatWechat, qiniuQiniu, cache)
+	wechatConfig := cfg.WxMini
+	wechatWechat := wechat.NewWechat(wechatConfig)
+	qiniuConfig := cfg.CDN
+	qiniuQiniu := qiniu.NewQiniu(qiniuConfig)
+	int2 := _wireIntValue
+	cache := memory.NewMemoryCache(int2)
+	web := dash.NewWebServer(dashConfig, database, wechatWechat, qiniuQiniu, cache)
+	apiConfig := cfg.API
+	apiWeb := api.NewWebServer(apiConfig, database, wechatWechat, qiniuQiniu, cache)
 	initialize := task.NewInitialize(database)
 	application := CreateApplication(web, apiWeb, initialize)
 	return application, nil
 }
+
+var (
+	_wireIntValue = 10 * 1024 * 1024
+)

@@ -57,7 +57,7 @@ func Run(conf *config.Config) error {
 	log.Init(conf.Log, field.String("version", config.BuildVersion))
 	defer log.Sync()
 	gin.SetMode(conf.System.GinMode)
-	app, err := NewApplication(conf.API, conf.Dash, conf.Database, conf.WxMini, conf.CDN)
+	app, err := NewApplication(conf)
 	if err != nil {
 		return err
 	}

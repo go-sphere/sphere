@@ -12,6 +12,7 @@ import (
 
 var cacheSet = wire.NewSet(
 	memory.NewMemoryCache,
+	wire.Value(10*1024*1024),
 	wire.Bind(new(cache.ByteCache), new(*memory.Cache)),
 )
 
