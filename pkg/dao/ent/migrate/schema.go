@@ -14,6 +14,8 @@ var (
 		{Name: "created_at", Type: field.TypeInt64, Nullable: true},
 		{Name: "updated_at", Type: field.TypeInt64, Nullable: true},
 		{Name: "username", Type: field.TypeString, Unique: true},
+		{Name: "nickname", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "avatar", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "password", Type: field.TypeString},
 		{Name: "roles", Type: field.TypeJSON},
 	}

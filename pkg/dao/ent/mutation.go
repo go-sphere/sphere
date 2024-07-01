@@ -43,6 +43,8 @@ type AdminMutation struct {
 	updated_at    *int64
 	addupdated_at *int64
 	username      *string
+	nickname      *string
+	avatar        *string
 	password      *string
 	roles         *[]string
 	appendroles   []string
@@ -326,6 +328,104 @@ func (m *AdminMutation) ResetUsername() {
 	m.username = nil
 }
 
+// SetNickname sets the "nickname" field.
+func (m *AdminMutation) SetNickname(s string) {
+	m.nickname = &s
+}
+
+// Nickname returns the value of the "nickname" field in the mutation.
+func (m *AdminMutation) Nickname() (r string, exists bool) {
+	v := m.nickname
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNickname returns the old "nickname" field's value of the Admin entity.
+// If the Admin object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminMutation) OldNickname(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNickname is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNickname requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNickname: %w", err)
+	}
+	return oldValue.Nickname, nil
+}
+
+// ClearNickname clears the value of the "nickname" field.
+func (m *AdminMutation) ClearNickname() {
+	m.nickname = nil
+	m.clearedFields[admin.FieldNickname] = struct{}{}
+}
+
+// NicknameCleared returns if the "nickname" field was cleared in this mutation.
+func (m *AdminMutation) NicknameCleared() bool {
+	_, ok := m.clearedFields[admin.FieldNickname]
+	return ok
+}
+
+// ResetNickname resets all changes to the "nickname" field.
+func (m *AdminMutation) ResetNickname() {
+	m.nickname = nil
+	delete(m.clearedFields, admin.FieldNickname)
+}
+
+// SetAvatar sets the "avatar" field.
+func (m *AdminMutation) SetAvatar(s string) {
+	m.avatar = &s
+}
+
+// Avatar returns the value of the "avatar" field in the mutation.
+func (m *AdminMutation) Avatar() (r string, exists bool) {
+	v := m.avatar
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAvatar returns the old "avatar" field's value of the Admin entity.
+// If the Admin object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminMutation) OldAvatar(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAvatar is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAvatar requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAvatar: %w", err)
+	}
+	return oldValue.Avatar, nil
+}
+
+// ClearAvatar clears the value of the "avatar" field.
+func (m *AdminMutation) ClearAvatar() {
+	m.avatar = nil
+	m.clearedFields[admin.FieldAvatar] = struct{}{}
+}
+
+// AvatarCleared returns if the "avatar" field was cleared in this mutation.
+func (m *AdminMutation) AvatarCleared() bool {
+	_, ok := m.clearedFields[admin.FieldAvatar]
+	return ok
+}
+
+// ResetAvatar resets all changes to the "avatar" field.
+func (m *AdminMutation) ResetAvatar() {
+	m.avatar = nil
+	delete(m.clearedFields, admin.FieldAvatar)
+}
+
 // SetPassword sets the "password" field.
 func (m *AdminMutation) SetPassword(s string) {
 	m.password = &s
@@ -447,7 +547,7 @@ func (m *AdminMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AdminMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 7)
 	if m.created_at != nil {
 		fields = append(fields, admin.FieldCreatedAt)
 	}
@@ -456,6 +556,12 @@ func (m *AdminMutation) Fields() []string {
 	}
 	if m.username != nil {
 		fields = append(fields, admin.FieldUsername)
+	}
+	if m.nickname != nil {
+		fields = append(fields, admin.FieldNickname)
+	}
+	if m.avatar != nil {
+		fields = append(fields, admin.FieldAvatar)
 	}
 	if m.password != nil {
 		fields = append(fields, admin.FieldPassword)
@@ -477,6 +583,10 @@ func (m *AdminMutation) Field(name string) (ent.Value, bool) {
 		return m.UpdatedAt()
 	case admin.FieldUsername:
 		return m.Username()
+	case admin.FieldNickname:
+		return m.Nickname()
+	case admin.FieldAvatar:
+		return m.Avatar()
 	case admin.FieldPassword:
 		return m.Password()
 	case admin.FieldRoles:
@@ -496,6 +606,10 @@ func (m *AdminMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldUpdatedAt(ctx)
 	case admin.FieldUsername:
 		return m.OldUsername(ctx)
+	case admin.FieldNickname:
+		return m.OldNickname(ctx)
+	case admin.FieldAvatar:
+		return m.OldAvatar(ctx)
 	case admin.FieldPassword:
 		return m.OldPassword(ctx)
 	case admin.FieldRoles:
@@ -529,6 +643,20 @@ func (m *AdminMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUsername(v)
+		return nil
+	case admin.FieldNickname:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNickname(v)
+		return nil
+	case admin.FieldAvatar:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAvatar(v)
 		return nil
 	case admin.FieldPassword:
 		v, ok := value.(string)
@@ -607,6 +735,12 @@ func (m *AdminMutation) ClearedFields() []string {
 	if m.FieldCleared(admin.FieldUpdatedAt) {
 		fields = append(fields, admin.FieldUpdatedAt)
 	}
+	if m.FieldCleared(admin.FieldNickname) {
+		fields = append(fields, admin.FieldNickname)
+	}
+	if m.FieldCleared(admin.FieldAvatar) {
+		fields = append(fields, admin.FieldAvatar)
+	}
 	return fields
 }
 
@@ -627,6 +761,12 @@ func (m *AdminMutation) ClearField(name string) error {
 	case admin.FieldUpdatedAt:
 		m.ClearUpdatedAt()
 		return nil
+	case admin.FieldNickname:
+		m.ClearNickname()
+		return nil
+	case admin.FieldAvatar:
+		m.ClearAvatar()
+		return nil
 	}
 	return fmt.Errorf("unknown Admin nullable field %s", name)
 }
@@ -643,6 +783,12 @@ func (m *AdminMutation) ResetField(name string) error {
 		return nil
 	case admin.FieldUsername:
 		m.ResetUsername()
+		return nil
+	case admin.FieldNickname:
+		m.ResetNickname()
+		return nil
+	case admin.FieldAvatar:
+		m.ResetAvatar()
 		return nil
 	case admin.FieldPassword:
 		m.ResetPassword()

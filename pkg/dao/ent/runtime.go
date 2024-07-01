@@ -33,8 +33,16 @@ func init() {
 	adminDescUsername := adminFields[0].Descriptor()
 	// admin.UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	admin.UsernameValidator = adminDescUsername.Validators[0].(func(string) error)
+	// adminDescNickname is the schema descriptor for nickname field.
+	adminDescNickname := adminFields[1].Descriptor()
+	// admin.DefaultNickname holds the default value on creation for the nickname field.
+	admin.DefaultNickname = adminDescNickname.Default.(string)
+	// adminDescAvatar is the schema descriptor for avatar field.
+	adminDescAvatar := adminFields[2].Descriptor()
+	// admin.DefaultAvatar holds the default value on creation for the avatar field.
+	admin.DefaultAvatar = adminDescAvatar.Default.(string)
 	// adminDescRoles is the schema descriptor for roles field.
-	adminDescRoles := adminFields[2].Descriptor()
+	adminDescRoles := adminFields[4].Descriptor()
 	// admin.DefaultRoles holds the default value on creation for the roles field.
 	admin.DefaultRoles = adminDescRoles.Default.([]string)
 	keyvaluestoreMixin := schema.KeyValueStore{}.Mixin()

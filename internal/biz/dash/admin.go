@@ -8,8 +8,10 @@ import (
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/admin"
 	"github.com/tbxark/go-base-api/pkg/web"
+	"github.com/tbxark/go-base-api/pkg/web/auth/tokens"
 	"github.com/tbxark/go-base-api/pkg/web/model"
 	"strconv"
+	"time"
 )
 
 const WebPermissionAdmin = "admin"
@@ -34,8 +36,9 @@ func (w *Web) AdminList(ctx *gin.Context) (gin.H, error) {
 }
 
 type AdminEditRequest struct {
-	ID       int      `json:"id"`
+	Avatar   string   `json:"avatar"`
 	Username string   `json:"username"`
+	Nickname string   `json:"nickname"`
 	Password string   `json:"password"`
 	Roles    []string `json:"roles"`
 }
@@ -60,9 +63,12 @@ func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
 		return nil, model.NewHTTPError(400, "password is too short")
 	}
 	u, err := w.db.Admin.Create().
+		SetAvatar(req.Avatar).
 		SetUsername(req.Username).
+		SetNickname(req.Nickname).
 		SetPassword(req.Password).
-		SetRoles(req.Roles).Save(ctx)
+		SetRoles(req.Roles).
+		Save(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -79,14 +85,20 @@ func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
 // @Param Authorization header string true "Bearer token"
 // @Param admin body AdminEditRequest true "管理员信息"
 // @Success 200 {object} render.Admin
-// @Router /api/admin/update [post]
+// @Router /api/admin/update/{id} [post]
 func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
+	id, err := strconv.Atoi(ctx.Param("id"))
+	if err != nil {
+		return nil, err
+	}
 	var req AdminEditRequest
 	if err := ctx.BindJSON(&req); err != nil {
 		return nil, err
 	}
-	update := w.db.Admin.UpdateOneID(req.ID).
+	update := w.db.Admin.UpdateOneID(id).
+		SetAvatar(req.Avatar).
 		SetUsername(req.Username).
+		SetNickname(req.Nickname).
 		SetRoles(req.Roles)
 	if req.Password != "" {
 		update = update.SetPassword(encrypt.CryptPassword(req.Password))
@@ -134,7 +146,7 @@ func (w *Web) AdminDetail(ctx *gin.Context) (gin.H, error) {
 // @Param Authorization header string true "Bearer token"
 // @Param id path int true "管理员ID"
 // @Success 200 {object} model.MessageResponse
-// @Router /api/admin/delete/{id} [post]
+// @Router /api/admin/delete/{id} [delete]
 func (w *Web) AdminDelete(ctx *gin.Context) (*model.MessageResponse, error) {
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
@@ -164,8 +176,34 @@ type AdminLoginRequest struct {
 }
 
 type AdminLoginResponse struct {
-	Token      string   `json:"token"`
-	Permission []string `json:"permission"`
+	Avatar       string   `json:"avatar"`
+	Username     string   `json:"username"`
+	Nickname     string   `json:"nickname"`
+	Roles        []string `json:"roles"`
+	AccessToken  string   `json:"accessToken"`
+	RefreshToken string   `json:"refreshToken"`
+	Expires      string   `json:"expires"`
+}
+
+func (w *Web) createLoginResponse(u *ent.Admin) (*AdminLoginResponse, error) {
+	id := strconv.Itoa(u.ID)
+	token, err := w.token.GenerateSignedToken(id, u.Username, u.Roles...)
+	if err != nil {
+		return nil, err
+	}
+	refresh, err := w.token.GenerateRefreshToken(id)
+	if err != nil {
+		return nil, err
+	}
+	return &AdminLoginResponse{
+		Avatar:       u.Avatar,
+		Username:     u.Username,
+		Nickname:     u.Nickname,
+		Roles:        u.Roles,
+		AccessToken:  token.Token,
+		RefreshToken: refresh.Token,
+		Expires:      token.ExpiresAt.Format(time.DateTime),
+	}, nil
 }
 
 // AdminLogin
@@ -173,6 +211,7 @@ type AdminLoginResponse struct {
 // @Tags dashboard
 // @Accept json
 // @Produce json
+// @Param Authorization header string true "Bearer token"
 // @Param login body AdminLoginRequest true "登录信息"
 // @Success 200 {object} AdminLoginResponse
 // @Router /api/admin/login [post]
@@ -188,24 +227,61 @@ func (w *Web) AdminLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 	if !encrypt.IsPasswordMatch(req.Password, u.Password) {
 		return nil, model.NewHTTPError(400, "password not match")
 	}
-	token, err := w.token.GenerateSignedToken(strconv.Itoa(u.ID), u.Username, u.Roles...)
+	return w.createLoginResponse(u)
+}
+
+type AdminRefreshTokenRequest struct {
+	RefreshToken string `json:"refreshToken"`
+}
+
+type AdminRefreshTokenResponse struct {
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
+	Expires      string `json:"expires"`
+}
+
+// AdminRefreshToken
+// @Summary 刷新管理员Token
+// @Tags dashboard
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Bearer token"
+// @Param login body AdminRefreshTokenRequest true "刷新信息"
+// @Success 200 {object} AdminLoginResponse
+// @Router /api/admin/refresh [post]
+func (w *Web) AdminRefreshToken(ctx *gin.Context) (*AdminLoginResponse, error) {
+	var body AdminRefreshTokenRequest
+	if err := ctx.BindJSON(&body); err != nil {
+		return nil, err
+	}
+	claims, err := w.token.Validate(body.RefreshToken)
 	if err != nil {
 		return nil, err
 	}
-	return &AdminLoginResponse{
-		Token:      token.Token,
-		Permission: u.Roles,
-	}, nil
+	uid, ok := claims[tokens.SignedDetailsUidKey].(string)
+	if !ok {
+		return nil, model.NewHTTPError(400, "uid not found")
+	}
+	id, err := strconv.Atoi(uid)
+	if err != nil {
+		return nil, err
+	}
+	u, err := w.db.Admin.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return w.createLoginResponse(u)
 }
 
 func (w *Web) bindAdminAuthRoute(r gin.IRouter) {
 	r.POST("/api/admin/login", web.WithJson(w.AdminLogin))
+	r.POST("/api/admin/refresh-token", web.WithJson(w.AdminRefreshToken))
 }
 
 func (w *Web) bindAdminRoute(r gin.IRouter) {
 	r.GET("/api/admin/list", web.WithJson(w.AdminList))
 	r.POST("/api/admin/create", web.WithJson(w.AdminCreate))
-	r.POST("/api/admin/update", web.WithJson(w.AdminUpdate))
+	r.POST("/api/admin/update/:id", web.WithJson(w.AdminUpdate))
 	r.GET("/api/admin/detail/:id", web.WithJson(w.AdminDetail))
-	r.POST("/api/admin/delete/:id", web.WithJson(w.AdminDelete))
+	r.DELETE("/api/admin/delete/:id", web.WithJson(w.AdminDelete))
 }

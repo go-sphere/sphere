@@ -23,6 +23,10 @@ type Admin struct {
 	UpdatedAt int64 `json:"updated_at,omitempty"`
 	// 用户名
 	Username string `json:"username,omitempty"`
+	// 昵称
+	Nickname string `json:"nickname,omitempty"`
+	// 头像
+	Avatar string `json:"avatar,omitempty"`
 	// 密码
 	Password string `json:"-"`
 	// 权限
@@ -39,7 +43,7 @@ func (*Admin) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case admin.FieldID, admin.FieldCreatedAt, admin.FieldUpdatedAt:
 			values[i] = new(sql.NullInt64)
-		case admin.FieldUsername, admin.FieldPassword:
+		case admin.FieldUsername, admin.FieldNickname, admin.FieldAvatar, admin.FieldPassword:
 			values[i] = new(sql.NullString)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -79,6 +83,18 @@ func (a *Admin) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field username", values[i])
 			} else if value.Valid {
 				a.Username = value.String
+			}
+		case admin.FieldNickname:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field nickname", values[i])
+			} else if value.Valid {
+				a.Nickname = value.String
+			}
+		case admin.FieldAvatar:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field avatar", values[i])
+			} else if value.Valid {
+				a.Avatar = value.String
 			}
 		case admin.FieldPassword:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -138,6 +154,12 @@ func (a *Admin) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("username=")
 	builder.WriteString(a.Username)
+	builder.WriteString(", ")
+	builder.WriteString("nickname=")
+	builder.WriteString(a.Nickname)
+	builder.WriteString(", ")
+	builder.WriteString("avatar=")
+	builder.WriteString(a.Avatar)
 	builder.WriteString(", ")
 	builder.WriteString("password=<sensitive>")
 	builder.WriteString(", ")

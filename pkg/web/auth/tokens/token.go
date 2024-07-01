@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+const (
+	SignedDetailsUidKey = "uid"
+)
+
 type SignedDetails struct {
 	UID      string `json:"uid"`
 	Username string `json:"username"`
@@ -55,10 +59,11 @@ func (g *Generator) GenerateSignedToken(uid, username string, roles ...string) (
 	}, nil
 }
 
-func (g *Generator) GenerateRefreshToken() (*Token, error) {
+func (g *Generator) GenerateRefreshToken(uid string) (*Token, error) {
 
 	expiresAt := time.Now().Local().Add(g.SignedRefreshDuration)
 	refreshClaims := &SignedDetails{
+		UID: uid,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expiresAt.Unix(),
 		},

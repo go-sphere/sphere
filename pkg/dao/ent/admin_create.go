@@ -55,6 +55,34 @@ func (ac *AdminCreate) SetUsername(s string) *AdminCreate {
 	return ac
 }
 
+// SetNickname sets the "nickname" field.
+func (ac *AdminCreate) SetNickname(s string) *AdminCreate {
+	ac.mutation.SetNickname(s)
+	return ac
+}
+
+// SetNillableNickname sets the "nickname" field if the given value is not nil.
+func (ac *AdminCreate) SetNillableNickname(s *string) *AdminCreate {
+	if s != nil {
+		ac.SetNickname(*s)
+	}
+	return ac
+}
+
+// SetAvatar sets the "avatar" field.
+func (ac *AdminCreate) SetAvatar(s string) *AdminCreate {
+	ac.mutation.SetAvatar(s)
+	return ac
+}
+
+// SetNillableAvatar sets the "avatar" field if the given value is not nil.
+func (ac *AdminCreate) SetNillableAvatar(s *string) *AdminCreate {
+	if s != nil {
+		ac.SetAvatar(*s)
+	}
+	return ac
+}
+
 // SetPassword sets the "password" field.
 func (ac *AdminCreate) SetPassword(s string) *AdminCreate {
 	ac.mutation.SetPassword(s)
@@ -109,6 +137,14 @@ func (ac *AdminCreate) defaults() {
 	if _, ok := ac.mutation.UpdatedAt(); !ok {
 		v := admin.DefaultUpdatedAt()
 		ac.mutation.SetUpdatedAt(v)
+	}
+	if _, ok := ac.mutation.Nickname(); !ok {
+		v := admin.DefaultNickname
+		ac.mutation.SetNickname(v)
+	}
+	if _, ok := ac.mutation.Avatar(); !ok {
+		v := admin.DefaultAvatar
+		ac.mutation.SetAvatar(v)
 	}
 	if _, ok := ac.mutation.Roles(); !ok {
 		v := admin.DefaultRoles
@@ -170,6 +206,14 @@ func (ac *AdminCreate) createSpec() (*Admin, *sqlgraph.CreateSpec) {
 	if value, ok := ac.mutation.Username(); ok {
 		_spec.SetField(admin.FieldUsername, field.TypeString, value)
 		_node.Username = value
+	}
+	if value, ok := ac.mutation.Nickname(); ok {
+		_spec.SetField(admin.FieldNickname, field.TypeString, value)
+		_node.Nickname = value
+	}
+	if value, ok := ac.mutation.Avatar(); ok {
+		_spec.SetField(admin.FieldAvatar, field.TypeString, value)
+		_node.Avatar = value
 	}
 	if value, ok := ac.mutation.Password(); ok {
 		_spec.SetField(admin.FieldPassword, field.TypeString, value)
@@ -264,6 +308,42 @@ func (u *AdminUpsert) SetUsername(v string) *AdminUpsert {
 // UpdateUsername sets the "username" field to the value that was provided on create.
 func (u *AdminUpsert) UpdateUsername() *AdminUpsert {
 	u.SetExcluded(admin.FieldUsername)
+	return u
+}
+
+// SetNickname sets the "nickname" field.
+func (u *AdminUpsert) SetNickname(v string) *AdminUpsert {
+	u.Set(admin.FieldNickname, v)
+	return u
+}
+
+// UpdateNickname sets the "nickname" field to the value that was provided on create.
+func (u *AdminUpsert) UpdateNickname() *AdminUpsert {
+	u.SetExcluded(admin.FieldNickname)
+	return u
+}
+
+// ClearNickname clears the value of the "nickname" field.
+func (u *AdminUpsert) ClearNickname() *AdminUpsert {
+	u.SetNull(admin.FieldNickname)
+	return u
+}
+
+// SetAvatar sets the "avatar" field.
+func (u *AdminUpsert) SetAvatar(v string) *AdminUpsert {
+	u.Set(admin.FieldAvatar, v)
+	return u
+}
+
+// UpdateAvatar sets the "avatar" field to the value that was provided on create.
+func (u *AdminUpsert) UpdateAvatar() *AdminUpsert {
+	u.SetExcluded(admin.FieldAvatar)
+	return u
+}
+
+// ClearAvatar clears the value of the "avatar" field.
+func (u *AdminUpsert) ClearAvatar() *AdminUpsert {
+	u.SetNull(admin.FieldAvatar)
 	return u
 }
 
@@ -375,6 +455,48 @@ func (u *AdminUpsertOne) SetUsername(v string) *AdminUpsertOne {
 func (u *AdminUpsertOne) UpdateUsername() *AdminUpsertOne {
 	return u.Update(func(s *AdminUpsert) {
 		s.UpdateUsername()
+	})
+}
+
+// SetNickname sets the "nickname" field.
+func (u *AdminUpsertOne) SetNickname(v string) *AdminUpsertOne {
+	return u.Update(func(s *AdminUpsert) {
+		s.SetNickname(v)
+	})
+}
+
+// UpdateNickname sets the "nickname" field to the value that was provided on create.
+func (u *AdminUpsertOne) UpdateNickname() *AdminUpsertOne {
+	return u.Update(func(s *AdminUpsert) {
+		s.UpdateNickname()
+	})
+}
+
+// ClearNickname clears the value of the "nickname" field.
+func (u *AdminUpsertOne) ClearNickname() *AdminUpsertOne {
+	return u.Update(func(s *AdminUpsert) {
+		s.ClearNickname()
+	})
+}
+
+// SetAvatar sets the "avatar" field.
+func (u *AdminUpsertOne) SetAvatar(v string) *AdminUpsertOne {
+	return u.Update(func(s *AdminUpsert) {
+		s.SetAvatar(v)
+	})
+}
+
+// UpdateAvatar sets the "avatar" field to the value that was provided on create.
+func (u *AdminUpsertOne) UpdateAvatar() *AdminUpsertOne {
+	return u.Update(func(s *AdminUpsert) {
+		s.UpdateAvatar()
+	})
+}
+
+// ClearAvatar clears the value of the "avatar" field.
+func (u *AdminUpsertOne) ClearAvatar() *AdminUpsertOne {
+	return u.Update(func(s *AdminUpsert) {
+		s.ClearAvatar()
 	})
 }
 
@@ -656,6 +778,48 @@ func (u *AdminUpsertBulk) SetUsername(v string) *AdminUpsertBulk {
 func (u *AdminUpsertBulk) UpdateUsername() *AdminUpsertBulk {
 	return u.Update(func(s *AdminUpsert) {
 		s.UpdateUsername()
+	})
+}
+
+// SetNickname sets the "nickname" field.
+func (u *AdminUpsertBulk) SetNickname(v string) *AdminUpsertBulk {
+	return u.Update(func(s *AdminUpsert) {
+		s.SetNickname(v)
+	})
+}
+
+// UpdateNickname sets the "nickname" field to the value that was provided on create.
+func (u *AdminUpsertBulk) UpdateNickname() *AdminUpsertBulk {
+	return u.Update(func(s *AdminUpsert) {
+		s.UpdateNickname()
+	})
+}
+
+// ClearNickname clears the value of the "nickname" field.
+func (u *AdminUpsertBulk) ClearNickname() *AdminUpsertBulk {
+	return u.Update(func(s *AdminUpsert) {
+		s.ClearNickname()
+	})
+}
+
+// SetAvatar sets the "avatar" field.
+func (u *AdminUpsertBulk) SetAvatar(v string) *AdminUpsertBulk {
+	return u.Update(func(s *AdminUpsert) {
+		s.SetAvatar(v)
+	})
+}
+
+// UpdateAvatar sets the "avatar" field to the value that was provided on create.
+func (u *AdminUpsertBulk) UpdateAvatar() *AdminUpsertBulk {
+	return u.Update(func(s *AdminUpsert) {
+		s.UpdateAvatar()
+	})
+}
+
+// ClearAvatar clears the value of the "avatar" field.
+func (u *AdminUpsertBulk) ClearAvatar() *AdminUpsertBulk {
+	return u.Update(func(s *AdminUpsert) {
+		s.ClearAvatar()
 	})
 }
 

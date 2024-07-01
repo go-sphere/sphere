@@ -17,6 +17,10 @@ const (
 	FieldUpdatedAt = "updated_at"
 	// FieldUsername holds the string denoting the username field in the database.
 	FieldUsername = "username"
+	// FieldNickname holds the string denoting the nickname field in the database.
+	FieldNickname = "nickname"
+	// FieldAvatar holds the string denoting the avatar field in the database.
+	FieldAvatar = "avatar"
 	// FieldPassword holds the string denoting the password field in the database.
 	FieldPassword = "password"
 	// FieldRoles holds the string denoting the roles field in the database.
@@ -31,6 +35,8 @@ var Columns = []string{
 	FieldCreatedAt,
 	FieldUpdatedAt,
 	FieldUsername,
+	FieldNickname,
+	FieldAvatar,
 	FieldPassword,
 	FieldRoles,
 }
@@ -54,6 +60,10 @@ var (
 	UpdateDefaultUpdatedAt func() int64
 	// UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	UsernameValidator func(string) error
+	// DefaultNickname holds the default value on creation for the "nickname" field.
+	DefaultNickname string
+	// DefaultAvatar holds the default value on creation for the "avatar" field.
+	DefaultAvatar string
 	// DefaultRoles holds the default value on creation for the "roles" field.
 	DefaultRoles []string
 )
@@ -79,6 +89,16 @@ func ByUpdatedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByUsername orders the results by the username field.
 func ByUsername(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUsername, opts...).ToFunc()
+}
+
+// ByNickname orders the results by the nickname field.
+func ByNickname(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldNickname, opts...).ToFunc()
+}
+
+// ByAvatar orders the results by the avatar field.
+func ByAvatar(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAvatar, opts...).ToFunc()
 }
 
 // ByPassword orders the results by the password field.

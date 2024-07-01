@@ -62,6 +62,46 @@ func (au *AdminUpdate) SetNillableUsername(s *string) *AdminUpdate {
 	return au
 }
 
+// SetNickname sets the "nickname" field.
+func (au *AdminUpdate) SetNickname(s string) *AdminUpdate {
+	au.mutation.SetNickname(s)
+	return au
+}
+
+// SetNillableNickname sets the "nickname" field if the given value is not nil.
+func (au *AdminUpdate) SetNillableNickname(s *string) *AdminUpdate {
+	if s != nil {
+		au.SetNickname(*s)
+	}
+	return au
+}
+
+// ClearNickname clears the value of the "nickname" field.
+func (au *AdminUpdate) ClearNickname() *AdminUpdate {
+	au.mutation.ClearNickname()
+	return au
+}
+
+// SetAvatar sets the "avatar" field.
+func (au *AdminUpdate) SetAvatar(s string) *AdminUpdate {
+	au.mutation.SetAvatar(s)
+	return au
+}
+
+// SetNillableAvatar sets the "avatar" field if the given value is not nil.
+func (au *AdminUpdate) SetNillableAvatar(s *string) *AdminUpdate {
+	if s != nil {
+		au.SetAvatar(*s)
+	}
+	return au
+}
+
+// ClearAvatar clears the value of the "avatar" field.
+func (au *AdminUpdate) ClearAvatar() *AdminUpdate {
+	au.mutation.ClearAvatar()
+	return au
+}
+
 // SetPassword sets the "password" field.
 func (au *AdminUpdate) SetPassword(s string) *AdminUpdate {
 	au.mutation.SetPassword(s)
@@ -172,6 +212,18 @@ func (au *AdminUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if value, ok := au.mutation.Username(); ok {
 		_spec.SetField(admin.FieldUsername, field.TypeString, value)
 	}
+	if value, ok := au.mutation.Nickname(); ok {
+		_spec.SetField(admin.FieldNickname, field.TypeString, value)
+	}
+	if au.mutation.NicknameCleared() {
+		_spec.ClearField(admin.FieldNickname, field.TypeString)
+	}
+	if value, ok := au.mutation.Avatar(); ok {
+		_spec.SetField(admin.FieldAvatar, field.TypeString, value)
+	}
+	if au.mutation.AvatarCleared() {
+		_spec.ClearField(admin.FieldAvatar, field.TypeString)
+	}
 	if value, ok := au.mutation.Password(); ok {
 		_spec.SetField(admin.FieldPassword, field.TypeString, value)
 	}
@@ -235,6 +287,46 @@ func (auo *AdminUpdateOne) SetNillableUsername(s *string) *AdminUpdateOne {
 	if s != nil {
 		auo.SetUsername(*s)
 	}
+	return auo
+}
+
+// SetNickname sets the "nickname" field.
+func (auo *AdminUpdateOne) SetNickname(s string) *AdminUpdateOne {
+	auo.mutation.SetNickname(s)
+	return auo
+}
+
+// SetNillableNickname sets the "nickname" field if the given value is not nil.
+func (auo *AdminUpdateOne) SetNillableNickname(s *string) *AdminUpdateOne {
+	if s != nil {
+		auo.SetNickname(*s)
+	}
+	return auo
+}
+
+// ClearNickname clears the value of the "nickname" field.
+func (auo *AdminUpdateOne) ClearNickname() *AdminUpdateOne {
+	auo.mutation.ClearNickname()
+	return auo
+}
+
+// SetAvatar sets the "avatar" field.
+func (auo *AdminUpdateOne) SetAvatar(s string) *AdminUpdateOne {
+	auo.mutation.SetAvatar(s)
+	return auo
+}
+
+// SetNillableAvatar sets the "avatar" field if the given value is not nil.
+func (auo *AdminUpdateOne) SetNillableAvatar(s *string) *AdminUpdateOne {
+	if s != nil {
+		auo.SetAvatar(*s)
+	}
+	return auo
+}
+
+// ClearAvatar clears the value of the "avatar" field.
+func (auo *AdminUpdateOne) ClearAvatar() *AdminUpdateOne {
+	auo.mutation.ClearAvatar()
 	return auo
 }
 
@@ -377,6 +469,18 @@ func (auo *AdminUpdateOne) sqlSave(ctx context.Context) (_node *Admin, err error
 	}
 	if value, ok := auo.mutation.Username(); ok {
 		_spec.SetField(admin.FieldUsername, field.TypeString, value)
+	}
+	if value, ok := auo.mutation.Nickname(); ok {
+		_spec.SetField(admin.FieldNickname, field.TypeString, value)
+	}
+	if auo.mutation.NicknameCleared() {
+		_spec.ClearField(admin.FieldNickname, field.TypeString)
+	}
+	if value, ok := auo.mutation.Avatar(); ok {
+		_spec.SetField(admin.FieldAvatar, field.TypeString, value)
+	}
+	if auo.mutation.AvatarCleared() {
+		_spec.ClearField(admin.FieldAvatar, field.TypeString)
 	}
 	if value, ok := auo.mutation.Password(); ok {
 		_spec.SetField(admin.FieldPassword, field.TypeString, value)

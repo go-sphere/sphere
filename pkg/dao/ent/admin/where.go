@@ -67,6 +67,16 @@ func Username(v string) predicate.Admin {
 	return predicate.Admin(sql.FieldEQ(FieldUsername, v))
 }
 
+// Nickname applies equality check predicate on the "nickname" field. It's identical to NicknameEQ.
+func Nickname(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldEQ(FieldNickname, v))
+}
+
+// Avatar applies equality check predicate on the "avatar" field. It's identical to AvatarEQ.
+func Avatar(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldEQ(FieldAvatar, v))
+}
+
 // Password applies equality check predicate on the "password" field. It's identical to PasswordEQ.
 func Password(v string) predicate.Admin {
 	return predicate.Admin(sql.FieldEQ(FieldPassword, v))
@@ -235,6 +245,156 @@ func UsernameEqualFold(v string) predicate.Admin {
 // UsernameContainsFold applies the ContainsFold predicate on the "username" field.
 func UsernameContainsFold(v string) predicate.Admin {
 	return predicate.Admin(sql.FieldContainsFold(FieldUsername, v))
+}
+
+// NicknameEQ applies the EQ predicate on the "nickname" field.
+func NicknameEQ(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldEQ(FieldNickname, v))
+}
+
+// NicknameNEQ applies the NEQ predicate on the "nickname" field.
+func NicknameNEQ(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldNEQ(FieldNickname, v))
+}
+
+// NicknameIn applies the In predicate on the "nickname" field.
+func NicknameIn(vs ...string) predicate.Admin {
+	return predicate.Admin(sql.FieldIn(FieldNickname, vs...))
+}
+
+// NicknameNotIn applies the NotIn predicate on the "nickname" field.
+func NicknameNotIn(vs ...string) predicate.Admin {
+	return predicate.Admin(sql.FieldNotIn(FieldNickname, vs...))
+}
+
+// NicknameGT applies the GT predicate on the "nickname" field.
+func NicknameGT(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldGT(FieldNickname, v))
+}
+
+// NicknameGTE applies the GTE predicate on the "nickname" field.
+func NicknameGTE(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldGTE(FieldNickname, v))
+}
+
+// NicknameLT applies the LT predicate on the "nickname" field.
+func NicknameLT(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldLT(FieldNickname, v))
+}
+
+// NicknameLTE applies the LTE predicate on the "nickname" field.
+func NicknameLTE(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldLTE(FieldNickname, v))
+}
+
+// NicknameContains applies the Contains predicate on the "nickname" field.
+func NicknameContains(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldContains(FieldNickname, v))
+}
+
+// NicknameHasPrefix applies the HasPrefix predicate on the "nickname" field.
+func NicknameHasPrefix(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldHasPrefix(FieldNickname, v))
+}
+
+// NicknameHasSuffix applies the HasSuffix predicate on the "nickname" field.
+func NicknameHasSuffix(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldHasSuffix(FieldNickname, v))
+}
+
+// NicknameIsNil applies the IsNil predicate on the "nickname" field.
+func NicknameIsNil() predicate.Admin {
+	return predicate.Admin(sql.FieldIsNull(FieldNickname))
+}
+
+// NicknameNotNil applies the NotNil predicate on the "nickname" field.
+func NicknameNotNil() predicate.Admin {
+	return predicate.Admin(sql.FieldNotNull(FieldNickname))
+}
+
+// NicknameEqualFold applies the EqualFold predicate on the "nickname" field.
+func NicknameEqualFold(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldEqualFold(FieldNickname, v))
+}
+
+// NicknameContainsFold applies the ContainsFold predicate on the "nickname" field.
+func NicknameContainsFold(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldContainsFold(FieldNickname, v))
+}
+
+// AvatarEQ applies the EQ predicate on the "avatar" field.
+func AvatarEQ(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldEQ(FieldAvatar, v))
+}
+
+// AvatarNEQ applies the NEQ predicate on the "avatar" field.
+func AvatarNEQ(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldNEQ(FieldAvatar, v))
+}
+
+// AvatarIn applies the In predicate on the "avatar" field.
+func AvatarIn(vs ...string) predicate.Admin {
+	return predicate.Admin(sql.FieldIn(FieldAvatar, vs...))
+}
+
+// AvatarNotIn applies the NotIn predicate on the "avatar" field.
+func AvatarNotIn(vs ...string) predicate.Admin {
+	return predicate.Admin(sql.FieldNotIn(FieldAvatar, vs...))
+}
+
+// AvatarGT applies the GT predicate on the "avatar" field.
+func AvatarGT(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldGT(FieldAvatar, v))
+}
+
+// AvatarGTE applies the GTE predicate on the "avatar" field.
+func AvatarGTE(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldGTE(FieldAvatar, v))
+}
+
+// AvatarLT applies the LT predicate on the "avatar" field.
+func AvatarLT(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldLT(FieldAvatar, v))
+}
+
+// AvatarLTE applies the LTE predicate on the "avatar" field.
+func AvatarLTE(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldLTE(FieldAvatar, v))
+}
+
+// AvatarContains applies the Contains predicate on the "avatar" field.
+func AvatarContains(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldContains(FieldAvatar, v))
+}
+
+// AvatarHasPrefix applies the HasPrefix predicate on the "avatar" field.
+func AvatarHasPrefix(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldHasPrefix(FieldAvatar, v))
+}
+
+// AvatarHasSuffix applies the HasSuffix predicate on the "avatar" field.
+func AvatarHasSuffix(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldHasSuffix(FieldAvatar, v))
+}
+
+// AvatarIsNil applies the IsNil predicate on the "avatar" field.
+func AvatarIsNil() predicate.Admin {
+	return predicate.Admin(sql.FieldIsNull(FieldAvatar))
+}
+
+// AvatarNotNil applies the NotNil predicate on the "avatar" field.
+func AvatarNotNil() predicate.Admin {
+	return predicate.Admin(sql.FieldNotNull(FieldAvatar))
+}
+
+// AvatarEqualFold applies the EqualFold predicate on the "avatar" field.
+func AvatarEqualFold(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldEqualFold(FieldAvatar, v))
+}
+
+// AvatarContainsFold applies the ContainsFold predicate on the "avatar" field.
+func AvatarContainsFold(v string) predicate.Admin {
+	return predicate.Admin(sql.FieldContainsFold(FieldAvatar, v))
 }
 
 // PasswordEQ applies the EQ predicate on the "password" field.

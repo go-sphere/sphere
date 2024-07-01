@@ -55,7 +55,8 @@ func WithJson[T any](handler func(ctx *gin.Context) (T, error)) func(ctx *gin.Co
 			ResponseJsonError(ctx, err)
 		} else {
 			ctx.JSON(200, gin.H{
-				"data": data,
+				"success": true,
+				"data":    data,
 			})
 		}
 	}
