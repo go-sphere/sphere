@@ -14,55 +14,68 @@ type SignedDetails struct {
 	jwt.StandardClaims
 }
 
+type Token struct {
+	Token     string
+	ExpiresAt time.Time
+}
+
 type Generator struct {
 	secretKey             []byte
 	SignedTokenDuration   time.Duration
 	SignedRefreshDuration time.Duration
 }
 
-func NewTokenGenerator(secretKey string, signedTokenDuration time.Duration, signedRefreshDuration time.Duration) *Generator {
+func NewTokenGenerator(secretKey string) *Generator {
 	return &Generator{
 		secretKey:             []byte(secretKey),
-		SignedTokenDuration:   signedTokenDuration,
-		SignedRefreshDuration: signedRefreshDuration,
+		SignedTokenDuration:   time.Hour * 24,
+		SignedRefreshDuration: time.Hour * 24 * 7,
 	}
 }
 
-func (g *Generator) GenerateSignedToken(uid, username string, roles ...string) (string, error) {
+func (g *Generator) GenerateSignedToken(uid, username string, roles ...string) (*Token, error) {
+	expiresAt := time.Now().Local().Add(g.SignedTokenDuration)
 	claims := &SignedDetails{
 		UID:      uid,
 		Username: username,
-		Roles:    strings.Join(roles, ","),
+		Roles:    g.GenRolesString(roles),
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Local().Add(g.SignedTokenDuration).Unix(),
+			ExpiresAt: expiresAt.Unix(),
 		},
 	}
 
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(g.secretKey)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return token, nil
+	return &Token{
+		Token:     token,
+		ExpiresAt: expiresAt,
+	}, nil
 }
 
-func (g *Generator) GenerateRefreshToken() (string, error) {
+func (g *Generator) GenerateRefreshToken() (*Token, error) {
 
+	expiresAt := time.Now().Local().Add(g.SignedRefreshDuration)
 	refreshClaims := &SignedDetails{
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Local().Add(g.SignedRefreshDuration).Unix(),
+			ExpiresAt: expiresAt.Unix(),
 		},
 	}
 
 	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString(g.secretKey)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return refreshToken, nil
+	return &Token{
+		Token:     refreshToken,
+		ExpiresAt: expiresAt,
+	}, nil
 }
 
-func (g *Generator) Validate(signedToken string) (claims *SignedDetails, err error) {
+func (g *Generator) Validate(signedToken string) (map[string]any, error) {
 	token, err := jwt.ParseWithClaims(signedToken, &SignedDetails{}, func(token *jwt.Token) (interface{}, error) {
 		return g.secretKey, nil
 	})
@@ -82,5 +95,22 @@ func (g *Generator) Validate(signedToken string) (claims *SignedDetails, err err
 		return nil, fmt.Errorf("token is expired")
 	}
 
-	return claims, nil
+	var res = make(map[string]any)
+	res["uid"] = claims.UID
+	res["username"] = claims.Username
+	res["roles"] = claims.Roles
+	res["exp"] = claims.ExpiresAt
+	return res, nil
+}
+
+func (g *Generator) GenRolesString(roles []string) string {
+	return strings.Join(roles, ",")
+}
+
+func (g *Generator) ParseRolesString(roles string) map[string]struct{} {
+	roleMap := make(map[string]struct{})
+	for _, r := range strings.Split(roles, ",") {
+		roleMap[r] = struct{}{}
+	}
+	return roleMap
 }

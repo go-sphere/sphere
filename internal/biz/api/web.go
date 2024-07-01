@@ -8,6 +8,7 @@ import (
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
 	"github.com/tbxark/go-base-api/pkg/qniu"
+	"github.com/tbxark/go-base-api/pkg/web/auth/tokens"
 	"github.com/tbxark/go-base-api/pkg/web/middleware"
 	"github.com/tbxark/go-base-api/pkg/wechat"
 	"golang.org/x/sync/singleflight"
@@ -30,10 +31,12 @@ type Web struct {
 	cdn    *qniu.CDN
 	cache  cache.ByteCache
 	render *render.Render
+	token  *tokens.Generator
 	auth   *middleware.JwtAuth
 }
 
 func NewWebServer(config *Config, db *dao.Database, wx *wechat.Wechat, cdn *qniu.CDN, cache cache.ByteCache) *Web {
+	token := tokens.NewTokenGenerator(config.JWT)
 	return &Web{
 		config: config,
 		gin:    gin.New(),
@@ -42,7 +45,8 @@ func NewWebServer(config *Config, db *dao.Database, wx *wechat.Wechat, cdn *qniu
 		cdn:    cdn,
 		cache:  cache,
 		render: render.NewRender(cdn, db, true),
-		auth:   middleware.NewJwtAuth(config.JWT),
+		token:  token,
+		auth:   middleware.NewJwtAuth(token),
 	}
 }
 

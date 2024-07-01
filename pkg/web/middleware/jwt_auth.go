@@ -2,27 +2,30 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/pkg/web/auth/tokens"
 	"net/http"
 	"strconv"
-	"time"
 )
 
 const (
-	ContextKeyID        = "id"
+	ContextKeyID        = "uid"
 	ContextKeyUsername  = "username"
 	ContextKeyRoles     = "roles"
 	AuthorizationHeader = "Authorization"
 	AllPermissionRole   = "all"
 )
 
-type JwtAuth struct {
-	Generator *tokens.Generator
+type JwtValidator interface {
+	Validate(token string) (map[string]any, error)
+	ParseRolesString(roles string) map[string]struct{}
 }
 
-func NewJwtAuth(key string) *JwtAuth {
+type JwtAuth struct {
+	validator JwtValidator
+}
+
+func NewJwtAuth(validators JwtValidator) *JwtAuth {
 	return &JwtAuth{
-		Generator: tokens.NewTokenGenerator(key, time.Hour*24, time.Hour*24*7),
+		validator: validators,
 	}
 }
 
@@ -77,11 +80,12 @@ func (w *JwtAuth) CheckAuthPermission(ctx *gin.Context, permission string) error
 	if !exist {
 		return PermissionError
 	}
-	permissions := permissionList.([]any)
-	for _, p := range permissions {
-		if p == permission || p == AllPermissionRole {
-			return nil
-		}
+	permissions := permissionList.(map[string]struct{})
+	if _, o := permissions[AllPermissionRole]; o {
+		return nil
+	}
+	if _, o := permissions[permission]; o {
+		return nil
 	}
 	return PermissionError
 }
@@ -101,19 +105,30 @@ func (w *JwtAuth) NewJwtAuthMiddleware(abortOnError bool) func(ctx *gin.Context)
 			abort()
 			return
 		}
-		claims, err := w.Generator.Validate(token)
+		claims, err := w.validator.Validate(token)
 		if err != nil {
 			abort()
 			return
 		}
-		id, err := strconv.Atoi(claims.UID)
+		stringLoader := func(key string) string {
+			v, e := claims[key]
+			if !e {
+				return ""
+			}
+			s, e := v.(string)
+			if !e {
+				return ""
+			}
+			return s
+		}
+		id, err := strconv.Atoi(stringLoader(ContextKeyID))
 		if err != nil {
 			abort()
 			return
 		}
 		ctx.Set(ContextKeyID, id)
-		ctx.Set(ContextKeyUsername, claims.Username)
-		ctx.Set(ContextKeyRoles, claims.Roles)
+		ctx.Set(ContextKeyUsername, stringLoader(ContextKeyUsername))
+		ctx.Set(ContextKeyRoles, w.validator.ParseRolesString(stringLoader(ContextKeyRoles)))
 	}
 }
 

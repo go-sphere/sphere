@@ -84,10 +84,11 @@ func (w *Web) WxMiniAuth(ctx *gin.Context) (*AuthResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	res.Token, err = w.auth.Generator.GenerateSignedToken(strconv.Itoa(res.User.ID), consts.WechatMiniPlatform+":"+wxUser.OpenID)
+	token, err := w.token.GenerateSignedToken(strconv.Itoa(res.User.ID), consts.WechatMiniPlatform+":"+wxUser.OpenID)
 	if err != nil {
 		return nil, err
 	}
+	res.Token = token.Token
 	res.User = w.render.Me(res.User)
 	return res, nil
 }
