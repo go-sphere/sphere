@@ -2,7 +2,6 @@ package cache
 
 import (
 	"context"
-	"github.com/tbxark/go-base-api/pkg/cache/memory"
 	"time"
 )
 
@@ -16,7 +15,3 @@ type Cache[S any] interface {
 }
 
 type ByteCache Cache[[]byte]
-
-func NewCache() ByteCache {
-	return memory.NewMemoryCache(1024 * 1024 * 1024)
-}

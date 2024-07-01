@@ -3,7 +3,6 @@ package cdn
 import (
 	"context"
 	"github.com/tbxark/go-base-api/pkg/cdn/model"
-	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
 	"io"
 )
 
@@ -24,14 +23,4 @@ type Uploader interface {
 type CDN interface {
 	UrlParser
 	Uploader
-}
-
-// Config 修改这个结构体以更改要使用的CDN配置
-type Config struct {
-	*qiniu.Config
-}
-
-// NewCDN 修改这个函数的返回值以更改要使用的CDN实现
-func NewCDN(config *Config) CDN {
-	return qiniu.NewQiniu(config.Config)
 }

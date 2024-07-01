@@ -10,9 +10,9 @@ type Cache struct {
 	cache *freecache.Cache
 }
 
-func NewMemoryCache(size int) *Cache {
+func NewMemoryCache() *Cache {
 	return &Cache{
-		cache: freecache.NewCache(size),
+		cache: freecache.NewCache(10 * 1024 * 1024),
 	}
 }
 

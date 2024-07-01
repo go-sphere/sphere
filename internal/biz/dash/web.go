@@ -4,6 +4,8 @@ import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/go-base-api/assets"
+	"github.com/tbxark/go-base-api/pkg/web"
+
 	doc "github.com/tbxark/go-base-api/docs/dashboard"
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/internal/pkg/render"
@@ -11,7 +13,6 @@ import (
 	"github.com/tbxark/go-base-api/pkg/cdn"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
-	"github.com/tbxark/go-base-api/pkg/web"
 	"github.com/tbxark/go-base-api/pkg/web/auth/tokens"
 	"github.com/tbxark/go-base-api/pkg/web/middleware"
 	"github.com/tbxark/go-base-api/pkg/wechat"
