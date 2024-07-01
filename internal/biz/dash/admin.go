@@ -196,7 +196,7 @@ func (w *Web) createLoginResponse(u *ent.Admin) (*AdminLoginResponse, error) {
 		return nil, err
 	}
 	return &AdminLoginResponse{
-		Avatar:       w.cdn.RenderURLEx(u.Avatar, 512),
+		Avatar:       w.cdn.RenderImageURL(u.Avatar, 512),
 		Username:     u.Username,
 		Nickname:     u.Nickname,
 		Roles:        u.Roles,

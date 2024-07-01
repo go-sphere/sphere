@@ -4,8 +4,9 @@ import (
 	"context"
 	"github.com/spf13/cobra"
 	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/pkg/cdn"
+	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
 	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/qniu"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +15,7 @@ import (
 // cdnUploadCmd represents the upload command
 var cdnUploadCmd = &cobra.Command{
 	Use:   "upload",
-	Short: "Upload files to CDN",
+	Short: "Upload files to Qiniu",
 	Long:  `Upload files to Qiniu CDN.`,
 	Run:   runUpload,
 }
@@ -38,16 +39,16 @@ func runUpload(cmd *cobra.Command, args []string) {
 		log.Panicf("load config error: %v", err)
 	}
 
-	cdn := qniu.NewCDN(cfg.CDN)
+	upload := qiniu.NewCDN(cfg.CDN)
 	ctx := context.Background()
 	resBuf := strings.Builder{}
-	nameBuilder := qniu.KeepFileNameKeyBuilder()
+	nameBuilder := cdn.KeepFileNameKeyBuilder()
 	err = filepath.Walk(fileP, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
 		}
 		key := nameBuilder(info.Name(), dir)
-		ret, err := cdn.UploadLocalFile(ctx, path, key)
+		ret, err := upload.UploadLocalFile(ctx, path, key)
 		if err != nil {
 			log.Errorf("upload file error: %v", err)
 			return nil
@@ -55,7 +56,7 @@ func runUpload(cmd *cobra.Command, args []string) {
 		log.Debugf("upload file success: %s -> %s", path, ret.Key)
 		resBuf.WriteString(info.Name())
 		resBuf.WriteString("\n -> ")
-		resBuf.WriteString(cdn.RenderURL(ret.Key))
+		resBuf.WriteString(upload.RenderURL(ret.Key))
 		resBuf.WriteString("\n\n")
 		return nil
 	})

@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
 	"github.com/tbxark/go-base-api/pkg/dao/client"
 	"math/rand"
 	"os"
@@ -9,7 +10,6 @@ import (
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
 	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/qniu"
 	"github.com/tbxark/go-base-api/pkg/wechat"
 )
 
@@ -25,7 +25,7 @@ type Config struct {
 	Database *client.Config `json:"database"`
 	Dash     *dash.Config   `json:"dash"`
 	API      *api.Config    `json:"api"`
-	CDN      *qniu.Config   `json:"cdn"`
+	CDN      *qiniu.Config  `json:"cdn"`
 	WxMini   *wechat.Config `json:"wx_mini"`
 }
 
@@ -60,7 +60,7 @@ func NewEmptyConfig() *Config {
 			Address: "127.0.0.1:8899",
 			JWT:     randJWTPassword(),
 		},
-		CDN: &qniu.Config{
+		CDN: &qiniu.Config{
 			AccessKey: "",
 			SecretKey: "",
 			Bucket:    "",

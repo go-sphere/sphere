@@ -3,8 +3,9 @@ package cmd
 import (
 	"context"
 	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/pkg/cdn"
+	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
 	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/qniu"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,8 +17,8 @@ import (
 // cdnMigrateCmd represents the cdn command
 var cdnMigrateCmd = &cobra.Command{
 	Use:   "cdn-migrate",
-	Short: "CDN Migration Tools",
-	Long:  `Move files from one CDN to another CDN.`,
+	Short: "Qiniu Migration Tools",
+	Long:  `Move files from one qiniu bucket to another bucket.`,
 	Run:   runCDNMigrate,
 }
 
@@ -45,11 +46,11 @@ func runCDNMigrate(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}
-	cdn := qniu.NewCDN(cfg.CDN)
+	upload := qiniu.NewCDN(cfg.CDN)
 	list := strings.Split(string(file), "\n")
 	ctx := context.Background()
 	result := make(map[string]string, len(list))
-	nameBuilder := qniu.DefaultKeyBuilder("")
+	nameBuilder := cdn.DefaultKeyBuilder("")
 	for _, u := range list {
 		if _, exist := result[u]; exist {
 			continue
@@ -71,12 +72,12 @@ func runCDNMigrate(cmd *cobra.Command, args []string) {
 			log.Errorf("get file error: %v", e)
 			continue
 		}
-		ret, e := cdn.UploadFile(ctx, resp.Body, resp.ContentLength, key)
+		ret, e := upload.UploadFile(ctx, resp.Body, resp.ContentLength, key)
 		if e != nil {
 			log.Errorf("upload file error: %v", e)
 			continue
 		}
-		nu := cdn.RenderURL(ret.Key)
+		nu := upload.RenderURL(ret.Key)
 		result[u] = nu
 		log.Debugf("move file success: %s -> %s", u, nu)
 	}

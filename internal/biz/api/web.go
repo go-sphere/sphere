@@ -5,9 +5,9 @@ import (
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/internal/pkg/render"
 	"github.com/tbxark/go-base-api/pkg/cache"
+	"github.com/tbxark/go-base-api/pkg/cdn"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
-	"github.com/tbxark/go-base-api/pkg/qniu"
 	"github.com/tbxark/go-base-api/pkg/web/auth/tokens"
 	"github.com/tbxark/go-base-api/pkg/web/middleware"
 	"github.com/tbxark/go-base-api/pkg/wechat"
@@ -28,14 +28,14 @@ type Web struct {
 	sf     singleflight.Group
 	db     *dao.Database
 	wx     *wechat.Wechat
-	cdn    *qniu.CDN
+	cdn    cdn.CDN
 	cache  cache.ByteCache
 	render *render.Render
 	token  *tokens.Generator
 	auth   *middleware.JwtAuth
 }
 
-func NewWebServer(config *Config, db *dao.Database, wx *wechat.Wechat, cdn *qniu.CDN, cache cache.ByteCache) *Web {
+func NewWebServer(config *Config, db *dao.Database, wx *wechat.Wechat, cdn cdn.CDN, cache cache.ByteCache) *Web {
 	token := tokens.NewTokenGenerator(config.JWT)
 	return &Web{
 		config: config,
@@ -87,7 +87,7 @@ func (w *Web) uploadRemoteImage(ctx *gin.Context, url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	key = qniu.DefaultKeyBuilder(strconv.Itoa(id))(url, "user")
+	key = cdn.DefaultKeyBuilder(strconv.Itoa(id))(url, "user")
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err

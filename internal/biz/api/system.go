@@ -3,7 +3,7 @@ package api
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/pkg/qniu"
+	"github.com/tbxark/go-base-api/pkg/cdn"
 	"github.com/tbxark/go-base-api/pkg/web"
 	"strconv"
 )
@@ -15,7 +15,7 @@ import (
 // @Produce json
 // @Param Authorization header string true "Bearer token"
 // @Param filename query string true "文件名"
-// @Success 200 {object} qniu.UploadToken
+// @Success 200 {object} cdn.UploadToken
 // @Router /api/upload/token [get]
 func (w *Web) UploadToken(ctx *gin.Context) (gin.H, error) {
 	var req struct {
@@ -32,7 +32,7 @@ func (w *Web) UploadToken(ctx *gin.Context) (gin.H, error) {
 		return nil, err
 	}
 	return gin.H{
-		"token": w.cdn.GenUploadToken(req.Filename, "user", qniu.DefaultKeyBuilder(strconv.Itoa(id))),
+		"token": w.cdn.UploadToken(req.Filename, "user", cdn.DefaultKeyBuilder(strconv.Itoa(id))),
 	}, nil
 }
 

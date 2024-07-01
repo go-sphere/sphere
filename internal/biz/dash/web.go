@@ -8,9 +8,9 @@ import (
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/internal/pkg/render"
 	"github.com/tbxark/go-base-api/pkg/cache"
+	"github.com/tbxark/go-base-api/pkg/cdn"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
-	"github.com/tbxark/go-base-api/pkg/qniu"
 	"github.com/tbxark/go-base-api/pkg/web"
 	"github.com/tbxark/go-base-api/pkg/web/auth/tokens"
 	"github.com/tbxark/go-base-api/pkg/web/middleware"
@@ -31,14 +31,14 @@ type Web struct {
 	gin    *gin.Engine
 	db     *dao.Database
 	wx     *wechat.Wechat
-	cdn    *qniu.CDN
+	cdn    cdn.CDN
 	cache  cache.ByteCache
 	render *render.Render
 	token  *tokens.Generator
 	auth   *middleware.JwtAuth
 }
 
-func NewWebServer(config *Config, db *dao.Database, wx *wechat.Wechat, cdn *qniu.CDN, cache cache.ByteCache) *Web {
+func NewWebServer(config *Config, db *dao.Database, wx *wechat.Wechat, cdn cdn.CDN, cache cache.ByteCache) *Web {
 	token := tokens.NewTokenGenerator(config.JWT)
 	return &Web{
 		config: config,

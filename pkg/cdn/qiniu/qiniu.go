@@ -1,18 +1,17 @@
-package qniu
+package qiniu
 
 import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
-	"fmt"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
+	"github.com/tbxark/go-base-api/pkg/cdn"
 	"io"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type Config struct {
@@ -24,45 +23,12 @@ type Config struct {
 	Host      string `json:"host"`
 }
 
-type UploadResponse struct {
-	Key string `json:"key"`
-	URL string `json:"url"`
-}
-
-var (
-	ErrInvalidURL = fmt.Errorf("invalid url")
-)
-
-type UploadKeyBuilder func(fileName string, dir ...string) string
-
-func DefaultKeyBuilder(prefix string) UploadKeyBuilder {
-	return func(fileName string, dir ...string) string {
-		fileExt := path.Ext(fileName)
-		sum := md5.Sum([]byte(fileName))
-		nameMd5 := hex.EncodeToString(sum[:])
-		name := strconv.Itoa(int(time.Now().Unix())) + "_" + nameMd5 + fileExt
-		if prefix != "" {
-			name = prefix + "_" + name
-		}
-		return path.Join(path.Join(dir...), name)
-	}
-}
-
-func KeepFileNameKeyBuilder() UploadKeyBuilder {
-	return func(fileName string, dir ...string) string {
-		sum := md5.Sum([]byte(fileName))
-		nameMd5 := hex.EncodeToString(sum[:])
-		name := strconv.Itoa(int(time.Now().Unix())) + "_" + nameMd5
-		return path.Join(path.Join(dir...), name, fileName)
-	}
-}
-
-type CDN struct {
+type Qiniu struct {
 	mac    *qbox.Mac
 	config *Config
 }
 
-func NewCDN(config *Config) *CDN {
+func NewCDN(config *Config) cdn.CDN {
 	config.Domain = strings.TrimSuffix(config.Domain, "/")
 	if config.Host == "" {
 		u, err := url.Parse(config.Domain)
@@ -70,13 +36,13 @@ func NewCDN(config *Config) *CDN {
 			config.Host = u.Host
 		}
 	}
-	return &CDN{
+	return &Qiniu{
 		mac:    qbox.NewMac(config.AccessKey, config.SecretKey),
 		config: config,
 	}
 }
 
-func (n *CDN) RenderURL(key string) string {
+func (n *Qiniu) RenderURL(key string) string {
 	if key == "" {
 		return ""
 	}
@@ -90,7 +56,7 @@ func (n *CDN) RenderURL(key string) string {
 	return buf.String()
 }
 
-func (n *CDN) RenderURLEx(key string, width int) string {
+func (n *Qiniu) RenderImageURL(key string, width int) string {
 	// 判断是不是已经拼接了 ?imageView2 参数
 	if strings.Contains(key, "?imageView2") {
 		// 从URL中提取key
@@ -102,7 +68,7 @@ func (n *CDN) RenderURLEx(key string, width int) string {
 	return n.RenderURL(key) + "?imageView2/2/w/" + strconv.Itoa(width) + "/q/75"
 }
 
-func (n *CDN) RenderURLs(keys []string) []string {
+func (n *Qiniu) RenderURLs(keys []string) []string {
 	urls := make([]string, len(keys))
 	for i, key := range keys {
 		urls[i] = n.RenderURL(key)
@@ -110,7 +76,7 @@ func (n *CDN) RenderURLs(keys []string) []string {
 	return urls
 }
 
-func (n *CDN) KeyFromURLWithMode(uri string, strict bool) (string, error) {
+func (n *Qiniu) KeyFromURLWithMode(uri string, strict bool) (string, error) {
 	if uri == "" {
 		return "", nil
 	}
@@ -126,25 +92,19 @@ func (n *CDN) KeyFromURLWithMode(uri string, strict bool) (string, error) {
 	// 不是以CDN域名开头的直接返回或者报错
 	if u.Host != n.config.Host {
 		if strict {
-			return "", ErrInvalidURL
+			return "", cdn.ErrInvalidURL
 		}
 		return uri, nil
 	}
 	return strings.TrimPrefix(u.Path, "/"), nil
 }
 
-func (n *CDN) KeyFromURL(uri string) string {
+func (n *Qiniu) KeyFromURL(uri string) string {
 	key, _ := n.KeyFromURLWithMode(uri, true)
 	return key
 }
 
-type UploadToken struct {
-	Token string `json:"token"`
-	Key   string `json:"key"`
-	URL   string `json:"url"`
-}
-
-func (n *CDN) GenUploadToken(fileName string, dir string, nameBuilder UploadKeyBuilder) UploadToken {
+func (n *Qiniu) UploadToken(fileName string, dir string, nameBuilder cdn.UploadKeyBuilder) cdn.UploadToken {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
 	nameMd5 := hex.EncodeToString(sum[:])
@@ -155,14 +115,14 @@ func (n *CDN) GenUploadToken(fileName string, dir string, nameBuilder UploadKeyB
 		InsertOnly: 1,
 		MimeLimit:  "image/*;video/*",
 	}
-	return UploadToken{
+	return cdn.UploadToken{
 		Token: put.UploadToken(n.mac),
 		Key:   key,
 		URL:   n.RenderURL(key),
 	}
 }
 
-func (n *CDN) UploadFile(c context.Context, file io.Reader, size int64, key string) (*storage.PutRet, error) {
+func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*cdn.UploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -171,14 +131,16 @@ func (n *CDN) UploadFile(c context.Context, file io.Reader, size int64, key stri
 	ret := storage.PutRet{}
 	formUploader := storage.NewFormUploader(&cfg)
 	key = strings.TrimPrefix(key, "/")
-	err := formUploader.Put(c, &ret, upToken, key, file, size, nil)
+	err := formUploader.Put(ctx, &ret, upToken, key, file, size, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &ret, nil
+	return &cdn.UploadResult{
+		Key: ret.Key,
+	}, nil
 }
 
-func (n *CDN) UploadLocalFile(c context.Context, file string, key string) (*storage.PutRet, error) {
+func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*cdn.UploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -187,9 +149,11 @@ func (n *CDN) UploadLocalFile(c context.Context, file string, key string) (*stor
 	ret := storage.PutRet{}
 	formUploader := storage.NewFormUploader(&cfg)
 	key = strings.TrimPrefix(key, "/")
-	err := formUploader.PutFile(c, &ret, upToken, key, file, nil)
+	err := formUploader.PutFile(ctx, &ret, upToken, key, file, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &ret, nil
+	return &cdn.UploadResult{
+		Key: ret.Key,
+	}, nil
 }
