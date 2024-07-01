@@ -18,11 +18,12 @@
     "debug": false
   },
   "dash": {
-    "jwt": "yS9eoBBDXFAzp9fPgZ30Z2vyyssO7tWs",
-    "address": "127.0.0.1:8800"
+    "jwt": "Fxar6KDjfp2NT8Uwa9Lgdf457OleFtyH",
+    "address": "127.0.0.1:8800",
+    "doc": false
   },
   "api": {
-    "jwt": "VGtgnvf50Em0p8NgfKGZFNUZMy4HwOyy",
+    "jwt": "wLMEO0geOXprXCp1odmSyBX4rGucjYdL",
     "address": "127.0.0.1:8899"
   },
   "cdn": {

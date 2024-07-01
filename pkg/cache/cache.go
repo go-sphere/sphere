@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"github.com/tbxark/go-base-api/pkg/cache/memory"
 	"golang.org/x/sync/singleflight"
 	"time"
 )
@@ -19,7 +20,7 @@ type Cache[S any] interface {
 type ByteCache Cache[[]byte]
 
 func NewCache() ByteCache {
-	return NewMemoryCache()
+	return memory.NewMemoryCache(1024 * 1024 * 1024)
 }
 
 type Encoder interface {

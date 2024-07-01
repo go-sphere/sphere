@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
-	"github.com/tbxark/go-base-api/pkg/cdn"
+	"github.com/tbxark/go-base-api/pkg/cdn/model"
 	"io"
 	"net/url"
 	"path"
@@ -28,7 +29,7 @@ type Qiniu struct {
 	config *Config
 }
 
-func NewCDN(config *Config) cdn.CDN {
+func NewQiniu(config *Config) *Qiniu {
 	config.Domain = strings.TrimSuffix(config.Domain, "/")
 	if config.Host == "" {
 		u, err := url.Parse(config.Domain)
@@ -92,7 +93,7 @@ func (n *Qiniu) KeyFromURLWithMode(uri string, strict bool) (string, error) {
 	// 不是以CDN域名开头的直接返回或者报错
 	if u.Host != n.config.Host {
 		if strict {
-			return "", cdn.ErrInvalidURL
+			return "", fmt.Errorf("invalid url")
 		}
 		return uri, nil
 	}
@@ -104,7 +105,7 @@ func (n *Qiniu) KeyFromURL(uri string) string {
 	return key
 }
 
-func (n *Qiniu) UploadToken(fileName string, dir string, nameBuilder cdn.UploadKeyBuilder) cdn.UploadToken {
+func (n *Qiniu) UploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) model.UploadToken {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
 	nameMd5 := hex.EncodeToString(sum[:])
@@ -115,14 +116,14 @@ func (n *Qiniu) UploadToken(fileName string, dir string, nameBuilder cdn.UploadK
 		InsertOnly: 1,
 		MimeLimit:  "image/*;video/*",
 	}
-	return cdn.UploadToken{
+	return model.UploadToken{
 		Token: put.UploadToken(n.mac),
 		Key:   key,
 		URL:   n.RenderURL(key),
 	}
 }
 
-func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*cdn.UploadResult, error) {
+func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*model.UploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -135,12 +136,12 @@ func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key 
 	if err != nil {
 		return nil, err
 	}
-	return &cdn.UploadResult{
+	return &model.UploadResult{
 		Key: ret.Key,
 	}, nil
 }
 
-func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*cdn.UploadResult, error) {
+func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*model.UploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -153,7 +154,7 @@ func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*
 	if err != nil {
 		return nil, err
 	}
-	return &cdn.UploadResult{
+	return &model.UploadResult{
 		Key: ret.Key,
 	}, nil
 }

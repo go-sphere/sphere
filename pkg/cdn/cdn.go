@@ -2,52 +2,10 @@ package cdn
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
-	"fmt"
+	"github.com/tbxark/go-base-api/pkg/cdn/model"
+	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
 	"io"
-	"path"
-	"strconv"
-	"time"
 )
-
-type UploadKeyBuilder func(fileName string, dir ...string) string
-
-func DefaultKeyBuilder(prefix string) UploadKeyBuilder {
-	return func(fileName string, dir ...string) string {
-		fileExt := path.Ext(fileName)
-		sum := md5.Sum([]byte(fileName))
-		nameMd5 := hex.EncodeToString(sum[:])
-		name := strconv.Itoa(int(time.Now().Unix())) + "_" + nameMd5 + fileExt
-		if prefix != "" {
-			name = prefix + "_" + name
-		}
-		return path.Join(path.Join(dir...), name)
-	}
-}
-
-func KeepFileNameKeyBuilder() UploadKeyBuilder {
-	return func(fileName string, dir ...string) string {
-		sum := md5.Sum([]byte(fileName))
-		nameMd5 := hex.EncodeToString(sum[:])
-		name := strconv.Itoa(int(time.Now().Unix())) + "_" + nameMd5
-		return path.Join(path.Join(dir...), name, fileName)
-	}
-}
-
-var (
-	ErrInvalidURL = fmt.Errorf("invalid url")
-)
-
-type UploadToken struct {
-	Token string `json:"token"`
-	Key   string `json:"key"`
-	URL   string `json:"url"`
-}
-
-type UploadResult struct {
-	Key string `json:"key"`
-}
 
 type UrlParser interface {
 	RenderURL(key string) string
@@ -58,12 +16,22 @@ type UrlParser interface {
 }
 
 type Uploader interface {
-	UploadToken(fileName string, dir string, nameBuilder UploadKeyBuilder) UploadToken
-	UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*UploadResult, error)
-	UploadLocalFile(ctx context.Context, file string, key string) (*UploadResult, error)
+	UploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) model.UploadToken
+	UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*model.UploadResult, error)
+	UploadLocalFile(ctx context.Context, file string, key string) (*model.UploadResult, error)
 }
 
 type CDN interface {
 	UrlParser
 	Uploader
+}
+
+// Config 修改这个结构体以更改要使用的CDN配置
+type Config struct {
+	*qiniu.Config
+}
+
+// NewCDN 修改这个函数的返回值以更改要使用的CDN实现
+func NewCDN(config *Config) CDN {
+	return qiniu.NewQiniu(config.Config)
 }

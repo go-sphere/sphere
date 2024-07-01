@@ -39,7 +39,7 @@ func runUpload(cmd *cobra.Command, args []string) {
 		log.Panicf("load config error: %v", err)
 	}
 
-	upload := qiniu.NewCDN(cfg.CDN)
+	upload := qiniu.NewQiniu(cfg.CDN.Config)
 	ctx := context.Background()
 	resBuf := strings.Builder{}
 	nameBuilder := cdn.KeepFileNameKeyBuilder()
