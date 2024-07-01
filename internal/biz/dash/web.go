@@ -4,12 +4,14 @@ import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/go-base-api/assets"
+	doc "github.com/tbxark/go-base-api/docs/dashboard"
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/internal/pkg/render"
 	"github.com/tbxark/go-base-api/pkg/cache"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
 	"github.com/tbxark/go-base-api/pkg/qniu"
+	"github.com/tbxark/go-base-api/pkg/web"
 	"github.com/tbxark/go-base-api/pkg/web/auth/tokens"
 	"github.com/tbxark/go-base-api/pkg/web/middleware"
 	"github.com/tbxark/go-base-api/pkg/wechat"
@@ -21,6 +23,7 @@ import (
 type Config struct {
 	JWT     string `json:"jwt"`
 	Address string `json:"address"`
+	Doc     bool   `json:"doc"`
 }
 
 type Web struct {
@@ -81,6 +84,10 @@ func (w *Web) Run() {
 	}
 	for page, handler := range route {
 		handler(auth.Group("/", w.auth.NewPermissionMiddleware(page)))
+	}
+
+	if w.config.Doc {
+		web.SetupDoc(doc.SwaggerInfoDashboard, "Dashboard", api)
 	}
 
 	err := w.gin.Run(w.config.Address)

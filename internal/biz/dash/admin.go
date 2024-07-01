@@ -63,7 +63,7 @@ func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
 		return nil, model.NewHTTPError(400, "password is too short")
 	}
 	u, err := w.db.Admin.Create().
-		SetAvatar(req.Avatar).
+		SetAvatar(w.cdn.KeyFromURL(req.Avatar)).
 		SetUsername(req.Username).
 		SetNickname(req.Nickname).
 		SetPassword(req.Password).
@@ -96,7 +96,7 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
 		return nil, err
 	}
 	update := w.db.Admin.UpdateOneID(id).
-		SetAvatar(req.Avatar).
+		SetAvatar(w.cdn.KeyFromURL(req.Avatar)).
 		SetUsername(req.Username).
 		SetNickname(req.Nickname).
 		SetRoles(req.Roles)
@@ -196,7 +196,7 @@ func (w *Web) createLoginResponse(u *ent.Admin) (*AdminLoginResponse, error) {
 		return nil, err
 	}
 	return &AdminLoginResponse{
-		Avatar:       u.Avatar,
+		Avatar:       w.cdn.RenderURLEx(u.Avatar, 512),
 		Username:     u.Username,
 		Nickname:     u.Nickname,
 		Roles:        u.Roles,
@@ -211,7 +211,6 @@ func (w *Web) createLoginResponse(u *ent.Admin) (*AdminLoginResponse, error) {
 // @Tags dashboard
 // @Accept json
 // @Produce json
-// @Param Authorization header string true "Bearer token"
 // @Param login body AdminLoginRequest true "登录信息"
 // @Success 200 {object} AdminLoginResponse
 // @Router /api/admin/login [post]
@@ -245,10 +244,9 @@ type AdminRefreshTokenResponse struct {
 // @Tags dashboard
 // @Accept json
 // @Produce json
-// @Param Authorization header string true "Bearer token"
 // @Param login body AdminRefreshTokenRequest true "刷新信息"
 // @Success 200 {object} AdminLoginResponse
-// @Router /api/admin/refresh [post]
+// @Router /api/admin/refresh-token [post]
 func (w *Web) AdminRefreshToken(ctx *gin.Context) (*AdminLoginResponse, error) {
 	var body AdminRefreshTokenRequest
 	if err := ctx.BindJSON(&body); err != nil {

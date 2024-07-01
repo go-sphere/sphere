@@ -3,31 +3,43 @@ package middleware
 import (
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/pkg/log"
 	"go.uber.org/zap"
 	"time"
 )
 
-type ginZapLogger struct {
-	logger log.Logger
+type Logger interface {
+	Infow(msg string, args ...interface{})
+	Errorw(msg string, args ...interface{})
 }
 
-func NewGinZapLogger(logger log.Logger) ginzap.ZapLogger {
+type ginZapLogger struct {
+	logger Logger
+}
+
+func NewGinZapLogger(logger Logger) ginzap.ZapLogger {
 	return &ginZapLogger{logger}
 }
 
 func (g *ginZapLogger) Info(msg string, fields ...zap.Field) {
-	g.logger.Infow(msg, fields)
+	args := make([]interface{}, 0, len(fields))
+	for _, f := range fields {
+		args = append(args, f)
+	}
+	g.logger.Infow(msg, args...)
 }
 
 func (g *ginZapLogger) Error(msg string, fields ...zap.Field) {
-	g.logger.Errorw(msg, fields)
+	args := make([]interface{}, 0, len(fields))
+	for _, f := range fields {
+		args = append(args, f)
+	}
+	g.logger.Errorw(msg, args...)
 }
 
-func NewZapLoggerMiddleware(logger log.Logger) gin.HandlerFunc {
+func NewZapLoggerMiddleware(logger Logger) gin.HandlerFunc {
 	return ginzap.Ginzap(NewGinZapLogger(logger), time.RFC3339, true)
 }
 
-func NewZapRecoveryMiddleware(logger log.Logger) gin.HandlerFunc {
+func NewZapRecoveryMiddleware(logger Logger) gin.HandlerFunc {
 	return ginzap.RecoveryWithZap(NewGinZapLogger(logger), true)
 }

@@ -31,7 +31,7 @@ func runConfig(cmd *cobra.Command, args []string) {
 		conf.Database.Type = "mysql"
 		conf.Database.Path = "root:passwd@tcp(localhost:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s"
 	case "sqlite":
-		conf.Database.Type = "sqlite"
+		conf.Database.Type = "sqlite3"
 		conf.Database.Path = "file:data.db?cache=shared&mode=rwc"
 	}
 	bytes, err := json.MarshalIndent(conf, "", "  ")
