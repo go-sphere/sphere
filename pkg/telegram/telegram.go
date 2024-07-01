@@ -25,16 +25,19 @@ type Telegram[M any] struct {
 	CreateUserIfNotExist      func(*bot.User) (M, error)
 }
 
-func NewTelegram[M any](api *API) *Telegram[M] {
+func NewTelegram[M any](config *Config) (*Telegram[M], error) {
+	api, err := NewAPI(config)
+	if err != nil {
+		return nil, err
+	}
 	t := &Telegram[M]{
 		bot:                  api,
 		sf:                   singleflight.Group{},
-		member:               make(map[int64]*M),
+		member:               make(map[int64]*M, 256),
 		commandHandler:       make(map[string]func(*bot.Message) error),
 		callbackQueryHandler: make(map[string]func(*bot.CallbackQuery) error),
 	}
-
-	return t
+	return t, nil
 }
 
 func (t *Telegram[M]) Run() {

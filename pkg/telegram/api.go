@@ -8,7 +8,7 @@ import (
 	"net/http"
 )
 
-type APIConfig struct {
+type Config struct {
 	Token       string `json:"token"`
 	Webhook     string `json:"webhook"`
 	APIEndpoint string `json:"api_endpoint"`
@@ -20,13 +20,13 @@ type API struct {
 	msgChan chan bot.Update
 }
 
-func NewAPI(config *APIConfig) *API {
+func NewAPI(config *Config) (*API, error) {
 	if config.APIEndpoint == "" {
 		config.APIEndpoint = bot.APIEndpoint
 	}
 	api, err := bot.NewBotAPIWithAPIEndpoint(config.Token, config.APIEndpoint)
 	if err != nil {
-		log.Panic(err)
+		return nil, err
 	}
 	log.Debugf("Authorized on account %s", api.Self.UserName)
 	t := &API{
@@ -41,7 +41,7 @@ func NewAPI(config *APIConfig) *API {
 		}
 	}
 
-	return t
+	return t, nil
 }
 
 func (t *API) SendMessage(UID int64, message string) error {
