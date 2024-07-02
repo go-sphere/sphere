@@ -4,9 +4,6 @@ import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/go-base-api/assets"
-	"github.com/tbxark/go-base-api/pkg/web"
-
-	doc "github.com/tbxark/go-base-api/docs/dashboard"
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/internal/pkg/render"
 	"github.com/tbxark/go-base-api/pkg/cache"
@@ -62,7 +59,6 @@ func (w *Web) Run() {
 	logger := log.ZapLogger().With(field.String("module", "dash"))
 	loggerMiddleware := middleware.NewZapLoggerMiddleware(logger)
 	recoveryMiddleware := middleware.NewZapRecoveryMiddleware(logger)
-
 	rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
 	w.Engine.Use(loggerMiddleware, recoveryMiddleware)
@@ -73,21 +69,19 @@ func (w *Web) Run() {
 	}
 
 	api := w.Engine.Group("/")
-
-	w.bindAdminAuthRoute(api.Group("/", rateLimiter))
-
 	auth := api.Group("/", w.auth.NewJwtAuthMiddleware(true))
 
+	if w.config.Doc {
+		w.bindDocRoute(api)
+	}
+	w.bindAdminAuthRoute(api.Group("/", rateLimiter))
 	w.bindSystemRoute(auth)
+
 	route := map[string]func(gin.IRouter){
 		WebPermissionAdmin: w.bindAdminRoute,
 	}
 	for page, handler := range route {
 		handler(auth.Group("/", w.auth.NewPermissionMiddleware(page)))
-	}
-
-	if w.config.Doc {
-		web.SetupDoc(doc.SwaggerInfoDashboard, "Dashboard", api)
 	}
 
 	err := w.Engine.Run(w.config.Address)

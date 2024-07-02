@@ -58,7 +58,6 @@ func (w *Web) Run() {
 	logger := log.ZapLogger().With(field.String("module", "api"))
 	loggerMiddleware := middleware.NewZapLoggerMiddleware(logger)
 	recoveryMiddleware := middleware.NewZapRecoveryMiddleware(logger)
-
 	//rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
 	w.Engine.Use(loggerMiddleware, recoveryMiddleware)
