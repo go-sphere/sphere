@@ -27,18 +27,19 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	database := dao.NewDao(entClient)
+	daoDao := dao.NewDao(entClient)
 	wechatConfig := cfg.WxMini
 	wechatWechat := wechat.NewWechat(wechatConfig)
 	qiniuConfig := cfg.CDN
 	qiniuQiniu := qiniu.NewQiniu(qiniuConfig)
 	int2 := _wireIntValue
 	cache := memory.NewMemoryCache(int2)
-	web := dash.NewWebServer(dashConfig, database, wechatWechat, qiniuQiniu, cache)
+	web := dash.NewWebServer(dashConfig, daoDao, wechatWechat, qiniuQiniu, cache)
 	apiConfig := cfg.API
-	apiWeb := api.NewWebServer(apiConfig, database, wechatWechat, qiniuQiniu, cache)
-	initialize := task.NewInitialize(database)
-	application := CreateApplication(web, apiWeb, initialize)
+	apiWeb := api.NewWebServer(apiConfig, daoDao, wechatWechat, qiniuQiniu, cache)
+	initialize := task.NewInitialize(daoDao)
+	cleaner := task.NewCleaner(entClient)
+	application := CreateApplication(web, apiWeb, initialize, cleaner)
 	return application, nil
 }
 
