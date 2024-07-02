@@ -27,7 +27,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	database := dao.NewDatabase(entClient)
+	database := dao.NewDao(entClient)
 	wechatConfig := cfg.WxMini
 	wechatWechat := wechat.NewWechat(wechatConfig)
 	qiniuConfig := cfg.CDN

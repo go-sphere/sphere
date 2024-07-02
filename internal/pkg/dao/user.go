@@ -7,7 +7,7 @@ import (
 	"github.com/tbxark/go-base-api/pkg/dao/ent/userplatform"
 )
 
-func (d *Database) GetUsers(ctx context.Context, ids []int) (map[int]*ent.User, error) {
+func (d *Dao) GetUsers(ctx context.Context, ids []int) (map[int]*ent.User, error) {
 	users, err := d.User.Query().Where(user.IDIn(RemoveDuplicateAndZero(ids)...)).All(ctx)
 	if err != nil {
 		return nil, err
@@ -19,7 +19,7 @@ func (d *Database) GetUsers(ctx context.Context, ids []int) (map[int]*ent.User, 
 	return userMap, nil
 }
 
-func (d *Database) GetUserPlatforms(ctx context.Context, ids []int) (map[int][]*ent.UserPlatform, error) {
+func (d *Dao) GetUserPlatforms(ctx context.Context, ids []int) (map[int][]*ent.UserPlatform, error) {
 	userPlatforms, err := d.UserPlatform.Query().Where(userplatform.UserIDIn(RemoveDuplicateAndZero(ids)...)).All(ctx)
 	if err != nil {
 		return nil, err

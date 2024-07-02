@@ -2,10 +2,10 @@ package dao
 
 import "github.com/tbxark/go-base-api/pkg/dao/ent"
 
-type Database struct {
+type Dao struct {
 	*ent.Client
 }
 
-func NewDatabase(client *ent.Client) *Database {
-	return &Database{Client: client}
+func NewDao(client *ent.Client) *Dao {
+	return &Dao{Client: client}
 }

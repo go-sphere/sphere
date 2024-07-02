@@ -16,16 +16,24 @@ type Task interface {
 	Run()
 }
 
-type Application struct {
-	task []Task
+type Cleaner interface {
+	Clean() error
 }
 
-func CreateApplication(dash *dash.Web, api *api.Web, initialize *task.Initialize) *Application {
+type Application struct {
+	task    []Task
+	cleaner []Cleaner
+}
+
+func CreateApplication(dash *dash.Web, api *api.Web, initialize *task.Initialize, cleaner *task.Cleaner) *Application {
 	return &Application{
 		task: []Task{
 			dash,
 			api,
 			initialize,
+		},
+		cleaner: []Cleaner{
+			cleaner,
 		},
 	}
 }
@@ -53,14 +61,20 @@ func (a *Application) Run() {
 	wg.Wait()
 }
 
+func (a *Application) Clean() {
+	for _, c := range a.cleaner {
+		_ = c.Clean()
+	}
+}
+
 func Run(conf *config.Config) error {
 	log.Init(conf.Log, field.String("version", config.BuildVersion))
-	defer log.Sync()
 	gin.SetMode(conf.System.GinMode)
 	app, err := NewApplication(conf)
 	if err != nil {
 		return err
 	}
+	defer app.Clean()
 	app.Run()
 	return nil
 }

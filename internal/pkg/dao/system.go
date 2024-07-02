@@ -12,7 +12,7 @@ type SystemConfig struct {
 
 const SystemConfigKey = "system_config"
 
-func (d *Database) GetSystemConfig(ctx context.Context) (*SystemConfig, error) {
+func (d *Dao) GetSystemConfig(ctx context.Context) (*SystemConfig, error) {
 	var config SystemConfig
 	value, err := d.KeyValueStore.Query().Where(keyvaluestore.KeyEQ(SystemConfigKey)).Only(ctx)
 	if err != nil {
@@ -22,7 +22,7 @@ func (d *Database) GetSystemConfig(ctx context.Context) (*SystemConfig, error) {
 	return &config, nil
 }
 
-func (d *Database) SetSystemConfig(ctx context.Context, config *SystemConfig) error {
+func (d *Dao) SetSystemConfig(ctx context.Context, config *SystemConfig) error {
 	data, err := json.Marshal(config)
 	if err != nil {
 		return err

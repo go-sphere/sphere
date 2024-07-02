@@ -7,7 +7,7 @@ import (
 
 type Render struct {
 	cdn         cdn.UrlParser
-	db          *dao.Database
+	db          *dao.Dao
 	hidePrivacy bool
 }
 
@@ -17,6 +17,6 @@ const (
 	ImageWidthForCommon   = 1024
 )
 
-func NewRender(cdn cdn.UrlParser, db *dao.Database, hidePrivacy bool) *Render {
+func NewRender(cdn cdn.UrlParser, db *dao.Dao, hidePrivacy bool) *Render {
 	return &Render{cdn: cdn, db: db, hidePrivacy: hidePrivacy}
 }

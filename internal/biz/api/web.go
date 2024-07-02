@@ -26,7 +26,7 @@ type Web struct {
 	config *Config
 	Engine *gin.Engine
 	sf     singleflight.Group
-	db     *dao.Database
+	db     *dao.Dao
 	wx     *wechat.Wechat
 	cdn    cdn.CDN
 	cache  cache.ByteCache
@@ -35,7 +35,7 @@ type Web struct {
 	auth   *middleware.JwtAuth
 }
 
-func NewWebServer(config *Config, db *dao.Database, wx *wechat.Wechat, cdn cdn.CDN, cache cache.ByteCache) *Web {
+func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, cache cache.ByteCache) *Web {
 	token := tokens.NewTokenGenerator(config.JWT)
 	return &Web{
 		config: config,

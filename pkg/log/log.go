@@ -139,8 +139,8 @@ func Init(opts *Options, fields ...field.Field) {
 	std = newLogger(opts, fields...)
 }
 
-func Sync() {
-	_ = std.sugarLogger.Sync()
+func Sync() error {
+	return std.sugarLogger.Sync()
 }
 
 func NewLogger(opts *Options) Logger {

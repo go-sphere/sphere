@@ -6,7 +6,7 @@ import (
 	"github.com/tbxark/go-base-api/pkg/dao/ent/admin"
 )
 
-func (d *Database) GetAdmins(ctx context.Context, ids []int) (map[int]*ent.Admin, error) {
+func (d *Dao) GetAdmins(ctx context.Context, ids []int) (map[int]*ent.Admin, error) {
 	admins, err := d.Client.Admin.Query().Where(admin.IDIn(RemoveDuplicateAndZero(ids)...)).All(ctx)
 	if err != nil {
 		return nil, err

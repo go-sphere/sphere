@@ -13,10 +13,10 @@ import (
 )
 
 type Initialize struct {
-	db *dao.Database
+	db *dao.Dao
 }
 
-func NewInitialize(db *dao.Database) *Initialize {
+func NewInitialize(db *dao.Dao) *Initialize {
 	return &Initialize{db: db}
 }
 

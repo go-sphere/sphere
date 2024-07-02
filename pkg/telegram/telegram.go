@@ -13,7 +13,7 @@ import (
 const HTMLNewLine = "<pre>\n</pre>"
 
 type Telegram[M any] struct {
-	bot                       *API
+	Bot                       *API
 	sf                        singleflight.Group
 	member                    map[int64]*M
 	commandHandler            map[string]func(*bot.Message) error
@@ -31,7 +31,7 @@ func NewTelegram[M any](config *Config) (*Telegram[M], error) {
 		return nil, err
 	}
 	t := &Telegram[M]{
-		bot:                  api,
+		Bot:                  api,
 		sf:                   singleflight.Group{},
 		member:               make(map[int64]*M, 256),
 		commandHandler:       make(map[string]func(*bot.Message) error),
@@ -41,12 +41,12 @@ func NewTelegram[M any](config *Config) (*Telegram[M], error) {
 }
 
 func (t *Telegram[M]) Run() {
-	go t.bot.InitWebhook()
+	go t.Bot.InitWebhook()
 	t.readUpdate()
 }
 
 func (t *Telegram[M]) readUpdate() {
-	for update := range t.bot.ReadMessage() {
+	for update := range t.Bot.ReadMessage() {
 		u := update
 		go func() {
 			defer func() {
@@ -97,7 +97,7 @@ func (t *Telegram[M]) handleMessage(message *bot.Message) {
 		var tErr *bot.Error
 		if errors.As(err, &tErr) {
 		} else {
-			_, _ = t.bot.Send(bot.NewMessage(message.Chat.ID, err.Error()))
+			_, _ = t.Bot.Send(bot.NewMessage(message.Chat.ID, err.Error()))
 		}
 	}
 
@@ -134,7 +134,7 @@ func (t *Telegram[M]) handleCallback(callback *bot.CallbackQuery) {
 		log.Errorf("<Telegram> handle callback error: %v", err)
 		var tErr *bot.Error
 		if !errors.As(err, &tErr) {
-			_, _ = t.bot.Send(bot.NewCallback(callback.ID, err.Error()))
+			_, _ = t.Bot.Send(bot.NewCallback(callback.ID, err.Error()))
 		}
 	}
 	err := json.Unmarshal([]byte(callback.Data), &callbackRPC)
@@ -192,7 +192,7 @@ func (t *Telegram[M]) EditReplyMessage(num int64, messageID int, message *chat.M
 	if len(message.Sections) > 0 {
 		msg.ReplyMarkup = ConvertInlineKeyboardButton(message.Sections)
 	}
-	_, err := t.bot.Send(msg)
+	_, err := t.Bot.Send(msg)
 	return err
 }
 
@@ -201,12 +201,12 @@ func (t *Telegram[M]) SendMessage(num int64, message *chat.Message) error {
 	if len(message.Sections) > 0 {
 		msg.ReplyMarkup = ConvertInlineKeyboardButton(message.Sections)
 	}
-	_, err := t.bot.Send(msg)
+	_, err := t.Bot.Send(msg)
 	return err
 }
 
 func (t *Telegram[M]) SendRequest(req bot.Chattable) error {
-	_, err := t.bot.Request(req)
+	_, err := t.Bot.Request(req)
 	return err
 }
 

@@ -8,4 +8,4 @@ import (
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
 )
 
-var ProviderSet = wire.NewSet(dao.NewDatabase)
+var ProviderSet = wire.NewSet(dao.NewDao)
