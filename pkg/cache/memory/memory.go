@@ -57,3 +57,7 @@ func (m *Cache) DelAll(ctx context.Context) error {
 	m.cache.Clear()
 	return nil
 }
+
+func (m *Cache) Close() error {
+	return nil
+}

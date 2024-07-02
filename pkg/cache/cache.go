@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"io"
 	"time"
 )
 
@@ -12,6 +13,7 @@ type Cache[S any] interface {
 	MultiGet(ctx context.Context, keys []string) (map[string]S, error)
 	Del(ctx context.Context, keys ...string) error
 	DelAll(ctx context.Context) error
+	io.Closer
 }
 
 type ByteCache Cache[[]byte]

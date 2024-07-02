@@ -29,7 +29,7 @@ type Config struct {
 
 type Web struct {
 	config *Config
-	gin    *gin.Engine
+	Engine *gin.Engine
 	db     *dao.Database
 	wx     *wechat.Wechat
 	cdn    cdn.CDN
@@ -43,7 +43,7 @@ func NewWebServer(config *Config, db *dao.Database, wx *wechat.Wechat, cdn cdn.C
 	token := tokens.NewTokenGenerator(config.JWT)
 	return &Web{
 		config: config,
-		gin:    gin.New(),
+		Engine: gin.New(),
 		db:     db,
 		wx:     wx,
 		cdn:    cdn,
@@ -65,14 +65,14 @@ func (w *Web) Run() {
 
 	rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
-	w.gin.Use(loggerMiddleware, recoveryMiddleware)
+	w.Engine.Use(loggerMiddleware, recoveryMiddleware)
 
 	if dash, err := w.dashFs(); err == nil {
-		d := w.gin.Group("/dash", gzip.Gzip(gzip.DefaultCompression))
+		d := w.Engine.Group("/dash", gzip.Gzip(gzip.DefaultCompression))
 		d.StaticFS("/", dash)
 	}
 
-	api := w.gin.Group("/")
+	api := w.Engine.Group("/")
 
 	w.bindAdminAuthRoute(api.Group("/", rateLimiter))
 
@@ -90,7 +90,7 @@ func (w *Web) Run() {
 		web.SetupDoc(doc.SwaggerInfoDashboard, "Dashboard", api)
 	}
 
-	err := w.gin.Run(w.config.Address)
+	err := w.Engine.Run(w.config.Address)
 	if err != nil {
 		log.Warnw("dash server run error", field.Error(err))
 	}

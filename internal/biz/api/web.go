@@ -24,7 +24,7 @@ type Config struct {
 
 type Web struct {
 	config *Config
-	gin    *gin.Engine
+	Engine *gin.Engine
 	sf     singleflight.Group
 	db     *dao.Database
 	wx     *wechat.Wechat
@@ -39,7 +39,7 @@ func NewWebServer(config *Config, db *dao.Database, wx *wechat.Wechat, cdn cdn.C
 	token := tokens.NewTokenGenerator(config.JWT)
 	return &Web{
 		config: config,
-		gin:    gin.New(),
+		Engine: gin.New(),
 		wx:     wx,
 		db:     db,
 		cdn:    cdn,
@@ -61,15 +61,15 @@ func (w *Web) Run() {
 
 	//rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
-	w.gin.Use(loggerMiddleware, recoveryMiddleware)
+	w.Engine.Use(loggerMiddleware, recoveryMiddleware)
 
-	api := w.gin.Group("/", w.auth.NewJwtAuthMiddleware(false))
+	api := w.Engine.Group("/", w.auth.NewJwtAuthMiddleware(false))
 
 	w.bindAuthRoute(api)
 	w.bindUserRoute(api)
 	w.bindSystemRoute(api)
 
-	err := w.gin.Run(w.config.Address)
+	err := w.Engine.Run(w.config.Address)
 	if err != nil {
 		log.Warnw("api server run error", field.Error(err))
 	}
