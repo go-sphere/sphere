@@ -95,15 +95,17 @@ func (w *JwtAuth) NewJwtAuthMiddleware(abortOnError bool) func(ctx *gin.Context)
 		token := ctx.GetHeader(AuthorizationHeader)
 		abort := func() {
 			if abortOnError {
-				ctx.JSON(http.StatusUnauthorized, gin.H{
+				ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 					"message": "unauthorized",
 				})
-				ctx.Abort()
 			}
 		}
 		if token == "" {
 			abort()
 			return
+		}
+		if len(token) > 7 && token[:7] == "Bearer " {
+			token = token[7:]
 		}
 		claims, err := w.validator.Validate(token)
 		if err != nil {
@@ -137,13 +139,12 @@ func (w *JwtAuth) JwtAuthMiddleware(ctx *gin.Context) {
 }
 
 func (w *JwtAuth) NewPermissionMiddleware(per string) func(context *gin.Context) {
-	return func(context *gin.Context) {
-		err := w.CheckAuthPermission(context, per)
+	return func(ctx *gin.Context) {
+		err := w.CheckAuthPermission(ctx, per)
 		if err != nil {
-			context.JSON(http.StatusForbidden, gin.H{
+			ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"message": err.Error(),
 			})
-			context.Abort()
 		}
 	}
 }

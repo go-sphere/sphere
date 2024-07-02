@@ -27,11 +27,11 @@ func GetValueFromContext[T any](key string, ctx *gin.Context) (*T, bool) {
 func ResponseJsonError(ctx *gin.Context, err error) {
 	var hErr HttpStatusError
 	if errors.As(err, &hErr) {
-		ctx.JSON(hErr.Status(), gin.H{
+		ctx.AbortWithStatusJSON(hErr.Status(), gin.H{
 			"message": hErr.Error(),
 		})
 	} else {
-		ctx.JSON(400, gin.H{
+		ctx.AbortWithStatusJSON(400, gin.H{
 			"message": err.Error(),
 		})
 	}
@@ -45,7 +45,7 @@ func WithJson[T any](handler func(ctx *gin.Context) (T, error)) func(ctx *gin.Co
 					"WithJson panic",
 					field.Any("error", err),
 				)
-				ctx.JSON(500, gin.H{
+				ctx.AbortWithStatusJSON(500, gin.H{
 					"message": "internal server error",
 				})
 			}
@@ -70,7 +70,7 @@ func WithText(handler func(ctx *gin.Context) (string, error)) func(ctx *gin.Cont
 					"WithText panic",
 					field.Any("error", err),
 				)
-				ctx.JSON(500, gin.H{
+				ctx.AbortWithStatusJSON(500, gin.H{
 					"message": "internal server error",
 				})
 			}
@@ -92,7 +92,7 @@ func WithHandler(h http.Handler) func(ctx *gin.Context) {
 					"WithHandler panic",
 					field.Any("error", err),
 				)
-				ctx.JSON(500, gin.H{
+				ctx.AbortWithStatusJSON(500, gin.H{
 					"message": "internal server error",
 				})
 			}
