@@ -33,7 +33,7 @@ func Load[T any, D Decoder](ctx context.Context, c ByteCache, d D, key string) (
 		return nil, err
 	}
 	var value T
-	err = d.Unmarshal(data, &value)
+	err = d.Unmarshal(*data, &value)
 	if err != nil {
 		return nil, err
 	}

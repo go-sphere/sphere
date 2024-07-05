@@ -32,8 +32,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	wechatWechat := wechat.NewWechat(wechatConfig)
 	qiniuConfig := cfg.CDN
 	qiniuQiniu := qiniu.NewQiniu(qiniuConfig)
-	int2 := _wireIntValue
-	cache := memory.NewMemoryCache(int2)
+	cache := memory.NewByteCache()
 	web := dash.NewWebServer(dashConfig, daoDao, wechatWechat, qiniuQiniu, cache)
 	apiConfig := cfg.API
 	apiWeb := api.NewWebServer(apiConfig, daoDao, wechatWechat, qiniuQiniu, cache)
@@ -42,7 +41,3 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	application := CreateApplication(web, apiWeb, initialize, cleaner)
 	return application, nil
 }
-
-var (
-	_wireIntValue = 10 * 1024 * 1024
-)
