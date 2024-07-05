@@ -2,26 +2,31 @@ package memory
 
 import (
 	"context"
-	"github.com/coocood/freecache"
+	"github.com/patrickmn/go-cache"
 	"time"
 )
 
 type Cache struct {
-	cache *freecache.Cache
+	cache *cache.Cache
 }
 
 func NewMemoryCache(size int) *Cache {
 	return &Cache{
-		cache: freecache.NewCache(size),
+		cache: cache.New(cache.NoExpiration, cache.NoExpiration),
 	}
 }
 
 func (m *Cache) Set(ctx context.Context, key string, val []byte, expiration time.Duration) error {
-	return m.cache.Set([]byte(key), val, int(expiration.Seconds()))
+	m.cache.Set(key, val, expiration)
+	return nil
 }
 
 func (m *Cache) Get(ctx context.Context, key string) ([]byte, error) {
-	return m.cache.Get([]byte(key))
+	v, exist := m.cache.Get(key)
+	if !exist {
+		return nil, nil
+	}
+	return v.([]byte), nil
 }
 
 func (m *Cache) MultiSet(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
@@ -46,15 +51,13 @@ func (m *Cache) MultiGet(ctx context.Context, keys []string) (map[string][]byte,
 	return result, nil
 }
 
-func (m *Cache) Del(ctx context.Context, keys ...string) error {
-	for _, key := range keys {
-		_ = m.cache.Del([]byte(key))
-	}
+func (m *Cache) Del(ctx context.Context, key string) error {
+	m.cache.Delete(key)
 	return nil
 }
 
 func (m *Cache) DelAll(ctx context.Context) error {
-	m.cache.Clear()
+	m.cache.Flush()
 	return nil
 }
 

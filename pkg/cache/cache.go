@@ -11,7 +11,7 @@ type Cache[S any] interface {
 	Get(ctx context.Context, key string) (S, error)
 	MultiSet(ctx context.Context, valMap map[string]S, expiration time.Duration) error
 	MultiGet(ctx context.Context, keys []string) (map[string]S, error)
-	Del(ctx context.Context, keys ...string) error
+	Del(ctx context.Context, key string) error
 	DelAll(ctx context.Context) error
 	io.Closer
 }

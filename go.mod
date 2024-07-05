@@ -4,7 +4,6 @@ go 1.22.4
 
 require (
 	entgo.io/ent v0.13.1
-	github.com/coocood/freecache v1.2.4
 	github.com/gin-contrib/gzip v1.0.1
 	github.com/gin-contrib/zap v1.1.3
 	github.com/gin-gonic/gin v1.10.0

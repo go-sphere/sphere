@@ -62,8 +62,8 @@ func (c *Cache) MultiGet(ctx context.Context, keys []string) (map[string][]byte,
 	return result, nil
 }
 
-func (c *Cache) Del(ctx context.Context, keys ...string) error {
-	return c.Client.Del(ctx, keys...).Err()
+func (c *Cache) Del(ctx context.Context, key string) error {
+	return c.Client.Del(ctx, key).Err()
 }
 
 func (c *Cache) DelAll(ctx context.Context) error {
