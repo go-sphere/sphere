@@ -17,7 +17,7 @@ var cdnUploadCmd = &cobra.Command{
 	Use:   "upload",
 	Short: "Upload files to Qiniu",
 	Long:  `Upload files to Qiniu CDN.`,
-	Run:   runUpload,
+	Run:   runCdnUpload,
 }
 
 func init() {
@@ -28,7 +28,7 @@ func init() {
 	cdnUploadCmd.Flags().StringP("storage", "s", "assets", "save directory of cdn")
 }
 
-func runUpload(cmd *cobra.Command, args []string) {
+func runCdnUpload(cmd *cobra.Command, args []string) {
 	fileP := cmd.Flag("files").Value.String()
 	cfgP := cmd.Flag("config").Value.String()
 	outP := cmd.Flag("output").Value.String()

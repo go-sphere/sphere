@@ -19,7 +19,7 @@ var cdnMigrateCmd = &cobra.Command{
 	Use:   "cdn-migrate",
 	Short: "Qiniu Migration Tools",
 	Long:  `Move files from one qiniu bucket to another bucket.`,
-	Run:   runCDNMigrate,
+	Run:   runCdnMigrate,
 }
 
 func init() {
@@ -31,7 +31,7 @@ func init() {
 	cdnMigrateCmd.Flags().BoolP("keepPath", "k", false, "keep file path")
 }
 
-func runCDNMigrate(cmd *cobra.Command, args []string) {
+func runCdnMigrate(cmd *cobra.Command, args []string) {
 	fileP := cmd.Flag("files").Value.String()
 	cfgP := cmd.Flag("config").Value.String()
 	outP := cmd.Flag("output").Value.String()

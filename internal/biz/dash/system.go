@@ -14,8 +14,8 @@ import (
 // @Tags dashboard
 // @Accept json
 // @Produce json
-// @Param Authorization header string true "Bearer token"
 // @Param filename query string true "文件名"
+// @Security	ApiKeyAuth
 // @Success 200 {object} model.UploadToken
 // @Router /api/upload/token [get]
 func (w *Web) UploadToken(ctx *gin.Context) (gin.H, error) {
@@ -41,7 +41,7 @@ func (w *Web) UploadToken(ctx *gin.Context) (gin.H, error) {
 // @Summary 重置缓存
 // @Tags dashboard
 // @Produce json
-// @Param Authorization header string true "Bearer token"
+// @Security	ApiKeyAuth
 // @Success 200 {object} model.MessageResponse
 // @Router /api/cache/reset [post]
 func (w *Web) ResetCache(ctx *gin.Context) (*model.MessageResponse, error) {

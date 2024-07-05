@@ -29,9 +29,9 @@ go.work
 .idea
 .vscode
 build
-config.json
 docs
-/data.db
-/data.db-journal
 temp
 logs
+config.json
+data.db
+data.db-journal

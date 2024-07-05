@@ -87,17 +87,10 @@ func (g *Generator) Validate(signedToken string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !token.Valid {
-		return nil, fmt.Errorf("token is invalid")
-	}
 
 	claims, ok := token.Claims.(*SignedDetails)
 	if !ok {
 		return nil, fmt.Errorf("token is invalid")
-	}
-
-	if claims.ExpiresAt < time.Now().Local().Unix() {
-		return nil, fmt.Errorf("token is expired")
 	}
 
 	var res = make(map[string]any)
@@ -105,6 +98,7 @@ func (g *Generator) Validate(signedToken string) (map[string]any, error) {
 	res["username"] = claims.Username
 	res["roles"] = claims.Roles
 	res["exp"] = claims.ExpiresAt
+
 	return res, nil
 }
 

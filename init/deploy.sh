@@ -1,9 +1,10 @@
 set -ex
 
 BIN_NAME=backend
-BACKEND_BIN=./build/linux_x86/$BIN_NAME
 SERVICE_NAME=backend
+
 HOST="root@127.0.0.1"
+BACKEND_BIN=./build/linux_x86/$BIN_NAME
 
 if [ ! -f "$BACKEND_BIN" ]; then
   echo "Backend binary not found: $BACKEND_BIN"

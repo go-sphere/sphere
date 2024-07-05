@@ -56,10 +56,5 @@ deploy: buildLinuxX86
 	@echo Build Version: $(BUILD)
 	./init/deploy.sh
 
-.PHONY: deploy-dev
-deploy-dev: buildLinuxX86
-	@echo Build Version: $(BUILD)
-	./init/deploy-dev.sh
-
 .PHONY: buildAll
 buildAll: buildLinuxX86 buildWindowsX86 build

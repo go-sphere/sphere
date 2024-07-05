@@ -20,7 +20,7 @@ const WebPermissionAdmin = "admin"
 // @Summary 管理员列表
 // @Tags dashboard
 // @Produce json
-// @Param Authorization header string true "Bearer token"
+// @Security	ApiKeyAuth
 // @Success 200 {object} []render.Admin
 // @Router /api/admin/list [get]
 func (w *Web) AdminList(ctx *gin.Context) (gin.H, error) {
@@ -48,8 +48,8 @@ type AdminEditRequest struct {
 // @Tags dashboard
 // @Accept json
 // @Produce json
-// @Param Authorization header string true "Bearer token"
 // @Param admin body AdminEditRequest true "管理员信息"
+// @Security	ApiKeyAuth
 // @Success 200 {object} render.Admin
 // @Router /api/admin/create [post]
 func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
@@ -82,8 +82,8 @@ func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
 // @Tags dashboard
 // @Accept json
 // @Produce json
-// @Param Authorization header string true "Bearer token"
 // @Param admin body AdminEditRequest true "管理员信息"
+// @Security	ApiKeyAuth
 // @Success 200 {object} render.Admin
 // @Router /api/admin/update/{id} [post]
 func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
@@ -121,8 +121,8 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
 // @Summary 管理员详情
 // @Tags dashboard
 // @Produce json
-// @Param Authorization header string true "Bearer token"
 // @Param id path int true "管理员ID"
+// @Security	ApiKeyAuth
 // @Success 200 {object} render.Admin
 // @Router /api/admin/detail/{id} [get]
 func (w *Web) AdminDetail(ctx *gin.Context) (gin.H, error) {
@@ -143,8 +143,8 @@ func (w *Web) AdminDetail(ctx *gin.Context) (gin.H, error) {
 // @Summary 删除管理员
 // @Tags dashboard
 // @Produce json
-// @Param Authorization header string true "Bearer token"
 // @Param id path int true "管理员ID"
+// @Security	ApiKeyAuth
 // @Success 200 {object} model.MessageResponse
 // @Router /api/admin/delete/{id} [delete]
 func (w *Web) AdminDelete(ctx *gin.Context) (*model.MessageResponse, error) {

@@ -4,22 +4,16 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/mixin"
+	"github.com/tbxark/go-base-api/pkg/dao/ent/schema/types"
 	"time"
 )
-
-const DefaultTargetPage = "/pages/error/404"
-
-type KeyValueItem struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
 
 func TimestampDefaultFunc() int64 {
 	return time.Now().Unix()
 }
 
-func KeyValueItemDefaultFunc() []KeyValueItem {
-	return []KeyValueItem{}
+func KeyValueItemDefaultFunc() []types.KeyValueItem {
+	return []types.KeyValueItem{}
 }
 
 type TimeMixin struct {

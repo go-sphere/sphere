@@ -13,8 +13,8 @@ import (
 // @Tags api
 // @Accept json
 // @Produce json
-// @Param Authorization header string true "Bearer token"
 // @Param filename query string true "文件名"
+// @Security	ApiKeyAuth
 // @Success 200 {object} model.UploadToken
 // @Router /api/upload/token [get]
 func (w *Web) UploadToken(ctx *gin.Context) (gin.H, error) {
