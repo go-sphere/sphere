@@ -1,4 +1,4 @@
-package middleware
+package jwt
 
 import (
 	"github.com/gin-gonic/gin"
@@ -14,17 +14,17 @@ const (
 	AllPermissionRole   = "all"
 )
 
-type JwtValidator interface {
+type Validator interface {
 	Validate(token string) (map[string]any, error)
 	ParseRolesString(roles string) map[string]struct{}
 }
 
-type JwtAuth struct {
-	validator JwtValidator
+type Auth struct {
+	validator Validator
 }
 
-func NewJwtAuth(validators JwtValidator) *JwtAuth {
-	return &JwtAuth{
+func NewJwtAuth(validators Validator) *Auth {
+	return &Auth{
 		validator: validators,
 	}
 }
@@ -47,7 +47,7 @@ var (
 	PermissionError = jwtError{403, "permission denied"}
 )
 
-func (w *JwtAuth) GetCurrentID(ctx *gin.Context) (int, error) {
+func (w *Auth) GetCurrentID(ctx *gin.Context) (int, error) {
 	raw, exist := ctx.Get(ContextKeyID)
 	if !exist {
 		return 0, NeedLoginError
@@ -59,12 +59,12 @@ func (w *JwtAuth) GetCurrentID(ctx *gin.Context) (int, error) {
 	return id, nil
 }
 
-func (w *JwtAuth) CheckAuthStatus(ctx *gin.Context) error {
+func (w *Auth) CheckAuthStatus(ctx *gin.Context) error {
 	_, err := w.GetCurrentID(ctx)
 	return err
 }
 
-func (w *JwtAuth) CheckAuthID(ctx *gin.Context, id int) error {
+func (w *Auth) CheckAuthID(ctx *gin.Context, id int) error {
 	currentId, err := w.GetCurrentID(ctx)
 	if err != nil {
 		return err
@@ -75,7 +75,7 @@ func (w *JwtAuth) CheckAuthID(ctx *gin.Context, id int) error {
 	return nil
 }
 
-func (w *JwtAuth) CheckAuthPermission(ctx *gin.Context, permission string) error {
+func (w *Auth) CheckAuthPermission(ctx *gin.Context, permission string) error {
 	permissionList, exist := ctx.Get(ContextKeyRoles)
 	if !exist {
 		return PermissionError
@@ -90,7 +90,7 @@ func (w *JwtAuth) CheckAuthPermission(ctx *gin.Context, permission string) error
 	return PermissionError
 }
 
-func (w *JwtAuth) NewJwtAuthMiddleware(abortOnError bool) func(ctx *gin.Context) {
+func (w *Auth) NewJwtAuthMiddleware(abortOnError bool) func(ctx *gin.Context) {
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader(AuthorizationHeader)
 		abort := func() {
@@ -134,11 +134,11 @@ func (w *JwtAuth) NewJwtAuthMiddleware(abortOnError bool) func(ctx *gin.Context)
 	}
 }
 
-func (w *JwtAuth) JwtAuthMiddleware(ctx *gin.Context) {
+func (w *Auth) JwtAuthMiddleware(ctx *gin.Context) {
 	w.NewJwtAuthMiddleware(true)(ctx)
 }
 
-func (w *JwtAuth) NewPermissionMiddleware(per string) func(context *gin.Context) {
+func (w *Auth) NewPermissionMiddleware(per string) func(context *gin.Context) {
 	return func(ctx *gin.Context) {
 		err := w.CheckAuthPermission(ctx, per)
 		if err != nil {

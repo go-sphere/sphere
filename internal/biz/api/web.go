@@ -9,7 +9,8 @@ import (
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
 	"github.com/tbxark/go-base-api/pkg/web/auth/tokens"
-	"github.com/tbxark/go-base-api/pkg/web/middleware"
+	"github.com/tbxark/go-base-api/pkg/web/middleware/jwt"
+	"github.com/tbxark/go-base-api/pkg/web/middleware/logger"
 	"github.com/tbxark/go-base-api/pkg/wechat"
 	"golang.org/x/sync/singleflight"
 	"net/http"
@@ -32,7 +33,7 @@ type Web struct {
 	cache  cache.ByteCache
 	render *render.Render
 	token  *tokens.Generator
-	auth   *middleware.JwtAuth
+	auth   *jwt.Auth
 }
 
 func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, cache cache.ByteCache) *Web {
@@ -46,7 +47,7 @@ func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, c
 		cache:  cache,
 		render: render.NewRender(cdn, db, true),
 		token:  token,
-		auth:   middleware.NewJwtAuth(token),
+		auth:   jwt.NewJwtAuth(token),
 	}
 }
 
@@ -55,9 +56,9 @@ func (w *Web) Identifier() string {
 }
 
 func (w *Web) Run() {
-	logger := log.ZapLogger().With(field.String("module", "api"))
-	loggerMiddleware := middleware.NewZapLoggerMiddleware(logger)
-	recoveryMiddleware := middleware.NewZapRecoveryMiddleware(logger)
+	zapLogger := log.ZapLogger().With(field.String("module", "api"))
+	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
+	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
 	//rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
 	w.Engine.Use(loggerMiddleware, recoveryMiddleware)

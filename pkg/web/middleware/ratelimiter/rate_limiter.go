@@ -1,4 +1,4 @@
-package middleware
+package ratelimiter
 
 import (
 	"github.com/gin-gonic/gin"

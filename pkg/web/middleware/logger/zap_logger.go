@@ -1,4 +1,4 @@
-package middleware
+package logger
 
 import (
 	ginzap "github.com/gin-contrib/zap"
