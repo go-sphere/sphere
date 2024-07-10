@@ -20,7 +20,7 @@ const WebPermissionAdmin = "admin"
 // @Summary 管理员列表
 // @Tags dashboard
 // @Produce json
-// @Security	ApiKeyAuth
+// @Security ApiKeyAuth
 // @Success 200 {object} []render.Admin
 // @Router /api/admin/list [get]
 func (w *Web) AdminList(ctx *gin.Context) (gin.H, error) {
@@ -49,7 +49,7 @@ type AdminEditRequest struct {
 // @Accept json
 // @Produce json
 // @Param admin body AdminEditRequest true "管理员信息"
-// @Security	ApiKeyAuth
+// @Security ApiKeyAuth
 // @Success 200 {object} render.Admin
 // @Router /api/admin/create [post]
 func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
@@ -83,7 +83,7 @@ func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
 // @Accept json
 // @Produce json
 // @Param admin body AdminEditRequest true "管理员信息"
-// @Security	ApiKeyAuth
+// @Security ApiKeyAuth
 // @Success 200 {object} render.Admin
 // @Router /api/admin/update/{id} [post]
 func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
@@ -122,7 +122,7 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
 // @Tags dashboard
 // @Produce json
 // @Param id path int true "管理员ID"
-// @Security	ApiKeyAuth
+// @Security ApiKeyAuth
 // @Success 200 {object} render.Admin
 // @Router /api/admin/detail/{id} [get]
 func (w *Web) AdminDetail(ctx *gin.Context) (gin.H, error) {
@@ -144,7 +144,7 @@ func (w *Web) AdminDetail(ctx *gin.Context) (gin.H, error) {
 // @Tags dashboard
 // @Produce json
 // @Param id path int true "管理员ID"
-// @Security	ApiKeyAuth
+// @Security ApiKeyAuth
 // @Success 200 {object} model.MessageResponse
 // @Router /api/admin/delete/{id} [delete]
 func (w *Web) AdminDelete(ctx *gin.Context) (*model.MessageResponse, error) {

@@ -27,7 +27,7 @@ type UserInfoMeResponse struct {
 // @Tags api
 // @Accept json
 // @Produce json
-// @Security	ApiKeyAuth
+// @Security ApiKeyAuth
 // @Success 200 {object} UserInfoMeResponse
 // @Router /api/user/me [get]
 func (w *Web) UserInfoMe(ctx *gin.Context) (*UserInfoMeResponse, error) {
@@ -56,7 +56,7 @@ type UpdateUserInfoRequest struct {
 // @Accept json
 // @Produce json
 // @Param user body UpdateUserInfoRequest true "用户信息"
-// @Security	ApiKeyAuth
+// @Security ApiKeyAuth
 // @Success 200 {object} ent.User
 // @Router /api/user/update [post]
 func (w *Web) UpdateUserInfo(ctx *gin.Context) (gin.H, error) {
@@ -95,7 +95,7 @@ type WxMiniBindPhoneRequest struct {
 // @Accept json
 // @Produce json
 // @Param request body WxMiniBindPhoneRequest true "绑定信息"
-// @Security	ApiKeyAuth
+// @Security ApiKeyAuth
 // @Success 200 {object} model.MessageResponse
 // @Router /api/wx/mini/bind/phone [post]
 func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*model.MessageResponse, error) {

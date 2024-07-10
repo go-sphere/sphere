@@ -2,11 +2,10 @@ package cmd
 
 import (
 	"encoding/json"
+	"github.com/spf13/cobra"
 	"github.com/tbxark/go-base-api/config"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"os"
-
-	"github.com/spf13/cobra"
 )
 
 // configCmd represents the config command

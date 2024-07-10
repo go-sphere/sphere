@@ -14,7 +14,7 @@ import (
 // @Accept json
 // @Produce json
 // @Param filename query string true "文件名"
-// @Security	ApiKeyAuth
+// @Security ApiKeyAuth
 // @Success 200 {object} model.UploadToken
 // @Router /api/upload/token [get]
 func (w *Web) UploadToken(ctx *gin.Context) (gin.H, error) {

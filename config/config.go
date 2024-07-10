@@ -2,15 +2,14 @@ package config
 
 import (
 	"encoding/json"
-	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
-	"github.com/tbxark/go-base-api/pkg/dao/client"
-	"math/rand"
-	"os"
-
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
+	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
+	"github.com/tbxark/go-base-api/pkg/dao/client"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/wechat"
+	"math/rand"
+	"os"
 )
 
 var BuildVersion = "dev"
