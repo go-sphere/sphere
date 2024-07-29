@@ -92,8 +92,8 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
 		return nil, err
 	}
 	var req AdminEditRequest
-	if err := ctx.BindJSON(&req); err != nil {
-		return nil, err
+	if e := ctx.BindJSON(&req); e != nil {
+		return nil, e
 	}
 	update := w.db.Admin.UpdateOneID(id).
 		SetAvatar(w.cdn.KeyFromURL(req.Avatar)).
