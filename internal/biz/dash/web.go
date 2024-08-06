@@ -10,20 +10,20 @@ import (
 	"github.com/tbxark/go-base-api/pkg/cdn"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
+	"github.com/tbxark/go-base-api/pkg/web"
 	"github.com/tbxark/go-base-api/pkg/web/auth/tokens"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/jwt"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/logger"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/ratelimiter"
 	"github.com/tbxark/go-base-api/pkg/wechat"
-	"io/fs"
-	"net/http"
 	"time"
 )
 
 type Config struct {
-	JWT     string `json:"jwt"`
-	Address string `json:"address"`
-	Doc     bool   `json:"doc"`
+	JWT           string `json:"jwt"`
+	Address       string `json:"address"`
+	Doc           bool   `json:"doc"`
+	DashLocalPath string `json:"dash_local_path"`
 }
 
 type Web struct {
@@ -65,7 +65,7 @@ func (w *Web) Run() {
 
 	w.Engine.Use(loggerMiddleware, recoveryMiddleware)
 
-	if dash, err := w.dashFs(); err == nil {
+	if dash, err := web.Fs(w.config.DashLocalPath, assets.DashAssets, assets.DashAssetsPath); err == nil {
 		d := w.Engine.Group("/dash", gzip.Gzip(gzip.DefaultCompression))
 		d.StaticFS("/", dash)
 	}
@@ -90,12 +90,4 @@ func (w *Web) Run() {
 	if err != nil {
 		log.Warnw("dash server run error", field.Error(err))
 	}
-}
-
-func (w *Web) dashFs() (http.FileSystem, error) {
-	sf, err := fs.Sub(assets.DashAssets, assets.DashAssetsPath)
-	if err != nil {
-		return nil, err
-	}
-	return http.FS(sf), nil
 }
