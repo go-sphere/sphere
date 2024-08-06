@@ -14,8 +14,11 @@ type UrlParser interface {
 	KeyFromURLWithMode(uri string, strict bool) (string, error)
 }
 
-type Uploader interface {
+type Credential interface {
 	UploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) model.UploadToken
+}
+
+type Uploader interface {
 	UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*model.UploadResult, error)
 	UploadLocalFile(ctx context.Context, file string, key string) (*model.UploadResult, error)
 }
@@ -23,4 +26,5 @@ type Uploader interface {
 type CDN interface {
 	UrlParser
 	Uploader
+	Credential
 }
