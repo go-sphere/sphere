@@ -69,6 +69,20 @@ func (t *Telegraph) UploadFile(ctx context.Context, file io.Reader, size int64, 
 	if err != nil {
 		return nil, err
 	}
+	//{"error":"File type invalid"}
+	if respBody[0] == '{' {
+		var errBody struct {
+			Error string `json:"error"`
+		}
+		err = json.Unmarshal(respBody, &errBody)
+		if err != nil {
+			return nil, err
+		}
+		if errBody.Error != "" {
+			return nil, fmt.Errorf(errBody.Error)
+		}
+		return nil, fmt.Errorf("unknown error")
+	}
 	var result []Result
 	err = json.Unmarshal(respBody, &result)
 	if err != nil {

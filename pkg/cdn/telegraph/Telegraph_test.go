@@ -17,6 +17,7 @@ func TestTelegraph_UploadFile(t *testing.T) {
 	res, err := uploader.UploadFile(nil, resp.Body, resp.ContentLength, "avatar.png")
 	if err != nil {
 		t.Error(err)
+	} else {
+		t.Log(res.Key)
 	}
-	t.Log(res.Key)
 }
