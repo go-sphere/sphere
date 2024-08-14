@@ -25,7 +25,6 @@ func (e HTTPError) Error() string {
 	return e.Message
 }
 
-var (
-	NeedLoginError  = NewHTTPError(401, "需要登录")
-	PermissionError = NewHTTPError(403, "权限不足")
-)
+func (e HTTPError) Status() int {
+	return e.Code
+}

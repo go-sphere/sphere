@@ -10,6 +10,7 @@ require (
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.6.0
 	github.com/meilisearch/meilisearch-go v0.27.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -20,6 +21,7 @@ require (
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
 	github.com/swaggo/swag v1.16.3
+	github.com/telegram-mini-apps/init-data-golang v1.1.5
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.24.0
 	golang.org/x/net v0.26.0
@@ -59,7 +61,6 @@ require (
 	github.com/gofrs/flock v0.12.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/hashicorp/hcl/v2 v2.21.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

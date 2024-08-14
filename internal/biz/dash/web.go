@@ -11,8 +11,8 @@ import (
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/auth/tokens"
-	"github.com/tbxark/go-base-api/pkg/web/middleware/jwt"
+	"github.com/tbxark/go-base-api/pkg/web/auth/jwt_tokens"
+	"github.com/tbxark/go-base-api/pkg/web/middleware/auth"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/logger"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/ratelimiter"
 	"github.com/tbxark/go-base-api/pkg/wechat"
@@ -34,12 +34,12 @@ type Web struct {
 	cdn    cdn.CDN
 	cache  cache.ByteCache
 	render *render.Render
-	token  *tokens.Generator
-	auth   *jwt.Auth
+	token  *jwt_tokens.JwtAuth
+	auth   *auth.Auth
 }
 
 func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, cache cache.ByteCache) *Web {
-	token := tokens.NewTokenGenerator(config.JWT)
+	token := jwt_tokens.NewJwtAuth(config.JWT)
 	return &Web{
 		config: config,
 		Engine: gin.New(),
@@ -49,7 +49,7 @@ func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, c
 		cache:  cache,
 		render: render.NewRender(cdn, db, false),
 		token:  token,
-		auth:   jwt.NewJwtAuth(token),
+		auth:   auth.NewJwtAuth(jwt_tokens.AuthorizationPrefixBearer, token),
 	}
 }
 
@@ -71,19 +71,19 @@ func (w *Web) Run() {
 	}
 
 	api := w.Engine.Group("/")
-	auth := api.Group("/", w.auth.NewJwtAuthMiddleware(true))
+	authGroup := api.Group("/", w.auth.NewAuthMiddleware(true))
 
 	if w.config.Doc {
 		w.bindDocRoute(api)
 	}
 	w.bindAdminAuthRoute(api.Group("/", rateLimiter))
-	w.bindSystemRoute(auth)
+	w.bindSystemRoute(authGroup)
 
 	route := map[string]func(gin.IRouter){
 		WebPermissionAdmin: w.bindAdminRoute,
 	}
 	for page, handler := range route {
-		handler(auth.Group("/", w.auth.NewPermissionMiddleware(page)))
+		handler(authGroup.Group("/", w.auth.NewPermissionMiddleware(page)))
 	}
 
 	err := w.Engine.Run(w.config.Address)

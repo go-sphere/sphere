@@ -1,4 +1,4 @@
-package tokens
+package jwt_tokens
 
 import (
 	"fmt"
@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	SignedDetailsUidKey = "uid"
+	SignedDetailsUidKey       = "uid"
+	AuthorizationPrefixBearer = "Bearer"
 )
 
 type SignedDetails struct {
@@ -23,26 +24,26 @@ type Token struct {
 	ExpiresAt time.Time
 }
 
-type Generator struct {
+type JwtAuth struct {
 	secretKey             []byte
 	SignedTokenDuration   time.Duration
 	SignedRefreshDuration time.Duration
 }
 
-func NewTokenGenerator(secretKey string) *Generator {
-	return &Generator{
+func NewJwtAuth(secretKey string) *JwtAuth {
+	return &JwtAuth{
 		secretKey:             []byte(secretKey),
 		SignedTokenDuration:   time.Hour * 24,
 		SignedRefreshDuration: time.Hour * 24 * 7,
 	}
 }
 
-func (g *Generator) GenerateSignedToken(uid, username string, roles ...string) (*Token, error) {
+func (g *JwtAuth) GenerateSignedToken(uid, username string, roles ...string) (*Token, error) {
 	expiresAt := time.Now().Local().Add(g.SignedTokenDuration)
 	claims := &SignedDetails{
 		UID:      uid,
 		Username: username,
-		Roles:    g.GenRolesString(roles),
+		Roles:    g.genRolesString(roles),
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expiresAt.Unix(),
 		},
@@ -59,7 +60,7 @@ func (g *Generator) GenerateSignedToken(uid, username string, roles ...string) (
 	}, nil
 }
 
-func (g *Generator) GenerateRefreshToken(uid string) (*Token, error) {
+func (g *JwtAuth) GenerateRefreshToken(uid string) (*Token, error) {
 
 	expiresAt := time.Now().Local().Add(g.SignedRefreshDuration)
 	refreshClaims := &SignedDetails{
@@ -80,7 +81,7 @@ func (g *Generator) GenerateRefreshToken(uid string) (*Token, error) {
 	}, nil
 }
 
-func (g *Generator) Validate(signedToken string) (map[string]any, error) {
+func (g *JwtAuth) Validate(signedToken string) (map[string]any, error) {
 	token, err := jwt.ParseWithClaims(signedToken, &SignedDetails{}, func(token *jwt.Token) (interface{}, error) {
 		return g.secretKey, nil
 	})
@@ -102,11 +103,11 @@ func (g *Generator) Validate(signedToken string) (map[string]any, error) {
 	return res, nil
 }
 
-func (g *Generator) GenRolesString(roles []string) string {
+func (g *JwtAuth) genRolesString(roles []string) string {
 	return strings.Join(roles, ",")
 }
 
-func (g *Generator) ParseRolesString(roles string) map[string]struct{} {
+func (g *JwtAuth) ParseRolesString(roles string) map[string]struct{} {
 	roleMap := make(map[string]struct{})
 	for _, r := range strings.Split(roles, ",") {
 		roleMap[r] = struct{}{}

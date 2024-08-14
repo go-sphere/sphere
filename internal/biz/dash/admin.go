@@ -8,7 +8,7 @@ import (
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/admin"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/auth/tokens"
+	"github.com/tbxark/go-base-api/pkg/web/auth/jwt_tokens"
 	"github.com/tbxark/go-base-api/pkg/web/model"
 	"strconv"
 	"time"
@@ -256,7 +256,7 @@ func (w *Web) AdminRefreshToken(ctx *gin.Context) (*AdminLoginResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	uid, ok := claims[tokens.SignedDetailsUidKey].(string)
+	uid, ok := claims[jwt_tokens.SignedDetailsUidKey].(string)
 	if !ok {
 		return nil, model.NewHTTPError(400, "uid not found")
 	}
