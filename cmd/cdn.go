@@ -1,3 +1,5 @@
+//go:build !cdncommand
+
 package cmd
 
 import (
