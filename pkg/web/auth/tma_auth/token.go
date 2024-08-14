@@ -2,6 +2,7 @@ package tma_auth
 
 import (
 	initdata "github.com/telegram-mini-apps/init-data-golang"
+	"strconv"
 	"time"
 )
 
@@ -12,10 +13,10 @@ type TmaAuth struct {
 	expIn time.Duration
 }
 
-func NewTmaAuth(token string, expIn time.Duration) *TmaAuth {
+func NewTmaAuth(token string) *TmaAuth {
 	return &TmaAuth{
 		token: token,
-		expIn: expIn,
+		expIn: time.Hour * 24,
 	}
 }
 
@@ -29,10 +30,10 @@ func (t *TmaAuth) Validate(token string) (map[string]any, error) {
 		return nil, err
 	}
 
-	res := make(map[string]any)
-	res["uid"] = initData.Chat.ID
+	res := make(map[string]any, 4)
+	res["uid"] = strconv.Itoa(int(initData.Chat.ID))
 	res["username"] = initData.Chat.Username
-	res["roles"] = ""
+	res["roles"] = string(initData.ChatType)
 	res["exp"] = initData.AuthDate().Add(t.expIn)
 
 	return res, nil

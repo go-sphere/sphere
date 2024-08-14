@@ -94,7 +94,7 @@ func (g *JwtAuth) Validate(signedToken string) (map[string]any, error) {
 		return nil, fmt.Errorf("token is invalid")
 	}
 
-	var res = make(map[string]any)
+	var res = make(map[string]any, 4)
 	res["uid"] = claims.UID
 	res["username"] = claims.Username
 	res["roles"] = claims.Roles
