@@ -11,7 +11,7 @@ import (
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/auth/jwt_tokens"
+	"github.com/tbxark/go-base-api/pkg/web/auth/jwt_auth"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/auth"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/logger"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/ratelimiter"
@@ -34,12 +34,12 @@ type Web struct {
 	cdn    cdn.CDN
 	cache  cache.ByteCache
 	render *render.Render
-	token  *jwt_tokens.JwtAuth
+	token  *jwt_auth.JwtAuth
 	auth   *auth.Auth
 }
 
 func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, cache cache.ByteCache) *Web {
-	token := jwt_tokens.NewJwtAuth(config.JWT)
+	token := jwt_auth.NewJwtAuth(config.JWT)
 	return &Web{
 		config: config,
 		Engine: gin.New(),
@@ -49,7 +49,7 @@ func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, c
 		cache:  cache,
 		render: render.NewRender(cdn, db, false),
 		token:  token,
-		auth:   auth.NewJwtAuth(jwt_tokens.AuthorizationPrefixBearer, token),
+		auth:   auth.NewJwtAuth(jwt_auth.AuthorizationPrefixBearer, token),
 	}
 }
 

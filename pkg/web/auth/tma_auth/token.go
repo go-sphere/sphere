@@ -1,4 +1,4 @@
-package tma_tokens
+package tma_auth
 
 import (
 	initdata "github.com/telegram-mini-apps/init-data-golang"

@@ -1,4 +1,4 @@
-package jwt_tokens
+package jwt_auth
 
 import (
 	"fmt"

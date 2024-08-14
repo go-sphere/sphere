@@ -7,14 +7,14 @@ import (
 )
 
 type Auth struct {
-	*Base
+	*Context
 	authPrefix string
 	validator  Validator
 }
 
 func NewJwtAuth(authPrefix string, validators Validator) *Auth {
 	return &Auth{
-		Base:       &Base{},
+		Context:    &Context{},
 		authPrefix: authPrefix,
 		validator:  validators,
 	}
