@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type Auth struct {
@@ -12,7 +13,7 @@ type Auth struct {
 	validator  Validator
 }
 
-func NewJwtAuth(authPrefix string, validators Validator) *Auth {
+func NewAuth(authPrefix string, validators Validator) *Auth {
 	return &Auth{
 		Context:    &Context{},
 		authPrefix: authPrefix,
@@ -34,7 +35,7 @@ func (w *Auth) NewAuthMiddleware(abortOnError bool) func(ctx *gin.Context) {
 			abort()
 			return
 		}
-		if len(token) > len(w.authPrefix)+1 && token[:len(w.authPrefix)] == w.authPrefix {
+		if len(w.authPrefix) > 0 && strings.HasPrefix(token, w.authPrefix+" ") {
 			token = token[len(w.authPrefix)+1:]
 		}
 		claims, err := w.validator.Validate(token)

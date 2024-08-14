@@ -49,7 +49,7 @@ func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, c
 		cache:  cache,
 		render: render.NewRender(cdn, db, false),
 		token:  token,
-		auth:   auth.NewJwtAuth(jwt_auth.AuthorizationPrefixBearer, token),
+		auth:   auth.NewAuth(jwt_auth.AuthorizationPrefixBearer, token),
 	}
 }
 
