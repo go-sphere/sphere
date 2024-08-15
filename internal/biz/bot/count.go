@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/tbxark/go-base-api/pkg/log"
 	"math/rand"
 )
 
@@ -15,24 +16,21 @@ func (a *App) HandleCounter(ctx context.Context, b *bot.Bot, update *models.Upda
 			value = *v
 		}
 	}
-	msg := MenuMessage{
+	msg := Message{
 		Text: fmt.Sprintf("Current value: %d", value),
-		Button: [][]MenuButton{
+		Button: [][]Button{
 			{
-				MenuButton{Text: "+", Type: QueryCounter, Data: value + 1},
-				MenuButton{Text: "-", Type: QueryCounter, Data: value - 1},
+				Button{Text: "+", Type: QueryCounter, Data: value + 1},
+				Button{Text: "-", Type: QueryCounter, Data: value - 1},
 			},
 			{
-				MenuButton{Text: "Reset", Type: QueryCounter, Data: 0},
-				MenuButton{Text: "Random", Type: QueryCounter, Data: rand.Int() % 100},
+				Button{Text: "Reset", Type: QueryCounter, Data: 0},
+				Button{Text: "Random", Type: QueryCounter, Data: rand.Int() % 100},
 			},
 		},
 	}
-
-	if update.CallbackQuery != nil {
-		origin := update.CallbackQuery.Message.Message
-		_, _ = b.EditMessageText(ctx, msg.toEditMessageTextParams(origin.Chat.ID, origin.ID))
-	} else {
-		_, _ = b.SendMessage(ctx, msg.toSendMessageParams(update.Message.Chat.ID))
+	_, err := SendMenuMessage(ctx, &msg, b, update)
+	if err != nil {
+		log.Errorf("send message error: %v", err)
 	}
 }
