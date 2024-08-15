@@ -33,7 +33,7 @@ func (t *TmaAuth) Validate(token string) (map[string]any, error) {
 	res := make(map[string]any, 4)
 	res["uid"] = strconv.Itoa(int(initData.Chat.ID))
 	res["username"] = initData.Chat.Username
-	res["roles"] = string(initData.ChatType)
+	res["roles"] = string(initData.Chat.Type)
 	res["exp"] = initData.AuthDate().Add(t.expIn)
 
 	return res, nil

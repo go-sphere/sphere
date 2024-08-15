@@ -171,8 +171,8 @@ func (w *Web) AdminDelete(ctx *gin.Context) (*model.MessageResponse, error) {
 }
 
 type AdminLoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 type AdminLoginResponse struct {
@@ -216,7 +216,7 @@ func (w *Web) createLoginResponse(u *ent.Admin) (*AdminLoginResponse, error) {
 // @Router /api/admin/login [post]
 func (w *Web) AdminLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 	var req AdminLoginRequest
-	if err := ctx.BindJSON(&req); err != nil {
+	if err := ctx.ShouldBindJSON(&req); err != nil {
 		return nil, err
 	}
 	u, err := w.db.Admin.Query().Where(admin.UsernameEQ(req.Username)).Only(ctx)

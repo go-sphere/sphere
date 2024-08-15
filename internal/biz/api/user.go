@@ -86,7 +86,7 @@ func (w *Web) UpdateUserInfo(ctx *gin.Context) (gin.H, error) {
 }
 
 type WxMiniBindPhoneRequest struct {
-	Code string `json:"code"`
+	Code string `json:"code" binding:"required"`
 }
 
 // WxMiniBindPhone
@@ -100,7 +100,7 @@ type WxMiniBindPhoneRequest struct {
 // @Router /api/wx/mini/bind/phone [post]
 func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*model.MessageResponse, error) {
 	var req WxMiniBindPhoneRequest
-	if err := ctx.BindJSON(&req); err != nil {
+	if err := ctx.ShouldBindJSON(&req); err != nil {
 		return nil, err
 	}
 	userId, err := w.auth.GetCurrentID(ctx)

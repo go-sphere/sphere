@@ -14,7 +14,7 @@ import (
 )
 
 type WxMiniAuthRequest struct {
-	Code string `json:"code"`
+	Code string `json:"code" binding:"required"`
 }
 
 type AuthResponse struct {
@@ -33,7 +33,7 @@ type AuthResponse struct {
 // @Router /api/wx/mini/auth [post]
 func (w *Web) WxMiniAuth(ctx *gin.Context) (*AuthResponse, error) {
 	var req WxMiniAuthRequest
-	if err := ctx.BindJSON(&req); err != nil {
+	if err := ctx.ShouldBindJSON(&req); err != nil {
 		return nil, err
 	}
 	wxUser, err := w.wx.Auth(req.Code)
