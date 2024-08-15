@@ -3,20 +3,12 @@ package bot
 import (
 	"context"
 	"fmt"
-	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/tbxark/go-base-api/pkg/log"
 	"math/rand"
 )
 
-func (a *App) HandleCounter(ctx context.Context, b *bot.Bot, update *models.Update) {
-	value := 0
-	if update.CallbackQuery != nil {
-		if v, err := unmarshalData[int](update.CallbackQuery.Data); err == nil {
-			value = *v
-		}
-	}
-	msg := Message{
+func (a *App) newCounter(value int) *Message {
+	return &Message{
 		Text: fmt.Sprintf("Current value: %d", value),
 		Button: [][]Button{
 			{
@@ -29,8 +21,13 @@ func (a *App) HandleCounter(ctx context.Context, b *bot.Bot, update *models.Upda
 			},
 		},
 	}
-	_, err := SendMenuMessage(ctx, &msg, b, update)
+}
+
+func (a *App) HandleCounter(ctx context.Context, update *models.Update) error {
+	value, err := unmarshalUpdateDataX[int](update, 0)
 	if err != nil {
-		log.Errorf("send message error: %v", err)
+		return err
 	}
+	msg := a.newCounter(*value)
+	return a.SendMessage(ctx, update, msg)
 }

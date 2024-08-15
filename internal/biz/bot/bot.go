@@ -50,12 +50,9 @@ func (a *App) Run() {
 	if err != nil {
 		log.Panicf("create bot error: %v", err)
 	}
-	_, err = b.DeleteWebhook(context.Background(), &bot.DeleteWebhookParams{})
-	if err != nil {
-		log.Panicf("delete webhook error: %v", err)
-	}
-	a.bot = b
+	_, _ = b.DeleteWebhook(context.Background(), &bot.DeleteWebhookParams{})
 
+	a.bot = b
 	a.BindCommand(CommandStart, a.HandleStart)
 	a.BindCommand(CommandCounter, a.HandleCounter)
 	a.BindCallback(QueryCounter, a.HandleCounter)
@@ -63,10 +60,46 @@ func (a *App) Run() {
 	a.bot.Start(ctx)
 }
 
-func (a *App) BindCommand(command string, handlerFunc bot.HandlerFunc) {
-	a.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypeExact, handlerFunc)
+type HandlerFunc func(ctx context.Context, update *models.Update) error
+
+func (a *App) BindCommand(command string, handlerFunc HandlerFunc) {
+	a.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypeExact, func(ctx context.Context, bot *bot.Bot, update *models.Update) {
+		if e := handlerFunc(ctx, update); e != nil {
+			log.Errorf("command %s error: %v", command, e)
+		}
+	})
 }
 
-func (a *App) BindCallback(query string, handlerFunc bot.HandlerFunc) {
-	a.bot.RegisterHandler(bot.HandlerTypeCallbackQueryData, query, bot.MatchTypePrefix, handlerFunc)
+func (a *App) BindCallback(query string, handlerFunc HandlerFunc) {
+	a.bot.RegisterHandler(bot.HandlerTypeCallbackQueryData, query, bot.MatchTypePrefix, func(ctx context.Context, bot *bot.Bot, update *models.Update) {
+		if e := handlerFunc(ctx, update); e != nil {
+			log.Errorf("callback %s error: %v", query, e)
+		}
+	})
+}
+
+func (a *App) SendMessage(ctx context.Context, update *models.Update, m *Message) error {
+	if update.CallbackQuery != nil {
+		origin := update.CallbackQuery.Message.Message
+		_, err := a.bot.EditMessageText(ctx, m.toEditMessageTextParams(origin.Chat.ID, origin.ID))
+		return err
+	} else if update.Message != nil {
+		_, err := a.bot.SendMessage(ctx, m.toSendMessageParams(update.Message.Chat.ID))
+		return err
+	}
+	return nil
+}
+
+func unmarshalUpdateData[T any](update *models.Update) (*T, error) {
+	if update.CallbackQuery != nil {
+		return unmarshalData[T](update.CallbackQuery.Data)
+	}
+	return nil, nil
+}
+
+func unmarshalUpdateDataX[T any](update *models.Update, t T) (*T, error) {
+	if update.CallbackQuery != nil {
+		return unmarshalData[T](update.CallbackQuery.Data)
+	}
+	return &t, nil
 }

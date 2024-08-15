@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"context"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 )
@@ -55,14 +54,4 @@ func (m *Message) toEditMessageTextParams(chatID int64, messageID int) *bot.Edit
 		ParseMode:   m.ParseMode,
 		ReplyMarkup: m.toInlineKeyboardMarkup(),
 	}
-}
-
-func SendMenuMessage(ctx context.Context, m *Message, b *bot.Bot, update *models.Update) (*models.Message, error) {
-	if update.CallbackQuery != nil {
-		origin := update.CallbackQuery.Message.Message
-		return b.EditMessageText(ctx, m.toEditMessageTextParams(origin.Chat.ID, origin.ID))
-	} else if update.Message != nil {
-		return b.SendMessage(ctx, m.toSendMessageParams(update.Message.Chat.ID))
-	}
-	return nil, nil
 }
