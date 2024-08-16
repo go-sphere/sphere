@@ -52,6 +52,7 @@ func (a *App) Run() {
 				log.Infof("receive callback query: %s", update.CallbackQuery.Data)
 			}
 		}),
+		bot.WithMiddlewares(NewRecoveryMiddleware()),
 	}
 
 	b, err := bot.New(a.config.Token, opts...)
@@ -64,6 +65,7 @@ func (a *App) Run() {
 	errMid := NewErrorAlertMiddleware(b)
 
 	a.bot = b
+
 	a.BindCommand(CommandStart, a.HandleStart, errMid)
 	a.BindCommand(CommandCounter, a.HandleCounter, errMid, sfMid)
 	a.BindCallback(QueryCounter, a.HandleCounter, errMid, sfMid)
@@ -73,7 +75,7 @@ func (a *App) Run() {
 
 func (a *App) BindCommand(command string, handlerFunc HandlerFunc, middleware ...HandlerMiddleware) {
 	fn := handlerFunc.WithMiddleware(middleware...)
-	a.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypeExact, func(ctx context.Context, bot *bot.Bot, update *models.Update) {
+	a.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypePrefix, func(ctx context.Context, bot *bot.Bot, update *models.Update) {
 		if e := fn(ctx, update); e != nil {
 			log.Errorf("command %s error: %v", command, e)
 		}
