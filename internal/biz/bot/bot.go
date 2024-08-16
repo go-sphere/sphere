@@ -60,27 +60,30 @@ func (a *App) Run() {
 	}
 	_, _ = b.DeleteWebhook(context.Background(), &bot.DeleteWebhookParams{})
 
+	sfMid := NewSingleFlightMiddleware()
+	errMid := NewErrorAlertMiddleware(b)
+
 	a.bot = b
-	a.BindCommand(CommandStart, a.HandleStart)
-	a.BindCommand(CommandCounter, a.HandleCounter)
-	a.BindCallback(QueryCounter, a.HandleCounter)
+	a.BindCommand(CommandStart, a.HandleStart, errMid)
+	a.BindCommand(CommandCounter, a.HandleCounter, errMid, sfMid)
+	a.BindCallback(QueryCounter, a.HandleCounter, errMid, sfMid)
 
 	a.bot.Start(ctx)
 }
 
-type HandlerFunc func(ctx context.Context, update *models.Update) error
-
-func (a *App) BindCommand(command string, handlerFunc HandlerFunc) {
+func (a *App) BindCommand(command string, handlerFunc HandlerFunc, middleware ...HandlerMiddleware) {
+	fn := handlerFunc.WithMiddleware(middleware...)
 	a.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypeExact, func(ctx context.Context, bot *bot.Bot, update *models.Update) {
-		if e := handlerFunc(ctx, update); e != nil {
+		if e := fn(ctx, update); e != nil {
 			log.Errorf("command %s error: %v", command, e)
 		}
 	})
 }
 
-func (a *App) BindCallback(query string, handlerFunc HandlerFunc) {
+func (a *App) BindCallback(query string, handlerFunc HandlerFunc, middleware ...HandlerMiddleware) {
+	fn := handlerFunc.WithMiddleware(middleware...)
 	a.bot.RegisterHandler(bot.HandlerTypeCallbackQueryData, query, bot.MatchTypePrefix, func(ctx context.Context, bot *bot.Bot, update *models.Update) {
-		if e := handlerFunc(ctx, update); e != nil {
+		if e := fn(ctx, update); e != nil {
 			log.Errorf("callback %s error: %v", query, e)
 		}
 	})
