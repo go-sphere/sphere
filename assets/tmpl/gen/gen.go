@@ -31,7 +31,8 @@ type List struct {
 		if file.IsDir() {
 			continue
 		}
-		fieldName := file.Name()[:len(file.Name())-5]
+		fieldName := file.Name()
+		fieldName = fieldName[:len(fieldName)-len(path.Ext(fieldName))]
 		fieldName = strings.ToUpper(fieldName[:1]) + fieldName[1:]
 		list = append(list, fieldName)
 		if len(fieldName) > maxLen {
