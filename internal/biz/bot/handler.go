@@ -78,17 +78,83 @@ func NewRecoveryMiddleware() bot.Middleware {
 }
 
 func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration) bot.Middleware {
+	const (
+		TypeGroup       = "group"
+		TypeSuperGroup  = "supergroup"
+		TypeMention     = "mention"
+		TypeTextMention = "text_mention"
+		TypeBotCommand  = "bot_command"
+	)
+
+	var (
+		ts   time.Time
+		sf   singleflight.Group
+		user *models.User
+	)
+
 	isGroupChatType := func(t string) bool {
-		switch t {
-		case "group", "supergroup":
-			return true
-		default:
-			return false
-		}
+		return t == TypeGroup || t == TypeSuperGroup
 	}
-	sf := &singleflight.Group{}
-	var user *models.User
-	var lastUpdate time.Time
+
+	getBotInfo := func(ctx context.Context, b *bot.Bot, sf *singleflight.Group) (int64, string, error) {
+		v, err, _ := sf.Do("getMe", func() (interface{}, error) {
+			// 判断缓存存在且未过期，则直接使用
+			if user != nil && time.Since(ts) < infoExpire {
+				return user, nil
+			}
+			// 获取bot信息
+			u, err := b.GetMe(ctx)
+			if err != nil {
+				return nil, err
+			}
+			user = u
+			ts = time.Now()
+			return u, nil
+		})
+		if err != nil {
+			return 0, "", err
+		}
+		return v.(*models.User).ID, v.(*models.User).Username, nil
+	}
+
+	checkMention := func(update *models.Update, id int64, username string, trimMention bool) bool {
+		isMention := false
+		for _, entity := range update.Message.Entities {
+			switch entity.Type {
+			case TypeMention: // "mention"适用于有用户名的普通用户
+				entityStr := update.Message.Text[entity.Offset : entity.Offset+entity.Length]
+				if entityStr == "@"+username {
+					isMention = true
+					if trimMention {
+						update.Message.Text = update.Message.Text[:entity.Offset] + update.Message.Text[entity.Offset+entity.Length:]
+					}
+				}
+				break
+			case TypeTextMention: // "text_mention"适用于没有用户名的用户或需要通过ID提及用户的情况
+				if entity.User.ID == id {
+					isMention = true
+					if trimMention {
+						update.Message.Text = update.Message.Text[:entity.Offset] + update.Message.Text[entity.Offset+entity.Length:]
+					}
+				}
+				break
+			case TypeBotCommand: // "bot_command"适用于命令
+				entityStr := update.Message.Text[entity.Offset : entity.Offset+entity.Length]
+				if strings.HasSuffix(entityStr, "@"+username) {
+					isMention = true
+					if trimMention {
+						entityStr = strings.ReplaceAll(entityStr, "@"+username, "")
+						update.Message.Text = update.Message.Text[:entity.Offset] + entityStr + update.Message.Text[entity.Offset+entity.Length:]
+					}
+				}
+				break
+			default:
+				continue
+			}
+		}
+		return isMention
+	}
+
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
 		return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 			// 判断是不是群消息，则直接处理
@@ -97,30 +163,12 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 				return
 			}
 
-			// 判断bot信息是否过期
-			if user != nil && time.Since(lastUpdate) > infoExpire {
-				user = nil
-			}
-			// 获取bot信息
-			if user == nil {
-				_, _, _ = sf.Do("getMe", func() (interface{}, error) {
-					u, err := b.GetMe(ctx)
-					if err != nil {
-						return nil, err
-					}
-					user = u
-					lastUpdate = time.Now()
-					return nil, nil
-				})
-			}
-			// 获取失败
-			if user == nil {
-				log.Warnf("get bot info error")
+			id, username, err := getBotInfo(ctx, b, &sf)
+			if err != nil {
+				// 获取bot信息失败，放弃处理
+				log.Errorf("get bot info error: %v", err)
 				return
 			}
-			// bot信息缓存在内存中
-			id := user.ID
-			username := user.Username
 
 			// 判断是不是回复消息，判断回复的消息是否是指定的bot，是则处理
 			if update.Message.ReplyToMessage != nil && update.Message.ReplyToMessage.From.ID == id {
@@ -128,44 +176,8 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 				return
 			}
 			// 判断是不是直接提到了bot，是则处理
-			if update.Message.Entities != nil {
-				isMention := false
-				for _, entity := range update.Message.Entities {
-					switch entity.Type {
-					case "method": // "mention"适用于有用户名的普通用户
-						entityStr := update.Message.Text[entity.Offset : entity.Offset+entity.Length]
-						if entityStr == "@"+username {
-							isMention = true
-							if trimMention {
-								update.Message.Text = update.Message.Text[:entity.Offset] + update.Message.Text[entity.Offset+entity.Length:]
-							}
-						}
-						break
-					case "text_mention": // "text_mention"适用于没有用户名的用户或需要通过ID提及用户的情况
-						if entity.User.ID == id {
-							isMention = true
-							if trimMention {
-								update.Message.Text = update.Message.Text[:entity.Offset] + update.Message.Text[entity.Offset+entity.Length:]
-							}
-						}
-						break
-					case "bot_command": // "bot_command"适用于命令
-						entityStr := update.Message.Text[entity.Offset : entity.Offset+entity.Length]
-						if strings.HasSuffix(entityStr, "@"+username) {
-							isMention = true
-							if trimMention {
-								entityStr = strings.ReplaceAll(entityStr, "@"+entity.User.Username, "")
-								update.Message.Text = update.Message.Text[:entity.Offset] + entityStr + update.Message.Text[entity.Offset+entity.Length:]
-							}
-						}
-						break
-					default:
-						continue
-					}
-				}
-				if isMention {
-					next(ctx, b, update)
-				}
+			if update.Message.Entities != nil && checkMention(update, id, username, trimMention) {
+				next(ctx, b, update)
 			}
 		}
 	}
