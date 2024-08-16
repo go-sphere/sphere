@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/field"
-	"github.com/tbxark/go-base-api/pkg/request"
+	"github.com/tbxark/go-base-api/pkg/utils/request"
 	"io"
 	"net/http"
 	"time"
