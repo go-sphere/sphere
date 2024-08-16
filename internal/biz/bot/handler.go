@@ -117,16 +117,16 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 		return v.(*models.User).ID, v.(*models.User).Username, nil
 	}
 
-	checkMention := func(update *models.Update, id int64, username string, trimMention bool) bool {
+	checkMention := func(text string, entities []models.MessageEntity, id int64, username string, trimMention bool) (string, bool) {
 		isMention := false
-		for _, entity := range update.Message.Entities {
+		for _, entity := range entities {
+			entityStr := text[entity.Offset : entity.Offset+entity.Length]
 			switch entity.Type {
 			case TypeMention: // "mention"适用于有用户名的普通用户
-				entityStr := update.Message.Text[entity.Offset : entity.Offset+entity.Length]
 				if entityStr == "@"+username {
 					isMention = true
 					if trimMention {
-						update.Message.Text = update.Message.Text[:entity.Offset] + update.Message.Text[entity.Offset+entity.Length:]
+						text = text[:entity.Offset] + text[entity.Offset+entity.Length:]
 					}
 				}
 				break
@@ -134,17 +134,16 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 				if entity.User.ID == id {
 					isMention = true
 					if trimMention {
-						update.Message.Text = update.Message.Text[:entity.Offset] + update.Message.Text[entity.Offset+entity.Length:]
+						text = text[:entity.Offset] + text[entity.Offset+entity.Length:]
 					}
 				}
 				break
 			case TypeBotCommand: // "bot_command"适用于命令
-				entityStr := update.Message.Text[entity.Offset : entity.Offset+entity.Length]
 				if strings.HasSuffix(entityStr, "@"+username) {
 					isMention = true
 					if trimMention {
 						entityStr = strings.ReplaceAll(entityStr, "@"+username, "")
-						update.Message.Text = update.Message.Text[:entity.Offset] + entityStr + update.Message.Text[entity.Offset+entity.Length:]
+						text = text[:entity.Offset] + entityStr + text[entity.Offset+entity.Length:]
 					}
 				}
 				break
@@ -152,13 +151,13 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 				continue
 			}
 		}
-		return isMention
+		return text, isMention
 	}
 
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
 		return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 			// 判断是不是群消息，则直接处理
-			if update.Message == nil || isGroupChatType(update.Message.Chat.Type) {
+			if update.Message == nil || !isGroupChatType(update.Message.Chat.Type) {
 				next(ctx, b, update)
 				return
 			}
@@ -175,9 +174,23 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 				next(ctx, b, update)
 				return
 			}
-			// 判断是不是直接提到了bot，是则处理
-			if update.Message.Entities != nil && checkMention(update, id, username, trimMention) {
+
+			isMention := false
+
+			// 判断Text中是否有提及bot，有则处理
+			if update.Message.Entities != nil && update.Message.Text != "" {
+				update.Message.Text, isMention = checkMention(update.Message.Text, update.Message.Entities, id, username, trimMention)
+			}
+
+			// 判断Caption中是否有提及bot，有则处理
+			if update.Message.CaptionEntities != nil && update.Message.Caption != "" {
+				update.Message.Caption, isMention = checkMention(update.Message.Caption, update.Message.CaptionEntities, id, username, trimMention)
+			}
+
+			// 判断是不是提及了bot，是则处理
+			if isMention {
 				next(ctx, b, update)
+				return
 			}
 		}
 	}
