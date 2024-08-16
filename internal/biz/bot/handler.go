@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sync/singleflight"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type HandlerFunc func(ctx context.Context, update *models.Update) error
@@ -76,7 +77,7 @@ func NewRecoveryMiddleware() bot.Middleware {
 	}
 }
 
-func NewGroupMessageFilterMiddleware(id int64, username string, trimMention bool) bot.Middleware {
+func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration) bot.Middleware {
 	isGroupChatType := func(t string) bool {
 		switch t {
 		case "group", "supergroup":
@@ -85,16 +86,45 @@ func NewGroupMessageFilterMiddleware(id int64, username string, trimMention bool
 			return false
 		}
 	}
+	sf := &singleflight.Group{}
+	var user *models.User
+	var lastUpdate time.Time
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
-		return func(ctx context.Context, bot *bot.Bot, update *models.Update) {
+		return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 			// 判断是不是群消息，则直接处理
 			if update.Message == nil || isGroupChatType(update.Message.Chat.Type) {
-				next(ctx, bot, update)
+				next(ctx, b, update)
 				return
 			}
+
+			// 判断bot信息是否过期
+			if user != nil && time.Since(lastUpdate) > infoExpire {
+				user = nil
+			}
+			// 获取bot信息
+			if user == nil {
+				_, _, _ = sf.Do("getMe", func() (interface{}, error) {
+					u, err := b.GetMe(ctx)
+					if err != nil {
+						return nil, err
+					}
+					user = u
+					lastUpdate = time.Now()
+					return nil, nil
+				})
+			}
+			// 获取失败
+			if user == nil {
+				log.Warnf("get bot info error")
+				return
+			}
+			// bot信息缓存在内存中
+			id := user.ID
+			username := user.Username
+
 			// 判断是不是回复消息，判断回复的消息是否是指定的bot，是则处理
 			if update.Message.ReplyToMessage != nil && update.Message.ReplyToMessage.From.ID == id {
-				next(ctx, bot, update)
+				next(ctx, b, update)
 				return
 			}
 			// 判断是不是直接提到了bot，是则处理
@@ -102,7 +132,16 @@ func NewGroupMessageFilterMiddleware(id int64, username string, trimMention bool
 				isMention := false
 				for _, entity := range update.Message.Entities {
 					switch entity.Type {
-					case "mention", "text_mention": // mention 和 text_mention 是用户提到的实体
+					case "method": // "mention"适用于有用户名的普通用户
+						entityStr := update.Message.Text[entity.Offset : entity.Offset+entity.Length]
+						if entityStr == "@"+username {
+							isMention = true
+							if trimMention {
+								update.Message.Text = update.Message.Text[:entity.Offset] + update.Message.Text[entity.Offset+entity.Length:]
+							}
+						}
+						break
+					case "text_mention": // "text_mention"适用于没有用户名的用户或需要通过ID提及用户的情况
 						if entity.User.ID == id {
 							isMention = true
 							if trimMention {
@@ -110,7 +149,7 @@ func NewGroupMessageFilterMiddleware(id int64, username string, trimMention bool
 							}
 						}
 						break
-					case "bot_command": // bot_command 是命令实体
+					case "bot_command": // "bot_command"适用于命令
 						entityStr := update.Message.Text[entity.Offset : entity.Offset+entity.Length]
 						if strings.HasSuffix(entityStr, "@"+username) {
 							isMention = true
@@ -125,7 +164,7 @@ func NewGroupMessageFilterMiddleware(id int64, username string, trimMention bool
 					}
 				}
 				if isMention {
-					next(ctx, bot, update)
+					next(ctx, b, update)
 				}
 			}
 		}
