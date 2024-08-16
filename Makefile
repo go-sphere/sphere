@@ -31,6 +31,10 @@ docs:
 	swag init --tags dashboard --output ./docs/dashboard --instanceName Dashboard
 	swag init --tags api --output ./docs/api --instanceName API
 
+.PHONY: tmpl
+tmpl:
+	go run -tags=tmplGen ./assets/tmpl/gen/gen.go ./assets/tmpl
+
 .PHONY: run
 run:
 	go run -ldflags $(LD_FLAGS) main.go start

@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/tbxark/go-base-api/assets/tmpl"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"os"
 	"os/signal"
@@ -16,6 +17,7 @@ type Config struct {
 type App struct {
 	config *Config
 	bot    *bot.Bot
+	tmpl   *tmpl.List
 }
 
 func NewApp(config *Config) *App {
@@ -31,6 +33,12 @@ func (a *App) Identifier() string {
 func (a *App) Run() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+
+	t, err := tmpl.ParseTemplates()
+	if err != nil {
+		log.Panicf("parse template error: %v", err)
+	}
+	a.tmpl = t
 
 	opts := []bot.Option{
 		bot.WithSkipGetMe(),
