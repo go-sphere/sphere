@@ -41,7 +41,7 @@ run:
 
 .PHONY: dash
 dash:
-	sh ./assets/build.sh
+	sh ./assets/dash/build.sh
 
 .PHONY: build
 build:
