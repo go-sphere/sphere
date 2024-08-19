@@ -179,12 +179,16 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 
 			// 判断Text中是否有提及bot，有则处理
 			if update.Message.Entities != nil && update.Message.Text != "" {
-				update.Message.Text, isMention = checkMention(update.Message.Text, update.Message.Entities, id, username, trimMention)
+				text, mention := checkMention(update.Message.Text, update.Message.Entities, id, username, trimMention)
+				update.Message.Text = text
+				isMention = mention || isMention
 			}
 
 			// 判断Caption中是否有提及bot，有则处理
-			if update.Message.CaptionEntities != nil && update.Message.Caption != "" {
-				update.Message.Caption, isMention = checkMention(update.Message.Caption, update.Message.CaptionEntities, id, username, trimMention)
+			if !isMention && update.Message.CaptionEntities != nil && update.Message.Caption != "" {
+				text, mention := checkMention(update.Message.Caption, update.Message.CaptionEntities, id, username, trimMention)
+				update.Message.Text = text
+				isMention = mention || isMention
 			}
 
 			// 判断是不是提及了bot，是则处理
