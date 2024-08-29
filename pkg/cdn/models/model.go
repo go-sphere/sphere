@@ -1,4 +1,4 @@
-package model
+package models
 
 type UploadToken struct {
 	Token string `json:"token"`

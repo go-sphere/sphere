@@ -7,7 +7,7 @@ import (
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/user"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/model"
+	"github.com/tbxark/go-base-api/pkg/web/models"
 )
 
 type UserInfoMePlatform struct {
@@ -28,7 +28,7 @@ type UserInfoMeResponse struct {
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
-// @Success 200 {object} UserInfoMeResponse
+// @Success 200 {object} web.DataResponse[UserInfoMeResponse]
 // @Router /api/user/me [get]
 func (w *Web) UserInfoMe(ctx *gin.Context) (*UserInfoMeResponse, error) {
 	id, err := w.auth.GetCurrentID(ctx)
@@ -50,6 +50,10 @@ type UpdateUserInfoRequest struct {
 	Avatar   string `json:"avatar"`
 }
 
+type UpdateUserInfoResponse struct {
+	Info *ent.User `json:"info"`
+}
+
 // UpdateUserInfo
 // @Summary 更新用户信息
 // @Tags api
@@ -57,9 +61,9 @@ type UpdateUserInfoRequest struct {
 // @Produce json
 // @Param user body UpdateUserInfoRequest true "用户信息"
 // @Security ApiKeyAuth
-// @Success 200 {object} ent.User
+// @Success 200 {object} web.DataResponse[UpdateUserInfoResponse]
 // @Router /api/user/update [post]
-func (w *Web) UpdateUserInfo(ctx *gin.Context) (gin.H, error) {
+func (w *Web) UpdateUserInfo(ctx *gin.Context) (*UpdateUserInfoResponse, error) {
 	id, err := w.auth.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -80,8 +84,8 @@ func (w *Web) UpdateUserInfo(ctx *gin.Context) (gin.H, error) {
 	if err != nil {
 		return nil, err
 	}
-	return gin.H{
-		"info": w.render.Me(up),
+	return &UpdateUserInfoResponse{
+		Info: w.render.Me(up),
 	}, nil
 }
 
@@ -96,9 +100,9 @@ type WxMiniBindPhoneRequest struct {
 // @Produce json
 // @Param request body WxMiniBindPhoneRequest true "绑定信息"
 // @Security ApiKeyAuth
-// @Success 200 {object} model.MessageResponse
+// @Success 200 {object} web.DataResponse[models.MessageResponse]
 // @Router /api/wx/mini/bind/phone [post]
-func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*model.MessageResponse, error) {
+func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*models.MessageResponse, error) {
 	var req WxMiniBindPhoneRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		return nil, err
@@ -112,7 +116,7 @@ func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*model.MessageResponse, error) 
 		return nil, err
 	}
 	if number.PhoneInfo.CountryCode != "86" {
-		return nil, model.NewHTTPError(400, "只支持中国大陆手机号")
+		return nil, models.NewHTTPError(400, "只支持中国大陆手机号")
 	}
 	err = dao.WithTxEx(ctx, w.db.Client, func(ctx context.Context, client *ent.Client) error {
 		exist, e := client.User.Query().Where(user.PhoneEQ(number.PhoneInfo.PhoneNumber)).Only(ctx)
@@ -124,14 +128,14 @@ func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*model.MessageResponse, error) 
 			return e
 		}
 		if exist.ID != userId {
-			return model.NewHTTPError(400, "手机号已被绑定")
+			return models.NewHTTPError(400, "手机号已被绑定")
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return model.NewSuccessResponse(), nil
+	return models.NewSuccessResponse(), nil
 }
 
 func (w *Web) bindUserRoute(r gin.IRouter) {

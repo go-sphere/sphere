@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
-	"github.com/tbxark/go-base-api/pkg/cdn/model"
+	"github.com/tbxark/go-base-api/pkg/cdn/models"
 	"io"
 	"net/url"
 	"path"
@@ -105,7 +105,7 @@ func (n *Qiniu) KeyFromURL(uri string) string {
 	return key
 }
 
-func (n *Qiniu) UploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) model.UploadToken {
+func (n *Qiniu) UploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) models.UploadToken {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
 	nameMd5 := hex.EncodeToString(sum[:])
@@ -116,14 +116,14 @@ func (n *Qiniu) UploadToken(fileName string, dir string, nameBuilder func(fileNa
 		InsertOnly: 1,
 		MimeLimit:  "image/*;video/*",
 	}
-	return model.UploadToken{
+	return models.UploadToken{
 		Token: put.UploadToken(n.mac),
 		Key:   key,
 		URL:   n.RenderURL(key),
 	}
 }
 
-func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*model.UploadResult, error) {
+func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.UploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -136,12 +136,12 @@ func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key 
 	if err != nil {
 		return nil, err
 	}
-	return &model.UploadResult{
+	return &models.UploadResult{
 		Key: ret.Key,
 	}, nil
 }
 
-func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*model.UploadResult, error) {
+func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*models.UploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -154,7 +154,7 @@ func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*
 	if err != nil {
 		return nil, err
 	}
-	return &model.UploadResult{
+	return &models.UploadResult{
 		Key: ret.Key,
 	}, nil
 }

@@ -5,7 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/go-base-api/pkg/cdn"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/model"
+	"github.com/tbxark/go-base-api/pkg/web/models"
 	"strconv"
 )
 
@@ -16,7 +16,7 @@ import (
 // @Produce json
 // @Param filename query string true "文件名"
 // @Security ApiKeyAuth
-// @Success 200 {object} model.UploadToken
+// @Success 200 {object} models.UploadToken
 // @Router /api/upload/token [get]
 func (w *Web) UploadToken(ctx *gin.Context) (gin.H, error) {
 	var req struct {
@@ -42,14 +42,14 @@ func (w *Web) UploadToken(ctx *gin.Context) (gin.H, error) {
 // @Tags dashboard
 // @Produce json
 // @Security ApiKeyAuth
-// @Success 200 {object} model.MessageResponse
+// @Success 200 {object} models.MessageResponse
 // @Router /api/cache/reset [post]
-func (w *Web) ResetCache(ctx *gin.Context) (*model.MessageResponse, error) {
+func (w *Web) ResetCache(ctx *gin.Context) (*models.MessageResponse, error) {
 	err := w.cache.DelAll(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return model.NewSuccessResponse(), nil
+	return models.NewSuccessResponse(), nil
 }
 
 func (w *Web) bindSystemRoute(api gin.IRouter) {

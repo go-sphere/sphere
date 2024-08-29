@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/tbxark/go-base-api/pkg/cdn/model"
+	"github.com/tbxark/go-base-api/pkg/cdn/models"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -32,7 +32,7 @@ func NewTelegraph(client *http.Client) *Telegraph {
 	}
 }
 
-func (t *Telegraph) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*model.UploadResult, error) {
+func (t *Telegraph) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.UploadResult, error) {
 	if key == "" {
 		key = "blob"
 	}
@@ -91,10 +91,10 @@ func (t *Telegraph) UploadFile(ctx context.Context, file io.Reader, size int64, 
 	if len(result) == 0 {
 		return nil, fmt.Errorf("empty response")
 	}
-	return &model.UploadResult{Key: t.endpoint + result[0].Src}, nil
+	return &models.UploadResult{Key: t.endpoint + result[0].Src}, nil
 }
 
-func (t *Telegraph) UploadLocalFile(ctx context.Context, file string, key string) (*model.UploadResult, error) {
+func (t *Telegraph) UploadLocalFile(ctx context.Context, file string, key string) (*models.UploadResult, error) {
 	f, err := os.Open(file)
 	if err != nil {
 		return nil, err

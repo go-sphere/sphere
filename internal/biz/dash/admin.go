@@ -9,27 +9,31 @@ import (
 	"github.com/tbxark/go-base-api/pkg/dao/ent/admin"
 	"github.com/tbxark/go-base-api/pkg/web"
 	"github.com/tbxark/go-base-api/pkg/web/auth/jwt_auth"
-	"github.com/tbxark/go-base-api/pkg/web/model"
+	"github.com/tbxark/go-base-api/pkg/web/models"
 	"strconv"
 	"time"
 )
 
 const WebPermissionAdmin = "admin"
 
+type AdminListResponse struct {
+	Admins []*render.Admin `json:"admins"`
+}
+
 // AdminList
 // @Summary 管理员列表
 // @Tags dashboard
 // @Produce json
 // @Security ApiKeyAuth
-// @Success 200 {object} []render.Admin
+// @Success 200 {object} web.DataResponse[AdminListResponse]
 // @Router /api/admin/list [get]
-func (w *Web) AdminList(ctx *gin.Context) (gin.H, error) {
+func (w *Web) AdminList(ctx *gin.Context) (*AdminListResponse, error) {
 	all, err := w.db.Admin.Query().All(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return gin.H{
-		"admins": lo.Map(all, func(a *ent.Admin, i int) *render.Admin {
+	return &AdminListResponse{
+		Admins: lo.Map(all, func(a *ent.Admin, i int) *render.Admin {
 			return render.AdminWithRoles(a)
 		}),
 	}, nil
@@ -43,6 +47,10 @@ type AdminEditRequest struct {
 	Roles    []string `json:"roles"`
 }
 
+type AdminInfoResponse struct {
+	Admin *render.Admin `json:"admin"`
+}
+
 // AdminCreate
 // @Summary 创建管理员
 // @Tags dashboard
@@ -50,9 +58,9 @@ type AdminEditRequest struct {
 // @Produce json
 // @Param admin body AdminEditRequest true "管理员信息"
 // @Security ApiKeyAuth
-// @Success 200 {object} render.Admin
+// @Success 200 {object} web.DataResponse[AdminInfoResponse]
 // @Router /api/admin/create [post]
-func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
+func (w *Web) AdminCreate(ctx *gin.Context) (*AdminInfoResponse, error) {
 	var req AdminEditRequest
 	if err := ctx.BindJSON(&req); err != nil {
 		return nil, err
@@ -60,7 +68,7 @@ func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
 	if len(req.Password) > 8 {
 		req.Password = encrypt.CryptPassword(req.Password)
 	} else {
-		return nil, model.NewHTTPError(400, "password is too short")
+		return nil, models.NewHTTPError(400, "password is too short")
 	}
 	u, err := w.db.Admin.Create().
 		SetAvatar(w.cdn.KeyFromURL(req.Avatar)).
@@ -72,8 +80,8 @@ func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
 	if err != nil {
 		return nil, err
 	}
-	return gin.H{
-		"admin": render.AdminWithRoles(u),
+	return &AdminInfoResponse{
+		Admin: render.AdminWithRoles(u),
 	}, nil
 }
 
@@ -84,9 +92,9 @@ func (w *Web) AdminCreate(ctx *gin.Context) (gin.H, error) {
 // @Produce json
 // @Param admin body AdminEditRequest true "管理员信息"
 // @Security ApiKeyAuth
-// @Success 200 {object} render.Admin
+// @Success 200 {object} web.DataResponse[AdminInfoResponse]
 // @Router /api/admin/update/{id} [post]
-func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
+func (w *Web) AdminUpdate(ctx *gin.Context) (*AdminInfoResponse, error) {
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
 		return nil, err
@@ -105,15 +113,15 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
 		if len(req.Password) > 8 {
 			req.Password = encrypt.CryptPassword(req.Password)
 		} else {
-			return nil, model.NewHTTPError(400, "password is too short")
+			return nil, models.NewHTTPError(400, "password is too short")
 		}
 	}
 	u, err := update.Save(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return gin.H{
-		"admin": render.AdminWithRoles(u),
+	return &AdminInfoResponse{
+		Admin: render.AdminWithRoles(u),
 	}, nil
 }
 
@@ -123,9 +131,9 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (gin.H, error) {
 // @Produce json
 // @Param id path int true "管理员ID"
 // @Security ApiKeyAuth
-// @Success 200 {object} render.Admin
+// @Success 200 {object} web.DataResponse[AdminInfoResponse]
 // @Router /api/admin/detail/{id} [get]
-func (w *Web) AdminDetail(ctx *gin.Context) (gin.H, error) {
+func (w *Web) AdminDetail(ctx *gin.Context) (*AdminInfoResponse, error) {
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
 		return nil, err
@@ -134,8 +142,8 @@ func (w *Web) AdminDetail(ctx *gin.Context) (gin.H, error) {
 	if err != nil {
 		return nil, err
 	}
-	return gin.H{
-		"admin": render.AdminWithRoles(user),
+	return &AdminInfoResponse{
+		Admin: render.AdminWithRoles(user),
 	}, nil
 }
 
@@ -145,9 +153,9 @@ func (w *Web) AdminDetail(ctx *gin.Context) (gin.H, error) {
 // @Produce json
 // @Param id path int true "管理员ID"
 // @Security ApiKeyAuth
-// @Success 200 {object} model.MessageResponse
+// @Success 200 {object} web.DataResponse[models.MessageResponse]
 // @Router /api/admin/delete/{id} [delete]
-func (w *Web) AdminDelete(ctx *gin.Context) (*model.MessageResponse, error) {
+func (w *Web) AdminDelete(ctx *gin.Context) (*models.MessageResponse, error) {
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
 		return nil, err
@@ -158,16 +166,16 @@ func (w *Web) AdminDelete(ctx *gin.Context) (*model.MessageResponse, error) {
 	}
 	value, exists := ctx.Get("username")
 	if !exists {
-		return nil, model.NewHTTPError(400, "username not found")
+		return nil, models.NewHTTPError(400, "username not found")
 	}
 	if user.Username == value.(string) {
-		return nil, model.NewHTTPError(400, "can not delete self")
+		return nil, models.NewHTTPError(400, "can not delete self")
 	}
 	err = w.db.Admin.DeleteOneID(id).Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return model.NewSuccessResponse(), nil
+	return models.NewSuccessResponse(), nil
 }
 
 type AdminLoginRequest struct {
@@ -212,7 +220,7 @@ func (w *Web) createLoginResponse(u *ent.Admin) (*AdminLoginResponse, error) {
 // @Accept json
 // @Produce json
 // @Param login body AdminLoginRequest true "登录信息"
-// @Success 200 {object} AdminLoginResponse
+// @Success 200 {object} web.DataResponse[AdminLoginResponse]
 // @Router /api/admin/login [post]
 func (w *Web) AdminLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 	var req AdminLoginRequest
@@ -224,7 +232,7 @@ func (w *Web) AdminLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 		return nil, err
 	}
 	if !encrypt.IsPasswordMatch(req.Password, u.Password) {
-		return nil, model.NewHTTPError(400, "password not match")
+		return nil, models.NewHTTPError(400, "password not match")
 	}
 	return w.createLoginResponse(u)
 }
@@ -245,7 +253,7 @@ type AdminRefreshTokenResponse struct {
 // @Accept json
 // @Produce json
 // @Param login body AdminRefreshTokenRequest true "刷新信息"
-// @Success 200 {object} AdminLoginResponse
+// @Success 200 {object} web.DataResponse[AdminLoginResponse]
 // @Router /api/admin/refresh-token [post]
 func (w *Web) AdminRefreshToken(ctx *gin.Context) (*AdminLoginResponse, error) {
 	var body AdminRefreshTokenRequest
@@ -258,7 +266,7 @@ func (w *Web) AdminRefreshToken(ctx *gin.Context) (*AdminLoginResponse, error) {
 	}
 	uid, ok := claims[jwt_auth.SignedDetailsUidKey].(string)
 	if !ok {
-		return nil, model.NewHTTPError(400, "uid not found")
+		return nil, models.NewHTTPError(400, "uid not found")
 	}
 	id, err := strconv.Atoi(uid)
 	if err != nil {

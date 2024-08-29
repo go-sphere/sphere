@@ -4,9 +4,14 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/go-base-api/pkg/cdn"
+	"github.com/tbxark/go-base-api/pkg/cdn/models"
 	"github.com/tbxark/go-base-api/pkg/web"
 	"strconv"
 )
+
+type UploadTokenResponse struct {
+	Token models.UploadToken `json:"token"`
+}
 
 // UploadToken
 // @Summary 获取上传凭证
@@ -15,9 +20,9 @@ import (
 // @Produce json
 // @Param filename query string true "文件名"
 // @Security ApiKeyAuth
-// @Success 200 {object} model.UploadToken
+// @Success 200 {object} web.DataResponse[models.UploadToken]
 // @Router /api/upload/token [get]
-func (w *Web) UploadToken(ctx *gin.Context) (gin.H, error) {
+func (w *Web) UploadToken(ctx *gin.Context) (*UploadTokenResponse, error) {
 	var req struct {
 		Filename string `form:"filename"`
 	}
@@ -31,8 +36,8 @@ func (w *Web) UploadToken(ctx *gin.Context) (gin.H, error) {
 	if err != nil {
 		return nil, err
 	}
-	return gin.H{
-		"token": w.cdn.UploadToken(req.Filename, "user", cdn.DefaultKeyBuilder(strconv.Itoa(id))),
+	return &UploadTokenResponse{
+		Token: w.cdn.UploadToken(req.Filename, "user", cdn.DefaultKeyBuilder(strconv.Itoa(id))),
 	}, nil
 }
 

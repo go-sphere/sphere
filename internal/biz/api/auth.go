@@ -29,7 +29,7 @@ type AuthResponse struct {
 // @Accept json
 // @Produce json
 // @Param request body WxMiniAuthRequest true "登录信息"
-// @Success 200 {object} AuthResponse
+// @Success 200 {object} web.DataResponse[AuthResponse]
 // @Router /api/wx/mini/auth [post]
 func (w *Web) WxMiniAuth(ctx *gin.Context) (*AuthResponse, error) {
 	var req WxMiniAuthRequest
