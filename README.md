@@ -22,3 +22,9 @@ Flags:
 
 Use "backend [command] --help" for more information about a command.
 ```
+
+### Generate typescript client
+
+```
+npx swagger-typescript-api -p ./swagger.json -o ./src/api
+```
