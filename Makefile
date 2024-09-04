@@ -41,8 +41,8 @@ run:
 
 .PHONY: dash
 dash:
-	sh ./assets/dash/build.sh
-
+	#sh ./assets/dash/build.sh
+	echo "replace me"
 .PHONY: build
 build:
 	$(GO_BUILD) -o ./build/$(CURRENT_OS)_$(CURRENT_ARCH)/ ./...

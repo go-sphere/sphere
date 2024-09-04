@@ -3,7 +3,6 @@ package dash
 import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/assets/dash"
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/internal/pkg/render"
 	"github.com/tbxark/go-base-api/pkg/cache"
@@ -65,9 +64,11 @@ func (w *Web) Run() {
 
 	w.Engine.Use(loggerMiddleware, recoveryMiddleware)
 
-	if dash, err := web.Fs(w.config.DashLocalPath, dash.Assets, dash.AssetsPath); err == nil {
+	// ignore embed: web.Fs(w.config.DashLocalPath, nil, "")
+	// with embed: web.Fs("", &dash.Assets, dash.AssetsPath)
+	if dashFs, err := web.Fs(w.config.DashLocalPath, nil, ""); err == nil {
 		d := w.Engine.Group("/dash", gzip.Gzip(gzip.DefaultCompression))
-		d.StaticFS("/", dash)
+		d.StaticFS("/", dashFs)
 	}
 
 	api := w.Engine.Group("/")

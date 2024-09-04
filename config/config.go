@@ -52,11 +52,11 @@ func NewEmptyConfig() *Config {
 		},
 		Database: &client.Config{},
 		Dash: &dash.Config{
-			Address: "127.0.0.1:8800",
+			Address: "0.0.0.0:8800",
 			JWT:     randJWTPassword(),
 		},
 		API: &api.Config{
-			Address: "127.0.0.1:8899",
+			Address: "0.0.0.0:8899",
 			JWT:     randJWTPassword(),
 		},
 		CDN: &qiniu.Config{

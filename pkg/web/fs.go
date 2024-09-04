@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-func Fs(local string, emFs embed.FS, emPath string) (http.FileSystem, error) {
+func Fs(local string, emFs *embed.FS, emPath string) (http.FileSystem, error) {
 	if local != "" {
 		return gin.Dir(local, false), nil
 	}

@@ -14,17 +14,17 @@
   },
   "database": {
     "type": "mysql",
-    "path": "root:passwd@tcp(localhost:3306)/dbname?charset=utf8mb4\u0026parseTime=True\u0026loc=Local\u0026timeout=10s",
+    "path": "api:password@tcp(mariadb:3306)/go-base?charset=utf8mb4\u0026parseTime=True\u0026loc=Local\u0026timeout=10s",
     "debug": false
   },
   "dash": {
     "jwt": "Fxar6KDjfp2NT8Uwa9Lgdf457OleFtyH",
-    "address": "127.0.0.1:8800",
+    "address": "0.0.0.0:8800",
     "doc": false
   },
   "api": {
     "jwt": "wLMEO0geOXprXCp1odmSyBX4rGucjYdL",
-    "address": "127.0.0.1:8899"
+    "address": "0.0.0.0:8899"
   },
   "cdn": {
     "access_key": "",

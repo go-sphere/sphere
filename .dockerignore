@@ -1,0 +1,10 @@
+.idea
+.vscode
+build
+docs
+temp
+logs
+log
+db
+
+config.json

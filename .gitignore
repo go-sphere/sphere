@@ -32,6 +32,9 @@ build
 docs
 temp
 logs
+log
+db
+
 config.json
 data.db
 data.db-journal
