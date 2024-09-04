@@ -1,7 +1,8 @@
 //go:build !tmplGen
+
 package tmpl
 
-import "text/template"
+import "html/template"
 
 type List struct {
 	Counter *template.Template

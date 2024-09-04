@@ -17,7 +17,7 @@ func GenTemplatesStruct() (string, error) {
 	sb.WriteString(`//go:build !tmplGen
 package tmpl
 
-import "text/template"
+import "html/template"
 
 type List struct {
 `)
