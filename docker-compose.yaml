@@ -29,7 +29,9 @@ services:
       timeout: 5s
       retries: 5
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: cmd/api/Dockerfile
     hostname: api
     networks:
         - app-network
@@ -37,8 +39,24 @@ services:
       mariadb:
         condition: service_healthy
     ports:
-      - "8800:8800"
       - "8899:8899"
     volumes:
       - ./config_gen.json:/config/config.json
-      - ./log/:/var/log/
+      - ./logs/:/var/log/
+  dash:
+    build:
+      context: .
+      dockerfile: cmd/dash/Dockerfile
+    hostname: api
+    networks:
+      - app-network
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      api:
+        condition: service_started # 防止orm同时初始化
+    ports:
+      - "8800:8800"
+    volumes:
+      - ./config_gen.json:/config/config.json
+      - ./logs/:/var/log/

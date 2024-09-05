@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/go-base-api/pkg/cdn"
-	"github.com/tbxark/go-base-api/pkg/cdn/models"
+	cdnModel "github.com/tbxark/go-base-api/pkg/cdn/models"
 	"github.com/tbxark/go-base-api/pkg/web"
+	"github.com/tbxark/go-base-api/pkg/web/models"
 	"strconv"
 )
 
-type UploadTokenResponse struct {
-	Token models.UploadToken `json:"token"`
-}
+type UploadTokenResponse = cdnModel.UploadToken
 
 // UploadToken
 // @Summary 获取上传凭证
@@ -20,7 +19,7 @@ type UploadTokenResponse struct {
 // @Produce json
 // @Param filename query string true "文件名"
 // @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[models.UploadToken]
+// @Success 200 {object} web.DataResponse[UploadTokenResponse]
 // @Router /api/upload/token [get]
 func (w *Web) UploadToken(ctx *gin.Context) (*UploadTokenResponse, error) {
 	var req struct {
@@ -36,11 +35,22 @@ func (w *Web) UploadToken(ctx *gin.Context) (*UploadTokenResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &UploadTokenResponse{
-		Token: w.cdn.UploadToken(req.Filename, "user", cdn.DefaultKeyBuilder(strconv.Itoa(id))),
-	}, nil
+	token := w.cdn.UploadToken(req.Filename, "user", cdn.DefaultKeyBuilder(strconv.Itoa(id)))
+	return &token, nil
+}
+
+// Status
+// @Summary 获取系统状态
+// @Tags api
+// @Accept json
+// @Produce json
+// @Success 200 {object} web.DataResponse[models.MessageResponse]
+// @Router /api/status [get]
+func (w *Web) Status(ctx *gin.Context) (*models.MessageResponse, error) {
+	return models.NewSuccessResponse(), nil
 }
 
 func (w *Web) bindSystemRoute(r gin.IRouter) {
+	r.GET("/api/status", web.WithJson(w.Status))
 	r.GET("/api/upload/token", web.WithJson(w.UploadToken))
 }

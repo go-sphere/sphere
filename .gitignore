@@ -29,7 +29,6 @@ go.work
 .idea
 .vscode
 build
-docs
 temp
 logs
 log
