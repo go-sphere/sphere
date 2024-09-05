@@ -46,6 +46,10 @@ func runCdnUpload(cmd *cobra.Command, args []string) {
 	resBuf := strings.Builder{}
 	nameBuilder := cdn.KeepFileNameKeyBuilder()
 	err = filepath.Walk(fileP, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			log.Errorf("walk file error: %v", err)
+			return nil
+		}
 		if info.IsDir() {
 			return nil
 		}

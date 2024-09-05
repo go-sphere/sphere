@@ -129,7 +129,6 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 						text = text[:entity.Offset] + text[entity.Offset+entity.Length:]
 					}
 				}
-				break
 			case TypeTextMention: // "text_mention"适用于没有用户名的用户或需要通过ID提及用户的情况
 				if entity.User.ID == id {
 					isMention = true
@@ -137,7 +136,6 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 						text = text[:entity.Offset] + text[entity.Offset+entity.Length:]
 					}
 				}
-				break
 			case TypeBotCommand: // "bot_command"适用于命令
 				if strings.HasSuffix(entityStr, "@"+username) {
 					isMention = true
@@ -146,7 +144,6 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 						text = text[:entity.Offset] + entityStr + text[entity.Offset+entity.Length:]
 					}
 				}
-				break
 			default:
 				continue
 			}

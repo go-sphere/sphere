@@ -19,6 +19,9 @@ func (d *Dao) GetSystemConfig(ctx context.Context) (*SystemConfig, error) {
 		return nil, err
 	}
 	err = json.Unmarshal(value.Value, &config)
+	if err != nil {
+		return nil, err
+	}
 	return &config, nil
 }
 

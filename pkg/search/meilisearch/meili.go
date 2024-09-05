@@ -10,16 +10,13 @@ type Config struct {
 }
 
 type Meili struct {
-	*meilisearch.Client
+	meilisearch.ServiceManager
 }
 
 func NewMeiliSearch(config *Config) *Meili {
-	client := meilisearch.NewClient(meilisearch.ClientConfig{
-		Host:   config.Host,
-		APIKey: config.APIKey,
-	})
+	client := meilisearch.New(config.Host, meilisearch.WithAPIKey(config.APIKey))
 	return &Meili{
-		Client: client,
+		ServiceManager: client,
 	}
 }
 

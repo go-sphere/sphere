@@ -63,6 +63,9 @@ func (w *Wechat) GetAccessToken(reload bool) (string, error) {
 		"appid":      w.config.AppID,
 		"secret":     w.config.AppSecret,
 	})
+	if err != nil {
+		return "", err
+	}
 	result, err := request.GET[AccessTokenResponse](url)
 	if err != nil {
 		return "", err
@@ -142,6 +145,9 @@ func (w *Wechat) SendMessage(msg SubscribeMessageRequest, retryable bool) error 
 	url, err := request.URL("https://api.weixin.qq.com/cgi-bin/message/subscribe/send", map[string]string{
 		"access_token": token,
 	})
+	if err != nil {
+		return err
+	}
 	result, err := request.POST[EmptyResponse](url, msg)
 	if err != nil {
 		return err

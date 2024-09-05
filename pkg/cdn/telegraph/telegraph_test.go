@@ -1,6 +1,7 @@
 package telegraph
 
 import (
+	"context"
 	"net/http"
 	"testing"
 )
@@ -14,7 +15,7 @@ func TestTelegraph_UploadFile(t *testing.T) {
 		t.Error(err)
 	}
 	defer resp.Body.Close()
-	res, err := uploader.UploadFile(nil, resp.Body, resp.ContentLength, "avatar.png")
+	res, err := uploader.UploadFile(context.TODO(), resp.Body, resp.ContentLength, "avatar.png")
 	if err != nil {
 		t.Error(err)
 	} else {

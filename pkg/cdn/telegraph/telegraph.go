@@ -79,7 +79,7 @@ func (t *Telegraph) UploadFile(ctx context.Context, file io.Reader, size int64, 
 			return nil, err
 		}
 		if errBody.Error != "" {
-			return nil, fmt.Errorf(errBody.Error)
+			return nil, fmt.Errorf("%s", errBody.Error)
 		}
 		return nil, fmt.Errorf("unknown error")
 	}
