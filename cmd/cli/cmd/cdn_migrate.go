@@ -4,7 +4,7 @@ package cmd
 
 import (
 	"context"
-	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/cmd/cli/config"
 	"github.com/tbxark/go-base-api/pkg/cdn"
 	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
 	"github.com/tbxark/go-base-api/pkg/log"

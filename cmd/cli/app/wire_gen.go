@@ -7,7 +7,7 @@
 package app
 
 import (
-	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/cmd/cli/config"
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
 	"github.com/tbxark/go-base-api/internal/biz/task"

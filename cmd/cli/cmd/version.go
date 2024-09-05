@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/spf13/cobra"
-	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/cmd/cli/config"
 )
 
 // versionCmd represents the version command

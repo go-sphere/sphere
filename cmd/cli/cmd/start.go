@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/tbxark/go-base-api/config"
-	"github.com/tbxark/go-base-api/internal/app"
+	"github.com/tbxark/go-base-api/cmd/cli/app"
+	"github.com/tbxark/go-base-api/cmd/cli/config"
 	"github.com/tbxark/go-base-api/pkg/log"
 )
 
