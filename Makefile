@@ -27,7 +27,7 @@ config:
 docs:
 	rm -rf ./docs/dashboard
 	rm -rf ./docs/api
-	swag init --parseInternal --parseDependency --tags dashboard --output ./docs/dashboard --instanceName dashboard -g cmd/dash/main.go
+	swag init --parseInternal --parseDependency --tags dashboard --output ./docs/dashboard --instanceName Dashboard -g cmd/dash/main.go
 	swag init --parseInternal --parseDependency --tags api  --output ./docs/api --instanceName API -g cmd/api/main.go
 
 .PHONY: tmpl

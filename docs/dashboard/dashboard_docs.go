@@ -3,7 +3,7 @@ package dashboard
 
 import "github.com/swaggo/swag"
 
-const docTemplatedashboard = `{
+const docTemplateDashboard = `{
     "schemes": {{ marshal .Schemes }},
     "swagger": "2.0",
     "info": {
@@ -523,20 +523,20 @@ const docTemplatedashboard = `{
     }
 }`
 
-// SwaggerInfodashboard holds exported Swagger Info so clients can modify it
-var SwaggerInfodashboard = &swag.Spec{
+// SwaggerInfoDashboard holds exported Swagger Info so clients can modify it
+var SwaggerInfoDashboard = &swag.Spec{
 	Version:          "",
 	Host:             "",
 	BasePath:         "",
 	Schemes:          []string{},
 	Title:            "",
 	Description:      "",
-	InfoInstanceName: "dashboard",
-	SwaggerTemplate:  docTemplatedashboard,
+	InfoInstanceName: "Dashboard",
+	SwaggerTemplate:  docTemplateDashboard,
 	LeftDelim:        "{{",
 	RightDelim:       "}}",
 }
 
 func init() {
-	swag.Register(SwaggerInfodashboard.InstanceName(), SwaggerInfodashboard)
+	swag.Register(SwaggerInfoDashboard.InstanceName(), SwaggerInfoDashboard)
 }
