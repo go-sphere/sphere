@@ -11,4 +11,4 @@ import (
 	"github.com/tbxark/go-base-api/internal/biz/task"
 )
 
-var ProviderSet = wire.NewSet(api.NewWebServer, dash.NewWebServer, task.NewInitialize, bot.NewApp, task.NewCleaner)
+var ProviderSet = wire.NewSet(api.NewWebServer, dash.NewWebServer, bot.NewApp, task.NewInitialize, task.NewCleaner)

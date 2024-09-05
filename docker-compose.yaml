@@ -42,7 +42,7 @@ services:
       - "8899:8899"
     volumes:
       - ./config_gen.json:/config/config.json
-      - ./logs/:/var/log/
+      - ./logs/api/:/var/logs/
   dash:
     build:
       context: .
@@ -59,4 +59,4 @@ services:
       - "8800:8800"
     volumes:
       - ./config_gen.json:/config/config.json
-      - ./logs/:/var/log/
+      - ./logs/dash/:/var/logs/

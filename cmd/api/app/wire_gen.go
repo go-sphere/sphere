@@ -8,7 +8,9 @@ package app
 
 import (
 	"github.com/tbxark/go-base-api/config"
-	"github.com/tbxark/go-base-api/internal/biz/api"
+	"github.com/tbxark/go-base-api/internal/biz/dash"
+	"github.com/tbxark/go-base-api/internal/biz/task"
+	"github.com/tbxark/go-base-api/internal/pkg/boot"
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/pkg/cache/memory"
 	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
@@ -18,8 +20,8 @@ import (
 
 // Injectors from wire.go:
 
-func NewApplication(cfg *config.Config) (*api.Web, error) {
-	apiConfig := cfg.API
+func NewAPIApplication(cfg *config.Config) (*boot.Application, error) {
+	dashConfig := cfg.Dash
 	clientConfig := cfg.Database
 	entClient, err := client.NewDbClient(clientConfig)
 	if err != nil {
@@ -31,6 +33,9 @@ func NewApplication(cfg *config.Config) (*api.Web, error) {
 	qiniuConfig := cfg.CDN
 	qiniuQiniu := qiniu.NewQiniu(qiniuConfig)
 	cache := memory.NewByteCache()
-	web := api.NewWebServer(apiConfig, daoDao, wechatWechat, qiniuQiniu, cache)
-	return web, nil
+	web := dash.NewWebServer(dashConfig, daoDao, wechatWechat, qiniuQiniu, cache)
+	dashInitialize := task.NewInitialize(daoDao)
+	connectCleaner := task.NewCleaner(entClient)
+	application := CreateApplication(web, dashInitialize, connectCleaner)
+	return application, nil
 }

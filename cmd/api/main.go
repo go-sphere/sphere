@@ -1,9 +1,10 @@
 package main
 
 import (
+	"github.com/gin-gonic/gin"
 	"github.com/tbxark/go-base-api/cmd/api/app"
+	"github.com/tbxark/go-base-api/config"
 	"github.com/tbxark/go-base-api/internal/pkg/boot"
-	"github.com/tbxark/go-base-api/pkg/log"
 )
 
 // @securityDefinitions.apikey	ApiKeyAuth
@@ -11,7 +12,11 @@ import (
 // @name						Authorization
 // @description				    JWT token
 func main() {
-	if err := boot.RunWithConfig("dash", app.NewApplication); err != nil {
-		log.Errorw("run api error", "error", err)
+	c := boot.DefaultCommandConfigFlagsParser()
+	err := boot.Run(c, func(c *config.Config) {
+		gin.SetMode(c.System.GinMode)
+	}, app.NewAPIApplication)
+	if err != nil {
+		panic(err)
 	}
 }

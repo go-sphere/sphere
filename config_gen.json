@@ -4,7 +4,7 @@
   },
   "log": {
     "file": {
-      "file_name": "/var/log/go-base-api.log",
+      "file_name": "/var/logs/go-base-api.log",
       "max_size": 10,
       "max_backups": 10,
       "max_age": 10

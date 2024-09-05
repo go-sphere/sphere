@@ -6,12 +6,13 @@ package app
 import (
 	"github.com/google/wire"
 	"github.com/tbxark/go-base-api/config"
-	"github.com/tbxark/go-base-api/internal/biz/api"
+	"github.com/tbxark/go-base-api/internal/biz"
 	ipkg "github.com/tbxark/go-base-api/internal/pkg"
+	"github.com/tbxark/go-base-api/internal/pkg/boot"
 	"github.com/tbxark/go-base-api/pkg"
 )
 
-func NewApplication(cfg *config.Config) (*api.Web, error) {
-	wire.Build(pkg.ProviderSet, ipkg.ProviderSet, config.ProviderSet, wire.NewSet(api.NewWebServer))
-	return &api.Web{}, nil
+func NewAPIApplication(cfg *config.Config) (*boot.Application, error) {
+	wire.Build(pkg.ProviderSet, ipkg.ProviderSet, biz.ProviderSet, config.ProviderSet, wire.NewSet(CreateApplication))
+	return &boot.Application{}, nil
 }

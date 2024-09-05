@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"github.com/tbxark/go-base-api/cmd/cli/app"
 	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/internal/pkg/boot"
 	"github.com/tbxark/go-base-api/pkg/log"
 )
 
@@ -26,7 +28,9 @@ func runStart(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}
-	err = app.Run(conf)
+	err = boot.Run(conf, func(c *config.Config) {
+		gin.SetMode(c.System.GinMode)
+	}, app.NewApplication)
 	if err != nil {
 		log.Panicf("run application error: %v", err)
 	}

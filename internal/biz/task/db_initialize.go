@@ -10,12 +10,12 @@ import (
 	"time"
 )
 
-type Initialize struct {
+type DashInitialize struct {
 	db *dao.Dao
 }
 
-func NewInitialize(db *dao.Dao) *Initialize {
-	return &Initialize{db: db}
+func NewInitialize(db *dao.Dao) *DashInitialize {
+	return &DashInitialize{db: db}
 }
 
 func initAdminIfNeed(ctx context.Context, client *ent.Client) error {
@@ -32,11 +32,11 @@ func initAdminIfNeed(ctx context.Context, client *ent.Client) error {
 		Exec(ctx)
 }
 
-func (i *Initialize) Identifier() string {
+func (i *DashInitialize) Identifier() string {
 	return "initialize"
 }
 
-func (i *Initialize) Run() error {
+func (i *DashInitialize) Run() error {
 	ctx := context.Background()
 	key := "did_init"
 	return dao.WithTxEx(ctx, i.db.Client, func(ctx context.Context, client *ent.Client) error {
@@ -56,6 +56,5 @@ func (i *Initialize) Run() error {
 		}
 		_ = initAdminIfNeed(ctx, client)
 		return nil
-
 	})
 }
