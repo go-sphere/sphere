@@ -38,6 +38,8 @@ services:
     depends_on:
       mariadb:
         condition: service_healthy
+    environment:
+      - GIN_MODE=debug
     ports:
       - "8899:8899"
     volumes:
@@ -47,7 +49,7 @@ services:
     build:
       context: .
       dockerfile: cmd/dash/Dockerfile
-    hostname: api
+    hostname: dash
     networks:
       - app-network
     depends_on:

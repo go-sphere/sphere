@@ -1,9 +1,7 @@
 package main
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/tbxark/go-base-api/cmd/dash/app"
-	"github.com/tbxark/go-base-api/config"
 	"github.com/tbxark/go-base-api/internal/pkg/boot"
 )
 
@@ -13,9 +11,7 @@ import (
 // @description				    JWT token
 func main() {
 	c := boot.DefaultCommandConfigFlagsParser()
-	err := boot.Run(c, func(c *config.Config) {
-		gin.SetMode(c.System.GinMode)
-	}, app.NewDashApplication)
+	err := boot.Run(c, nil, app.NewDashApplication)
 	if err != nil {
 		panic(err)
 	}

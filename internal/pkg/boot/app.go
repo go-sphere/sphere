@@ -65,7 +65,9 @@ func (a *Application) Clean() {
 
 func Run(conf *config.Config, prepare func(*config.Config), builder func(*config.Config) (*Application, error)) error {
 	log.Init(conf.Log, field.String("version", config.BuildVersion))
-	prepare(conf)
+	if prepare != nil {
+		prepare(conf)
+	}
 	app, err := builder(conf)
 	if err != nil {
 		return err

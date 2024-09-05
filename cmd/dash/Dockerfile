@@ -8,4 +8,5 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main cmd/dash/main.go
 FROM scratch
 COPY --from=builder /app/main /main
 VOLUME /config
+ENV GIN_MODE=release
 CMD ["/main", "--config", "/config/config.json"]
