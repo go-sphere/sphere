@@ -13,7 +13,6 @@ init:
 	go mod download
 	make generate
 	make docs
-	make dash
 	make config
 
 .PHONY: generate
@@ -34,10 +33,6 @@ docs:
 .PHONY: tmpl
 tmpl:
 	go run -tags=tmplGen ./assets/tmpl/gen/gen.go ./assets/tmpl
-
-.PHONY: run
-run:
-	go run -ldflags $(LD_FLAGS) main.go start
 
 .PHONY: dash
 dash:

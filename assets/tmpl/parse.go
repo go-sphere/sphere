@@ -3,10 +3,10 @@
 package tmpl
 
 import (
+	"html/template"
 	"path"
 	"reflect"
 	"strings"
-	"text/template"
 )
 
 func ParseTemplates() (*List, error) {

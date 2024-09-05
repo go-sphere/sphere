@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -61,7 +62,7 @@ func (kvsq *KeyValueStoreQuery) Order(o ...keyvaluestore.OrderOption) *KeyValueS
 // First returns the first KeyValueStore entity from the query.
 // Returns a *NotFoundError when no KeyValueStore was found.
 func (kvsq *KeyValueStoreQuery) First(ctx context.Context) (*KeyValueStore, error) {
-	nodes, err := kvsq.Limit(1).All(setContextOp(ctx, kvsq.ctx, "First"))
+	nodes, err := kvsq.Limit(1).All(setContextOp(ctx, kvsq.ctx, ent.OpQueryFirst))
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +85,7 @@ func (kvsq *KeyValueStoreQuery) FirstX(ctx context.Context) *KeyValueStore {
 // Returns a *NotFoundError when no KeyValueStore ID was found.
 func (kvsq *KeyValueStoreQuery) FirstID(ctx context.Context) (id int, err error) {
 	var ids []int
-	if ids, err = kvsq.Limit(1).IDs(setContextOp(ctx, kvsq.ctx, "FirstID")); err != nil {
+	if ids, err = kvsq.Limit(1).IDs(setContextOp(ctx, kvsq.ctx, ent.OpQueryFirstID)); err != nil {
 		return
 	}
 	if len(ids) == 0 {
@@ -107,7 +108,7 @@ func (kvsq *KeyValueStoreQuery) FirstIDX(ctx context.Context) int {
 // Returns a *NotSingularError when more than one KeyValueStore entity is found.
 // Returns a *NotFoundError when no KeyValueStore entities are found.
 func (kvsq *KeyValueStoreQuery) Only(ctx context.Context) (*KeyValueStore, error) {
-	nodes, err := kvsq.Limit(2).All(setContextOp(ctx, kvsq.ctx, "Only"))
+	nodes, err := kvsq.Limit(2).All(setContextOp(ctx, kvsq.ctx, ent.OpQueryOnly))
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +136,7 @@ func (kvsq *KeyValueStoreQuery) OnlyX(ctx context.Context) *KeyValueStore {
 // Returns a *NotFoundError when no entities are found.
 func (kvsq *KeyValueStoreQuery) OnlyID(ctx context.Context) (id int, err error) {
 	var ids []int
-	if ids, err = kvsq.Limit(2).IDs(setContextOp(ctx, kvsq.ctx, "OnlyID")); err != nil {
+	if ids, err = kvsq.Limit(2).IDs(setContextOp(ctx, kvsq.ctx, ent.OpQueryOnlyID)); err != nil {
 		return
 	}
 	switch len(ids) {
@@ -160,7 +161,7 @@ func (kvsq *KeyValueStoreQuery) OnlyIDX(ctx context.Context) int {
 
 // All executes the query and returns a list of KeyValueStores.
 func (kvsq *KeyValueStoreQuery) All(ctx context.Context) ([]*KeyValueStore, error) {
-	ctx = setContextOp(ctx, kvsq.ctx, "All")
+	ctx = setContextOp(ctx, kvsq.ctx, ent.OpQueryAll)
 	if err := kvsq.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
@@ -182,7 +183,7 @@ func (kvsq *KeyValueStoreQuery) IDs(ctx context.Context) (ids []int, err error) 
 	if kvsq.ctx.Unique == nil && kvsq.path != nil {
 		kvsq.Unique(true)
 	}
-	ctx = setContextOp(ctx, kvsq.ctx, "IDs")
+	ctx = setContextOp(ctx, kvsq.ctx, ent.OpQueryIDs)
 	if err = kvsq.Select(keyvaluestore.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
@@ -200,7 +201,7 @@ func (kvsq *KeyValueStoreQuery) IDsX(ctx context.Context) []int {
 
 // Count returns the count of the given query.
 func (kvsq *KeyValueStoreQuery) Count(ctx context.Context) (int, error) {
-	ctx = setContextOp(ctx, kvsq.ctx, "Count")
+	ctx = setContextOp(ctx, kvsq.ctx, ent.OpQueryCount)
 	if err := kvsq.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
@@ -218,7 +219,7 @@ func (kvsq *KeyValueStoreQuery) CountX(ctx context.Context) int {
 
 // Exist returns true if the query has elements in the graph.
 func (kvsq *KeyValueStoreQuery) Exist(ctx context.Context) (bool, error) {
-	ctx = setContextOp(ctx, kvsq.ctx, "Exist")
+	ctx = setContextOp(ctx, kvsq.ctx, ent.OpQueryExist)
 	switch _, err := kvsq.FirstID(ctx); {
 	case IsNotFound(err):
 		return false, nil
@@ -251,8 +252,9 @@ func (kvsq *KeyValueStoreQuery) Clone() *KeyValueStoreQuery {
 		inters:     append([]Interceptor{}, kvsq.inters...),
 		predicates: append([]predicate.KeyValueStore{}, kvsq.predicates...),
 		// clone intermediate query.
-		sql:  kvsq.sql.Clone(),
-		path: kvsq.path,
+		sql:       kvsq.sql.Clone(),
+		path:      kvsq.path,
+		modifiers: append([]func(*sql.Selector){}, kvsq.modifiers...),
 	}
 }
 
@@ -465,7 +467,7 @@ func (kvsgb *KeyValueStoreGroupBy) Aggregate(fns ...AggregateFunc) *KeyValueStor
 
 // Scan applies the selector query and scans the result into the given value.
 func (kvsgb *KeyValueStoreGroupBy) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, kvsgb.build.ctx, "GroupBy")
+	ctx = setContextOp(ctx, kvsgb.build.ctx, ent.OpQueryGroupBy)
 	if err := kvsgb.build.prepareQuery(ctx); err != nil {
 		return err
 	}
@@ -513,7 +515,7 @@ func (kvss *KeyValueStoreSelect) Aggregate(fns ...AggregateFunc) *KeyValueStoreS
 
 // Scan applies the selector query and scans the result into the given value.
 func (kvss *KeyValueStoreSelect) Scan(ctx context.Context, v any) error {
-	ctx = setContextOp(ctx, kvss.ctx, "Select")
+	ctx = setContextOp(ctx, kvss.ctx, ent.OpQuerySelect)
 	if err := kvss.prepareQuery(ctx); err != nil {
 		return err
 	}

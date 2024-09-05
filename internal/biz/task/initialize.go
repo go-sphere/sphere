@@ -6,8 +6,6 @@ import (
 	"github.com/tbxark/go-base-api/internal/pkg/encrypt"
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/keyvaluestore"
-	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/log/field"
 	"strconv"
 	"time"
 )
@@ -38,10 +36,10 @@ func (i *Initialize) Identifier() string {
 	return "initialize"
 }
 
-func (i *Initialize) Run() {
+func (i *Initialize) Run() error {
 	ctx := context.Background()
 	key := "did_init"
-	err := dao.WithTxEx(ctx, i.db.Client, func(ctx context.Context, client *ent.Client) error {
+	return dao.WithTxEx(ctx, i.db.Client, func(ctx context.Context, client *ent.Client) error {
 		exist, err := client.KeyValueStore.Query().Where(keyvaluestore.KeyEQ(key)).Exist(ctx)
 		if err != nil {
 			return err
@@ -60,11 +58,4 @@ func (i *Initialize) Run() {
 		return nil
 
 	})
-	if err != nil {
-		log.Errorw(
-			"initialize error",
-			field.Error(err),
-			field.String("module", "task"),
-		)
-	}
 }

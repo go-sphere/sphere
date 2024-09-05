@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"github.com/tbxark/go-base-api/internal/biz/api"
+	"github.com/tbxark/go-base-api/internal/biz/bot"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
 	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
 	"github.com/tbxark/go-base-api/pkg/dao/client"
@@ -25,6 +26,7 @@ type Config struct {
 	Dash     *dash.Config   `json:"dash"`
 	API      *api.Config    `json:"api"`
 	CDN      *qiniu.Config  `json:"cdn"`
+	Bot      *bot.Config    `json:"bot"`
 	WxMini   *wechat.Config `json:"wx_mini"`
 }
 

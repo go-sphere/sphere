@@ -55,7 +55,7 @@ func (w *Web) Identifier() string {
 	return "api"
 }
 
-func (w *Web) Run() {
+func (w *Web) Run() error {
 	zapLogger := log.ZapLogger().With(field.String("module", "api"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
@@ -69,10 +69,7 @@ func (w *Web) Run() {
 	w.bindUserRoute(api)
 	w.bindSystemRoute(api)
 
-	err := w.Engine.Run(w.config.Address)
-	if err != nil {
-		log.Warnw("api server run error", field.Error(err))
-	}
+	return w.Engine.Run(w.config.Address)
 }
 
 func (w *Web) uploadRemoteImage(ctx *gin.Context, url string) (string, error) {

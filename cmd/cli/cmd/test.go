@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/cobra"
-	"github.com/tbxark/go-base-api/cmd/cli/config"
+	"github.com/tbxark/go-base-api/config"
 	"github.com/tbxark/go-base-api/pkg/log"
 )
 

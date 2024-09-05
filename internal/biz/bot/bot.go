@@ -30,7 +30,7 @@ func (a *App) Identifier() string {
 	return "bot"
 }
 
-func (a *App) Run() {
+func (a *App) Run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -71,6 +71,7 @@ func (a *App) Run() {
 	a.BindCallback(QueryCounter, a.HandleCounter, errMid, sfMid)
 
 	a.bot.Start(ctx)
+	return nil
 }
 
 func (a *App) BindCommand(command string, handlerFunc HandlerFunc, middleware ...HandlerMiddleware) {

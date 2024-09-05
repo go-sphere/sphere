@@ -1,6 +1,7 @@
 package dash
 
 import (
+	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
@@ -19,10 +20,11 @@ import (
 )
 
 type Config struct {
-	JWT           string `json:"jwt"`
-	Address       string `json:"address"`
-	Doc           bool   `json:"doc"`
-	DashLocalPath string `json:"dash_local_path"`
+	JWT        string `json:"jwt"`
+	Address    string `json:"address"`
+	Doc        bool   `json:"doc"`
+	DashCors   string `json:"dash_cors"`
+	DashStatic string `json:"dash_static"`
 }
 
 type Web struct {
@@ -56,7 +58,7 @@ func (w *Web) Identifier() string {
 	return "dash"
 }
 
-func (w *Web) Run() {
+func (w *Web) Run() error {
 	zapLogger := log.ZapLogger().With(field.String("module", "dash"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
@@ -64,11 +66,23 @@ func (w *Web) Run() {
 
 	w.Engine.Use(loggerMiddleware, recoveryMiddleware)
 
-	// ignore embed: web.Fs(w.config.DashLocalPath, nil, "")
+	// 1. 使用go直接反代
+	// ignore embed: web.Fs(w.config.DashStatic, nil, "")
+	// 2. 使用embed集成
 	// with embed: web.Fs("", &dash.Assets, dash.AssetsPath)
-	if dashFs, err := web.Fs(w.config.DashLocalPath, nil, ""); err == nil {
+	if dashFs, err := web.Fs(w.config.DashStatic, nil, ""); err == nil && dashFs != nil {
 		d := w.Engine.Group("/dash", gzip.Gzip(gzip.DefaultCompression))
 		d.StaticFS("/", dashFs)
+	}
+	// 3. 使用其他服务反代但是允许其跨域访问
+	if w.config.DashCors != "" {
+		w.Engine.Use(cors.New(cors.Config{
+			AllowOrigins:     []string{w.config.DashCors},
+			AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+			AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
+			AllowCredentials: true,
+			MaxAge:           12 * time.Hour,
+		}))
 	}
 
 	api := w.Engine.Group("/")
@@ -87,8 +101,5 @@ func (w *Web) Run() {
 		handler(authGroup.Group("/", w.auth.NewPermissionMiddleware(page)))
 	}
 
-	err := w.Engine.Run(w.config.Address)
-	if err != nil {
-		log.Warnw("dash server run error", field.Error(err))
-	}
+	return w.Engine.Run(w.config.Address)
 }

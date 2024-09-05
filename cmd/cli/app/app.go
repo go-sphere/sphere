@@ -2,7 +2,7 @@ package app
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/cmd/cli/config"
+	"github.com/tbxark/go-base-api/config"
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
 	"github.com/tbxark/go-base-api/internal/biz/task"
@@ -13,7 +13,7 @@ import (
 
 type Task interface {
 	Identifier() string
-	Run()
+	Run() error
 }
 
 type Cleaner interface {
@@ -55,7 +55,13 @@ func (a *Application) Run() {
 				}
 			}()
 			defer wg.Done()
-			t.Run()
+			if err := t.Run(); err != nil {
+				log.Errorw(
+					"task error",
+					field.String("task", t.Identifier()),
+					field.Error(err),
+				)
+			}
 		}(t)
 	}
 	wg.Wait()
