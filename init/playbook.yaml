@@ -1,0 +1,34 @@
+- name: Build and deploy
+  hosts: web_servers
+  become: yes
+
+  vars:
+    project_dir: "{{ playbook_dir }}/../"
+    build_dir: "{{ project_dir }}/build/linux_x86"
+    deploy_dir: "/usr/local/bin"
+
+  tasks:
+    - name: Build the binary
+      become: false
+      ansible.builtin.command:
+        cmd: "make buildLinuxX86"
+        chdir: "{{ project_dir }}"
+      delegate_to: localhost
+      register: build_result
+      changed_when: build_result.rc == 0
+      failed_when: build_result.rc != 0
+      run_once: true
+
+    - name: Deploy api
+      include_role:
+        name: deploy_binary
+      vars:
+        binary_name: "api"
+        systemd_name: "base-api"
+
+    - name: Deploy dash
+      include_role:
+        name: deploy_binary
+      vars:
+        binary_name: "dash"
+        systemd_name: "base-dash"

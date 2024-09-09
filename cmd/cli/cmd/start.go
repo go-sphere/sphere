@@ -20,11 +20,22 @@ var startCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(startCmd)
 	startCmd.Flags().StringP("config", "c", "config.json", "config file path")
+	startCmd.Flags().StringP("provider", "p", "", "config provider")
+	startCmd.Flags().StringP("endpoint", "e", "", "config endpoint")
+}
+
+func loadConfig(cmd *cobra.Command) (*config.Config, error) {
+	path := cmd.Flag("config").Value.String()
+	provider := cmd.Flag("provider").Value.String()
+	endpoint := cmd.Flag("endpoint").Value.String()
+	if provider == "" {
+		return config.LoadLocalConfig(path)
+	}
+	return config.LoadRemoteConfig(provider, endpoint, path)
 }
 
 func runStart(cmd *cobra.Command, args []string) {
-	cfg := cmd.Flag("config").Value.String()
-	conf, err := config.LoadConfig(cfg)
+	conf, err := loadConfig(cmd)
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}

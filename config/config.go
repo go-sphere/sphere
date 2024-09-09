@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"github.com/spf13/viper"
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/bot"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
@@ -75,7 +76,19 @@ func NewEmptyConfig() *Config {
 	}
 }
 
-func LoadConfig(path string) (*Config, error) {
+func setDefaultConfig(config *Config) *Config {
+	if config.System == nil {
+		config.System = &SystemConfig{
+			GinMode: "release",
+		}
+	}
+	if config.Log == nil {
+		config.Log = log.NewOptions()
+	}
+	return config
+}
+
+func LoadLocalConfig(path string) (*Config, error) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -85,13 +98,23 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if config.System == nil {
-		config.System = &SystemConfig{
-			GinMode: "release",
-		}
+	return setDefaultConfig(config), nil
+}
+
+func LoadRemoteConfig(provider, endpoint, path string) (*Config, error) {
+	err := viper.AddRemoteProvider(provider, endpoint, path)
+	if err != nil {
+		return nil, err
 	}
-	if config.Log == nil {
-		config.Log = log.NewOptions()
+	viper.SetConfigType("json")
+	err = viper.ReadRemoteConfig()
+	if err != nil {
+		return nil, err
 	}
-	return config, nil
+	config := &Config{}
+	err = viper.Unmarshal(config)
+	if err != nil {
+		return nil, err
+	}
+	return setDefaultConfig(config), nil
 }
