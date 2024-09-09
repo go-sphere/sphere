@@ -1,0 +1,33 @@
+---
+- name: Check if NGINX is installed
+  apt:
+    name: nginx
+    state: present
+  become: yes
+
+- name: Create NGINX sites-available directory
+  file:
+    path: /etc/nginx/sites-available
+    state: directory
+  become: yes
+
+- name: Create NGINX proxy configuration
+  template:
+    src: nginx_proxy.conf.j2
+    dest: "/etc/nginx/sites-available/{{ site.server_name }}.conf"
+  loop: "{{ nginx_proxy_sites }}"
+  loop_control:
+    loop_var: site
+  become: yes
+  notify: Restart NGINX
+
+- name: Create NGINX sites-enabled symlink
+  file:
+    src: "/etc/nginx/sites-available/{{ site.server_name }}.conf"
+    dest: "/etc/nginx/sites-enabled/{{ site.server_name }}.conf"
+    state: link
+  loop: "{{ nginx_proxy_sites }}"
+  loop_control:
+    loop_var: site
+  become: yes
+  notify: Restart NGINX

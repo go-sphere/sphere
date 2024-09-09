@@ -27,15 +27,16 @@ func DefaultCommandConfigFlagsParser() *config.Config {
 	}
 
 	if *provider == "" {
+		log.Debugf("load local config: %s", *path)
 		conf, err := config.LoadLocalConfig(*path)
 		if err != nil {
-			log.Panicf("load config error: %v", err)
+			log.Panicf("load local config error: %v", err)
 		}
 		return conf
 	}
 	conf, err := config.LoadRemoteConfig(*provider, *endpoint, *path)
 	if err != nil {
-		log.Panicf("load config error: %v", err)
+		log.Panicf("load remote config error: %v", err)
 	}
 	return conf
 }

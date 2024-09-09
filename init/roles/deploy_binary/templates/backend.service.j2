@@ -1,5 +1,5 @@
 [Unit]
-Description={{ ServiceName }} Backend Service
+Description={{ systemd_name }} backend service
 After=network.target
 
 [Service]
@@ -8,7 +8,7 @@ User=root
 Group=nogroup
 LimitNOFILE=32768
 Restart=on-failure
-ExecStart=/usr/local/bin/{{ BinName }} start --config=/etc/{{ ConfigDir }}/config.json
+ExecStart=/usr/local/bin/{{ binary_name }} -config={{ config_file }}
 
 [Install]
 WantedBy=multi-user.target

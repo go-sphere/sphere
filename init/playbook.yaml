@@ -6,6 +6,12 @@
     project_dir: "{{ playbook_dir }}/../"
     build_dir: "{{ project_dir }}/build/linux_x86"
     deploy_dir: "/usr/local/bin"
+    config_path: "/etc/base-api/config.json"
+    nginx_sites:
+      - server_name: "api.debian-amd.orb.local"
+        proxy_pass: "http://127.0.0.1:8899"
+      - server_name: "dash.debian-amd.orb.local"
+        proxy_pass: "http://127.0.0.1:8800"
 
   tasks:
     - name: Build the binary
@@ -19,12 +25,19 @@
       failed_when: build_result.rc != 0
       run_once: true
 
+    - name: Copy Config
+      copy:
+        src: "{{ project_dir }}/config_gen.json"
+        dest: "{{ config_path }}"
+      become: yes
+
     - name: Deploy api
       include_role:
         name: deploy_binary
       vars:
         binary_name: "api"
         systemd_name: "base-api"
+        config_file: "{{ config_path }}"
 
     - name: Deploy dash
       include_role:
@@ -32,3 +45,10 @@
       vars:
         binary_name: "dash"
         systemd_name: "base-dash"
+        config_file: "{{ config_path }}"
+
+    - name: Deploy nginx
+      include_role:
+        name: nginx_proxy
+      vars:
+        nginx_proxy_sites: "{{ nginx_sites }}"
