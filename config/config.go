@@ -20,8 +20,15 @@ type SystemConfig struct {
 	GinMode string `json:"gin_mode"`
 }
 
+type RemoteConfig struct {
+	Provider string `json:"provider"`
+	Endpoint string `json:"endpoint"`
+	Path     string `json:"path"`
+}
+
 type Config struct {
 	System   *SystemConfig  `json:"system"`
+	Remote   *RemoteConfig  `json:"remote"`
 	Log      *log.Options   `json:"log"`
 	Database *client.Config `json:"database"`
 	Dash     *dash.Config   `json:"dash"`

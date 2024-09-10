@@ -10,8 +10,6 @@ import (
 
 func DefaultCommandConfigFlagsParser() *config.Config {
 	path := flag.String("config", "config.json", "config file path")
-	provider := flag.String("provider", "", "config provider")
-	endpoint := flag.String("endpoint", "", "config endpoint")
 	version := flag.Bool("version", false, "show version")
 	help := flag.Bool("help", false, "show help")
 	flag.Parse()
@@ -26,17 +24,18 @@ func DefaultCommandConfigFlagsParser() *config.Config {
 		os.Exit(0)
 	}
 
-	if *provider == "" {
-		log.Debugf("load local config: %s", *path)
-		conf, err := config.LoadLocalConfig(*path)
-		if err != nil {
-			log.Panicf("load local config error: %v", err)
-		}
+	conf, err := config.LoadLocalConfig(*path)
+	if err != nil {
+		log.Panicf("load local config error: %v", err)
+	}
+
+	if conf.Remote == nil {
 		return conf
 	}
-	conf, err := config.LoadRemoteConfig(*provider, *endpoint, *path)
+	conf, err = config.LoadRemoteConfig(conf.Remote.Provider, conf.Remote.Endpoint, conf.Remote.Path)
 	if err != nil {
 		log.Panicf("load remote config error: %v", err)
 	}
 	return conf
+
 }

@@ -1,0 +1,12 @@
+- name: Copy Config
+  copy:
+    src: "{{ config_source}}"
+    dest: "{{ config_dest }}"
+  become: true
+
+- name: Deploy binary
+  include_role:
+    name: deploy_binary
+  vars:
+    config_file: "{{ config_dest }}"
+

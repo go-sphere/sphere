@@ -8,7 +8,7 @@ package app
 
 import (
 	"github.com/tbxark/go-base-api/config"
-	"github.com/tbxark/go-base-api/internal/biz/dash"
+	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/task"
 	"github.com/tbxark/go-base-api/internal/pkg/boot"
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
@@ -21,7 +21,7 @@ import (
 // Injectors from wire.go:
 
 func NewAPIApplication(cfg *config.Config) (*boot.Application, error) {
-	dashConfig := cfg.Dash
+	apiConfig := cfg.API
 	clientConfig := cfg.Database
 	entClient, err := client.NewDbClient(clientConfig)
 	if err != nil {
@@ -33,7 +33,7 @@ func NewAPIApplication(cfg *config.Config) (*boot.Application, error) {
 	qiniuConfig := cfg.CDN
 	qiniuQiniu := qiniu.NewQiniu(qiniuConfig)
 	cache := memory.NewByteCache()
-	web := dash.NewWebServer(dashConfig, daoDao, wechatWechat, qiniuQiniu, cache)
+	web := api.NewWebServer(apiConfig, daoDao, wechatWechat, qiniuQiniu, cache)
 	dashInitialize := task.NewInitialize(daoDao)
 	connectCleaner := task.NewCleaner(entClient)
 	application := CreateApplication(web, dashInitialize, connectCleaner)

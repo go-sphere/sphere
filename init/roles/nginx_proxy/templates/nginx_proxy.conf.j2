@@ -3,18 +3,27 @@ map $http_upgrade $connection_upgrade {
     ''      close;
 }
 
+{% for server in servers %}
 server {
-    server_name {{ site.server_name  }};
-    location / {
-            proxy_set_header  Host $host;
-            proxy_set_header  X-Real-IP        $remote_addr;
-            proxy_set_header  X-Forwarded-For  $proxy_add_x_forwarded_for;
-            proxy_set_header  X-NginX-Proxy true;
-            proxy_set_header  Upgrade $http_upgrade;
-            proxy_set_header  Connection $connection_upgrade;
+    server_name {{ server.name }};
 
-            proxy_pass {{ site.proxy_pass }};
+    {% for location in server.locations %}
+    location {{ location.path | default('/') }} {
+        {% if location.path != "/" %}
+        rewrite ^{{ location.path }}(.*)$ $1 break;
+        {% endif %}
+
+        proxy_set_header  Host $host;
+        proxy_set_header  X-Real-IP        $remote_addr;
+        proxy_set_header  X-Forwarded-For  $proxy_add_x_forwarded_for;
+        proxy_set_header  X-NginX-Proxy true;
+        proxy_set_header  Upgrade $http_upgrade;
+        proxy_set_header  Connection $connection_upgrade;
+
+        proxy_pass {{ location.proxy_pass }};
     }
+    {% endfor %}
 
-    listen 80;
+    listen {{ server.port | default(80) }};
 }
+{% endfor %}

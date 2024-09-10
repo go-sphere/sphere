@@ -3,31 +3,37 @@
   apt:
     name: nginx
     state: present
-  become: yes
+  become: true
 
 - name: Create NGINX sites-available directory
   file:
     path: /etc/nginx/sites-available
     state: directory
-  become: yes
+  become: true
+
+- name: Check remote sites-available files
+  ansible.builtin.stat:
+    path: "/etc/nginx/sites-available/{{ server_name }}.conf"
+  register: remote_sites_available_stats
 
 - name: Create NGINX proxy configuration
   template:
     src: nginx_proxy.conf.j2
-    dest: "/etc/nginx/sites-available/{{ site.server_name }}.conf"
-  loop: "{{ nginx_proxy_sites }}"
-  loop_control:
-    loop_var: site
-  become: yes
+    dest: "/etc/nginx/sites-available/{{ server_name }}.conf"
+  become: true
+  when: not remote_sites_available_stats.stat.exists or force_overwrite
   notify: Restart NGINX
+
+- name: Check remote sites-enabled files
+  ansible.builtin.stat:
+    path: "/etc/nginx/sites-enabled/{{ server_name }}.conf"
+  register: remote_stats_enabled_stats
 
 - name: Create NGINX sites-enabled symlink
   file:
-    src: "/etc/nginx/sites-available/{{ site.server_name }}.conf"
-    dest: "/etc/nginx/sites-enabled/{{ site.server_name }}.conf"
+    src: "/etc/nginx/sites-available/{{ server_name }}.conf"
+    dest: "/etc/nginx/sites-enabled/{{ server_name }}.conf"
     state: link
-  loop: "{{ nginx_proxy_sites }}"
-  loop_control:
-    loop_var: site
-  become: yes
+  become: true
+  when: not remote_stats_enabled_stats.stat.exists
   notify: Restart NGINX

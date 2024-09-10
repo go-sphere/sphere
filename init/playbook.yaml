@@ -1,17 +1,12 @@
 - name: Build and deploy
   hosts: web_servers
-  become: yes
+  become: true
 
   vars:
     project_dir: "{{ playbook_dir }}/../"
     build_dir: "{{ project_dir }}/build/linux_x86"
     deploy_dir: "/usr/local/bin"
-    config_path: "/etc/base-api/config.json"
-    nginx_sites:
-      - server_name: "api.debian-amd.orb.local"
-        proxy_pass: "http://127.0.0.1:8899"
-      - server_name: "dash.debian-amd.orb.local"
-        proxy_pass: "http://127.0.0.1:8800"
+    force_overwrite: false
 
   tasks:
     - name: Build the binary
@@ -25,30 +20,24 @@
       failed_when: build_result.rc != 0
       run_once: true
 
-    - name: Copy Config
-      copy:
-        src: "{{ project_dir }}/config_gen.json"
-        dest: "{{ config_path }}"
-      become: yes
-
-    - name: Deploy api
+    - name: Deploy app
       include_role:
-        name: deploy_binary
+        name: deploy_app
       vars:
         binary_name: "api"
         systemd_name: "base-api"
-        config_file: "{{ config_path }}"
-
-    - name: Deploy dash
-      include_role:
-        name: deploy_binary
-      vars:
-        binary_name: "dash"
-        systemd_name: "base-dash"
-        config_file: "{{ config_path }}"
+        config_dest: "/etc/base-api/config.json"
+        config_source: "{{ project_dir }}/config_gen.json"
 
     - name: Deploy nginx
       include_role:
         name: nginx_proxy
       vars:
-        nginx_proxy_sites: "{{ nginx_sites }}"
+        server_name: "base-api"
+        servers:
+          - name: "debian-amd.orb.local"
+            locations:
+              - path: "/v1"
+                proxy_pass: "http://127.0.0.1:8899"
+
+

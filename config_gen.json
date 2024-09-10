@@ -13,8 +13,8 @@
     "level": "info"
   },
   "database": {
-    "type": "mysql",
-    "path": "api:password@tcp(mariadb:3306)/go-base?charset=utf8mb4\u0026parseTime=True\u0026loc=Local\u0026timeout=10s",
+    "type": "sqlite3",
+    "path": "file:/etc/base-api/data.db?cache=shared&mode=rwc",
     "debug": false
   },
   "dash": {

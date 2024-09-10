@@ -12,7 +12,7 @@ init:
 	go install github.com/swaggo/swag/cmd/swag@latest
 	go mod download
 	make generate
-	#make docs
+	make docs
 	#make config
 
 .PHONY: generate
@@ -36,8 +36,8 @@ tmpl:
 
 .PHONY: dash
 dash:
-	#sh ./assets/dash/build.sh
-	echo "replace me"
+	sh ./assets/dash/build.sh
+
 .PHONY: build
 build:
 	$(GO_BUILD) -o ./build/$(CURRENT_OS)_$(CURRENT_ARCH)/ ./...
@@ -50,14 +50,3 @@ buildLinuxX86:
 buildWindowsX86:
 	GOOS=windows GOARCH=amd64 $(GO_BUILD) -o ./build/windows_x86/ ./...
 
-.PHONY: buildImage
-buildImage:
-	docker-compose up --build
-
-.PHONY: deploy
-deploy: buildLinuxX86
-	@echo Build Version: $(BUILD)
-	./init/deploy.sh
-
-.PHONY: buildAll
-buildAll: buildLinuxX86 buildWindowsX86 build

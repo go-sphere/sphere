@@ -31,7 +31,7 @@
     src: "backend.service.j2"
     dest: "/etc/systemd/system/{{ systemd_name }}.service"
     mode: '0644'
-  when: not remote_stats.results[1].stat.exists
+  when: not remote_stats.results[1].stat.exists or force_overwrite
   notify: Restart service
 
 - name: Ensure service is enabled and started
@@ -39,5 +39,5 @@
   ansible.builtin.systemd:
     name: "{{ systemd_name }}"
     state: started
-    enabled: yes
-    daemon_reload: yes
+    enabled: true
+    daemon_reload: true
