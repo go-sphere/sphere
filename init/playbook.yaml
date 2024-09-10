@@ -24,10 +24,11 @@
       include_role:
         name: deploy_app
       vars:
-        binary_name: "api"
+        binary_name: "cli"
         systemd_name: "base-api"
         config_dest: "/etc/base-api/config.json"
         config_source: "{{ project_dir }}/config_gen.json"
+        exec_start: "{{ deploy_dir }}/{{ binary_name }} start -c {{ config_dest }}" # Manually setting the startup command
 
     - name: Deploy nginx
       include_role:
@@ -35,9 +36,11 @@
       vars:
         server_name: "base-api"
         servers:
-          - name: "debian-amd.orb.local"
+          - name: "api.debian-amd.orb.local"
             locations:
-              - path: "/v1"
-                proxy_pass: "http://127.0.0.1:8899"
+              - proxy_pass: "http://127.0.0.1:8899"
+          - name: "dash.debian-amd.orb.local"
+            locations:
+              - proxy_pass: "http://127.0.0.1:8800"
 
 

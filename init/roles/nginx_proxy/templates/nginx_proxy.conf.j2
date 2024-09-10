@@ -9,7 +9,7 @@ server {
 
     {% for location in server.locations %}
     location {{ location.path | default('/') }} {
-        {% if location.path != "/" %}
+        {% if (location.path | default('/')) != "/" %}
         rewrite ^{{ location.path }}(.*)$ $1 break;
         {% endif %}
 
@@ -26,4 +26,6 @@ server {
 
     listen {{ server.port | default(80) }};
 }
+
+
 {% endfor %}

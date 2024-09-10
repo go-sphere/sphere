@@ -8,7 +8,11 @@ User=root
 Group=nogroup
 LimitNOFILE=32768
 Restart=on-failure
+{% if exec_start is defined and exec_start %}
+ExecStart={{ exec_start }}
+{% else %}
 ExecStart=/usr/local/bin/{{ binary_name }} -config={{ config_file }}
+{% endif %}
 
 [Install]
 WantedBy=multi-user.target
