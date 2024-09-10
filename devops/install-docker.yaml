@@ -1,0 +1,74 @@
+---
+- name: Deploy Docker Services
+  hosts: web_servers
+  become: yes
+
+  vars:
+    project_dir: "{{ playbook_dir }}/../"
+    project_name: "go-base"
+    deploy_dir: "/opt/{{ project_name }}"
+    binary_src_dir: "{{ project_dir }}/build/linux_x86"
+
+    services:
+      - name: "{{ project_name }}-api"
+        binary_name: "api"
+        context: "{{ deploy_dir }}/api"
+        binary_src_path: "{{ binary_src_dir }}/api"
+        binary_dest_path: "{{ deploy_dir }}/api/api"
+        ports:
+          - "8899:8899"
+        volumes:
+          - "{{ deploy_dir }}/api/logs:/var/logs"
+          - "{{ deploy_dir }}/api/config:/opt/config"
+        cmd_args: "-config /opt/config/config.json"
+      - name: "{{ project_name }}-dash"
+        binary_name: "api"
+        context: "{{ deploy_dir }}/dash"
+        binary_src_path: "{{ binary_src_dir }}/dash"
+        binary_dest_path: "{{ deploy_dir }}/dash/dash"
+        ports:
+          - "8800:8800"
+        volumes:
+          - "{{ deploy_dir }}/dash/logs:/var/logs"
+          - "{{ deploy_dir }}/dash/config:/opt/config"
+        cmd_args: "-config /opt/config/config.json"
+
+    dirs_to_create:
+      - "{{ deploy_dir }}/api/logs"
+      - "{{ deploy_dir }}/api/config"
+      - "{{ deploy_dir }}/dash/logs"
+      - "{{ deploy_dir }}/dash/config"
+
+    files_to_copy:
+      - src: "{{ project_dir }}/config_gen.json"
+        dest: "{{ deploy_dir }}/api/config/config.json"
+
+  tasks:
+    - name: Build the binary
+      become: false
+      ansible.builtin.command:
+        cmd: "make buildLinuxX86"
+        chdir: "{{ project_dir }}"
+      delegate_to: localhost
+      register: build_result
+      changed_when: build_result.rc == 0
+      failed_when: build_result.rc != 0
+      run_once: true
+
+    - name: Create deployment directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop: "{{ dirs_to_create }}"
+
+    - name: Copy deployment files
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: '0644'
+      loop: "{{ files_to_copy }}"
+
+    - name: Deploy Docker services
+      ansible.builtin.include_role:
+        name: deploy_docker

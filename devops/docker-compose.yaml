@@ -1,7 +1,5 @@
-name: go-base-api
-networks:
-  app-network:
-    driver: bridge
+name: go-base
+
 services:
   api:
     build:
@@ -15,8 +13,8 @@ services:
     ports:
       - "8899:8899"
     volumes:
-      - ../config_gen.json:/config/config.json
-      - ../logs/api:/var/logs
+      - ${LOG_PATH:-/opt/base-api/logs/api}:/var/logs
+      - ${CONFIG_PATH:-/opt/base-api/config/api}:/config
   dash:
     build:
       context: ..
@@ -30,5 +28,9 @@ services:
     ports:
       - "8800:8800"
     volumes:
-      - ../config_gen.json:/config/config.json
-      - ../logs/dash:/var/logs/
+       - ${LOG_PATH:-/opt/base-api/logs/dash}:/var/logs
+       - ${CONFIG_PATH:-/opt/base-api/config/dash}:/config
+
+networks:
+  app-network:
+    driver: bridge
