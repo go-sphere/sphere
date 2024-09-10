@@ -33,6 +33,9 @@
         project_src: "{{ consul_root_dir }}"
         state: present
         pull: true
+      environment:
+        CONSUL_DATA_DIR: "{{ consul_data_dir }}"
+        CONSUL_CONFIG_DIR: "{{ consul_config_dir }}"
 
     - name: Wait for Consul to start
       wait_for:

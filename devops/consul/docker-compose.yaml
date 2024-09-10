@@ -15,8 +15,8 @@ services:
       -client=0.0.0.0 
       -config-file=/consul/config/acl.json
     volumes:
-      - /opt/consul/data:/consul/data
-      - ./config:/consul/config  # Mount configuration files
+      - ${CONSUL_DATA_DIR:-/opt/consul/data}:/consul/data
+      - ${CONSUL_CONFIG_DIR:-./config}:/consul/config
     networks:
       - consul-net
 
