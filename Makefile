@@ -50,3 +50,6 @@ buildLinuxX86:
 buildWindowsX86:
 	GOOS=windows GOARCH=amd64 $(GO_BUILD) -o ./build/windows_x86/ ./...
 
+.PHONY: delpoy
+deploy:
+	ansible-playbook -i devops/inventory.ini devops/playbook.yaml
