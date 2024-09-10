@@ -3,8 +3,6 @@
     src: "{{ config_source }}"
     dest: "{{ config_dest }}"
     mode: '0644'
-    owner: "{{ app_user | default('root') }}"
-    group: "{{ app_group | default('root') }}"
   become: true
 
 - name: Deploy binary
