@@ -15,7 +15,7 @@ services:
       - MARIADB_PASSWORD=password
       - MARIADB_RANDOM_ROOT_PASSWORD=1
     volumes:
-      - ./db/:/var/lib/mysql
+      - ../db/:/var/lib/mysql
     command:
       --max_connections=1000
       --character-set-server=utf8mb4
@@ -30,8 +30,8 @@ services:
       retries: 5
   api:
     build:
-      context: .
-      dockerfile: cmd/api/Dockerfile
+      context: ..
+      dockerfile: ../cmd/api/Dockerfile
     hostname: api
     networks:
         - app-network
@@ -43,12 +43,12 @@ services:
     ports:
       - "8899:8899"
     volumes:
-      - ./config_gen.json:/config/config.json
-      - ./logs/api/:/var/logs/
+      - ../config_gen.json:/config/config.json
+      - ../logs/api/:/var/logs/
   dash:
     build:
-      context: .
-      dockerfile: cmd/dash/Dockerfile
+      context: ..
+      dockerfile: ../cmd/dash/Dockerfile
     hostname: dash
     networks:
       - app-network
@@ -60,5 +60,5 @@ services:
     ports:
       - "8800:8800"
     volumes:
-      - ./config_gen.json:/config/config.json
-      - ./logs/dash/:/var/logs/
+      - ../config_gen.json:/config/config.json
+      - ../logs/dash/:/var/logs/

@@ -1,8 +1,9 @@
-BIN_NAME=go-base-api
+MODULE := $(shell go list -m)
 BUILD=$(shell git rev-parse --short HEAD)@$(shell date +%s)
 CURRENT_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 CURRENT_ARCH := $(shell uname -m | tr '[:upper:]' '[:lower:]')
-LD_FLAGS="-X github.com/github.com/tbxark/go-base-api/config.BuildVersion=$(BUILD)"
+
+LD_FLAGS="-X $(MODULE)/config.BuildVersion=$(BUILD)"
 GO_BUILD=CGO_ENABLED=0 go build -ldflags $(LD_FLAGS)
 
 .PHONY: init
@@ -46,10 +47,10 @@ build:
 buildLinuxX86:
 	GOOS=linux GOARCH=amd64 $(GO_BUILD) -o ./build/linux_x86/ ./...
 
-.PHONY: buildWindowsX86
-buildWindowsX86:
-	GOOS=windows GOARCH=amd64 $(GO_BUILD) -o ./build/windows_x86/ ./...
-
 .PHONY: delpoy
 deploy:
 	ansible-playbook -i devops/inventory.ini devops/playbook.yaml
+
+.PHONY: lint
+lint:
+	golangci-lint run
