@@ -11,7 +11,7 @@ services:
       MARIADB_PASSWORD: password
       MARIADB_RANDOM_ROOT_PASSWORD: '1'
     volumes:
-      - /opt/mariadb/data:/var/lib/mysql
+      - ${MARIADB_DATA_DIR:-/opt/mariadb/data}:/var/lib/mysql
     command: >
       --max_connections=1000
       --character-set-server=utf8mb4

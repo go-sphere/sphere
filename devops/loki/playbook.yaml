@@ -4,49 +4,55 @@
   become: true
   vars:
     loki_dir: /opt/loki
+    log_path: /var/logs 
     grafana_domain: logs.yourdomain.com
     expose_grafana: false
 
   tasks:
-    - name: Ensure /opt/loki directory exists
+    - name: Ensure Loki directory exists
       ansible.builtin.file:
         path: "{{ loki_dir }}"
         state: directory
         mode: '0755'
 
-    - name: Copy Docker Compose file
-      ansible.builtin.copy:
-        src: ./docker-compose.yaml
-        dest: "{{ loki_dir }}/docker-compose.yaml"
-      register: docker_compose_copy
+    - name: Copy and start Docker Compose
+      block:
+        - name: Copy Docker Compose file
+          ansible.builtin.copy:
+            src: ./docker-compose.yaml
+            dest: "{{ loki_dir }}/docker-compose.yaml"
+          register: docker_compose_copy
 
-    - name: Start Docker Compose
-      community.docker.docker_compose:
-        project_src: "{{ loki_dir }}"
-        state: present
-        pull: true
-      when: docker_compose_copy is changed
+        - name: Start Docker Compose
+          community.docker.docker_compose:
+            project_src: "{{ loki_dir }}"
+            state: present
+            pull: true
+          environment:
+            LOG_PATH: "{{ log_path }}"
+          when: docker_compose_copy is changed
 
-    - name: Install Nginx
-      ansible.builtin.apt:
-        name: nginx
-        state: present
+    - name: Setup Nginx for Grafana
       when: expose_grafana
+      block:
+        - name: Install Nginx
+          ansible.builtin.apt:
+            name: nginx
+            state: present
+            update_cache: yes
 
-    - name: Configure Nginx for Grafana
-      ansible.builtin.template:
-        src: nginx_grafana.conf.j2
-        dest: /etc/nginx/sites-available/grafana.conf
-      notify: Reload Nginx
-      when: expose_grafana
+        - name: Configure Nginx for Grafana
+          ansible.builtin.template:
+            src: nginx_grafana.conf.j2
+            dest: /etc/nginx/sites-available/grafana.conf
+          notify: Reload Nginx
 
-    - name: Enable Nginx site for Grafana
-      ansible.builtin.file:
-        src: /etc/nginx/sites-available/grafana.conf
-        dest: /etc/nginx/sites-enabled/grafana.conf
-        state: link
-      notify: Reload Nginx
-      when: expose_grafana
+        - name: Enable Nginx site for Grafana
+          ansible.builtin.file:
+            src: /etc/nginx/sites-available/grafana.conf
+            dest: /etc/nginx/sites-enabled/grafana.conf
+            state: link
+          notify: Reload Nginx
 
   handlers:
     - name: Reload Nginx

@@ -4,16 +4,17 @@
   become: yes
   vars:
     mariadb_dir: /opt/mariadb
+    mariadb_data_dir: "{{ mariadb_dir }}/data"
 
   tasks:
     - name: Ensure MariaDB directories exist
-      file:
+      ansible.builtin.file:
         path: "{{ item }}"
         state: directory
         mode: '0755'
       loop:
         - "{{ mariadb_dir }}"
-        - "{{ mariadb_dir }}/data"
+        - "{{ mariadb_data_dir }}"
 
     - name: Copy Docker Compose file
       ansible.builtin.copy:
@@ -26,10 +27,14 @@
         project_src: "{{ mariadb_dir }}"
         state: present
         pull: yes
-      when: docker_compose_copy.changed
+      environment:
+        MARIADB_DATA_DIR: "{{ mariadb_data_dir }}"
+      when: docker_compose_copy is changed
 
     - name: Wait for MariaDB to be ready
-      wait_for:
+      ansible.builtin.wait_for:
+        host: localhost
         port: 3306
+        state: started
         delay: 10
         timeout: 60
