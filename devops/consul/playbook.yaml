@@ -1,10 +1,12 @@
 ---
 - name: Setup Consul with ACL
   hosts: web_servers
-  become: yes
-  
+  become: "{{ ansible_become | default(true) }}"
+  connection: "{{ ansible_connection | default('ssh') }}"
+
   vars:
-    consul_root_dir: "/opt/consul"
+    root_dir: "{{ ansible_opt_dir | default('/opt') }}"
+    consul_root_dir: "{{ root_dir }}/consul"
     consul_config_dir: "{{ consul_root_dir }}/config"
     consul_data_dir: "{{ consul_root_dir }}/data"
     consul_files:
@@ -30,10 +32,9 @@
       loop: "{{ consul_files }}"
 
     - name: Start Consul container
-      community.docker.docker_compose:
-        project_src: "{{ consul_root_dir }}"
-        state: present
-        pull: true
+      ansible.builtin.command:
+        cmd: docker-compose up -d
+        chdir: "{{ consul_root_dir }}"
       environment:
         CONSUL_DATA_DIR: "{{ consul_data_dir }}"
         CONSUL_CONFIG_DIR: "{{ consul_config_dir }}"

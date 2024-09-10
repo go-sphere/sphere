@@ -1,12 +1,13 @@
 ---
 - name: Deploy Docker Services
-  hosts: web_servers
-  become: yes
+  become: "{{ ansible_become | default(true) }}"
+  connection: "{{ ansible_connection | default('ssh') }}"
 
   vars:
+    root_dir: "{{ ansible_opt_dir | default('/opt') }}"
     project_dir: "{{ playbook_dir }}/../"
     project_name: "go-base"
-    deploy_dir: "/opt/{{ project_name }}"
+    deploy_dir: "{{ root_dir }}/{{ project_name }}"
     binary_src_dir: "{{ project_dir }}/build/linux_x86"
 
     services:
@@ -72,3 +73,18 @@
     - name: Deploy Docker services
       ansible.builtin.include_role:
         name: deploy_docker
+
+    - name: Deploy nginx
+      include_role:
+        name: nginx_proxy
+      vars:
+        server_name: "base-api"
+        servers:
+          - name: "api.debian-amd.orb.local"
+            locations:
+              - path: "/"
+                proxy_pass: "http://127.0.0.1:8899"
+          - name: "dash.debian-amd.orb.local"
+            locations:
+              - path: "/"
+                proxy_pass: "http://127.0.0.1:8800"

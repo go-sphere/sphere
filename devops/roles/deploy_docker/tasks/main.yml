@@ -30,10 +30,6 @@
     dest: "{{ deploy_dir }}/docker-compose.yaml"
 
 - name: Docker compose up
-  community.docker.docker_compose:
-    project_src: "{{ deploy_dir }}"
-    files:
-      - docker-compose.yaml
-    state: present
-    recreate: always
-    build: true
+  ansible.builtin.command:
+    cmd: docker-compose up -d
+    chdir: "{{ deploy_dir }}"

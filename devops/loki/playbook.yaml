@@ -1,9 +1,12 @@
 ---
 - name: Deploy Loki Stack with Nginx
   hosts: web_servers
-  become: true
+  become: "{{ ansible_become | default(true) }}"
+  connection: "{{ ansible_connection | default('ssh') }}"
+  
   vars:
-    loki_dir: /opt/loki
+    root_dir: "{{ ansible_opt_dir | default('/opt') }}"
+    loki_dir: "{{ root_dir }}/loki"
     log_path: /var/logs 
     grafana_domain: logs.yourdomain.com
     expose_grafana: false
@@ -24,10 +27,9 @@
           register: docker_compose_copy
 
         - name: Start Docker Compose
-          community.docker.docker_compose:
-            project_src: "{{ loki_dir }}"
-            state: present
-            pull: true
+          ansible.builtin.command:
+            cmd: docker-compose up -d
+            chdir: "{{ loki_dir }}"
           environment:
             LOG_PATH: "{{ log_path }}"
           when: docker_compose_copy is changed

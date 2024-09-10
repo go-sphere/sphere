@@ -1,12 +1,14 @@
 ---
 - name: Build and deploy
   hosts: web_servers
-  become: true
+  become: "{{ ansible_become | default(true) }}"
+  connection: "{{ ansible_connection | default('ssh') }}"
 
   vars:
     project_dir: "{{ playbook_dir }}/../"
     build_dir: "{{ project_dir }}/build/linux_x86"
-    deploy_dir: "/usr/local/bin"
+    deploy_dir: "{{ ansible_deploy_dir | default('/usr/local/bin') }}"
+    config_dir: "{{ ansible_config_dir | default('/etc') }}"
     force_overwrite: false
 
   tasks:
@@ -27,7 +29,7 @@
       vars:
         binary_name: "cli"
         systemd_name: "base-api"
-        config_dest: "/etc/base-api/config.json"
+        config_dest: "{{ config_dir }}/base-api/config.json"
         config_source: "{{ project_dir }}/config_gen.json"
         exec_start: "{{ deploy_dir }}/{{ binary_name }} start -c {{ config_dest }}" 
 

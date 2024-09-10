@@ -1,9 +1,12 @@
 ---
 - name: Deploy MariaDB
   hosts: web_servers
-  become: yes
+  become: "{{ ansible_become | default(true) }}"
+  connection: "{{ ansible_connection | default('ssh') }}"
+
   vars:
-    mariadb_dir: /opt/mariadb
+    root_dir: "{{ ansible_opt_dir | default('/opt') }}"
+    mariadb_dir: "{{ root_dir }}/mariadb"
     mariadb_data_dir: "{{ mariadb_dir }}/data"
 
   tasks:
@@ -23,10 +26,9 @@
       register: docker_compose_copy
 
     - name: Start Docker Compose
-      community.docker.docker_compose:
-        project_src: "{{ mariadb_dir }}"
-        state: present
-        pull: yes
+      ansible.builtin.command:
+        cmd: docker-compose up -d
+        chdir: "{{ mariadb_dir }}"
       environment:
         MARIADB_DATA_DIR: "{{ mariadb_data_dir }}"
       when: docker_compose_copy is changed
