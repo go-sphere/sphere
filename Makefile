@@ -47,6 +47,10 @@ build:
 buildLinuxX86:
 	GOOS=linux GOARCH=amd64 $(GO_BUILD) -o ./build/linux_x86/ ./...
 
+.PHONY: buildLinuxARM64
+buildLinuxARM64:
+	GOOS=linux GOARCH=arm64 $(GO_BUILD) -o ./build/linux_arm64/ ./...
+
 .PHONY: delpoy
 deploy:
 	ansible-playbook -i devops/inventory.ini devops/playbook.yaml
