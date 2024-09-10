@@ -1,7 +1,4 @@
-version: "3"
-
-networks:
-  loki:
+version: '3'
 
 services:
   loki:
@@ -21,6 +18,9 @@ services:
       - loki
 
   grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
     environment:
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_AUTH_ANONYMOUS_ENABLED=false
@@ -43,8 +43,8 @@ services:
           editable: false
         EOF
         /run.sh
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
     networks:
       - loki
+
+networks:
+  loki:

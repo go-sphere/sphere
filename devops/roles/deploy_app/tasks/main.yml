@@ -1,11 +1,14 @@
 - name: Copy Config
-  copy:
-    src: "{{ config_source}}"
+  ansible.builtin.copy:
+    src: "{{ config_source }}"
     dest: "{{ config_dest }}"
+    mode: '0644'
+    owner: "{{ app_user | default('root') }}"
+    group: "{{ app_group | default('root') }}"
   become: true
 
 - name: Deploy binary
-  include_role:
+  ansible.builtin.include_role:
     name: deploy_binary
   vars:
     config_file: "{{ config_dest }}"

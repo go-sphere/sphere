@@ -1,39 +1,42 @@
 ---
-- name: Check if NGINX is installed
+- name: Ensure NGINX is installed
   apt:
     name: nginx
     state: present
   become: true
 
-- name: Create NGINX sites-available directory
+- name: Ensure NGINX sites-available directory exists
   file:
     path: /etc/nginx/sites-available
     state: directory
   become: true
 
-- name: Check remote sites-available files
+- name: Check if NGINX proxy configuration exists
   ansible.builtin.stat:
     path: "/etc/nginx/sites-available/{{ server_name }}.conf"
-  register: remote_sites_available_stats
+  register: nginx_config_stat
 
-- name: Create NGINX proxy configuration
+- name: Create or update NGINX proxy configuration
   template:
     src: nginx_proxy.conf.j2
     dest: "/etc/nginx/sites-available/{{ server_name }}.conf"
+    mode: '0644'
   become: true
-  when: not remote_sites_available_stats.stat.exists or force_overwrite
+  when: not nginx_config_stat.stat.exists or force_overwrite | default(false)
   notify: Restart NGINX
 
-- name: Check remote sites-enabled files
-  ansible.builtin.stat:
-    path: "/etc/nginx/sites-enabled/{{ server_name }}.conf"
-  register: remote_stats_enabled_stats
-
-- name: Create NGINX sites-enabled symlink
+- name: Ensure NGINX proxy configuration is enabled
   file:
     src: "/etc/nginx/sites-available/{{ server_name }}.conf"
     dest: "/etc/nginx/sites-enabled/{{ server_name }}.conf"
     state: link
   become: true
-  when: not remote_stats_enabled_stats.stat.exists
   notify: Restart NGINX
+
+- name: Remove default NGINX site
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  become: true
+  notify: Restart NGINX
+  when: remove_default_site | default(false)

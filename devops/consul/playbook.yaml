@@ -1,0 +1,49 @@
+---
+- name: Setup Consul with ACL
+  hosts: web_servers
+  become: yes
+  
+  vars:
+    consul_root_dir: "/opt/consul"
+    consul_config_dir: "{{ consul_root_dir }}/config"
+    consul_data_dir: "{{ consul_root_dir }}/data"
+
+  tasks:
+    - name: Create Consul directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ consul_root_dir }}"
+        - "{{ consul_config_dir }}"
+        - "{{ consul_data_dir }}"
+
+    - name: Copy configuration files
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: '0644'
+      loop:
+        - { src: './docker-compose.yaml', dest: '{{ consul_root_dir }}/docker-compose.yaml' }
+        - { src: './config/acl.json', dest: '{{ consul_config_dir }}/acl.json' }
+
+    - name: Start Consul container
+      community.docker.docker_compose:
+        project_src: "{{ consul_root_dir }}"
+        state: present
+        pull: true
+
+    - name: Wait for Consul to start
+      wait_for:
+        port: 8500
+        delay: 10
+
+    - name: Bootstrap ACL system
+      shell: docker exec consul consul acl bootstrap
+      register: acl_bootstrap
+      changed_when: true
+
+    - name: Display ACL token
+      debug:
+        var: acl_bootstrap.stdout_lines

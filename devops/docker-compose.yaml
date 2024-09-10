@@ -3,62 +3,32 @@ networks:
   app-network:
     driver: bridge
 services:
-  mariadb:
-    image: mariadb
-    restart: always
-    hostname: mariadb
-    networks:
-        - app-network
-    environment:
-      - MARIADB_DATABASE=go-base
-      - MARIADB_USER=api
-      - MARIADB_PASSWORD=password
-      - MARIADB_RANDOM_ROOT_PASSWORD=1
-    volumes:
-      - ../db/:/var/lib/mysql
-    command:
-      --max_connections=1000
-      --character-set-server=utf8mb4
-      --collation-server=utf8mb4_unicode_ci
-      --default-authentication-plugin=mysql_native_password
-    ports:
-      - "3306:3306"
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
   api:
     build:
       context: ..
-      dockerfile: ../cmd/api/Dockerfile
+      dockerfile: cmd/api/Dockerfile
     hostname: api
     networks:
         - app-network
-    depends_on:
-      mariadb:
-        condition: service_healthy
     environment:
       - GIN_MODE=debug
     ports:
       - "8899:8899"
     volumes:
       - ../config_gen.json:/config/config.json
-      - ../logs/api/:/var/logs/
+      - ../logs/api:/var/logs
   dash:
     build:
       context: ..
-      dockerfile: ../cmd/dash/Dockerfile
+      dockerfile: cmd/dash/Dockerfile
     hostname: dash
     networks:
       - app-network
     depends_on:
-      mariadb:
-        condition: service_healthy
       api:
-        condition: service_started # 防止orm同时初始化
+        condition: service_started
     ports:
       - "8800:8800"
     volumes:
       - ../config_gen.json:/config/config.json
-      - ../logs/dash/:/var/logs/
+      - ../logs/dash:/var/logs/

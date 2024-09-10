@@ -1,0 +1,35 @@
+---
+- name: Deploy MariaDB
+  hosts: web_servers
+  become: yes
+  vars:
+    mariadb_dir: /opt/mariadb
+
+  tasks:
+    - name: Ensure MariaDB directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ mariadb_dir }}"
+        - "{{ mariadb_dir }}/data"
+
+    - name: Copy Docker Compose file
+      ansible.builtin.copy:
+        src: ./docker-compose.yaml
+        dest: "{{ mariadb_dir }}/docker-compose.yaml"
+      register: docker_compose_copy
+
+    - name: Start Docker Compose
+      community.docker.docker_compose:
+        project_src: "{{ mariadb_dir }}"
+        state: present
+        pull: yes
+      when: docker_compose_copy.changed
+
+    - name: Wait for MariaDB to be ready
+      wait_for:
+        port: 3306
+        delay: 10
+        timeout: 60
