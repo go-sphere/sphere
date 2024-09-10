@@ -5,6 +5,7 @@
   vars:
     loki_dir: /opt/loki
     grafana_domain: logs.yourdomain.com
+    expose_grafana: false
 
   tasks:
     - name: Ensure /opt/loki directory exists
@@ -30,13 +31,14 @@
       ansible.builtin.apt:
         name: nginx
         state: present
-      when: ansible_os_family == "Debian"
+      when: expose_grafana
 
     - name: Configure Nginx for Grafana
       ansible.builtin.template:
         src: nginx_grafana.conf.j2
         dest: /etc/nginx/sites-available/grafana.conf
       notify: Reload Nginx
+      when: expose_grafana
 
     - name: Enable Nginx site for Grafana
       ansible.builtin.file:
@@ -44,6 +46,7 @@
         dest: /etc/nginx/sites-enabled/grafana.conf
         state: link
       notify: Reload Nginx
+      when: expose_grafana
 
   handlers:
     - name: Reload Nginx
