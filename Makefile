@@ -53,7 +53,7 @@ buildLinuxARM64:
 
 .PHONY: delpoy
 deploy:
-	ansible-playbook -i devops/inventory.ini devops/install-binary.yaml
+	ansible-playbook -i devops/hosts/inventory.ini devops/delpoy-binary.yaml
 
 .PHONY: lint
 lint:

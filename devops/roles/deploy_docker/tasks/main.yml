@@ -29,6 +29,13 @@
     src: docker-compose.yaml.j2
     dest: "{{ deploy_dir }}/docker-compose.yaml"
 
+- name: Stop and remove existing containers
+  ansible.builtin.command:
+    cmd: docker-compose down
+    chdir: "{{ deploy_dir }}"
+  ignore_errors: true
+  when: down_before_start is defined and down_before_start
+
 - name: Docker compose up
   ansible.builtin.command:
     cmd: docker-compose up -d

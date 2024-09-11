@@ -5,13 +5,17 @@
   connection: "{{ ansible_connection | default('ssh') }}"
 
   vars:
+    down_before_start: true
     root_dir: "{{ ansible_opt_dir | default('/opt') }}"
     consul_root_dir: "{{ root_dir }}/consul"
     consul_config_dir: "{{ consul_root_dir }}/config"
     consul_data_dir: "{{ consul_root_dir }}/data"
     consul_files:
-      - { src: './docker-compose.yaml', dest: 'docker-compose.yaml' }
-      - { src: './config/acl.json', dest: 'config/acl.json' }
+      - { src: './consul/config/acl.json', dest: 'config/acl.json' }
+    # consul_nginx_config:
+    #   domain: "consul.debian-amd.orb.local"
+    #   location: "/"
+    #   proxy_pass: "http://127.0.0.1:8500"
 
   tasks:
     - name: Create Consul directories
@@ -31,13 +35,15 @@
         mode: '0644'
       loop: "{{ consul_files }}"
 
-    - name: Start Consul container
-      ansible.builtin.command:
-        cmd: docker-compose up -d
-        chdir: "{{ consul_root_dir }}"
-      environment:
-        CONSUL_DATA_DIR: "{{ consul_data_dir }}"
-        CONSUL_CONFIG_DIR: "{{ consul_config_dir }}"
+    - name: Deploy Consul
+      include_role:
+        name: deploy_compose
+      vars:
+        target_dir: "{{ consul_root_dir }}"
+        docker_compose_src: ./consul/docker-compose.yaml
+        docker_compose_env:
+          CONSUL_DATA_DIR: "{{ consul_data_dir }}"
+          CONSUL_CONFIG_DIR: "{{ consul_config_dir }}"
 
     - name: Wait for Consul to start
       ansible.builtin.wait_for:
@@ -51,7 +57,21 @@
       retries: 3
       delay: 5
       until: acl_bootstrap.rc == 0
+      ignore_errors: true
 
     - name: Display ACL token
       ansible.builtin.debug:
         var: acl_bootstrap.stdout_lines
+      when: acl_bootstrap.rc == 0
+
+    - name: Setup Nginx for Consul
+      include_role:
+        name: nginx_proxy
+      vars:
+        server_name: "consul"
+        servers:
+          - name: "{{ consul_nginx_config.domain }}"
+            locations:
+              - path: "{{ consul_nginx_config.location }}"
+                proxy_pass: "{{ consul_nginx_config.proxy_pass }}"
+      when: consul_nginx_config is defined

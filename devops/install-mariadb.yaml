@@ -5,6 +5,7 @@
   connection: "{{ ansible_connection | default('ssh') }}"
 
   vars:
+    down_before_start: true
     root_dir: "{{ ansible_opt_dir | default('/opt') }}"
     mariadb_dir: "{{ root_dir }}/mariadb"
     mariadb_data_dir: "{{ mariadb_dir }}/data"
@@ -19,19 +20,14 @@
         - "{{ mariadb_dir }}"
         - "{{ mariadb_data_dir }}"
 
-    - name: Copy Docker Compose file
-      ansible.builtin.copy:
-        src: ./docker-compose.yaml
-        dest: "{{ mariadb_dir }}/docker-compose.yaml"
-      register: docker_compose_copy
-
-    - name: Start Docker Compose
-      ansible.builtin.command:
-        cmd: docker-compose up -d
-        chdir: "{{ mariadb_dir }}"
-      environment:
-        MARIADB_DATA_DIR: "{{ mariadb_data_dir }}"
-      when: docker_compose_copy is changed
+    - name: Deploy MariaDB
+      include_role:
+        name: deploy_compose
+      vars:
+        target_dir: "{{ mariadb_dir }}"
+        docker_compose_src: ./mariadb/docker-compose.yaml
+        docker_compose_env:
+          MARIADB_DATA_DIR: "{{ mariadb_data_dir }}"
 
     - name: Wait for MariaDB to be ready
       ansible.builtin.wait_for:

@@ -4,6 +4,7 @@
   connection: "{{ ansible_connection | default('ssh') }}"
 
   vars:
+    down_before_start: true
     root_dir: "{{ ansible_opt_dir | default('/opt') }}"
     project_dir: "{{ playbook_dir }}/../"
     project_name: "go-base"
