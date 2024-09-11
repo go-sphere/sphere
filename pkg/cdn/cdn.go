@@ -8,10 +8,13 @@ import (
 
 type UrlParser interface {
 	RenderURL(key string) string
-	RenderImageURL(key string, width int) string
 	RenderURLs(keys []string) []string
 	KeyFromURL(uri string) string
 	KeyFromURLWithMode(uri string, strict bool) (string, error)
+}
+
+type ImageProcessor interface {
+	RenderImageURL(key string, width int) string
 }
 
 type Credential interface {
@@ -25,6 +28,7 @@ type Uploader interface {
 
 type CDN interface {
 	UrlParser
+	ImageProcessor
 	Uploader
 	Credential
 }

@@ -1,5 +1,4 @@
 version: '3'
-name: mariadb
 
 services:
   mariadb:
@@ -7,10 +6,10 @@ services:
     restart: always
     hostname: mariadb
     environment:
-      MARIADB_DATABASE: go-base
-      MARIADB_USER: api
-      MARIADB_PASSWORD: password
-      MARIADB_RANDOM_ROOT_PASSWORD: '1'
+      MARIADB_DATABASE: "${MARIADB_DATABASE:-go-base}"
+      MARIADB_USER: "${MARIADB_USER:-api}"
+      MARIADB_PASSWORD: "${MARIADB_PASSWORD:-password}"
+      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
     volumes:
       - ${MARIADB_DATA_DIR:-/opt/mariadb/data}:/var/lib/mysql
     command: >
