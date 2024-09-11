@@ -2,19 +2,17 @@ package cdn
 
 import (
 	"context"
-	"github.com/tbxark/go-base-api/pkg/cdn/models"
 	"io"
+
+	"github.com/tbxark/go-base-api/pkg/cdn/models"
 )
 
 type UrlParser interface {
 	RenderURL(key string) string
 	RenderURLs(keys []string) []string
+	RenderImageURL(key string, width int) string
 	KeyFromURL(uri string) string
 	KeyFromURLWithMode(uri string, strict bool) (string, error)
-}
-
-type ImageProcessor interface {
-	RenderImageURL(key string, width int) string
 }
 
 type Credential interface {
@@ -28,7 +26,6 @@ type Uploader interface {
 
 type CDN interface {
 	UrlParser
-	ImageProcessor
 	Uploader
 	Credential
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/tbxark/go-base-api/pkg/cdn/models"
+	"github.com/tbxark/go-base-api/pkg/log"
 	"io"
 	"net/url"
 	"strings"
@@ -56,6 +57,11 @@ func (s *S3) RenderURLs(keys []string) []string {
 		urls[i] = s.RenderURL(key)
 	}
 	return urls
+}
+
+func (s *S3) RenderImageURL(key string, width int) string {
+	log.Warnf("S3 not support image resize")
+	return s.RenderURL(key)
 }
 
 func (s *S3) KeyFromURL(uri string) string {
