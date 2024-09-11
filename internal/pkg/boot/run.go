@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/tbxark/go-base-api/config"
-	"github.com/tbxark/go-base-api/pkg/log"
 	"os"
 )
 
@@ -24,18 +23,33 @@ func DefaultCommandConfigFlagsParser() *config.Config {
 		os.Exit(0)
 	}
 
-	conf, err := config.LoadLocalConfig(*path)
+	conf, err := LoadConfig(*path)
 	if err != nil {
-		log.Panicf("load local config error: %v", err)
-	}
-
-	if conf.Remote == nil {
-		return conf
-	}
-	conf, err = config.LoadRemoteConfig(conf.Remote.Provider, conf.Remote.Endpoint, conf.Remote.Path)
-	if err != nil {
-		log.Panicf("load remote config error: %v", err)
+		fmt.Println("load config error: ", err)
+		os.Exit(1)
 	}
 	return conf
+}
 
+func LoadConfig(path string) (*config.Config, error) {
+	conf, err := config.LoadLocalConfig(path)
+	if err != nil {
+		return nil, err
+	}
+	if conf.Environments != nil {
+		for k, v := range conf.Environments {
+			e := os.Setenv(k, v)
+			if e != nil {
+				return nil, e
+			}
+		}
+	}
+	if conf.Remote == nil {
+		return conf, nil
+	}
+	conf, err = config.LoadRemoteConfig(conf.Remote)
+	if err != nil {
+		return nil, err
+	}
+	return conf, nil
 }

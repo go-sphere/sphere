@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"github.com/spf13/viper"
+	_ "github.com/spf13/viper/remote"
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/bot"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
@@ -16,26 +17,24 @@ import (
 
 var BuildVersion = "dev"
 
-type SystemConfig struct {
-	GinMode string `json:"gin_mode"`
-}
-
 type RemoteConfig struct {
-	Provider string `json:"provider"`
-	Endpoint string `json:"endpoint"`
-	Path     string `json:"path"`
+	Provider   string `json:"provider"`
+	Endpoint   string `json:"endpoint"`
+	Path       string `json:"path"`
+	ConfigType string `json:"config_type"`
+	SecretKey  string `json:"secret"`
 }
 
 type Config struct {
-	System   *SystemConfig  `json:"system"`
-	Remote   *RemoteConfig  `json:"remote"`
-	Log      *log.Options   `json:"log"`
-	Database *client.Config `json:"database"`
-	Dash     *dash.Config   `json:"dash"`
-	API      *api.Config    `json:"api"`
-	CDN      *qiniu.Config  `json:"cdn"`
-	Bot      *bot.Config    `json:"bot"`
-	WxMini   *wechat.Config `json:"wx_mini"`
+	Environments map[string]string `json:"environments"`
+	Remote       *RemoteConfig     `json:"remote"`
+	Log          *log.Options      `json:"log"`
+	Database     *client.Config    `json:"database"`
+	Dash         *dash.Config      `json:"dash"`
+	API          *api.Config       `json:"api"`
+	CDN          *qiniu.Config     `json:"cdn"`
+	Bot          *bot.Config       `json:"bot"`
+	WxMini       *wechat.Config    `json:"wx_mini"`
 }
 
 func NewEmptyConfig() *Config {
@@ -48,8 +47,9 @@ func NewEmptyConfig() *Config {
 		return string(jwt)
 	}
 	return &Config{
-		System: &SystemConfig{
-			GinMode: "debug",
+		Environments: map[string]string{
+			"GIN_MODE":          "release",
+			"CONSUL_HTTP_TOKEN": "",
 		},
 		Log: &log.Options{
 			File: &log.FileOptions{
@@ -84,11 +84,6 @@ func NewEmptyConfig() *Config {
 }
 
 func setDefaultConfig(config *Config) *Config {
-	if config.System == nil {
-		config.System = &SystemConfig{
-			GinMode: "release",
-		}
-	}
 	if config.Log == nil {
 		config.Log = log.NewOptions()
 	}
@@ -108,12 +103,12 @@ func LoadLocalConfig(path string) (*Config, error) {
 	return setDefaultConfig(config), nil
 }
 
-func LoadRemoteConfig(provider, endpoint, path string) (*Config, error) {
-	err := viper.AddRemoteProvider(provider, endpoint, path)
+func LoadRemoteConfig(remote *RemoteConfig) (*Config, error) {
+	viper.SetConfigType(remote.ConfigType)
+	err := viper.AddSecureRemoteProvider(remote.Provider, remote.Endpoint, remote.Path, remote.SecretKey)
 	if err != nil {
 		return nil, err
 	}
-	viper.SetConfigType("json")
 	err = viper.ReadRemoteConfig()
 	if err != nil {
 		return nil, err

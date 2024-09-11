@@ -11,7 +11,7 @@ import (
 // @description				    JWT token
 func main() {
 	c := boot.DefaultCommandConfigFlagsParser()
-	err := boot.Run(c, nil, app.NewAPIApplication)
+	err := boot.Run(c, app.NewAPIApplication)
 	if err != nil {
 		panic(err)
 	}

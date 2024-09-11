@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"github.com/tbxark/go-base-api/cmd/cli/app"
-	"github.com/tbxark/go-base-api/config"
 	"github.com/tbxark/go-base-api/internal/pkg/boot"
 	"github.com/tbxark/go-base-api/pkg/log"
 )
@@ -24,24 +22,12 @@ func init() {
 	startCmd.Flags().StringP("endpoint", "e", "", "config endpoint")
 }
 
-func loadConfig(cmd *cobra.Command) (*config.Config, error) {
-	path := cmd.Flag("config").Value.String()
-	provider := cmd.Flag("provider").Value.String()
-	endpoint := cmd.Flag("endpoint").Value.String()
-	if provider == "" {
-		return config.LoadLocalConfig(path)
-	}
-	return config.LoadRemoteConfig(provider, endpoint, path)
-}
-
 func runStart(cmd *cobra.Command, args []string) {
-	conf, err := loadConfig(cmd)
+	conf, err := boot.LoadConfig(cmd.Flag("config").Value.String())
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}
-	err = boot.Run(conf, func(c *config.Config) {
-		gin.SetMode(c.System.GinMode)
-	}, app.NewApplication)
+	err = boot.Run(conf, app.NewApplication)
 	if err != nil {
 		log.Panicf("run application error: %v", err)
 	}

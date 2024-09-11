@@ -7,7 +7,7 @@ import (
 
 func main() {
 	c := boot.DefaultCommandConfigFlagsParser()
-	err := boot.Run(c, nil, app.NewBotApplication)
+	err := boot.Run(c, app.NewBotApplication)
 	if err != nil {
 		panic(err)
 	}
