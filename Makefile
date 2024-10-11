@@ -51,6 +51,10 @@ buildLinuxX86:
 buildLinuxARM64:
 	GOOS=linux GOARCH=arm64 $(GO_BUILD) -o ./build/linux_arm64/ ./...
 
+.PHONY: buildDockerImage
+buildDockerImage:
+	docker buildx build --platform=linux/amd64,linux/arm64 -t ghcr.io/tbxark/go-base-api:lastest . -f  cmd/cli/Dockerfile --push --provenance=false
+
 .PHONY: delpoy
 deploy:
 	ansible-playbook -i devops/hosts/inventory.ini devops/delpoy-binary.yaml
