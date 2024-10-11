@@ -86,20 +86,14 @@ func (w *Web) Run() error {
 	}
 
 	api := w.Engine.Group("/")
-	authGroup := api.Group("/", w.auth.NewAuthMiddleware(true))
+	authRoute := api.Group("/", w.auth.NewAuthMiddleware(true))
 
 	if w.config.Doc {
 		w.bindDocRoute(api)
 	}
 	w.bindAdminAuthRoute(api.Group("/", rateLimiter))
-	w.bindSystemRoute(authGroup)
-
-	route := map[string]func(gin.IRouter){
-		WebPermissionAdmin: w.bindAdminRoute,
-	}
-	for page, handler := range route {
-		handler(authGroup.Group("/", w.auth.NewPermissionMiddleware(page)))
-	}
+	w.bindSystemRoute(authRoute)
+	w.bindAdminRoute(authRoute)
 
 	return w.Engine.Run(w.config.Address)
 }

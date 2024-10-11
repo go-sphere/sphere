@@ -285,9 +285,10 @@ func (w *Web) bindAdminAuthRoute(r gin.IRouter) {
 }
 
 func (w *Web) bindAdminRoute(r gin.IRouter) {
-	r.GET("/api/admin/list", web.WithJson(w.AdminList))
-	r.POST("/api/admin/create", web.WithJson(w.AdminCreate))
-	r.POST("/api/admin/update/:id", web.WithJson(w.AdminUpdate))
-	r.GET("/api/admin/detail/:id", web.WithJson(w.AdminDetail))
-	r.DELETE("/api/admin/delete/:id", web.WithJson(w.AdminDelete))
+	route := r.Group("/", w.auth.NewPermissionMiddleware(WebPermissionAdmin))
+	route.GET("/api/admin/list", web.WithJson(w.AdminList))
+	route.POST("/api/admin/create", web.WithJson(w.AdminCreate))
+	route.POST("/api/admin/update/:id", web.WithJson(w.AdminUpdate))
+	route.GET("/api/admin/detail/:id", web.WithJson(w.AdminDetail))
+	route.DELETE("/api/admin/delete/:id", web.WithJson(w.AdminDelete))
 }

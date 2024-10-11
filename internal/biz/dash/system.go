@@ -39,14 +39,14 @@ func (w *Web) UploadToken(ctx *gin.Context) (*UploadTokenResponse, error) {
 	return &token, nil
 }
 
-// ResetCache
+// CacheReset
 // @Summary 重置缓存
 // @Tags dashboard
 // @Produce json
 // @Security ApiKeyAuth
 // @Success 200 {object} web.DataResponse[models.MessageResponse]
 // @Router /api/cache/reset [post]
-func (w *Web) ResetCache(ctx *gin.Context) (*models.MessageResponse, error) {
+func (w *Web) CacheReset(ctx *gin.Context) (*models.MessageResponse, error) {
 	err := w.cache.DelAll(ctx)
 	if err != nil {
 		return nil, err
@@ -56,5 +56,5 @@ func (w *Web) ResetCache(ctx *gin.Context) (*models.MessageResponse, error) {
 
 func (w *Web) bindSystemRoute(api gin.IRouter) {
 	api.GET("/api/upload/token", web.WithJson(w.UploadToken))
-	api.POST("/api/cache/reset", web.WithJson(w.ResetCache))
+	api.POST("/api/cache/reset", web.WithJson(w.CacheReset))
 }
