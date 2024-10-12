@@ -78,6 +78,7 @@ func (w *Web) Run() error {
 		d.StaticFS("/", dashFs)
 	}
 	// 3. 使用其他服务反代但是允许其跨域访问
+	// 其中w.config.DashCors是一个配置项，用于配置允许跨域访问的域名,例如：https://dash.example.com
 	if w.config.DashCors != "" {
 		w.Engine.Use(cors.New(cors.Config{
 			AllowOrigins:     []string{w.config.DashCors},

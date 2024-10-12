@@ -52,7 +52,8 @@ func (w *Web) CacheReset(ctx *gin.Context) (*webmodels.MessageResponse, error) {
 	return webmodels.NewSuccessResponse(), nil
 }
 
-func (w *Web) bindSystemRoute(api gin.IRouter) {
-	api.GET("/api/upload/token", web.WithJson(w.UploadToken))
-	api.POST("/api/cache/reset", web.WithJson(w.CacheReset))
+func (w *Web) bindSystemRoute(r gin.IRouter) {
+	route := r.Group("/")
+	route.GET("/api/upload/token", web.WithJson(w.UploadToken))
+	route.POST("/api/cache/reset", web.WithJson(w.CacheReset))
 }

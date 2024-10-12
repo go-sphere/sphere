@@ -49,6 +49,7 @@ func (w *Web) Status(ctx *gin.Context) (*webmodels.MessageResponse, error) {
 }
 
 func (w *Web) bindSystemRoute(r gin.IRouter) {
-	r.GET("/api/status", web.WithJson(w.Status))
-	r.GET("/api/upload/token", web.WithJson(w.UploadToken))
+	route := r.Group("/")
+	route.GET("/api/status", web.WithJson(w.Status))
+	route.GET("/api/upload/token", web.WithJson(w.UploadToken))
 }

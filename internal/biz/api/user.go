@@ -139,7 +139,8 @@ func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*webmodels.MessageResponse, err
 }
 
 func (w *Web) bindUserRoute(r gin.IRouter) {
-	r.GET("/api/user/me", web.WithJson(w.UserInfoMe))
-	r.POST("/api/user/update", web.WithJson(w.UpdateUserInfo))
-	r.POST("/api/wx/mini/bind/phone", web.WithJson(w.WxMiniBindPhone))
+	route := r.Group("/")
+	route.GET("/api/user/me", web.WithJson(w.UserInfoMe))
+	route.POST("/api/user/update", web.WithJson(w.UpdateUserInfo))
+	route.POST("/api/wx/mini/bind/phone", web.WithJson(w.WxMiniBindPhone))
 }

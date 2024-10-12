@@ -94,5 +94,6 @@ func (w *Web) WxMiniAuth(ctx *gin.Context) (*AuthResponse, error) {
 }
 
 func (w *Web) bindAuthRoute(r gin.IRouter) {
-	r.POST("/api/wx/mini/auth", web.WithJson(w.WxMiniAuth))
+	route := r.Group("/")
+	route.POST("/api/wx/mini/auth", web.WithJson(w.WxMiniAuth))
 }

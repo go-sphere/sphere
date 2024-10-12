@@ -288,8 +288,9 @@ func (w *Web) AdminRefreshToken(ctx *gin.Context) (*AdminLoginResponse, error) {
 }
 
 func (w *Web) bindAdminAuthRoute(r gin.IRouter) {
-	r.POST("/api/admin/login", web.WithJson(w.AdminLogin))
-	r.POST("/api/admin/refresh-token", web.WithJson(w.AdminRefreshToken))
+	route := r.Group("/")
+	route.POST("/api/admin/login", web.WithJson(w.AdminLogin))
+	route.POST("/api/admin/refresh-token", web.WithJson(w.AdminRefreshToken))
 }
 
 func (w *Web) bindAdminRoute(r gin.IRouter) {
