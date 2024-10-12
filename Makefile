@@ -28,8 +28,13 @@ config:
 docs:
 	rm -rf ./docs/dashboard
 	rm -rf ./docs/api
-	swag init --parseInternal --parseDependency --tags dashboard --output ./docs/dashboard --instanceName Dashboard -g cmd/dash/main.go
-	swag init --parseInternal --parseDependency --tags api  --output ./docs/api --instanceName API -g cmd/api/main.go
+	swag init --tags dashboard --output ./docs/dashboard --instanceName Dashboard -g docs.go
+	swag init --tags api  --output ./docs/api --instanceName API -g docs.go
+
+.PHONY: typescript
+typescript: docs
+	npx swagger-typescript-api -p ./docs/api/API_swagger.json -o ./docs/api/typescript --modular
+	npx swagger-typescript-api -p ./docs/dashboard/Dashboard_swagger.json -o ./docs/dashboard/typescript --modular
 
 .PHONY: tmpl
 tmpl:

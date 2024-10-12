@@ -1,5 +1,56 @@
 definitions:
-  github_com_tbxark_go-base-api_pkg_cdn_cdnmodels.UploadToken:
+  api.AuthResponse:
+    properties:
+      isNew:
+        type: boolean
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/ent.User'
+    type: object
+  api.MessageResponse:
+    properties:
+      data:
+        $ref: '#/definitions/webmodels.MessageResponse'
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  api.UpdateUserInfoRequest:
+    properties:
+      avatar:
+        type: string
+      username:
+        type: string
+    type: object
+  api.UpdateUserInfoResponse:
+    properties:
+      info:
+        $ref: '#/definitions/ent.User'
+    type: object
+  api.UserInfoMeResponse:
+    properties:
+      info:
+        $ref: '#/definitions/ent.User'
+      inviter:
+        $ref: '#/definitions/ent.User'
+    type: object
+  api.WxMiniAuthRequest:
+    properties:
+      code:
+        type: string
+    required:
+    - code
+    type: object
+  api.WxMiniBindPhoneRequest:
+    properties:
+      code:
+        type: string
+    required:
+    - code
+    type: object
+  cdnmodels.UploadToken:
     properties:
       key:
         type: string
@@ -8,7 +59,7 @@ definitions:
       url:
         type: string
     type: object
-  github_com_tbxark_go-base-api_pkg_dao_ent.User:
+  ent.User:
     properties:
       avatar:
         description: 头像
@@ -35,97 +86,46 @@ definitions:
         description: 用户名
         type: string
     type: object
-  github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_cdn_cdnmodels_UploadToken:
+  web.DataResponse-api_AuthResponse:
     properties:
       data:
-        $ref: '#/definitions/github_com_tbxark_go-base-api_pkg_cdn_cdnmodels.UploadToken'
+        $ref: '#/definitions/api.AuthResponse'
       message:
         type: string
       success:
         type: boolean
     type: object
-  github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_api_AuthResponse:
+  web.DataResponse-api_UpdateUserInfoResponse:
     properties:
       data:
-        $ref: '#/definitions/internal_biz_api.AuthResponse'
+        $ref: '#/definitions/api.UpdateUserInfoResponse'
       message:
         type: string
       success:
         type: boolean
     type: object
-  github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_api_UpdateUserInfoResponse:
+  web.DataResponse-api_UserInfoMeResponse:
     properties:
       data:
-        $ref: '#/definitions/internal_biz_api.UpdateUserInfoResponse'
+        $ref: '#/definitions/api.UserInfoMeResponse'
       message:
         type: string
       success:
         type: boolean
     type: object
-  github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_api_UserInfoMeResponse:
+  web.DataResponse-cdnmodels_UploadToken:
     properties:
       data:
-        $ref: '#/definitions/internal_biz_api.UserInfoMeResponse'
+        $ref: '#/definitions/cdnmodels.UploadToken'
       message:
         type: string
       success:
         type: boolean
     type: object
-  github_com_tbxark_go-base-api_pkg_web_webmodels.MessageResponse:
+  webmodels.MessageResponse:
     properties:
       message:
         type: string
-    type: object
-  internal_biz_api.AuthResponse:
-    properties:
-      isNew:
-        type: boolean
-      token:
-        type: string
-      user:
-        $ref: '#/definitions/github_com_tbxark_go-base-api_pkg_dao_ent.User'
-    type: object
-  internal_biz_api.MessageResponse:
-    properties:
-      data:
-        $ref: '#/definitions/github_com_tbxark_go-base-api_pkg_web_webmodels.MessageResponse'
-      message:
-        type: string
-      success:
-        type: boolean
-    type: object
-  internal_biz_api.UpdateUserInfoRequest:
-    properties:
-      avatar:
-        type: string
-      username:
-        type: string
-    type: object
-  internal_biz_api.UpdateUserInfoResponse:
-    properties:
-      info:
-        $ref: '#/definitions/github_com_tbxark_go-base-api_pkg_dao_ent.User'
-    type: object
-  internal_biz_api.UserInfoMeResponse:
-    properties:
-      info:
-        $ref: '#/definitions/github_com_tbxark_go-base-api_pkg_dao_ent.User'
-      inviter:
-        $ref: '#/definitions/github_com_tbxark_go-base-api_pkg_dao_ent.User'
-    type: object
-  internal_biz_api.WxMiniAuthRequest:
-    properties:
-      code:
-        type: string
-    required:
-    - code
-    type: object
-  internal_biz_api.WxMiniBindPhoneRequest:
-    properties:
-      code:
-        type: string
-    required:
-    - code
     type: object
 info:
   contact: {}
@@ -140,7 +140,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_biz_api.MessageResponse'
+            $ref: '#/definitions/api.MessageResponse'
       summary: 获取系统状态
       tags:
       - api
@@ -160,7 +160,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_cdn_cdnmodels_UploadToken'
+            $ref: '#/definitions/web.DataResponse-cdnmodels_UploadToken'
       security:
       - ApiKeyAuth: []
       summary: 获取上传凭证
@@ -176,7 +176,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_api_UserInfoMeResponse'
+            $ref: '#/definitions/web.DataResponse-api_UserInfoMeResponse'
       security:
       - ApiKeyAuth: []
       summary: 获取当前用户信息
@@ -192,14 +192,14 @@ paths:
         name: user
         required: true
         schema:
-          $ref: '#/definitions/internal_biz_api.UpdateUserInfoRequest'
+          $ref: '#/definitions/api.UpdateUserInfoRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_api_UpdateUserInfoResponse'
+            $ref: '#/definitions/web.DataResponse-api_UpdateUserInfoResponse'
       security:
       - ApiKeyAuth: []
       summary: 更新用户信息
@@ -215,14 +215,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_biz_api.WxMiniAuthRequest'
+          $ref: '#/definitions/api.WxMiniAuthRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_api_AuthResponse'
+            $ref: '#/definitions/web.DataResponse-api_AuthResponse'
       summary: 微信小程序登录
       tags:
       - api
@@ -236,14 +236,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_biz_api.WxMiniBindPhoneRequest'
+          $ref: '#/definitions/api.WxMiniBindPhoneRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_biz_api.MessageResponse'
+            $ref: '#/definitions/api.MessageResponse'
       security:
       - ApiKeyAuth: []
       summary: 绑定手机号

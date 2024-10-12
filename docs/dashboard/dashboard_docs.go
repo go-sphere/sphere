@@ -39,7 +39,7 @@ const docTemplateDashboard = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_biz_dash.AdminEditRequest"
+                            "$ref": "#/definitions/dash.AdminEditRequest"
                         }
                     }
                 ],
@@ -47,7 +47,7 @@ const docTemplateDashboard = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_dash_AdminInfoResponse"
+                            "$ref": "#/definitions/web.DataResponse-dash_AdminInfoResponse"
                         }
                     }
                 }
@@ -80,7 +80,7 @@ const docTemplateDashboard = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_biz_dash.MessageResponse"
+                            "$ref": "#/definitions/dash.MessageResponse"
                         }
                     }
                 }
@@ -113,7 +113,7 @@ const docTemplateDashboard = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_dash_AdminInfoResponse"
+                            "$ref": "#/definitions/web.DataResponse-dash_AdminInfoResponse"
                         }
                     }
                 }
@@ -137,7 +137,7 @@ const docTemplateDashboard = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_dash_AdminListResponse"
+                            "$ref": "#/definitions/web.DataResponse-dash_AdminListResponse"
                         }
                     }
                 }
@@ -162,7 +162,7 @@ const docTemplateDashboard = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_biz_dash.AdminLoginRequest"
+                            "$ref": "#/definitions/dash.AdminLoginRequest"
                         }
                     }
                 ],
@@ -170,7 +170,7 @@ const docTemplateDashboard = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_dash_AdminLoginResponse"
+                            "$ref": "#/definitions/web.DataResponse-dash_AdminLoginResponse"
                         }
                     }
                 }
@@ -195,7 +195,7 @@ const docTemplateDashboard = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_biz_dash.AdminRefreshTokenRequest"
+                            "$ref": "#/definitions/dash.AdminRefreshTokenRequest"
                         }
                     }
                 ],
@@ -203,7 +203,7 @@ const docTemplateDashboard = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_dash_AdminLoginResponse"
+                            "$ref": "#/definitions/web.DataResponse-dash_AdminLoginResponse"
                         }
                     }
                 }
@@ -233,7 +233,7 @@ const docTemplateDashboard = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_biz_dash.AdminEditRequest"
+                            "$ref": "#/definitions/dash.AdminEditRequest"
                         }
                     }
                 ],
@@ -241,7 +241,7 @@ const docTemplateDashboard = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_dash_AdminInfoResponse"
+                            "$ref": "#/definitions/web.DataResponse-dash_AdminInfoResponse"
                         }
                     }
                 }
@@ -265,7 +265,7 @@ const docTemplateDashboard = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_biz_dash.MessageResponse"
+                            "$ref": "#/definitions/dash.MessageResponse"
                         }
                     }
                 }
@@ -301,7 +301,7 @@ const docTemplateDashboard = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_cdn_cdnmodels_UploadToken"
+                            "$ref": "#/definitions/web.DataResponse-cdnmodels_UploadToken"
                         }
                     }
                 }
@@ -309,24 +309,7 @@ const docTemplateDashboard = `{
         }
     },
     "definitions": {
-        "github_com_tbxark_go-base-api_internal_pkg_render.Admin": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "integer"
-                },
-                "roles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_tbxark_go-base-api_pkg_cdn_cdnmodels.UploadToken": {
+        "cdnmodels.UploadToken": {
             "type": "object",
             "properties": {
                 "key": {
@@ -340,71 +323,7 @@ const docTemplateDashboard = `{
                 }
             }
         },
-        "github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_cdn_cdnmodels_UploadToken": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_cdn_cdnmodels.UploadToken"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_dash_AdminInfoResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/internal_biz_dash.AdminInfoResponse"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_dash_AdminListResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/internal_biz_dash.AdminListResponse"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_dash_AdminLoginResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/internal_biz_dash.AdminLoginResponse"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "github_com_tbxark_go-base-api_pkg_web_webmodels.MessageResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_biz_dash.AdminEditRequest": {
+        "dash.AdminEditRequest": {
             "type": "object",
             "required": [
                 "nickname",
@@ -438,26 +357,26 @@ const docTemplateDashboard = `{
                 }
             }
         },
-        "internal_biz_dash.AdminInfoResponse": {
+        "dash.AdminInfoResponse": {
             "type": "object",
             "properties": {
                 "admin": {
-                    "$ref": "#/definitions/github_com_tbxark_go-base-api_internal_pkg_render.Admin"
+                    "$ref": "#/definitions/render.Admin"
                 }
             }
         },
-        "internal_biz_dash.AdminListResponse": {
+        "dash.AdminListResponse": {
             "type": "object",
             "properties": {
                 "admins": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_tbxark_go-base-api_internal_pkg_render.Admin"
+                        "$ref": "#/definitions/render.Admin"
                     }
                 }
             }
         },
-        "internal_biz_dash.AdminLoginRequest": {
+        "dash.AdminLoginRequest": {
             "type": "object",
             "required": [
                 "password",
@@ -472,7 +391,7 @@ const docTemplateDashboard = `{
                 }
             }
         },
-        "internal_biz_dash.AdminLoginResponse": {
+        "dash.AdminLoginResponse": {
             "type": "object",
             "properties": {
                 "accessToken": {
@@ -501,7 +420,7 @@ const docTemplateDashboard = `{
                 }
             }
         },
-        "internal_biz_dash.AdminRefreshTokenRequest": {
+        "dash.AdminRefreshTokenRequest": {
             "type": "object",
             "required": [
                 "refreshToken"
@@ -512,17 +431,98 @@ const docTemplateDashboard = `{
                 }
             }
         },
-        "internal_biz_dash.MessageResponse": {
+        "dash.MessageResponse": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web_webmodels.MessageResponse"
+                    "$ref": "#/definitions/webmodels.MessageResponse"
                 },
                 "message": {
                     "type": "string"
                 },
                 "success": {
                     "type": "boolean"
+                }
+            }
+        },
+        "render.Admin": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "web.DataResponse-cdnmodels_UploadToken": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/cdnmodels.UploadToken"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "web.DataResponse-dash_AdminInfoResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/dash.AdminInfoResponse"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "web.DataResponse-dash_AdminListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/dash.AdminListResponse"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "web.DataResponse-dash_AdminLoginResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/dash.AdminLoginResponse"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "webmodels.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
                 }
             }
         }
