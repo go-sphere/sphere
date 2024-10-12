@@ -63,8 +63,21 @@ func (w *Auth) setContextValues(ctx *gin.Context, uid, username, roles string) {
 
 func (w *Auth) NewPermissionMiddleware(resource string, acl *ACL) func(context *gin.Context) {
 	return func(ctx *gin.Context) {
-		rolesRaw := ctx.Value(ContextKeyRoles).(string)
-		roles := w.validator.ParseRoles(rolesRaw)
+		rolesRaw, exist := ctx.Get(ContextKeyRoles)
+		if !exist {
+			ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"message": "forbidden",
+			})
+			return
+		}
+		roleStr, ok := rolesRaw.(string)
+		if !ok {
+			ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"message": "forbidden",
+			})
+			return
+		}
+		roles := w.validator.ParseRoles(roleStr)
 		for r := range roles {
 			if acl.IsAllowed(r, resource) {
 				return
