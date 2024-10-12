@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	SignedDetailsUidKey       = "uid"
 	AuthorizationPrefixBearer = "Bearer"
 )
 
@@ -43,7 +42,7 @@ func (g *JwtAuth) GenerateSignedToken(uid, username string, roles ...string) (*T
 	claims := &SignedDetails{
 		UID:      uid,
 		Username: username,
-		Roles:    g.genRolesString(roles),
+		Roles:    strings.Join(roles, ","),
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expiresAt.Unix(),
 		},
@@ -81,34 +80,31 @@ func (g *JwtAuth) GenerateRefreshToken(uid string) (*Token, error) {
 	}, nil
 }
 
-func (g *JwtAuth) Validate(signedToken string) (map[string]any, error) {
+func (g *JwtAuth) Validate(signedToken string) (uid string, username string, roles string, exp int64, err error) {
 	token, err := jwt.ParseWithClaims(signedToken, &SignedDetails{}, func(token *jwt.Token) (interface{}, error) {
 		return g.secretKey, nil
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	claims, ok := token.Claims.(*SignedDetails)
 	if !ok {
-		return nil, fmt.Errorf("token is invalid")
+		err = fmt.Errorf("token is invalid")
+		return
 	}
-
-	var res = make(map[string]any, 4)
-	res["uid"] = claims.UID
-	res["username"] = claims.Username
-	res["roles"] = claims.Roles
-	res["exp"] = claims.ExpiresAt
-
-	return res, nil
+	uid = claims.UID
+	username = claims.Username
+	roles = claims.Roles
+	exp = claims.ExpiresAt
+	return
 }
 
-func (g *JwtAuth) genRolesString(roles []string) string {
-	return strings.Join(roles, ",")
-}
-
-func (g *JwtAuth) ParseRolesString(roles string) map[string]struct{} {
+func (g *JwtAuth) ParseRoles(roles string) map[string]struct{} {
 	roleMap := make(map[string]struct{})
+	if roles == "" {
+		return roleMap
+	}
 	for _, r := range strings.Split(roles, ",") {
 		roleMap[r] = struct{}{}
 	}

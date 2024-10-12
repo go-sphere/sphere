@@ -20,25 +20,23 @@ func NewTmaAuth(token string) *TmaAuth {
 	}
 }
 
-func (t *TmaAuth) Validate(token string) (map[string]any, error) {
-	err := initdata.Validate(token, t.token, t.expIn)
+func (t *TmaAuth) Validate(token string) (uid string, username string, roles string, exp int64, err error) {
+	err = initdata.Validate(token, t.token, t.expIn)
 	if err != nil {
-		return nil, err
+		return
 	}
 	initData, err := initdata.Parse(token)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	res := make(map[string]any, 4)
-	res["uid"] = strconv.Itoa(int(initData.Chat.ID))
-	res["username"] = initData.Chat.Username
-	res["roles"] = string(initData.Chat.Type)
-	res["exp"] = initData.AuthDate().Add(t.expIn)
-
-	return res, nil
+	uid = strconv.Itoa(int(initData.Chat.ID))
+	username = initData.Chat.Username
+	roles = string(initData.Chat.Type)
+	exp = initData.AuthDate().Add(t.expIn).Unix()
+	return
 }
 
-func (t *TmaAuth) ParseRolesString(roles string) map[string]struct{} {
+func (t *TmaAuth) ParseRoles(roles string) map[string]struct{} {
 	return make(map[string]struct{})
 }

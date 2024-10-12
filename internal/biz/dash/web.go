@@ -38,6 +38,7 @@ type Web struct {
 	Render  *render.Render
 	JwtAuth *jwtauth.JwtAuth
 	Auth    *auth.Auth
+	ACL     *auth.ACL
 }
 
 func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, cache cache.ByteCache) *Web {
@@ -52,6 +53,7 @@ func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, c
 		Render:  render.NewRender(cdn, db, false),
 		JwtAuth: token,
 		Auth:    auth.NewAuth(jwtauth.AuthorizationPrefixBearer, token),
+		ACL:     NewDefaultRolesACL(),
 	}
 }
 
@@ -95,9 +97,25 @@ func (w *Web) Run() error {
 	if w.config.Doc {
 		w.bindDocRoute(api)
 	}
-	w.bindAdminAuthRoute(api.Group("/", rateLimiter))
+	w.bindAuthRoute(api.Group("/", rateLimiter))
 	w.bindSystemRoute(authRoute)
 	w.bindAdminRoute(authRoute)
 
 	return w.engine.Run(w.config.Address)
+}
+
+func NewDefaultRolesACL() *auth.ACL {
+	acl := auth.NewACL()
+	roles := []string{
+		WebPermissionAdmin,
+	}
+	for _, r := range roles {
+		acl.Allow(WebPermissionAll, r)
+		acl.Allow(r, r)
+	}
+	return acl
+}
+
+func (w *Web) NewPermissionMiddleware(resource string) gin.HandlerFunc {
+	return w.Auth.NewPermissionMiddleware(resource, w.ACL)
 }

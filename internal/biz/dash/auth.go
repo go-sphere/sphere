@@ -5,6 +5,7 @@ import (
 	"github.com/tbxark/go-base-api/internal/pkg/encrypt"
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/admin"
+	"github.com/tbxark/go-base-api/pkg/web"
 	"github.com/tbxark/go-base-api/pkg/web/webmodels"
 	"strconv"
 	"time"
@@ -24,6 +25,8 @@ type AdminLoginResponse struct {
 	RefreshToken string   `json:"refreshToken"`
 	Expires      string   `json:"expires"`
 }
+
+type AdminLoginResponseWrapper = web.DataResponse[AdminLoginResponse]
 
 func (w *Web) createLoginResponse(u *ent.Admin) (*AdminLoginResponse, error) {
 	id := strconv.Itoa(u.ID)
@@ -46,15 +49,15 @@ func (w *Web) createLoginResponse(u *ent.Admin) (*AdminLoginResponse, error) {
 	}, nil
 }
 
-// AdminLogin
+// AuthLogin
 // @Summary 管理员登录
 // @Tags dashboard
 // @Accept json
 // @Produce json
 // @Param login body AdminLoginRequest true "登录信息"
-// @Success 200 {object} web.DataResponse[AdminLoginResponse]
-// @Router /api/admin/login [post]
-func (w *Web) AdminLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
+// @Success 200 {object} AdminLoginResponseWrapper
+// @Router /api/auth/login [post]
+func (w *Web) AuthLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 	var req AdminLoginRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		return nil, err
@@ -67,4 +70,42 @@ func (w *Web) AdminLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 		return nil, webmodels.NewHTTPError(400, "password not match")
 	}
 	return w.createLoginResponse(u)
+}
+
+type AdminRefreshTokenRequest struct {
+	RefreshToken string `json:"refreshToken" binding:"required"`
+}
+
+// AuthRefresh
+// @Summary 刷新管理员Token
+// @Tags dashboard
+// @Accept json
+// @Produce json
+// @Param login body AdminRefreshTokenRequest true "刷新信息"
+// @Success 200 {object} AdminLoginResponseWrapper
+// @Router /api/auth/refresh [post]
+func (w *Web) AuthRefresh(ctx *gin.Context) (*AdminLoginResponse, error) {
+	var body AdminRefreshTokenRequest
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		return nil, err
+	}
+	uid, _, _, _, err := w.JwtAuth.Validate(body.RefreshToken)
+	if err != nil {
+		return nil, err
+	}
+	id, err := strconv.Atoi(uid)
+	if err != nil {
+		return nil, err
+	}
+	u, err := w.DB.Admin.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return w.createLoginResponse(u)
+}
+
+func (w *Web) bindAuthRoute(r gin.IRouter) {
+	route := r.Group("/")
+	route.POST("/api/auth/login", web.WithJson(w.AuthLogin))
+	route.POST("/api/auth/refresh", web.WithJson(w.AuthRefresh))
 }

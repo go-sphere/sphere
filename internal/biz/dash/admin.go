@@ -11,6 +11,7 @@ import (
 	"strconv"
 )
 
+const WebPermissionAll = "all"
 const WebPermissionAdmin = "admin"
 
 type AdminListResponse struct {
@@ -167,7 +168,6 @@ func (w *Web) AdminDelete(ctx *gin.Context) (*webmodels.MessageResponse, error) 
 	if err != nil {
 		return nil, err
 	}
-
 	value, err := w.Auth.GetCurrentUsername(ctx)
 	if err != nil {
 		return nil, err
@@ -182,15 +182,8 @@ func (w *Web) AdminDelete(ctx *gin.Context) (*webmodels.MessageResponse, error) 
 	return webmodels.NewSuccessResponse(), nil
 }
 
-func (w *Web) bindAdminAuthRoute(r gin.IRouter) {
-	route := r.Group("/")
-	route.POST("/api/admin/login", web.WithJson(w.AdminLogin))
-	route.POST("/api/admin/refresh-token", web.WithJson(w.AdminRefreshToken))
-}
-
 func (w *Web) bindAdminRoute(r gin.IRouter) {
-	route := r.Group("/", w.Auth.NewPermissionMiddleware(WebPermissionAdmin))
-	// CUDA: Add the following routes
+	route := r.Group("/", w.NewPermissionMiddleware(WebPermissionAdmin))
 	route.GET("/api/admin/list", web.WithJson(w.AdminList))
 	route.POST("/api/admin/create", web.WithJson(w.AdminCreate))
 	route.POST("/api/admin/update/:id", web.WithJson(w.AdminUpdate))

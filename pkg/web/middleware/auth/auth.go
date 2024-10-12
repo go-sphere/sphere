@@ -1,10 +1,12 @@
 package auth
 
 import (
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Auth struct {
@@ -21,57 +23,55 @@ func NewAuth(authPrefix string, validators Validator) *Auth {
 	}
 }
 
-func (w *Auth) NewAuthMiddleware(abortOnError bool) func(ctx *gin.Context) {
+func (w *Auth) validateToken(token string) (uid string, username string, roles string, exp int64, err error) {
+	if len(w.authPrefix) > 0 && strings.HasPrefix(token, w.authPrefix+" ") {
+		token = token[len(w.authPrefix)+1:]
+	}
+	return w.validator.Validate(token)
+}
+
+func (w *Auth) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader(AuthorizationHeader)
-		abort := func() {
-			if abortOnError {
-				ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-					"message": "unauthorized",
-				})
-			}
-		}
 		if token == "" {
-			abort()
+			w.handleUnauthorized(ctx, abortOnError)
 			return
 		}
-		if len(w.authPrefix) > 0 && strings.HasPrefix(token, w.authPrefix+" ") {
-			token = token[len(w.authPrefix)+1:]
-		}
-		claims, err := w.validator.Validate(token)
-		if err != nil {
-			abort()
+
+		uid, username, roles, exp, err := w.validateToken(token)
+		if err != nil || exp < time.Now().Unix() {
+			w.handleUnauthorized(ctx, abortOnError)
 			return
 		}
-		stringLoader := func(key string) string {
-			v, e := claims[key]
-			if !e {
-				return ""
-			}
-			s, e := v.(string)
-			if !e {
-				return ""
-			}
-			return s
-		}
-		id, err := strconv.Atoi(stringLoader(ContextKeyID))
-		if err != nil {
-			abort()
-			return
-		}
-		ctx.Set(ContextKeyID, id)
-		ctx.Set(ContextKeyUsername, stringLoader(ContextKeyUsername))
-		ctx.Set(ContextKeyRoles, w.validator.ParseRolesString(stringLoader(ContextKeyRoles)))
+
+		w.setContextValues(ctx, uid, username, roles)
 	}
 }
 
-func (w *Auth) NewPermissionMiddleware(per string) func(context *gin.Context) {
+func (w *Auth) handleUnauthorized(ctx *gin.Context, abortOnError bool) {
+	if abortOnError {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+	}
+}
+
+func (w *Auth) setContextValues(ctx *gin.Context, uid, username, roles string) {
+	id, _ := strconv.Atoi(uid)
+	ctx.Set(ContextKeyID, id)
+	ctx.Set(ContextKeyUsername, username)
+	ctx.Set(ContextKeyRoles, roles)
+}
+
+func (w *Auth) NewPermissionMiddleware(resource string, acl *ACL) func(context *gin.Context) {
 	return func(ctx *gin.Context) {
-		err := w.CheckAuthPermission(ctx, per)
-		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"message": err.Error(),
-			})
+		rolesRaw := ctx.Value(ContextKeyRoles).(string)
+		roles := w.validator.ParseRoles(rolesRaw)
+		for r := range roles {
+			if acl.IsAllowed(r, resource) {
+				return
+			}
 		}
+		ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"message": "forbidden",
+		})
 	}
 }

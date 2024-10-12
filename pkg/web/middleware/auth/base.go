@@ -7,7 +7,6 @@ const (
 	ContextKeyUsername  = "username"
 	ContextKeyRoles     = "roles"
 	AuthorizationHeader = "Authorization"
-	AllPermissionRole   = "all"
 )
 
 type Context struct {
@@ -37,18 +36,6 @@ func (c *Context) GetCurrentUsername(ctx *gin.Context) (string, error) {
 	return username, nil
 }
 
-func (c *Context) GetCurrentRoles(ctx *gin.Context) (map[string]struct{}, error) {
-	raw, exist := ctx.Get(ContextKeyRoles)
-	if !exist {
-		return nil, NeedLoginError
-	}
-	roles, ok := raw.(map[string]struct{})
-	if !ok {
-		return nil, NeedLoginError
-	}
-	return roles, nil
-}
-
 func (c *Context) CheckAuthStatus(ctx *gin.Context) error {
 	_, err := c.GetCurrentID(ctx)
 	return err
@@ -63,19 +50,4 @@ func (c *Context) CheckAuthID(ctx *gin.Context, id int) error {
 		return PermissionError
 	}
 	return nil
-}
-
-func (c *Context) CheckAuthPermission(ctx *gin.Context, permission string) error {
-	permissionList, exist := ctx.Get(ContextKeyRoles)
-	if !exist {
-		return PermissionError
-	}
-	permissions := permissionList.(map[string]struct{})
-	if _, o := permissions[AllPermissionRole]; o {
-		return nil
-	}
-	if _, o := permissions[permission]; o {
-		return nil
-	}
-	return PermissionError
 }

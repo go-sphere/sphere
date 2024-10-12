@@ -29,4 +29,5 @@ go.work
 .idea
 .vscode
 build
+docs
 config.json
