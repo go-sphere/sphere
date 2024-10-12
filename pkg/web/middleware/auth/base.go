@@ -9,10 +9,10 @@ const (
 	AuthorizationHeader = "Authorization"
 )
 
-type Context struct {
+type Base struct {
 }
 
-func (c *Context) GetCurrentID(ctx *gin.Context) (int, error) {
+func (b *Base) GetCurrentID(ctx *gin.Context) (int, error) {
 	raw, exist := ctx.Get(ContextKeyID)
 	if !exist {
 		return 0, NeedLoginError
@@ -24,7 +24,7 @@ func (c *Context) GetCurrentID(ctx *gin.Context) (int, error) {
 	return id, nil
 }
 
-func (c *Context) GetCurrentUsername(ctx *gin.Context) (string, error) {
+func (b *Base) GetCurrentUsername(ctx *gin.Context) (string, error) {
 	raw, exist := ctx.Get(ContextKeyUsername)
 	if !exist {
 		return "", NeedLoginError
@@ -36,13 +36,13 @@ func (c *Context) GetCurrentUsername(ctx *gin.Context) (string, error) {
 	return username, nil
 }
 
-func (c *Context) CheckAuthStatus(ctx *gin.Context) error {
-	_, err := c.GetCurrentID(ctx)
+func (b *Base) CheckAuthStatus(ctx *gin.Context) error {
+	_, err := b.GetCurrentID(ctx)
 	return err
 }
 
-func (c *Context) CheckAuthID(ctx *gin.Context, id int) error {
-	currentId, err := c.GetCurrentID(ctx)
+func (b *Base) CheckAuthID(ctx *gin.Context, id int) error {
+	currentId, err := b.GetCurrentID(ctx)
 	if err != nil {
 		return err
 	}

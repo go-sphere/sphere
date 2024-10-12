@@ -10,14 +10,14 @@ import (
 )
 
 type Auth struct {
-	*Context
+	*Base
 	authPrefix string
 	validator  Validator
 }
 
 func NewAuth(authPrefix string, validators Validator) *Auth {
 	return &Auth{
-		Context:    &Context{},
+		Base:       &Base{},
 		authPrefix: authPrefix,
 		validator:  validators,
 	}
