@@ -14,7 +14,7 @@ import (
 	"github.com/tbxark/go-base-api/internal/pkg/boot"
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/pkg/cache/memory"
-	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
+	"github.com/tbxark/go-base-api/pkg/storage/qiniu"
 	"github.com/tbxark/go-base-api/pkg/dao/client"
 	"github.com/tbxark/go-base-api/pkg/wechat"
 )

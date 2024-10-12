@@ -7,7 +7,6 @@ import (
 	"github.com/tbxark/go-base-api/internal/pkg/render"
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/webmodels"
 	"strconv"
 )
 
@@ -66,10 +65,10 @@ func (w *Web) AdminCreate(ctx *gin.Context) (*AdminInfoResponse, error) {
 	if len(req.Password) > 8 {
 		req.Password = encrypt.CryptPassword(req.Password)
 	} else {
-		return nil, webmodels.NewHTTPError(400, "password is too short")
+		return nil, web.NewHTTPError(400, "password is too short")
 	}
 	u, err := w.DB.Admin.Create().
-		SetAvatar(w.CDN.KeyFromURL(req.Avatar)).
+		SetAvatar(w.Storage.ExtractKeyFromURL(req.Avatar)).
 		SetUsername(req.Username).
 		SetNickname(req.Nickname).
 		SetPassword(req.Password).
@@ -102,7 +101,7 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (*AdminInfoResponse, error) {
 		return nil, e
 	}
 	update := w.DB.Admin.UpdateOneID(id).
-		SetAvatar(w.CDN.KeyFromURL(req.Avatar)).
+		SetAvatar(w.Storage.ExtractKeyFromURL(req.Avatar)).
 		SetUsername(req.Username).
 		SetNickname(req.Nickname).
 		SetRoles(req.Roles)
@@ -111,7 +110,7 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (*AdminInfoResponse, error) {
 		if len(req.Password) > 8 {
 			req.Password = encrypt.CryptPassword(req.Password)
 		} else {
-			return nil, webmodels.NewHTTPError(400, "password is too short")
+			return nil, web.NewHTTPError(400, "password is too short")
 		}
 	}
 	u, err := update.Save(ctx)
@@ -161,9 +160,9 @@ func (w *Web) AdminDetail(ctx *gin.Context) (*AdminInfoResponse, error) {
 // @Produce json
 // @Param id path int true "管理员ID"
 // @Security ApiKeyAuth
-// @Success 200 {object} MessageResponse
+// @Success 200 {object} web.MessageResponse
 // @Router /api/admin/delete/{id} [delete]
-func (w *Web) AdminDelete(ctx *gin.Context) (*webmodels.MessageResponse, error) {
+func (w *Web) AdminDelete(ctx *gin.Context) (*web.SimpleMessage, error) {
 	adm, err := w.getAdminByID(ctx, ctx.Param("id"))
 	if err != nil {
 		return nil, err
@@ -173,13 +172,13 @@ func (w *Web) AdminDelete(ctx *gin.Context) (*webmodels.MessageResponse, error) 
 		return nil, err
 	}
 	if adm.Username == value {
-		return nil, webmodels.NewHTTPError(400, "can not delete self")
+		return nil, web.NewHTTPError(400, "can not delete self")
 	}
 	err = w.DB.Admin.DeleteOneID(adm.ID).Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return webmodels.NewSuccessResponse(), nil
+	return web.NewSuccessResponse(), nil
 }
 
 func (w *Web) bindAdminRoute(r gin.IRouter) {

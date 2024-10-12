@@ -1,10 +1,10 @@
-package s3store
+package s3
 
 import (
 	"context"
 	"fmt"
-	"github.com/tbxark/go-base-api/pkg/cdn/cdnmodels"
 	"github.com/tbxark/go-base-api/pkg/log"
+	"github.com/tbxark/go-base-api/pkg/storage"
 	"io"
 	"net/url"
 	"strings"
@@ -41,7 +41,7 @@ func NewS3(config *Config) (*S3, error) {
 	}, nil
 }
 
-func (s *S3) RenderURL(key string) string {
+func (s *S3) GenerateURL(key string) string {
 	if key == "" {
 		return ""
 	}
@@ -51,25 +51,25 @@ func (s *S3) RenderURL(key string) string {
 	return fmt.Sprintf("%s/%s/%s", s.config.EndPoint, s.config.Bucket, strings.TrimPrefix(key, "/"))
 }
 
-func (s *S3) RenderURLs(keys []string) []string {
+func (s *S3) GenerateURLs(keys []string) []string {
 	urls := make([]string, len(keys))
 	for i, key := range keys {
-		urls[i] = s.RenderURL(key)
+		urls[i] = s.GenerateURL(key)
 	}
 	return urls
 }
 
-func (s *S3) RenderImageURL(key string, width int) string {
+func (s *S3) GenerateImageURL(key string, width int) string {
 	log.Warnf("S3 not support image resize")
-	return s.RenderURL(key)
+	return s.GenerateURL(key)
 }
 
-func (s *S3) KeyFromURL(uri string) string {
-	key, _ := s.KeyFromURLWithMode(uri, true)
+func (s *S3) ExtractKeyFromURL(uri string) string {
+	key, _ := s.ExtractKeyFromURLWithMode(uri, true)
 	return key
 }
 
-func (s *S3) KeyFromURLWithMode(uri string, strict bool) (string, error) {
+func (s *S3) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
 	if uri == "" {
 		return "", nil
 	}
@@ -97,22 +97,22 @@ func (s *S3) KeyFromURLWithMode(uri string, strict bool) (string, error) {
 	return parts[1], nil
 }
 
-func (s *S3) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*cdnmodels.UploadResult, error) {
+func (s *S3) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*storage.FileUploadResult, error) {
 	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, size, minio.PutObjectOptions{})
 	if err != nil {
 		return nil, err
 	}
-	return &cdnmodels.UploadResult{
+	return &storage.FileUploadResult{
 		Key: info.Key,
 	}, nil
 }
 
-func (s *S3) UploadLocalFile(ctx context.Context, file string, key string) (*cdnmodels.UploadResult, error) {
+func (s *S3) UploadLocalFile(ctx context.Context, file string, key string) (*storage.FileUploadResult, error) {
 	info, err := s.client.FPutObject(ctx, s.config.Bucket, key, file, minio.PutObjectOptions{})
 	if err != nil {
 		return nil, err
 	}
-	return &cdnmodels.UploadResult{
+	return &storage.FileUploadResult{
 		Key: info.Key,
 	}, nil
 }

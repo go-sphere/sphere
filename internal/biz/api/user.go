@@ -7,7 +7,6 @@ import (
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/user"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/webmodels"
 )
 
 type UserInfoMePlatform struct {
@@ -76,7 +75,7 @@ func (w *Web) UserUpdate(ctx *gin.Context) (*UpdateUserInfoResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	info.Avatar = w.CDN.KeyFromURL(info.Avatar)
+	info.Avatar = w.Storage.ExtractKeyFromURL(info.Avatar)
 	up, err := w.DB.User.UpdateOneID(id).
 		SetUsername(info.Username).
 		SetAvatar(info.Avatar).
@@ -100,9 +99,9 @@ type WxMiniBindPhoneRequest struct {
 // @Produce json
 // @Param request body WxMiniBindPhoneRequest true "绑定信息"
 // @Security ApiKeyAuth
-// @Success 200 {object} MessageResponse
+// @Success 200 {object} web.MessageResponse
 // @Router /api/user/bind/phone/wxmini [post]
-func (w *Web) UserBindPhoneWxMini(ctx *gin.Context) (*webmodels.MessageResponse, error) {
+func (w *Web) UserBindPhoneWxMini(ctx *gin.Context) (*web.SimpleMessage, error) {
 	var req WxMiniBindPhoneRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		return nil, err
@@ -116,7 +115,7 @@ func (w *Web) UserBindPhoneWxMini(ctx *gin.Context) (*webmodels.MessageResponse,
 		return nil, err
 	}
 	if number.PhoneInfo.CountryCode != "86" {
-		return nil, webmodels.NewHTTPError(400, "只支持中国大陆手机号")
+		return nil, web.NewHTTPError(400, "只支持中国大陆手机号")
 	}
 	err = dao.WithTxEx(ctx, w.DB.Client, func(ctx context.Context, client *ent.Client) error {
 		exist, e := client.User.Query().Where(user.PhoneEQ(number.PhoneInfo.PhoneNumber)).Only(ctx)
@@ -128,14 +127,14 @@ func (w *Web) UserBindPhoneWxMini(ctx *gin.Context) (*webmodels.MessageResponse,
 			return e
 		}
 		if exist.ID != userId {
-			return webmodels.NewHTTPError(400, "手机号已被绑定")
+			return web.NewHTTPError(400, "手机号已被绑定")
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return webmodels.NewSuccessResponse(), nil
+	return web.NewSuccessResponse(), nil
 }
 
 func (w *Web) bindUserRoute(r gin.IRouter) {

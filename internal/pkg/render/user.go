@@ -19,7 +19,7 @@ func (r *Render) Me(u *ent.User) *ent.User {
 	u.Remark = ""
 	u.UpdatedAt = 0
 	u.CreatedAt = 0
-	u.Avatar = r.cdn.RenderImageURL(u.Avatar, ImageWidthForAvatar)
+	u.Avatar = r.cdn.GenerateImageURL(u.Avatar, ImageWidthForAvatar)
 	return u
 }
 
@@ -34,7 +34,7 @@ func (r *Render) User(u *ent.User) *ent.User {
 		u.UpdatedAt = 0
 		u.Flags = 0
 	}
-	u.Avatar = r.cdn.RenderImageURL(u.Avatar, ImageWidthForAvatar)
+	u.Avatar = r.cdn.GenerateImageURL(u.Avatar, ImageWidthForAvatar)
 	return u
 }
 

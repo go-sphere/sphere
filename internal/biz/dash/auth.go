@@ -6,7 +6,6 @@ import (
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/admin"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/webmodels"
 	"strconv"
 	"time"
 )
@@ -39,7 +38,7 @@ func (w *Web) createLoginResponse(u *ent.Admin) (*AdminLoginResponse, error) {
 		return nil, err
 	}
 	return &AdminLoginResponse{
-		Avatar:       w.CDN.RenderImageURL(u.Avatar, 512),
+		Avatar:       w.Storage.GenerateImageURL(u.Avatar, 512),
 		Username:     u.Username,
 		Nickname:     u.Nickname,
 		Roles:        u.Roles,
@@ -67,7 +66,7 @@ func (w *Web) AuthLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 		return nil, err
 	}
 	if !encrypt.IsPasswordMatch(req.Password, u.Password) {
-		return nil, webmodels.NewHTTPError(400, "password not match")
+		return nil, web.NewHTTPError(400, "password not match")
 	}
 	return w.createLoginResponse(u)
 }

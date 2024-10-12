@@ -1,4 +1,4 @@
-package cdn
+package storage
 
 import (
 	"crypto/md5"

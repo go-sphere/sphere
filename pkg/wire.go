@@ -7,9 +7,9 @@ import (
 	"github.com/google/wire"
 	"github.com/tbxark/go-base-api/pkg/cache"
 	"github.com/tbxark/go-base-api/pkg/cache/memory"
-	"github.com/tbxark/go-base-api/pkg/cdn"
-	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
 	"github.com/tbxark/go-base-api/pkg/dao/client"
+	"github.com/tbxark/go-base-api/pkg/storage"
+	"github.com/tbxark/go-base-api/pkg/storage/qiniu"
 	"github.com/tbxark/go-base-api/pkg/wechat"
 )
 
@@ -18,9 +18,9 @@ var cacheSet = wire.NewSet(
 	wire.Bind(new(cache.ByteCache), new(*memory.Cache[[]byte])),
 )
 
-var cdnSet = wire.NewSet(
+var storageSet = wire.NewSet(
 	qiniu.NewQiniu,
-	wire.Bind(new(cdn.CDN), new(*qiniu.Qiniu)),
+	wire.Bind(new(storage.Storage), new(*qiniu.Qiniu)),
 )
 
-var ProviderSet = wire.NewSet(client.NewDbClient, wechat.NewWechat, cdnSet, cacheSet)
+var ProviderSet = wire.NewSet(client.NewDbClient, wechat.NewWechat, storageSet, cacheSet)

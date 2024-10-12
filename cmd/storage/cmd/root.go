@@ -6,9 +6,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "backend",
-	Short: "Run the backend server",
-	Long:  `Run the backend server to provide the API and dashboard service.`,
+	Use:   "storage",
+	Short: "storage Tools",
+	Long:  `storage Tools is a set of tools for storage operations.`,
 	Run:   runRoot,
 }
 

@@ -3,10 +3,8 @@ package dash
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/pkg/cdn"
-	"github.com/tbxark/go-base-api/pkg/cdn/cdnmodels"
+	"github.com/tbxark/go-base-api/pkg/storage"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/webmodels"
 	"strconv"
 )
 
@@ -17,9 +15,9 @@ import (
 // @Produce json
 // @Param filename query string true "文件名"
 // @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[cdnmodels.UploadToken]
+// @Success 200 {object} web.DataResponse[storage.FileUploadToken]
 // @Router /api/upload/token [get]
-func (w *Web) UploadToken(ctx *gin.Context) (*cdnmodels.UploadToken, error) {
+func (w *Web) UploadToken(ctx *gin.Context) (*storage.FileUploadToken, error) {
 	var req struct {
 		Filename string `form:"filename"`
 	}
@@ -33,7 +31,7 @@ func (w *Web) UploadToken(ctx *gin.Context) (*cdnmodels.UploadToken, error) {
 	if err != nil {
 		return nil, err
 	}
-	token := w.CDN.UploadToken(req.Filename, "dash", cdn.DefaultKeyBuilder(strconv.Itoa(id)))
+	token := w.Storage.GenerateUploadToken(req.Filename, "dash", storage.DefaultKeyBuilder(strconv.Itoa(id)))
 	return &token, nil
 }
 
@@ -42,14 +40,14 @@ func (w *Web) UploadToken(ctx *gin.Context) (*cdnmodels.UploadToken, error) {
 // @Tags dashboard
 // @Produce json
 // @Security ApiKeyAuth
-// @Success 200 {object} MessageResponse
+// @Success 200 {object} web.MessageResponse
 // @Router /api/cache/reset [post]
-func (w *Web) CacheReset(ctx *gin.Context) (*webmodels.MessageResponse, error) {
+func (w *Web) CacheReset(ctx *gin.Context) (*web.SimpleMessage, error) {
 	err := w.Cache.DelAll(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return webmodels.NewSuccessResponse(), nil
+	return web.NewSuccessResponse(), nil
 }
 
 func (w *Web) bindSystemRoute(r gin.IRouter) {

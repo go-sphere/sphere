@@ -5,9 +5,9 @@ package cmd
 import (
 	"context"
 	"github.com/tbxark/go-base-api/config"
-	"github.com/tbxark/go-base-api/pkg/cdn"
-	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
 	"github.com/tbxark/go-base-api/pkg/log"
+	"github.com/tbxark/go-base-api/pkg/storage"
+	"github.com/tbxark/go-base-api/pkg/storage/qiniu"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,24 +16,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// cdnMigrateCmd represents the cdn command
-var cdnMigrateCmd = &cobra.Command{
-	Use:   "cdn-migrate",
-	Short: "Qiniu Migration Tools",
+// migrateCmd represents the cdn command
+var migrateCmd = &cobra.Command{
+	Use:   "migrate",
+	Short: "Qiniu migration Tools",
 	Long:  `Move files from one qiniu bucket to another bucket.`,
-	Run:   runCdnMigrate,
+	Run:   runMigrate,
 }
 
 func init() {
-	cdnCmd.AddCommand(cdnMigrateCmd)
-	cdnMigrateCmd.Flags().StringP("files", "f", "", "list of files to move")
-	cdnMigrateCmd.Flags().StringP("config", "c", "config.json", "config file path")
-	cdnMigrateCmd.Flags().StringP("output", "o", "output.txt", "output file path")
-	cdnMigrateCmd.Flags().StringP("storage", "s", "assets", "save directory of cdn")
-	cdnMigrateCmd.Flags().BoolP("keepPath", "k", false, "keep file path")
+	rootCmd.AddCommand(migrateCmd)
+	migrateCmd.Flags().StringP("files", "f", "", "list of files to move")
+	migrateCmd.Flags().StringP("config", "c", "config.json", "config file path")
+	migrateCmd.Flags().StringP("output", "o", "output.txt", "output file path")
+	migrateCmd.Flags().StringP("storage", "s", "assets", "save directory of cdn")
+	migrateCmd.Flags().BoolP("keepPath", "k", false, "keep file path")
 }
 
-func runCdnMigrate(cmd *cobra.Command, args []string) {
+func runMigrate(cmd *cobra.Command, args []string) {
 	fileP := cmd.Flag("files").Value.String()
 	cfgP := cmd.Flag("config").Value.String()
 	outP := cmd.Flag("output").Value.String()
@@ -52,7 +52,7 @@ func runCdnMigrate(cmd *cobra.Command, args []string) {
 	list := strings.Split(string(file), "\n")
 	ctx := context.Background()
 	result := make(map[string]string, len(list))
-	nameBuilder := cdn.DefaultKeyBuilder("")
+	nameBuilder := storage.DefaultKeyBuilder("")
 	for _, u := range list {
 		if _, exist := result[u]; exist {
 			continue
@@ -79,7 +79,7 @@ func runCdnMigrate(cmd *cobra.Command, args []string) {
 			log.Errorf("upload file error: %v", e)
 			continue
 		}
-		nu := upload.RenderURL(ret.Key)
+		nu := upload.GenerateURL(ret.Key)
 		result[u] = nu
 		log.Debugf("move file success: %s -> %s", u, nu)
 	}

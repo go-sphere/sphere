@@ -5,14 +5,12 @@ import (
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/internal/pkg/render"
 	"github.com/tbxark/go-base-api/pkg/cache"
-	"github.com/tbxark/go-base-api/pkg/cdn"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/logfields"
-	"github.com/tbxark/go-base-api/pkg/web"
+	"github.com/tbxark/go-base-api/pkg/storage"
 	"github.com/tbxark/go-base-api/pkg/web/auth/jwtauth"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/auth"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/logger"
-	"github.com/tbxark/go-base-api/pkg/web/webmodels"
 	"github.com/tbxark/go-base-api/pkg/wechat"
 	"net/http"
 	"strconv"
@@ -28,7 +26,7 @@ type Web struct {
 	config  *Config
 	engine  *gin.Engine
 	DB      *dao.Dao
-	CDN     cdn.CDN
+	Storage storage.Storage
 	Cache   cache.ByteCache
 	Wechat  *wechat.Wechat
 	Render  *render.Render
@@ -36,22 +34,20 @@ type Web struct {
 	Auth    *auth.Auth
 }
 
-func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, cache cache.ByteCache) *Web {
+func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cache.ByteCache) *Web {
 	token := jwtauth.NewJwtAuth(config.JWT)
 	return &Web{
 		config:  config,
 		engine:  gin.New(),
 		DB:      db,
-		CDN:     cdn,
+		Storage: store,
 		Cache:   cache,
 		Wechat:  wx,
-		Render:  render.NewRender(cdn, db, true),
+		Render:  render.NewRender(store, db, true),
 		JwtAuth: token,
 		Auth:    auth.NewAuth(jwtauth.AuthorizationPrefixBearer, token),
 	}
 }
-
-type MessageResponse = web.DataResponse[webmodels.MessageResponse]
 
 func (w *Web) Identifier() string {
 	return "api"
@@ -75,7 +71,7 @@ func (w *Web) Run() error {
 }
 
 func (w *Web) uploadRemoteImage(ctx *gin.Context, url string) (string, error) {
-	key := w.CDN.KeyFromURL(url)
+	key := w.Storage.ExtractKeyFromURL(url)
 	if key == "" {
 		return key, nil
 	}
@@ -86,12 +82,12 @@ func (w *Web) uploadRemoteImage(ctx *gin.Context, url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	key = cdn.DefaultKeyBuilder(strconv.Itoa(id))(url, "user")
+	key = storage.DefaultKeyBuilder(strconv.Itoa(id))(url, "user")
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
 	}
-	ret, err := w.CDN.UploadFile(ctx, resp.Body, resp.ContentLength, key)
+	ret, err := w.Storage.UploadFile(ctx, resp.Body, resp.ContentLength, key)
 	if err != nil {
 		return "", err
 	}

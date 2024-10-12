@@ -1,4 +1,4 @@
-package webmodels
+package web
 
 import "errors"
 

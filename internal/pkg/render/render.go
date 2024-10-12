@@ -2,11 +2,11 @@ package render
 
 import (
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
-	"github.com/tbxark/go-base-api/pkg/cdn"
+	"github.com/tbxark/go-base-api/pkg/storage"
 )
 
 type Render struct {
-	cdn         cdn.UrlParser
+	cdn         storage.URLHandler
 	db          *dao.Dao
 	hidePrivacy bool
 }
@@ -17,6 +17,6 @@ const (
 	ImageWidthForCommon   = 1024
 )
 
-func NewRender(cdn cdn.UrlParser, db *dao.Dao, hidePrivacy bool) *Render {
+func NewRender(cdn storage.URLHandler, db *dao.Dao, hidePrivacy bool) *Render {
 	return &Render{cdn: cdn, db: db, hidePrivacy: hidePrivacy}
 }

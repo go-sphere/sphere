@@ -6,31 +6,31 @@ import (
 	"context"
 	"github.com/spf13/cobra"
 	"github.com/tbxark/go-base-api/config"
-	"github.com/tbxark/go-base-api/pkg/cdn"
-	"github.com/tbxark/go-base-api/pkg/cdn/qiniu"
 	"github.com/tbxark/go-base-api/pkg/log"
+	"github.com/tbxark/go-base-api/pkg/storage"
+	"github.com/tbxark/go-base-api/pkg/storage/qiniu"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-// cdnUploadCmd represents the upload command
-var cdnUploadCmd = &cobra.Command{
+// uploadCmd represents the upload command
+var uploadCmd = &cobra.Command{
 	Use:   "upload",
-	Short: "Upload files to Qiniu",
-	Long:  `Upload files to Qiniu CDN.`,
-	Run:   runCdnUpload,
+	Short: "Upload files to storage",
+	Long:  `Upload files to Qiniu storage.`,
+	Run:   runUpload,
 }
 
 func init() {
-	cdnCmd.AddCommand(cdnUploadCmd)
-	cdnUploadCmd.Flags().StringP("files", "f", "", "directory of files to upload")
-	cdnUploadCmd.Flags().StringP("config", "c", "config.json", "config file path")
-	cdnUploadCmd.Flags().StringP("output", "o", "output.txt", "output file path")
-	cdnUploadCmd.Flags().StringP("storage", "s", "assets", "save directory of cdn")
+	rootCmd.AddCommand(uploadCmd)
+	uploadCmd.Flags().StringP("files", "f", "", "directory of files to upload")
+	uploadCmd.Flags().StringP("config", "c", "config.json", "config file path")
+	uploadCmd.Flags().StringP("output", "o", "output.txt", "output file path")
+	uploadCmd.Flags().StringP("storage", "s", "assets", "save directory of cdn")
 }
 
-func runCdnUpload(cmd *cobra.Command, args []string) {
+func runUpload(cmd *cobra.Command, args []string) {
 	fileP := cmd.Flag("files").Value.String()
 	cfgP := cmd.Flag("config").Value.String()
 	outP := cmd.Flag("output").Value.String()
@@ -44,7 +44,7 @@ func runCdnUpload(cmd *cobra.Command, args []string) {
 	upload := qiniu.NewQiniu(cfg.CDN)
 	ctx := context.Background()
 	resBuf := strings.Builder{}
-	nameBuilder := cdn.KeepFileNameKeyBuilder()
+	nameBuilder := storage.KeepFileNameKeyBuilder()
 	err = filepath.Walk(fileP, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Errorf("walk file error: %v", err)
@@ -62,7 +62,7 @@ func runCdnUpload(cmd *cobra.Command, args []string) {
 		log.Debugf("upload file success: %s -> %s", path, ret.Key)
 		resBuf.WriteString(info.Name())
 		resBuf.WriteString("\n -> ")
-		resBuf.WriteString(upload.RenderURL(ret.Key))
+		resBuf.WriteString(upload.GenerateURL(ret.Key))
 		resBuf.WriteString("\n\n")
 		return nil
 	})

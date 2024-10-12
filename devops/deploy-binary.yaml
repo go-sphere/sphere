@@ -27,7 +27,7 @@
       include_role:
         name: deploy_app
       vars:
-        binary_name: "cli"
+        binary_name: "app"
         systemd_name: "base-api"
         config_dest: "{{ config_dir }}/base-api/config.json"
         config_source: "{{ project_dir }}/config_gen.json"

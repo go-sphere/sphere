@@ -8,18 +8,12 @@ import (
 	"net/http"
 )
 
-type DataResponse[T any] struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Data    T      `json:"data"`
-}
-
 type HttpStatusError interface {
 	error
 	Status() int
 }
 
-func GetValueFromContext[T any](key string, ctx *gin.Context) (*T, bool) {
+func Value[T any](key string, ctx *gin.Context) (*T, bool) {
 	v, exists := ctx.Get(key)
 	if !exists {
 		return nil, false
@@ -30,7 +24,7 @@ func GetValueFromContext[T any](key string, ctx *gin.Context) (*T, bool) {
 	return nil, false
 }
 
-func ResponseJsonError(ctx *gin.Context, err error) {
+func abortWithJsonError(ctx *gin.Context, err error) {
 	var hErr HttpStatusError
 	if errors.As(err, &hErr) {
 		ctx.AbortWithStatusJSON(hErr.Status(), gin.H{
@@ -58,7 +52,7 @@ func WithJson[T any](handler func(ctx *gin.Context) (T, error)) func(ctx *gin.Co
 		}()
 		data, err := handler(ctx)
 		if err != nil {
-			ResponseJsonError(ctx, err)
+			abortWithJsonError(ctx, err)
 		} else {
 			ctx.JSON(200, gin.H{
 				"success": true,
@@ -83,7 +77,7 @@ func WithText(handler func(ctx *gin.Context) (string, error)) func(ctx *gin.Cont
 		}()
 		data, err := handler(ctx)
 		if err != nil {
-			ResponseJsonError(ctx, err)
+			abortWithJsonError(ctx, err)
 		} else {
 			ctx.String(200, data)
 		}

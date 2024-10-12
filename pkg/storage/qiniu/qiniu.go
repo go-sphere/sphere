@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
-	"github.com/tbxark/go-base-api/pkg/cdn/cdnmodels"
+	storage2 "github.com/tbxark/go-base-api/pkg/storage"
 	"io"
 	"net/url"
 	"path"
@@ -43,7 +43,7 @@ func NewQiniu(config *Config) *Qiniu {
 	}
 }
 
-func (n *Qiniu) RenderURL(key string) string {
+func (n *Qiniu) GenerateURL(key string) string {
 	if key == "" {
 		return ""
 	}
@@ -57,27 +57,27 @@ func (n *Qiniu) RenderURL(key string) string {
 	return buf.String()
 }
 
-func (n *Qiniu) RenderImageURL(key string, width int) string {
+func (n *Qiniu) GenerateImageURL(key string, width int) string {
 	// 判断是不是已经拼接了 ?imageView2 参数
 	if strings.Contains(key, "?imageView2") {
 		// 从URL中提取key
-		key = n.KeyFromURL(key)
+		key = n.ExtractKeyFromURL(key)
 	}
 	if key == "" {
 		return ""
 	}
-	return n.RenderURL(key) + "?imageView2/2/w/" + strconv.Itoa(width) + "/q/75"
+	return n.GenerateURL(key) + "?imageView2/2/w/" + strconv.Itoa(width) + "/q/75"
 }
 
-func (n *Qiniu) RenderURLs(keys []string) []string {
+func (n *Qiniu) GenerateURLs(keys []string) []string {
 	urls := make([]string, len(keys))
 	for i, key := range keys {
-		urls[i] = n.RenderURL(key)
+		urls[i] = n.GenerateURL(key)
 	}
 	return urls
 }
 
-func (n *Qiniu) KeyFromURLWithMode(uri string, strict bool) (string, error) {
+func (n *Qiniu) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
 	if uri == "" {
 		return "", nil
 	}
@@ -100,12 +100,12 @@ func (n *Qiniu) KeyFromURLWithMode(uri string, strict bool) (string, error) {
 	return strings.TrimPrefix(u.Path, "/"), nil
 }
 
-func (n *Qiniu) KeyFromURL(uri string) string {
-	key, _ := n.KeyFromURLWithMode(uri, true)
+func (n *Qiniu) ExtractKeyFromURL(uri string) string {
+	key, _ := n.ExtractKeyFromURLWithMode(uri, true)
 	return key
 }
 
-func (n *Qiniu) UploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) cdnmodels.UploadToken {
+func (n *Qiniu) GenerateUploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) storage2.FileUploadToken {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
 	nameMd5 := hex.EncodeToString(sum[:])
@@ -116,14 +116,14 @@ func (n *Qiniu) UploadToken(fileName string, dir string, nameBuilder func(fileNa
 		InsertOnly: 1,
 		MimeLimit:  "image/*;video/*",
 	}
-	return cdnmodels.UploadToken{
+	return storage2.FileUploadToken{
 		Token: put.UploadToken(n.mac),
 		Key:   key,
-		URL:   n.RenderURL(key),
+		URL:   n.GenerateURL(key),
 	}
 }
 
-func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*cdnmodels.UploadResult, error) {
+func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*storage2.FileUploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -136,12 +136,12 @@ func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key 
 	if err != nil {
 		return nil, err
 	}
-	return &cdnmodels.UploadResult{
+	return &storage2.FileUploadResult{
 		Key: ret.Key,
 	}, nil
 }
 
-func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*cdnmodels.UploadResult, error) {
+func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*storage2.FileUploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -154,7 +154,7 @@ func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*
 	if err != nil {
 		return nil, err
 	}
-	return &cdnmodels.UploadResult{
+	return &storage2.FileUploadResult{
 		Key: ret.Key,
 	}, nil
 }

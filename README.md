@@ -3,25 +3,14 @@
 
 ### Usage
 
-```
-Usage:
-  backend [flags]
-  backend [command]
-
-Available Commands:
-  cdn         CDN Tools
-  completion  Generate the autocompletion script for the specified shell
-  config      Generate config file
-  help        Help about any command
-  start       Start the application
-  test        Test config file format
-  version     Print the version number
-
-Flags:
-  -h, --help   help for backend
-
-Use "backend [command] --help" for more information about a command.
-```
+| Executable  | Description                                    |
+|-------------|------------------------------------------------|
+| `api`       | Start the API server                           |
+| `dashboard` | Start the dashboard server                     |
+| `bot`       | Start the bot server                           |
+| `app`       | Start the multi server, api, dashboard and bot |
+| `config`    | Configuration cli tool                         |
+| `storage`   | Storage cli tool                               |
 
 ### Generate typescript client
 
