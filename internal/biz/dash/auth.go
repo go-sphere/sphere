@@ -89,11 +89,11 @@ func (w *Web) AuthRefresh(ctx *gin.Context) (*AdminLoginResponse, error) {
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		return nil, err
 	}
-	uid, _, _, _, err := w.JwtAuth.Validate(body.RefreshToken)
+	claims, err := w.JwtAuth.ParseToken(body.RefreshToken)
 	if err != nil {
 		return nil, err
 	}
-	id, err := strconv.Atoi(uid)
+	id, err := strconv.Atoi(claims.Subject)
 	if err != nil {
 		return nil, err
 	}
