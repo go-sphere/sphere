@@ -6,9 +6,9 @@ import (
 	"github.com/tbxark/go-base-api/pkg/web"
 )
 
-func (w *Web) bindDocRoute(api gin.IRouter) {
-	web.SetupDoc(doc.SwaggerInfoDashboard, "Dashboard", api)
+func (w *Web) bindDocRoute(r gin.IRouter) {
+	web.SetupDoc(doc.SwaggerInfoDashboard, "Dashboard", r)
 }
 
-//func (w *Web) bindDocRoute(api gin.IRouter) {
+//func (w *Web) bindDocRoute(r gin.IRouter) {
 //}

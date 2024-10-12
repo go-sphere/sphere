@@ -14,7 +14,6 @@ import (
 	"github.com/tbxark/go-base-api/pkg/web/middleware/logger"
 	"github.com/tbxark/go-base-api/pkg/web/webmodels"
 	"github.com/tbxark/go-base-api/pkg/wechat"
-	"golang.org/x/sync/singleflight"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,30 +25,29 @@ type Config struct {
 }
 
 type Web struct {
-	config *Config
-	Engine *gin.Engine
-	sf     singleflight.Group
-	db     *dao.Dao
-	wx     *wechat.Wechat
-	cdn    cdn.CDN
-	cache  cache.ByteCache
-	render *render.Render
-	token  *jwtauth.JwtAuth
-	auth   *auth.Auth
+	config  *Config
+	engine  *gin.Engine
+	DB      *dao.Dao
+	CDN     cdn.CDN
+	Cache   cache.ByteCache
+	Wechat  *wechat.Wechat
+	Render  *render.Render
+	JwtAuth *jwtauth.JwtAuth
+	Auth    *auth.Auth
 }
 
 func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, cache cache.ByteCache) *Web {
 	token := jwtauth.NewJwtAuth(config.JWT)
 	return &Web{
-		config: config,
-		Engine: gin.New(),
-		wx:     wx,
-		db:     db,
-		cdn:    cdn,
-		cache:  cache,
-		render: render.NewRender(cdn, db, true),
-		token:  token,
-		auth:   auth.NewAuth(jwtauth.AuthorizationPrefixBearer, token),
+		config:  config,
+		engine:  gin.New(),
+		DB:      db,
+		CDN:     cdn,
+		Cache:   cache,
+		Wechat:  wx,
+		Render:  render.NewRender(cdn, db, true),
+		JwtAuth: token,
+		Auth:    auth.NewAuth(jwtauth.AuthorizationPrefixBearer, token),
 	}
 }
 
@@ -65,26 +63,26 @@ func (w *Web) Run() error {
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
 	//rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
-	w.Engine.Use(loggerMiddleware, recoveryMiddleware)
+	w.engine.Use(loggerMiddleware, recoveryMiddleware)
 
-	api := w.Engine.Group("/", w.auth.NewAuthMiddleware(false))
+	api := w.engine.Group("/", w.Auth.NewAuthMiddleware(false))
 
 	w.bindAuthRoute(api)
 	w.bindUserRoute(api)
 	w.bindSystemRoute(api)
 
-	return w.Engine.Run(w.config.Address)
+	return w.engine.Run(w.config.Address)
 }
 
 func (w *Web) uploadRemoteImage(ctx *gin.Context, url string) (string, error) {
-	key := w.cdn.KeyFromURL(url)
+	key := w.CDN.KeyFromURL(url)
 	if key == "" {
 		return key, nil
 	}
 	if !(strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://")) {
 		return key, nil
 	}
-	id, err := w.auth.GetCurrentID(ctx)
+	id, err := w.Auth.GetCurrentID(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -93,7 +91,7 @@ func (w *Web) uploadRemoteImage(ctx *gin.Context, url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	ret, err := w.cdn.UploadFile(ctx, resp.Body, resp.ContentLength, key)
+	ret, err := w.CDN.UploadFile(ctx, resp.Body, resp.ContentLength, key)
 	if err != nil {
 		return "", err
 	}

@@ -29,11 +29,11 @@ func (w *Web) UploadToken(ctx *gin.Context) (*cdnmodels.UploadToken, error) {
 	if req.Filename == "" {
 		return nil, fmt.Errorf("filename is required")
 	}
-	id, err := w.auth.GetCurrentID(ctx)
+	id, err := w.Auth.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	token := w.cdn.UploadToken(req.Filename, "user", cdn.DefaultKeyBuilder(strconv.Itoa(id)))
+	token := w.CDN.UploadToken(req.Filename, "user", cdn.DefaultKeyBuilder(strconv.Itoa(id)))
 	return &token, nil
 }
 

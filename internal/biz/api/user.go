@@ -22,7 +22,7 @@ type UserInfoMeResponse struct {
 	Inviter *ent.User `json:"inviter"`
 }
 
-// UserInfoMe
+// UserMe
 // @Summary 获取当前用户信息
 // @Tags api
 // @Accept json
@@ -30,17 +30,17 @@ type UserInfoMeResponse struct {
 // @Security ApiKeyAuth
 // @Success 200 {object} web.DataResponse[UserInfoMeResponse]
 // @Router /api/user/me [get]
-func (w *Web) UserInfoMe(ctx *gin.Context) (*UserInfoMeResponse, error) {
-	id, err := w.auth.GetCurrentID(ctx)
+func (w *Web) UserMe(ctx *gin.Context) (*UserInfoMeResponse, error) {
+	id, err := w.Auth.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	me, err := w.db.User.Get(ctx, id)
+	me, err := w.DB.User.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	res := UserInfoMeResponse{
-		Info: w.render.Me(me),
+		Info: w.Render.Me(me),
 	}
 	return &res, nil
 }
@@ -54,7 +54,7 @@ type UpdateUserInfoResponse struct {
 	Info *ent.User `json:"info"`
 }
 
-// UpdateUserInfo
+// UserUpdate
 // @Summary 更新用户信息
 // @Tags api
 // @Accept json
@@ -63,8 +63,8 @@ type UpdateUserInfoResponse struct {
 // @Security ApiKeyAuth
 // @Success 200 {object} web.DataResponse[UpdateUserInfoResponse]
 // @Router /api/user/update [post]
-func (w *Web) UpdateUserInfo(ctx *gin.Context) (*UpdateUserInfoResponse, error) {
-	id, err := w.auth.GetCurrentID(ctx)
+func (w *Web) UserUpdate(ctx *gin.Context) (*UpdateUserInfoResponse, error) {
+	id, err := w.Auth.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -76,8 +76,8 @@ func (w *Web) UpdateUserInfo(ctx *gin.Context) (*UpdateUserInfoResponse, error) 
 	if err != nil {
 		return nil, err
 	}
-	info.Avatar = w.cdn.KeyFromURL(info.Avatar)
-	up, err := w.db.User.UpdateOneID(id).
+	info.Avatar = w.CDN.KeyFromURL(info.Avatar)
+	up, err := w.DB.User.UpdateOneID(id).
 		SetUsername(info.Username).
 		SetAvatar(info.Avatar).
 		Save(ctx)
@@ -85,7 +85,7 @@ func (w *Web) UpdateUserInfo(ctx *gin.Context) (*UpdateUserInfoResponse, error) 
 		return nil, err
 	}
 	return &UpdateUserInfoResponse{
-		Info: w.render.Me(up),
+		Info: w.Render.Me(up),
 	}, nil
 }
 
@@ -93,7 +93,7 @@ type WxMiniBindPhoneRequest struct {
 	Code string `json:"code" binding:"required"`
 }
 
-// WxMiniBindPhone
+// UserBindPhoneWxMini
 // @Summary 绑定手机号
 // @Tags api
 // @Accept json
@@ -101,24 +101,24 @@ type WxMiniBindPhoneRequest struct {
 // @Param request body WxMiniBindPhoneRequest true "绑定信息"
 // @Security ApiKeyAuth
 // @Success 200 {object} MessageResponse
-// @Router /api/wx/mini/bind/phone [post]
-func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*webmodels.MessageResponse, error) {
+// @Router /api/user/bind/phone/wxmini [post]
+func (w *Web) UserBindPhoneWxMini(ctx *gin.Context) (*webmodels.MessageResponse, error) {
 	var req WxMiniBindPhoneRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		return nil, err
 	}
-	userId, err := w.auth.GetCurrentID(ctx)
+	userId, err := w.Auth.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	number, err := w.wx.GetUserPhoneNumber(req.Code, true)
+	number, err := w.Wechat.GetUserPhoneNumber(req.Code, true)
 	if err != nil {
 		return nil, err
 	}
 	if number.PhoneInfo.CountryCode != "86" {
 		return nil, webmodels.NewHTTPError(400, "只支持中国大陆手机号")
 	}
-	err = dao.WithTxEx(ctx, w.db.Client, func(ctx context.Context, client *ent.Client) error {
+	err = dao.WithTxEx(ctx, w.DB.Client, func(ctx context.Context, client *ent.Client) error {
 		exist, e := client.User.Query().Where(user.PhoneEQ(number.PhoneInfo.PhoneNumber)).Only(ctx)
 		if e != nil {
 			if ent.IsNotFound(e) {
@@ -140,7 +140,7 @@ func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*webmodels.MessageResponse, err
 
 func (w *Web) bindUserRoute(r gin.IRouter) {
 	route := r.Group("/")
-	route.GET("/api/user/me", web.WithJson(w.UserInfoMe))
-	route.POST("/api/user/update", web.WithJson(w.UpdateUserInfo))
-	route.POST("/api/wx/mini/bind/phone", web.WithJson(w.WxMiniBindPhone))
+	route.GET("/api/user/me", web.WithJson(w.UserMe))
+	route.POST("/api/user/update", web.WithJson(w.UserUpdate))
+	route.POST("/api/user/bind/phone/wxmini", web.WithJson(w.UserBindPhoneWxMini))
 }

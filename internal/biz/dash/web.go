@@ -29,29 +29,29 @@ type Config struct {
 }
 
 type Web struct {
-	config *Config
-	Engine *gin.Engine
-	db     *dao.Dao
-	wx     *wechat.Wechat
-	cdn    cdn.CDN
-	cache  cache.ByteCache
-	render *render.Render
-	token  *jwtauth.JwtAuth
-	auth   *auth.Auth
+	config  *Config
+	engine  *gin.Engine
+	DB      *dao.Dao
+	CDN     cdn.CDN
+	Cache   cache.ByteCache
+	WeChat  *wechat.Wechat
+	Render  *render.Render
+	JwtAuth *jwtauth.JwtAuth
+	Auth    *auth.Auth
 }
 
 func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, cache cache.ByteCache) *Web {
 	token := jwtauth.NewJwtAuth(config.JWT)
 	return &Web{
-		config: config,
-		Engine: gin.New(),
-		db:     db,
-		wx:     wx,
-		cdn:    cdn,
-		cache:  cache,
-		render: render.NewRender(cdn, db, false),
-		token:  token,
-		auth:   auth.NewAuth(jwtauth.AuthorizationPrefixBearer, token),
+		config:  config,
+		engine:  gin.New(),
+		DB:      db,
+		CDN:     cdn,
+		Cache:   cache,
+		WeChat:  wx,
+		Render:  render.NewRender(cdn, db, false),
+		JwtAuth: token,
+		Auth:    auth.NewAuth(jwtauth.AuthorizationPrefixBearer, token),
 	}
 }
 
@@ -67,20 +67,20 @@ func (w *Web) Run() error {
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
 	rateLimiter := ratelimiter.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
-	w.Engine.Use(loggerMiddleware, recoveryMiddleware)
+	w.engine.Use(loggerMiddleware, recoveryMiddleware)
 
 	// 1. 使用go直接反代
 	// ignore embed: web.Fs(w.config.DashStatic, nil, "")
 	// 2. 使用embed集成
 	// with embed: web.Fs("", &dash.Assets, dash.AssetsPath)
 	if dashFs, err := web.Fs(w.config.DashStatic, nil, ""); err == nil && dashFs != nil {
-		d := w.Engine.Group("/dash", gzip.Gzip(gzip.DefaultCompression))
+		d := w.engine.Group("/dash", gzip.Gzip(gzip.DefaultCompression))
 		d.StaticFS("/", dashFs)
 	}
 	// 3. 使用其他服务反代但是允许其跨域访问
 	// 其中w.config.DashCors是一个配置项，用于配置允许跨域访问的域名,例如：https://dash.example.com
 	if w.config.DashCors != "" {
-		w.Engine.Use(cors.New(cors.Config{
+		w.engine.Use(cors.New(cors.Config{
 			AllowOrigins:     []string{w.config.DashCors},
 			AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 			AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
@@ -89,8 +89,8 @@ func (w *Web) Run() error {
 		}))
 	}
 
-	api := w.Engine.Group("/")
-	authRoute := api.Group("/", w.auth.NewAuthMiddleware(true))
+	api := w.engine.Group("/")
+	authRoute := api.Group("/", w.Auth.NewAuthMiddleware(true))
 
 	if w.config.Doc {
 		w.bindDocRoute(api)
@@ -99,5 +99,5 @@ func (w *Web) Run() error {
 	w.bindSystemRoute(authRoute)
 	w.bindAdminRoute(authRoute)
 
-	return w.Engine.Run(w.config.Address)
+	return w.engine.Run(w.config.Address)
 }

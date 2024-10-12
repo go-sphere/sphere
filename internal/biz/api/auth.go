@@ -23,25 +23,25 @@ type AuthResponse struct {
 	User  *ent.User `json:"user"`
 }
 
-// WxMiniAuth
+// AuthWxMini
 // @Summary 微信小程序登录
 // @Tags api
 // @Accept json
 // @Produce json
 // @Param request body WxMiniAuthRequest true "登录信息"
 // @Success 200 {object} web.DataResponse[AuthResponse]
-// @Router /api/wx/mini/auth [post]
-func (w *Web) WxMiniAuth(ctx *gin.Context) (*AuthResponse, error) {
+// @Router /api/auth/wxmini [post]
+func (w *Web) AuthWxMini(ctx *gin.Context) (*AuthResponse, error) {
 	var req WxMiniAuthRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		return nil, err
 	}
-	wxUser, err := w.wx.Auth(req.Code)
+	wxUser, err := w.Wechat.Auth(req.Code)
 	if err != nil {
 		return nil, err
 	}
 
-	res, err := dao.WithTx[AuthResponse](ctx, w.db.Client, func(ctx context.Context, client *ent.Client) (*AuthResponse, error) {
+	res, err := dao.WithTx[AuthResponse](ctx, w.DB.Client, func(ctx context.Context, client *ent.Client) (*AuthResponse, error) {
 		userPlat, e := client.UserPlatform.Query().
 			Where(userplatform.PlatformEQ(consts.WechatMiniPlatform), userplatform.PlatformIDEQ(wxUser.OpenID)).
 			Only(ctx)
@@ -84,16 +84,16 @@ func (w *Web) WxMiniAuth(ctx *gin.Context) (*AuthResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	token, err := w.token.GenerateSignedToken(strconv.Itoa(res.User.ID), consts.WechatMiniPlatform+":"+wxUser.OpenID)
+	token, err := w.JwtAuth.GenerateSignedToken(strconv.Itoa(res.User.ID), consts.WechatMiniPlatform+":"+wxUser.OpenID)
 	if err != nil {
 		return nil, err
 	}
 	res.Token = token.Token
-	res.User = w.render.Me(res.User)
+	res.User = w.Render.Me(res.User)
 	return res, nil
 }
 
 func (w *Web) bindAuthRoute(r gin.IRouter) {
 	route := r.Group("/")
-	route.POST("/api/wx/mini/auth", web.WithJson(w.WxMiniAuth))
+	route.POST("/api/auth/wxmini", web.WithJson(w.AuthWxMini))
 }

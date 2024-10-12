@@ -25,6 +25,30 @@ func (c *Context) GetCurrentID(ctx *gin.Context) (int, error) {
 	return id, nil
 }
 
+func (c *Context) GetCurrentUsername(ctx *gin.Context) (string, error) {
+	raw, exist := ctx.Get(ContextKeyUsername)
+	if !exist {
+		return "", NeedLoginError
+	}
+	username, ok := raw.(string)
+	if !ok {
+		return "", NeedLoginError
+	}
+	return username, nil
+}
+
+func (c *Context) GetCurrentRoles(ctx *gin.Context) (map[string]struct{}, error) {
+	raw, exist := ctx.Get(ContextKeyRoles)
+	if !exist {
+		return nil, NeedLoginError
+	}
+	roles, ok := raw.(map[string]struct{})
+	if !ok {
+		return nil, NeedLoginError
+	}
+	return roles, nil
+}
+
 func (c *Context) CheckAuthStatus(ctx *gin.Context) error {
 	_, err := c.GetCurrentID(ctx)
 	return err
