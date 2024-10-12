@@ -80,7 +80,7 @@ const docTemplateDashboard = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_web_models_MessageResponse"
+                            "$ref": "#/definitions/internal_biz_dash.MessageResponse"
                         }
                     }
                 }
@@ -265,7 +265,7 @@ const docTemplateDashboard = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_web_models_MessageResponse"
+                            "$ref": "#/definitions/internal_biz_dash.MessageResponse"
                         }
                     }
                 }
@@ -301,7 +301,7 @@ const docTemplateDashboard = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_dash_UploadTokenResponse"
+                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_cdn_cdnmodels_UploadToken"
                         }
                     }
                 }
@@ -326,11 +326,25 @@ const docTemplateDashboard = `{
                 }
             }
         },
-        "github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_web_models_MessageResponse": {
+        "github_com_tbxark_go-base-api_pkg_cdn_cdnmodels.UploadToken": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_cdn_cdnmodels_UploadToken": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web_models.MessageResponse"
+                    "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_cdn_cdnmodels.UploadToken"
                 },
                 "message": {
                     "type": "string"
@@ -382,21 +396,7 @@ const docTemplateDashboard = `{
                 }
             }
         },
-        "github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_dash_UploadTokenResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/internal_biz_dash.UploadTokenResponse"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "github_com_tbxark_go-base-api_pkg_web_models.MessageResponse": {
+        "github_com_tbxark_go-base-api_pkg_web_webmodels.MessageResponse": {
             "type": "object",
             "properties": {
                 "message": {
@@ -406,24 +406,35 @@ const docTemplateDashboard = `{
         },
         "internal_biz_dash.AdminEditRequest": {
             "type": "object",
+            "required": [
+                "nickname",
+                "roles",
+                "username"
+            ],
             "properties": {
                 "avatar": {
                     "type": "string"
                 },
                 "nickname": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 2
                 },
                 "password": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 8
                 },
                 "roles": {
                     "type": "array",
+                    "minItems": 1,
                     "items": {
                         "type": "string"
                     }
                 },
                 "username": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 3
                 }
             }
         },
@@ -492,23 +503,26 @@ const docTemplateDashboard = `{
         },
         "internal_biz_dash.AdminRefreshTokenRequest": {
             "type": "object",
+            "required": [
+                "refreshToken"
+            ],
             "properties": {
                 "refreshToken": {
                     "type": "string"
                 }
             }
         },
-        "internal_biz_dash.UploadTokenResponse": {
+        "internal_biz_dash.MessageResponse": {
             "type": "object",
             "properties": {
-                "key": {
+                "data": {
+                    "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web_webmodels.MessageResponse"
+                },
+                "message": {
                     "type": "string"
                 },
-                "token": {
-                    "type": "string"
-                },
-                "url": {
-                    "type": "string"
+                "success": {
+                    "type": "boolean"
                 }
             }
         }

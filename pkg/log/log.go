@@ -1,7 +1,7 @@
 package log
 
 import (
-	"github.com/tbxark/go-base-api/pkg/log/field"
+	"github.com/tbxark/go-base-api/pkg/log/logfields"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -133,7 +133,7 @@ var (
 	std = newLogger(NewOptions())
 )
 
-func Init(opts *Options, fields ...field.Field) {
+func Init(opts *Options, fields ...logfields.Field) {
 	mu.Lock()
 	defer mu.Unlock()
 	std = newLogger(opts, fields...)
@@ -147,7 +147,7 @@ func NewLogger(opts *Options) Logger {
 	return newLogger(opts)
 }
 
-func newLogger(opts *Options, fields ...field.Field) *zapLogger {
+func newLogger(opts *Options, fields ...logfields.Field) *zapLogger {
 
 	levelRaw, err := zapcore.ParseLevel(opts.Level)
 	if err != nil {

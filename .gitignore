@@ -29,11 +29,4 @@ go.work
 .idea
 .vscode
 build
-temp
-logs
-log
-db
-
 config.json
-data.db
-data.db-journal

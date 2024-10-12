@@ -4,7 +4,7 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/log/field"
+	"github.com/tbxark/go-base-api/pkg/log/logfields"
 	"net/http"
 )
 
@@ -49,7 +49,7 @@ func WithJson[T any](handler func(ctx *gin.Context) (T, error)) func(ctx *gin.Co
 			if err := recover(); err != nil {
 				log.Warnw(
 					"WithJson panic",
-					field.Any("error", err),
+					logfields.Any("error", err),
 				)
 				ctx.AbortWithStatusJSON(500, gin.H{
 					"message": "internal server error",
@@ -74,7 +74,7 @@ func WithText(handler func(ctx *gin.Context) (string, error)) func(ctx *gin.Cont
 			if err := recover(); err != nil {
 				log.Warnw(
 					"WithText panic",
-					field.Any("error", err),
+					logfields.Any("error", err),
 				)
 				ctx.AbortWithStatusJSON(500, gin.H{
 					"message": "internal server error",
@@ -96,7 +96,7 @@ func WithHandler(h http.Handler) func(ctx *gin.Context) {
 			if err := recover(); err != nil {
 				log.Warnw(
 					"WithHandler panic",
-					field.Any("error", err),
+					logfields.Any("error", err),
 				)
 				ctx.AbortWithStatusJSON(500, gin.H{
 					"message": "internal server error",

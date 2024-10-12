@@ -1,4 +1,4 @@
-package models
+package cdnmodels
 
 type UploadToken struct {
 	Token string `json:"token"`

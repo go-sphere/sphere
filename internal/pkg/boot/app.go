@@ -3,7 +3,7 @@ package boot
 import (
 	"github.com/tbxark/go-base-api/config"
 	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/log/field"
+	"github.com/tbxark/go-base-api/pkg/log/logfields"
 	"sync"
 )
 
@@ -39,7 +39,7 @@ func (a *Application) Run() {
 				if r := recover(); r != nil {
 					log.Errorw(
 						"task panic",
-						field.String("task", t.Identifier()),
+						logfields.String("task", t.Identifier()),
 					)
 					wg.Done()
 				}
@@ -48,8 +48,8 @@ func (a *Application) Run() {
 			if err := t.Run(); err != nil {
 				log.Errorw(
 					"task error",
-					field.String("task", t.Identifier()),
-					field.Error(err),
+					logfields.String("task", t.Identifier()),
+					logfields.Error(err),
 				)
 			}
 		}(t)
@@ -64,7 +64,7 @@ func (a *Application) Clean() {
 }
 
 func Run(conf *config.Config, builder func(*config.Config) (*Application, error)) error {
-	log.Init(conf.Log, field.String("version", config.BuildVersion))
+	log.Init(conf.Log, logfields.String("version", config.BuildVersion))
 	app, err := builder(conf)
 	if err != nil {
 		return err

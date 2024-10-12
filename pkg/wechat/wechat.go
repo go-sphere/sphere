@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/log/field"
+	"github.com/tbxark/go-base-api/pkg/log/logfields"
 	"github.com/tbxark/go-base-api/pkg/utils/request"
 	"io"
 	"net/http"
@@ -163,7 +163,7 @@ func (w *Wechat) SendMessage(msg SubscribeMessageRequest, retryable bool) error 
 		retErr := fmt.Errorf("send message error: %s", result.ErrMsg)
 		log.Warnw(
 			"send message error",
-			field.Error(retErr),
+			logfields.Error(retErr),
 		)
 		return retErr
 	}

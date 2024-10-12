@@ -9,12 +9,13 @@ import (
 	"github.com/tbxark/go-base-api/pkg/cache"
 	"github.com/tbxark/go-base-api/pkg/cdn"
 	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/log/field"
+	"github.com/tbxark/go-base-api/pkg/log/logfields"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/auth/jwt_auth"
+	"github.com/tbxark/go-base-api/pkg/web/auth/jwtauth"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/auth"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/logger"
 	"github.com/tbxark/go-base-api/pkg/web/middleware/ratelimiter"
+	"github.com/tbxark/go-base-api/pkg/web/webmodels"
 	"github.com/tbxark/go-base-api/pkg/wechat"
 	"time"
 )
@@ -35,12 +36,12 @@ type Web struct {
 	cdn    cdn.CDN
 	cache  cache.ByteCache
 	render *render.Render
-	token  *jwt_auth.JwtAuth
+	token  *jwtauth.JwtAuth
 	auth   *auth.Auth
 }
 
 func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, cache cache.ByteCache) *Web {
-	token := jwt_auth.NewJwtAuth(config.JWT)
+	token := jwtauth.NewJwtAuth(config.JWT)
 	return &Web{
 		config: config,
 		Engine: gin.New(),
@@ -50,16 +51,18 @@ func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, cdn cdn.CDN, c
 		cache:  cache,
 		render: render.NewRender(cdn, db, false),
 		token:  token,
-		auth:   auth.NewAuth(jwt_auth.AuthorizationPrefixBearer, token),
+		auth:   auth.NewAuth(jwtauth.AuthorizationPrefixBearer, token),
 	}
 }
+
+type MessageResponse = web.DataResponse[webmodels.MessageResponse]
 
 func (w *Web) Identifier() string {
 	return "dash"
 }
 
 func (w *Web) Run() error {
-	zapLogger := log.ZapLogger().With(field.String("module", "dash"))
+	zapLogger := log.ZapLogger().With(logfields.String("module", "dash"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
 	rateLimiter := ratelimiter.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)

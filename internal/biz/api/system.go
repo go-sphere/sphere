@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/go-base-api/pkg/cdn"
-	cdnModel "github.com/tbxark/go-base-api/pkg/cdn/models"
+	"github.com/tbxark/go-base-api/pkg/cdn/cdnmodels"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/models"
+	"github.com/tbxark/go-base-api/pkg/web/webmodels"
 	"strconv"
 )
-
-type UploadTokenResponse = cdnModel.UploadToken
 
 // UploadToken
 // @Summary 获取上传凭证
@@ -19,13 +17,13 @@ type UploadTokenResponse = cdnModel.UploadToken
 // @Produce json
 // @Param filename query string true "文件名"
 // @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[UploadTokenResponse]
+// @Success 200 {object} web.DataResponse[cdnmodels.UploadToken]
 // @Router /api/upload/token [get]
-func (w *Web) UploadToken(ctx *gin.Context) (*UploadTokenResponse, error) {
+func (w *Web) UploadToken(ctx *gin.Context) (*cdnmodels.UploadToken, error) {
 	var req struct {
 		Filename string `form:"filename"`
 	}
-	if err := ctx.BindQuery(&req); err != nil {
+	if err := ctx.ShouldBindQuery(&req); err != nil {
 		return nil, err
 	}
 	if req.Filename == "" {
@@ -44,10 +42,10 @@ func (w *Web) UploadToken(ctx *gin.Context) (*UploadTokenResponse, error) {
 // @Tags api
 // @Accept json
 // @Produce json
-// @Success 200 {object} web.DataResponse[models.MessageResponse]
+// @Success 200 {object} MessageResponse
 // @Router /api/status [get]
-func (w *Web) Status(ctx *gin.Context) (*models.MessageResponse, error) {
-	return models.NewSuccessResponse(), nil
+func (w *Web) Status(ctx *gin.Context) (*webmodels.MessageResponse, error) {
+	return webmodels.NewSuccessResponse(), nil
 }
 
 func (w *Web) bindSystemRoute(r gin.IRouter) {

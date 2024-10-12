@@ -1,4 +1,4 @@
-package field
+package logfields
 
 import "go.uber.org/zap"
 

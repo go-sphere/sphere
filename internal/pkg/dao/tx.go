@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/log/field"
+	"github.com/tbxark/go-base-api/pkg/log/logfields"
 )
 
 func WithTx[T any](ctx context.Context, db *ent.Client, exe func(ctx context.Context, tx *ent.Client) (*T, error)) (*T, error) {
@@ -16,7 +16,7 @@ func WithTx[T any](ctx context.Context, db *ent.Client, exe func(ctx context.Con
 		if e := recover(); e != nil {
 			log.Warnw(
 				"WithTx panic",
-				field.Any("error", e),
+				logfields.Any("error", e),
 			)
 			_ = tx.Rollback()
 			return
@@ -44,7 +44,7 @@ func WithTxEx(ctx context.Context, db *ent.Client, exe func(ctx context.Context,
 		if e := recover(); e != nil {
 			log.Warnw(
 				"WithTxEx panic",
-				field.Any("error", e),
+				logfields.Any("error", e),
 			)
 			_ = tx.Rollback()
 			return

@@ -31,7 +31,7 @@ const docTemplateAPI = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_web_models_MessageResponse"
+                            "$ref": "#/definitions/internal_biz_api.MessageResponse"
                         }
                     }
                 }
@@ -67,7 +67,7 @@ const docTemplateAPI = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_api_UploadTokenResponse"
+                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_cdn_cdnmodels_UploadToken"
                         }
                     }
                 }
@@ -203,7 +203,7 @@ const docTemplateAPI = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_web_models_MessageResponse"
+                            "$ref": "#/definitions/internal_biz_api.MessageResponse"
                         }
                     }
                 }
@@ -211,6 +211,20 @@ const docTemplateAPI = `{
         }
     },
     "definitions": {
+        "github_com_tbxark_go-base-api_pkg_cdn_cdnmodels.UploadToken": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_tbxark_go-base-api_pkg_dao_ent.User": {
             "type": "object",
             "properties": {
@@ -248,11 +262,11 @@ const docTemplateAPI = `{
                 }
             }
         },
-        "github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_web_models_MessageResponse": {
+        "github_com_tbxark_go-base-api_pkg_web.DataResponse-github_com_tbxark_go-base-api_pkg_cdn_cdnmodels_UploadToken": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web_models.MessageResponse"
+                    "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_cdn_cdnmodels.UploadToken"
                 },
                 "message": {
                     "type": "string"
@@ -290,20 +304,6 @@ const docTemplateAPI = `{
                 }
             }
         },
-        "github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_api_UploadTokenResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/internal_biz_api.UploadTokenResponse"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
-                }
-            }
-        },
         "github_com_tbxark_go-base-api_pkg_web.DataResponse-internal_biz_api_UserInfoMeResponse": {
             "type": "object",
             "properties": {
@@ -318,7 +318,7 @@ const docTemplateAPI = `{
                 }
             }
         },
-        "github_com_tbxark_go-base-api_pkg_web_models.MessageResponse": {
+        "github_com_tbxark_go-base-api_pkg_web_webmodels.MessageResponse": {
             "type": "object",
             "properties": {
                 "message": {
@@ -340,6 +340,20 @@ const docTemplateAPI = `{
                 }
             }
         },
+        "internal_biz_api.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_web_webmodels.MessageResponse"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
         "internal_biz_api.UpdateUserInfoRequest": {
             "type": "object",
             "properties": {
@@ -356,20 +370,6 @@ const docTemplateAPI = `{
             "properties": {
                 "info": {
                     "$ref": "#/definitions/github_com_tbxark_go-base-api_pkg_dao_ent.User"
-                }
-            }
-        },
-        "internal_biz_api.UploadTokenResponse": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string"
-                },
-                "token": {
-                    "type": "string"
-                },
-                "url": {
-                    "type": "string"
                 }
             }
         },

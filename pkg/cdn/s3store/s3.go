@@ -3,7 +3,7 @@ package s3store
 import (
 	"context"
 	"fmt"
-	"github.com/tbxark/go-base-api/pkg/cdn/models"
+	"github.com/tbxark/go-base-api/pkg/cdn/cdnmodels"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"io"
 	"net/url"
@@ -97,22 +97,22 @@ func (s *S3) KeyFromURLWithMode(uri string, strict bool) (string, error) {
 	return parts[1], nil
 }
 
-func (s *S3) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.UploadResult, error) {
+func (s *S3) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*cdnmodels.UploadResult, error) {
 	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, size, minio.PutObjectOptions{})
 	if err != nil {
 		return nil, err
 	}
-	return &models.UploadResult{
+	return &cdnmodels.UploadResult{
 		Key: info.Key,
 	}, nil
 }
 
-func (s *S3) UploadLocalFile(ctx context.Context, file string, key string) (*models.UploadResult, error) {
+func (s *S3) UploadLocalFile(ctx context.Context, file string, key string) (*cdnmodels.UploadResult, error) {
 	info, err := s.client.FPutObject(ctx, s.config.Bucket, key, file, minio.PutObjectOptions{})
 	if err != nil {
 		return nil, err
 	}
-	return &models.UploadResult{
+	return &cdnmodels.UploadResult{
 		Key: info.Key,
 	}, nil
 }

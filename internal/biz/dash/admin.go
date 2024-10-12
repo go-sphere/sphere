@@ -1,6 +1,9 @@
 package dash
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/tbxark/go-base-api/internal/pkg/encrypt"
@@ -8,10 +11,8 @@ import (
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/admin"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/auth/jwt_auth"
-	"github.com/tbxark/go-base-api/pkg/web/models"
-	"strconv"
-	"time"
+	"github.com/tbxark/go-base-api/pkg/web/auth/jwtauth"
+	"github.com/tbxark/go-base-api/pkg/web/webmodels"
 )
 
 const WebPermissionAdmin = "admin"
@@ -40,11 +41,11 @@ func (w *Web) AdminList(ctx *gin.Context) (*AdminListResponse, error) {
 }
 
 type AdminEditRequest struct {
-	Avatar   string   `json:"avatar"`
-	Username string   `json:"username"`
-	Nickname string   `json:"nickname"`
-	Password string   `json:"password"`
-	Roles    []string `json:"roles"`
+	Avatar   string   `json:"avatar" validate:"url"`
+	Username string   `json:"username" validate:"required,min=3,max=50"`
+	Nickname string   `json:"nickname" validate:"required,min=2,max=50"`
+	Password string   `json:"password" validate:"omitempty,min=8"`
+	Roles    []string `json:"roles" validate:"required,min=1"`
 }
 
 type AdminInfoResponse struct {
@@ -62,13 +63,13 @@ type AdminInfoResponse struct {
 // @Router /api/admin/create [post]
 func (w *Web) AdminCreate(ctx *gin.Context) (*AdminInfoResponse, error) {
 	var req AdminEditRequest
-	if err := ctx.BindJSON(&req); err != nil {
+	if err := ctx.ShouldBindJSON(&req); err != nil {
 		return nil, err
 	}
 	if len(req.Password) > 8 {
 		req.Password = encrypt.CryptPassword(req.Password)
 	} else {
-		return nil, models.NewHTTPError(400, "password is too short")
+		return nil, webmodels.NewHTTPError(400, "password is too short")
 	}
 	u, err := w.db.Admin.Create().
 		SetAvatar(w.cdn.KeyFromURL(req.Avatar)).
@@ -100,7 +101,7 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (*AdminInfoResponse, error) {
 		return nil, err
 	}
 	var req AdminEditRequest
-	if e := ctx.BindJSON(&req); e != nil {
+	if e := ctx.ShouldBindJSON(&req); e != nil {
 		return nil, e
 	}
 	update := w.db.Admin.UpdateOneID(id).
@@ -113,7 +114,7 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (*AdminInfoResponse, error) {
 		if len(req.Password) > 8 {
 			req.Password = encrypt.CryptPassword(req.Password)
 		} else {
-			return nil, models.NewHTTPError(400, "password is too short")
+			return nil, webmodels.NewHTTPError(400, "password is too short")
 		}
 	}
 	u, err := update.Save(ctx)
@@ -125,6 +126,20 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (*AdminInfoResponse, error) {
 	}, nil
 }
 
+func (w *Web) getAdminByID(ctx *gin.Context, idParam string) (*ent.Admin, error) {
+	id, err := strconv.Atoi(idParam)
+	if err != nil {
+		return nil, err
+	}
+
+	adm, err := w.db.Admin.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return adm, nil
+}
+
 // AdminDetail
 // @Summary 管理员详情
 // @Tags dashboard
@@ -134,16 +149,12 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (*AdminInfoResponse, error) {
 // @Success 200 {object} web.DataResponse[AdminInfoResponse]
 // @Router /api/admin/detail/{id} [get]
 func (w *Web) AdminDetail(ctx *gin.Context) (*AdminInfoResponse, error) {
-	id, err := strconv.Atoi(ctx.Param("id"))
-	if err != nil {
-		return nil, err
-	}
-	user, err := w.db.Admin.Get(ctx, id)
+	adm, err := w.getAdminByID(ctx, ctx.Param("id"))
 	if err != nil {
 		return nil, err
 	}
 	return &AdminInfoResponse{
-		Admin: render.AdminWithRoles(user),
+		Admin: render.AdminWithRoles(adm),
 	}, nil
 }
 
@@ -153,29 +164,26 @@ func (w *Web) AdminDetail(ctx *gin.Context) (*AdminInfoResponse, error) {
 // @Produce json
 // @Param id path int true "管理员ID"
 // @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[models.MessageResponse]
+// @Success 200 {object} MessageResponse
 // @Router /api/admin/delete/{id} [delete]
-func (w *Web) AdminDelete(ctx *gin.Context) (*models.MessageResponse, error) {
-	id, err := strconv.Atoi(ctx.Param("id"))
+func (w *Web) AdminDelete(ctx *gin.Context) (*webmodels.MessageResponse, error) {
+	adm, err := w.getAdminByID(ctx, ctx.Param("id"))
 	if err != nil {
 		return nil, err
 	}
-	user, err := w.db.Admin.Get(ctx, id)
-	if err != nil {
-		return nil, err
-	}
+
 	value, exists := ctx.Get("username")
 	if !exists {
-		return nil, models.NewHTTPError(400, "username not found")
+		return nil, webmodels.NewHTTPError(400, "username not found")
 	}
-	if user.Username == value.(string) {
-		return nil, models.NewHTTPError(400, "can not delete self")
+	if adm.Username == value.(string) {
+		return nil, webmodels.NewHTTPError(400, "can not delete self")
 	}
-	err = w.db.Admin.DeleteOneID(id).Exec(ctx)
+	err = w.db.Admin.DeleteOneID(adm.ID).Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return models.NewSuccessResponse(), nil
+	return webmodels.NewSuccessResponse(), nil
 }
 
 type AdminLoginRequest struct {
@@ -232,13 +240,13 @@ func (w *Web) AdminLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 		return nil, err
 	}
 	if !encrypt.IsPasswordMatch(req.Password, u.Password) {
-		return nil, models.NewHTTPError(400, "password not match")
+		return nil, webmodels.NewHTTPError(400, "password not match")
 	}
 	return w.createLoginResponse(u)
 }
 
 type AdminRefreshTokenRequest struct {
-	RefreshToken string `json:"refreshToken"`
+	RefreshToken string `json:"refreshToken" binding:"required"`
 }
 
 type AdminRefreshTokenResponse struct {
@@ -257,16 +265,16 @@ type AdminRefreshTokenResponse struct {
 // @Router /api/admin/refresh-token [post]
 func (w *Web) AdminRefreshToken(ctx *gin.Context) (*AdminLoginResponse, error) {
 	var body AdminRefreshTokenRequest
-	if err := ctx.BindJSON(&body); err != nil {
+	if err := ctx.ShouldBindJSON(&body); err != nil {
 		return nil, err
 	}
 	claims, err := w.token.Validate(body.RefreshToken)
 	if err != nil {
 		return nil, err
 	}
-	uid, ok := claims[jwt_auth.SignedDetailsUidKey].(string)
+	uid, ok := claims[jwtauth.SignedDetailsUidKey].(string)
 	if !ok {
-		return nil, models.NewHTTPError(400, "uid not found")
+		return nil, webmodels.NewHTTPError(400, "uid not found")
 	}
 	id, err := strconv.Atoi(uid)
 	if err != nil {

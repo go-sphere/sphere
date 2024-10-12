@@ -1,4 +1,4 @@
-package models
+package webmodels
 
 type PageQuery struct {
 	Page  int `json:"page" form:"page"`

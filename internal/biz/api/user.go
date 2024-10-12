@@ -7,7 +7,7 @@ import (
 	"github.com/tbxark/go-base-api/pkg/dao/ent"
 	"github.com/tbxark/go-base-api/pkg/dao/ent/user"
 	"github.com/tbxark/go-base-api/pkg/web"
-	"github.com/tbxark/go-base-api/pkg/web/models"
+	"github.com/tbxark/go-base-api/pkg/web/webmodels"
 )
 
 type UserInfoMePlatform struct {
@@ -69,7 +69,7 @@ func (w *Web) UpdateUserInfo(ctx *gin.Context) (*UpdateUserInfoResponse, error) 
 		return nil, err
 	}
 	var info UpdateUserInfoRequest
-	if e := ctx.BindJSON(&info); e != nil {
+	if e := ctx.ShouldBindJSON(&info); e != nil {
 		return nil, e
 	}
 	info.Avatar, err = w.uploadRemoteImage(ctx, info.Avatar)
@@ -100,9 +100,9 @@ type WxMiniBindPhoneRequest struct {
 // @Produce json
 // @Param request body WxMiniBindPhoneRequest true "绑定信息"
 // @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[models.MessageResponse]
+// @Success 200 {object} MessageResponse
 // @Router /api/wx/mini/bind/phone [post]
-func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*models.MessageResponse, error) {
+func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*webmodels.MessageResponse, error) {
 	var req WxMiniBindPhoneRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*models.MessageResponse, error)
 		return nil, err
 	}
 	if number.PhoneInfo.CountryCode != "86" {
-		return nil, models.NewHTTPError(400, "只支持中国大陆手机号")
+		return nil, webmodels.NewHTTPError(400, "只支持中国大陆手机号")
 	}
 	err = dao.WithTxEx(ctx, w.db.Client, func(ctx context.Context, client *ent.Client) error {
 		exist, e := client.User.Query().Where(user.PhoneEQ(number.PhoneInfo.PhoneNumber)).Only(ctx)
@@ -128,14 +128,14 @@ func (w *Web) WxMiniBindPhone(ctx *gin.Context) (*models.MessageResponse, error)
 			return e
 		}
 		if exist.ID != userId {
-			return models.NewHTTPError(400, "手机号已被绑定")
+			return webmodels.NewHTTPError(400, "手机号已被绑定")
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return models.NewSuccessResponse(), nil
+	return webmodels.NewSuccessResponse(), nil
 }
 
 func (w *Web) bindUserRoute(r gin.IRouter) {

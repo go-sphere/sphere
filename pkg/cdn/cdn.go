@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/tbxark/go-base-api/pkg/cdn/models"
+	"github.com/tbxark/go-base-api/pkg/cdn/cdnmodels"
 )
 
 type UrlParser interface {
@@ -16,12 +16,12 @@ type UrlParser interface {
 }
 
 type Credential interface {
-	UploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) models.UploadToken
+	UploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) cdnmodels.UploadToken
 }
 
 type Uploader interface {
-	UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.UploadResult, error)
-	UploadLocalFile(ctx context.Context, file string, key string) (*models.UploadResult, error)
+	UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*cdnmodels.UploadResult, error)
+	UploadLocalFile(ctx context.Context, file string, key string) (*cdnmodels.UploadResult, error)
 }
 
 type CDN interface {
