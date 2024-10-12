@@ -1,7 +1,7 @@
 package tmaauth
 
 import (
-	"github.com/tbxark/go-base-api/pkg/web/auth/authparser"
+	"github.com/tbxark/go-base-api/pkg/web/auth/parser"
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 	"strconv"
 	"time"
@@ -9,7 +9,7 @@ import (
 
 const AuthorizationPrefixTMA = "tma"
 
-var _ authparser.AuthParser = &TmaAuth{}
+var _ parser.AuthParser = &TmaAuth{}
 
 type TmaAuth struct {
 	token string
@@ -23,7 +23,7 @@ func NewTmaAuth(token string) *TmaAuth {
 	}
 }
 
-func (t *TmaAuth) ParseToken(token string) (*authparser.Claims, error) {
+func (t *TmaAuth) ParseToken(token string) (*parser.Claims, error) {
 	err := initdata.Validate(token, t.token, t.expIn)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func (t *TmaAuth) ParseToken(token string) (*authparser.Claims, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &authparser.Claims{
+	return &parser.Claims{
 		Subject:  strconv.Itoa(int(initData.Chat.ID)),
 		Username: initData.Chat.Username,
 		Roles:    string(initData.Chat.Type),

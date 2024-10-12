@@ -1,8 +1,7 @@
 package jwtauth
 
 import (
-	"fmt"
-	"github.com/tbxark/go-base-api/pkg/web/auth/authparser"
+	"github.com/tbxark/go-base-api/pkg/web/auth/parser"
 	"strings"
 	"sync"
 	"time"
@@ -16,7 +15,7 @@ const (
 	DefaultRefreshDuration    = time.Hour * 24 * 7
 )
 
-var _ authparser.AuthParser = &JwtAuth{}
+var _ parser.AuthParser = &JwtAuth{}
 
 type SignedDetails struct {
 	jwt.StandardClaims
@@ -107,21 +106,18 @@ func (g *JwtAuth) GenerateRefreshToken(uid string) (*Token, error) {
 	}, nil
 }
 
-func (g *JwtAuth) ParseToken(signedToken string) (*authparser.Claims, error) {
+func (g *JwtAuth) ParseToken(signedToken string) (*parser.Claims, error) {
 	claims := &SignedDetails{}
-	token, err := jwt.ParseWithClaims(signedToken, claims, func(token *jwt.Token) (interface{}, error) {
+	_, err := jwt.ParseWithClaims(signedToken, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			return nil, jwt.ErrSignatureInvalid
 		}
 		return g.secret, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse token: %w", err)
+		return nil, err
 	}
-	if !token.Valid {
-		return nil, fmt.Errorf("token is invalid")
-	}
-	return &authparser.Claims{
+	return &parser.Claims{
 		Subject:  claims.Subject,
 		Username: claims.Username,
 		Roles:    claims.Roles,

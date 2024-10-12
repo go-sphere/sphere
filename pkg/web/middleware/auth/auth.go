@@ -1,22 +1,20 @@
 package auth
 
 import (
-	"github.com/tbxark/go-base-api/pkg/web/auth/authparser"
+	"github.com/gin-gonic/gin"
+	"github.com/tbxark/go-base-api/pkg/web/auth/parser"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 type Auth struct {
 	*Base
 	prefix string
-	parser authparser.AuthParser
+	parser parser.AuthParser
 }
 
-func NewAuth(prefix string, parser authparser.AuthParser) *Auth {
+func NewAuth(prefix string, parser parser.AuthParser) *Auth {
 	return &Auth{
 		Base:   &Base{},
 		prefix: prefix,
@@ -24,7 +22,7 @@ func NewAuth(prefix string, parser authparser.AuthParser) *Auth {
 	}
 }
 
-func (w *Auth) parseToken(token string) (claims *authparser.Claims, err error) {
+func (w *Auth) parseToken(token string) (claims *parser.Claims, err error) {
 	if len(w.prefix) > 0 && strings.HasPrefix(token, w.prefix+" ") {
 		token = token[len(w.prefix)+1:]
 	}
@@ -40,11 +38,10 @@ func (w *Auth) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
 		}
 
 		claims, err := w.parseToken(token)
-		if err != nil || claims.Exp < time.Now().Unix() {
+		if err != nil {
 			w.handleUnauthorized(ctx, abortOnError)
 			return
 		}
-
 		w.setContextValues(ctx, claims)
 	}
 }
@@ -55,7 +52,7 @@ func (w *Auth) handleUnauthorized(ctx *gin.Context, abortOnError bool) {
 	}
 }
 
-func (w *Auth) setContextValues(ctx *gin.Context, claims *authparser.Claims) {
+func (w *Auth) setContextValues(ctx *gin.Context, claims *parser.Claims) {
 	id, _ := strconv.Atoi(claims.Subject)
 	ctx.Set(ContextKeyID, id)
 	ctx.Set(ContextKeyUsername, claims.Username)
