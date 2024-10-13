@@ -4,7 +4,9 @@ import (
 	"github.com/tbxark/go-base-api/config"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/logfields"
+	"os"
 	"sync"
+	"time"
 )
 
 type Task interface {
@@ -63,9 +65,19 @@ func (a *Application) Clean() {
 	}
 }
 
+func init() {
+	defaultLoc := "Asia/Shanghai"
+	loc, err := time.LoadLocation(defaultLoc)
+	if err == nil {
+		time.Local = loc
+	}
+	_ = os.Setenv("TZ", defaultLoc)
+}
+
 func Run(conf *config.Config, builder func(*config.Config) (*Application, error)) error {
 	log.Init(conf.Log, logfields.String("version", config.BuildVersion))
 	log.Info("Start application", logfields.String("version", config.BuildVersion))
+
 	app, err := builder(conf)
 	if err != nil {
 		return err

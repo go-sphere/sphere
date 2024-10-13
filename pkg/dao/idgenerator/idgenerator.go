@@ -14,7 +14,7 @@ func init() {
 		workerID = 1
 	}
 	options := idgen.NewIdGeneratorOptions(uint16(workerID))
-	options.BaseTime = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).UnixMilli()
+	options.BaseTime = time.Date(2024, 1, 1, 0, 0, 0, 0, time.Local).UnixMilli()
 	idgen.SetIdGenerator(options)
 }
 
