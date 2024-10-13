@@ -22,7 +22,7 @@ generate:
 
 .PHONY: config
 config:
-	go run main.go config
+	go run ./cmd/config gen
 
 .PHONY: docs
 docs:

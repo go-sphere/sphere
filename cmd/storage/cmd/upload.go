@@ -32,16 +32,16 @@ func init() {
 
 func runUpload(cmd *cobra.Command, args []string) {
 	fileP := cmd.Flag("files").Value.String()
-	cfgP := cmd.Flag("config").Value.String()
+	confP := cmd.Flag("config").Value.String()
 	outP := cmd.Flag("output").Value.String()
 	dir := cmd.Flag("storage").Value.String()
 
-	cfg, err := config.LoadLocalConfig(cfgP)
+	cfg, err := config.LoadLocalConfig(confP)
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}
 
-	upload := qiniu.NewQiniu(cfg.CDN)
+	upload := qiniu.NewQiniu(cfg.Storage)
 	ctx := context.Background()
 	resBuf := strings.Builder{}
 	nameBuilder := storage.KeepFileNameKeyBuilder()

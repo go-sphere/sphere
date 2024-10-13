@@ -32,7 +32,7 @@ type Config struct {
 	Database     *client.Config    `json:"database"`
 	Dash         *dash.Config      `json:"dash"`
 	API          *api.Config       `json:"api"`
-	CDN          *qiniu.Config     `json:"cdn"`
+	Storage      *qiniu.Config     `json:"storage"`
 	Bot          *bot.Config       `json:"bot"`
 	WxMini       *wechat.Config    `json:"wx_mini"`
 }
@@ -69,7 +69,7 @@ func NewEmptyConfig() *Config {
 			Address: "0.0.0.0:8899",
 			JWT:     randJWTPassword(),
 		},
-		CDN: &qiniu.Config{
+		Storage: &qiniu.Config{
 			AccessKey: "",
 			SecretKey: "",
 			Bucket:    "",

@@ -12,7 +12,7 @@ import (
 	"github.com/tbxark/go-base-api/pkg"
 )
 
-func NewDashApplication(cfg *config.Config) (*boot.Application, error) {
+func NewDashApplication(conf *config.Config) (*boot.Application, error) {
 	wire.Build(pkg.ProviderSet, ipkg.ProviderSet, biz.ProviderSet, config.ProviderSet, wire.NewSet(CreateApplication))
 	return &boot.Application{}, nil
 }

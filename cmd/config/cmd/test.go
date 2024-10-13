@@ -22,8 +22,8 @@ func init() {
 }
 
 func runTest(cmd *cobra.Command, args []string) {
-	cfg := cmd.Flag("config").Value.String()
-	con, err := config.LoadLocalConfig(cfg)
+	conf := cmd.Flag("config").Value.String()
+	con, err := config.LoadLocalConfig(conf)
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}

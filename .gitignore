@@ -30,4 +30,5 @@ go.work
 .vscode
 build
 docs
+var
 config.json

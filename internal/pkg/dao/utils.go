@@ -1,11 +1,12 @@
 package dao
 
-import "sort"
+type Integer interface {
+	int | int64
+}
 
-func RemoveDuplicateAndZero(origin []int) []int {
-	res := make([]int, len(origin))
+func RemoveDuplicateAndZero[T Integer](origin []T) []T {
+	res := make([]T, len(origin))
 	copy(res, origin)
-	sort.Ints(res)
 	j := 0
 	for i := 0; i < len(res); i++ {
 		if res[i] != 0 && (j == 0 || res[i] != res[j-1]) {

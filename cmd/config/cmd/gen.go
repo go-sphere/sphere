@@ -8,18 +8,18 @@ import (
 	"os"
 )
 
-// configCmd represents the config command
-var configCmd = &cobra.Command{
-	Use:   "config",
+// genCmd represents the config command
+var genCmd = &cobra.Command{
+	Use:   "gen",
 	Short: "Generate config file",
 	Long:  `Generate a config file with default values.`,
 	Run:   runConfig,
 }
 
 func init() {
-	rootCmd.AddCommand(configCmd)
-	configCmd.Flags().StringP("output", "o", "config_gen.json", "output file path")
-	configCmd.Flags().StringP("database", "d", "mysql", "database type")
+	rootCmd.AddCommand(genCmd)
+	genCmd.Flags().StringP("output", "o", "config_gen.json", "output file path")
+	genCmd.Flags().StringP("database", "d", "sqlite", "database type")
 }
 
 func runConfig(cmd *cobra.Command, args []string) {

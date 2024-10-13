@@ -10,7 +10,7 @@ import (
 	"github.com/tbxark/go-base-api/internal/pkg/boot"
 )
 
-func NewBotApplication(cfg *config.Config) (*boot.Application, error) {
+func NewBotApplication(conf *config.Config) (*boot.Application, error) {
 	wire.Build(biz.ProviderSet, config.ProviderSet, wire.NewSet(CreateApplication))
 	return &boot.Application{}, nil
 }
