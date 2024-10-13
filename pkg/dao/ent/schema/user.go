@@ -4,6 +4,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/tbxark/go-base-api/pkg/dao/idgenerator"
 )
 
 type User struct {
@@ -12,6 +13,7 @@ type User struct {
 
 func (User) Fields() []ent.Field {
 	return []ent.Field{
+		field.Int("id").Unique().Immutable().DefaultFunc(idgenerator.NextId).Comment("用户ID"),
 		field.String("username").Comment("用户名").MinLen(1),
 		field.String("remark").Optional().Default("").Comment("备注").MaxLen(30),
 		field.String("avatar").Comment("头像"),

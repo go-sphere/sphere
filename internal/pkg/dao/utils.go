@@ -1,17 +1,28 @@
 package dao
 
-import "sort"
+import (
+	"cmp"
+	"slices"
+)
 
-func RemoveDuplicateAndZero(origin []int) []int {
-	res := make([]int, len(origin))
+func RemoveDuplicateAndZero[T cmp.Ordered](origin []T) []T {
+	if len(origin) == 0 {
+		return []T{}
+	}
+
+	res := make([]T, len(origin))
 	copy(res, origin)
-	j := 0
-	sort.Ints(res)
-	for i := 0; i < len(res); i++ {
-		if res[i] != 0 && (j == 0 || res[i] != res[j-1]) {
-			res[j] = res[i]
-			j++
+
+	slices.Sort(res)
+
+	var zero T
+	write := 0
+	for read := 0; read < len(res); read++ {
+		if res[read] != zero && (write == 0 || res[read] != res[write-1]) {
+			res[write] = res[read]
+			write++
 		}
 	}
-	return res[:j]
+
+	return res[:write]
 }

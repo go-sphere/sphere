@@ -16,6 +16,7 @@ import (
 type Admin struct {
 	config `json:"-"`
 	// ID of the ent.
+	// 用户ID
 	ID int `json:"id,omitempty"`
 	// 创建时间
 	CreatedAt int64 `json:"created_at,omitempty"`

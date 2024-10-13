@@ -30,21 +30,25 @@ func init() {
 	// admin.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	admin.UpdateDefaultUpdatedAt = adminDescUpdatedAt.UpdateDefault.(func() int64)
 	// adminDescUsername is the schema descriptor for username field.
-	adminDescUsername := adminFields[0].Descriptor()
+	adminDescUsername := adminFields[1].Descriptor()
 	// admin.UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	admin.UsernameValidator = adminDescUsername.Validators[0].(func(string) error)
 	// adminDescNickname is the schema descriptor for nickname field.
-	adminDescNickname := adminFields[1].Descriptor()
+	adminDescNickname := adminFields[2].Descriptor()
 	// admin.DefaultNickname holds the default value on creation for the nickname field.
 	admin.DefaultNickname = adminDescNickname.Default.(string)
 	// adminDescAvatar is the schema descriptor for avatar field.
-	adminDescAvatar := adminFields[2].Descriptor()
+	adminDescAvatar := adminFields[3].Descriptor()
 	// admin.DefaultAvatar holds the default value on creation for the avatar field.
 	admin.DefaultAvatar = adminDescAvatar.Default.(string)
 	// adminDescRoles is the schema descriptor for roles field.
-	adminDescRoles := adminFields[4].Descriptor()
+	adminDescRoles := adminFields[5].Descriptor()
 	// admin.DefaultRoles holds the default value on creation for the roles field.
 	admin.DefaultRoles = adminDescRoles.Default.([]string)
+	// adminDescID is the schema descriptor for id field.
+	adminDescID := adminFields[0].Descriptor()
+	// admin.DefaultID holds the default value on creation for the id field.
+	admin.DefaultID = adminDescID.Default.(func() int)
 	keyvaluestoreMixin := schema.KeyValueStore{}.Mixin()
 	keyvaluestoreMixinFields0 := keyvaluestoreMixin[0].Fields()
 	_ = keyvaluestoreMixinFields0
@@ -76,25 +80,29 @@ func init() {
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	user.UpdateDefaultUpdatedAt = userDescUpdatedAt.UpdateDefault.(func() int64)
 	// userDescUsername is the schema descriptor for username field.
-	userDescUsername := userFields[0].Descriptor()
+	userDescUsername := userFields[1].Descriptor()
 	// user.UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	user.UsernameValidator = userDescUsername.Validators[0].(func(string) error)
 	// userDescRemark is the schema descriptor for remark field.
-	userDescRemark := userFields[1].Descriptor()
+	userDescRemark := userFields[2].Descriptor()
 	// user.DefaultRemark holds the default value on creation for the remark field.
 	user.DefaultRemark = userDescRemark.Default.(string)
 	// user.RemarkValidator is a validator for the "remark" field. It is called by the builders before save.
 	user.RemarkValidator = userDescRemark.Validators[0].(func(string) error)
 	// userDescPhone is the schema descriptor for phone field.
-	userDescPhone := userFields[3].Descriptor()
+	userDescPhone := userFields[4].Descriptor()
 	// user.DefaultPhone holds the default value on creation for the phone field.
 	user.DefaultPhone = userDescPhone.Default.(string)
 	// user.PhoneValidator is a validator for the "phone" field. It is called by the builders before save.
 	user.PhoneValidator = userDescPhone.Validators[0].(func(string) error)
 	// userDescFlags is the schema descriptor for flags field.
-	userDescFlags := userFields[4].Descriptor()
+	userDescFlags := userFields[5].Descriptor()
 	// user.DefaultFlags holds the default value on creation for the flags field.
 	user.DefaultFlags = userDescFlags.Default.(uint64)
+	// userDescID is the schema descriptor for id field.
+	userDescID := userFields[0].Descriptor()
+	// user.DefaultID holds the default value on creation for the id field.
+	user.DefaultID = userDescID.Default.(func() int)
 	userplatformMixin := schema.UserPlatform{}.Mixin()
 	userplatformMixinFields0 := userplatformMixin[0].Fields()
 	_ = userplatformMixinFields0

@@ -95,6 +95,20 @@ func (ac *AdminCreate) SetRoles(s []string) *AdminCreate {
 	return ac
 }
 
+// SetID sets the "id" field.
+func (ac *AdminCreate) SetID(i int) *AdminCreate {
+	ac.mutation.SetID(i)
+	return ac
+}
+
+// SetNillableID sets the "id" field if the given value is not nil.
+func (ac *AdminCreate) SetNillableID(i *int) *AdminCreate {
+	if i != nil {
+		ac.SetID(*i)
+	}
+	return ac
+}
+
 // Mutation returns the AdminMutation object of the builder.
 func (ac *AdminCreate) Mutation() *AdminMutation {
 	return ac.mutation
@@ -150,6 +164,10 @@ func (ac *AdminCreate) defaults() {
 		v := admin.DefaultRoles
 		ac.mutation.SetRoles(v)
 	}
+	if _, ok := ac.mutation.ID(); !ok {
+		v := admin.DefaultID()
+		ac.mutation.SetID(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -182,8 +200,10 @@ func (ac *AdminCreate) sqlSave(ctx context.Context) (*Admin, error) {
 		}
 		return nil, err
 	}
-	id := _spec.ID.Value.(int64)
-	_node.ID = int(id)
+	if _spec.ID.Value != _node.ID {
+		id := _spec.ID.Value.(int64)
+		_node.ID = int(id)
+	}
 	ac.mutation.id = &_node.ID
 	ac.mutation.done = true
 	return _node, nil
@@ -195,6 +215,10 @@ func (ac *AdminCreate) createSpec() (*Admin, *sqlgraph.CreateSpec) {
 		_spec = sqlgraph.NewCreateSpec(admin.Table, sqlgraph.NewFieldSpec(admin.FieldID, field.TypeInt))
 	)
 	_spec.OnConflict = ac.conflict
+	if id, ok := ac.mutation.ID(); ok {
+		_node.ID = id
+		_spec.ID.Value = id
+	}
 	if value, ok := ac.mutation.CreatedAt(); ok {
 		_spec.SetField(admin.FieldCreatedAt, field.TypeInt64, value)
 		_node.CreatedAt = value
@@ -371,17 +395,23 @@ func (u *AdminUpsert) UpdateRoles() *AdminUpsert {
 	return u
 }
 
-// UpdateNewValues updates the mutable fields using the new values that were set on create.
+// UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
 // Using this option is equivalent to using:
 //
 //	client.Admin.Create().
 //		OnConflict(
 //			sql.ResolveWithNewValues(),
+//			sql.ResolveWith(func(u *sql.UpdateSet) {
+//				u.SetIgnore(admin.FieldID)
+//			}),
 //		).
 //		Exec(ctx)
 func (u *AdminUpsertOne) UpdateNewValues() *AdminUpsertOne {
 	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
 	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
+		if _, exists := u.create.mutation.ID(); exists {
+			s.SetIgnore(admin.FieldID)
+		}
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(admin.FieldCreatedAt)
 		}
@@ -608,7 +638,7 @@ func (acb *AdminCreateBulk) Save(ctx context.Context) ([]*Admin, error) {
 					return nil, err
 				}
 				mutation.id = &nodes[i].ID
-				if specs[i].ID.Value != nil {
+				if specs[i].ID.Value != nil && nodes[i].ID == 0 {
 					id := specs[i].ID.Value.(int64)
 					nodes[i].ID = int(id)
 				}
@@ -698,12 +728,18 @@ type AdminUpsertBulk struct {
 //	client.Admin.Create().
 //		OnConflict(
 //			sql.ResolveWithNewValues(),
+//			sql.ResolveWith(func(u *sql.UpdateSet) {
+//				u.SetIgnore(admin.FieldID)
+//			}),
 //		).
 //		Exec(ctx)
 func (u *AdminUpsertBulk) UpdateNewValues() *AdminUpsertBulk {
 	u.create.conflict = append(u.create.conflict, sql.ResolveWithNewValues())
 	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
 		for _, b := range u.create.builders {
+			if _, exists := b.mutation.ID(); exists {
+				s.SetIgnore(admin.FieldID)
+			}
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(admin.FieldCreatedAt)
 			}

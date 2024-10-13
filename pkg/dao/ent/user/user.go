@@ -70,6 +70,8 @@ var (
 	PhoneValidator func(string) error
 	// DefaultFlags holds the default value on creation for the "flags" field.
 	DefaultFlags uint64
+	// DefaultID holds the default value on creation for the "id" field.
+	DefaultID func() int
 )
 
 // OrderOption defines the ordering options for the User queries.
