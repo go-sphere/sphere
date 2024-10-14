@@ -78,13 +78,6 @@ func NewRecoveryMiddleware() bot.Middleware {
 }
 
 func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration) bot.Middleware {
-	const (
-		TypeGroup       = "group"
-		TypeSuperGroup  = "supergroup"
-		TypeMention     = "mention"
-		TypeTextMention = "text_mention"
-		TypeBotCommand  = "bot_command"
-	)
 
 	var (
 		ts   time.Time
@@ -92,8 +85,8 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 		user *models.User
 	)
 
-	isGroupChatType := func(t string) bool {
-		return t == TypeGroup || t == TypeSuperGroup
+	isGroupChatType := func(t models.ChatType) bool {
+		return t == models.ChatTypeGroup || t == models.ChatTypeSupergroup || t == models.ChatTypeChannel
 	}
 
 	getBotInfo := func(ctx context.Context, b *bot.Bot, sf *singleflight.Group) (int64, string, error) {
@@ -122,21 +115,21 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 		for _, entity := range entities {
 			entityStr := text[entity.Offset : entity.Offset+entity.Length]
 			switch entity.Type {
-			case TypeMention: // "mention"适用于有用户名的普通用户
+			case models.MessageEntityTypeMention: // "mention"适用于有用户名的普通用户
 				if entityStr == "@"+username {
 					isMention = true
 					if trimMention {
 						text = text[:entity.Offset] + text[entity.Offset+entity.Length:]
 					}
 				}
-			case TypeTextMention: // "text_mention"适用于没有用户名的用户或需要通过ID提及用户的情况
+			case models.MessageEntityTypeTextMention: // "text_mention"适用于没有用户名的用户或需要通过ID提及用户的情况
 				if entity.User.ID == id {
 					isMention = true
 					if trimMention {
 						text = text[:entity.Offset] + text[entity.Offset+entity.Length:]
 					}
 				}
-			case TypeBotCommand: // "bot_command"适用于命令
+			case models.MessageEntityTypeBotCommand: // "bot_command"适用于命令
 				if strings.HasSuffix(entityStr, "@"+username) {
 					isMention = true
 					if trimMention {

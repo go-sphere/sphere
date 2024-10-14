@@ -12,7 +12,7 @@ func (d *Dao) GetUsers(ctx context.Context, ids []int) (map[int]*ent.User, error
 	if err != nil {
 		return nil, err
 	}
-	userMap := make(map[int]*ent.User)
+	userMap := make(map[int]*ent.User, len(users))
 	for _, u := range users {
 		userMap[u.ID] = u
 	}

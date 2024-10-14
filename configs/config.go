@@ -75,6 +75,9 @@ func NewEmptyConfig() *Config {
 			Bucket:    "",
 			Domain:    "",
 		},
+		Bot: &bot.Config{
+			Token: "",
+		},
 		WxMini: &wechat.Config{
 			AppID:     "",
 			AppSecret: "",

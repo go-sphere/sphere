@@ -11,7 +11,7 @@ func (d *Dao) GetAdmins(ctx context.Context, ids []int) (map[int]*ent.Admin, err
 	if err != nil {
 		return nil, err
 	}
-	adminMap := make(map[int]*ent.Admin)
+	adminMap := make(map[int]*ent.Admin, len(admins))
 	for _, a := range admins {
 		adminMap[a.ID] = a
 	}
