@@ -3,18 +3,18 @@ package boot
 import (
 	"flag"
 	"fmt"
-	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/configs"
 	"os"
 )
 
-func DefaultCommandConfigFlagsParser() *config.Config {
+func DefaultCommandConfigFlagsParser() *configs.Config {
 	path := flag.String("config", "config.json", "config file path")
 	version := flag.Bool("version", false, "show version")
 	help := flag.Bool("help", false, "show help")
 	flag.Parse()
 
 	if *version {
-		fmt.Println(config.BuildVersion)
+		fmt.Println(configs.BuildVersion)
 		os.Exit(0)
 	}
 
@@ -31,8 +31,8 @@ func DefaultCommandConfigFlagsParser() *config.Config {
 	return conf
 }
 
-func LoadConfig(path string) (*config.Config, error) {
-	conf, err := config.LoadLocalConfig(path)
+func LoadConfig(path string) (*configs.Config, error) {
+	conf, err := configs.LoadLocalConfig(path)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func LoadConfig(path string) (*config.Config, error) {
 	if conf.Remote == nil {
 		return conf, nil
 	}
-	conf, err = config.LoadRemoteConfig(conf.Remote)
+	conf, err = configs.LoadRemoteConfig(conf.Remote)
 	if err != nil {
 		return nil, err
 	}

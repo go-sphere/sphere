@@ -4,7 +4,7 @@ package cmd
 
 import (
 	"context"
-	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/configs"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/storage"
 	"github.com/tbxark/go-base-api/pkg/storage/qiniu"
@@ -44,7 +44,7 @@ func runMigrate(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Panicf("read file error: %v", err)
 	}
-	cfg, err := config.LoadLocalConfig(cfgP)
+	cfg, err := configs.LoadLocalConfig(cfgP)
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}

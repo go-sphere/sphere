@@ -7,7 +7,7 @@
 package app
 
 import (
-	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/configs"
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/task"
 	"github.com/tbxark/go-base-api/internal/pkg/boot"
@@ -20,7 +20,7 @@ import (
 
 // Injectors from wire.go:
 
-func NewAPIApplication(conf *config.Config) (*boot.Application, error) {
+func NewAPIApplication(conf *configs.Config) (*boot.Application, error) {
 	apiConfig := conf.API
 	clientConfig := conf.Database
 	entClient, err := client.NewDbClient(clientConfig)

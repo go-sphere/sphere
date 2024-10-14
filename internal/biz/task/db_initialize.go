@@ -27,8 +27,6 @@ func initAdminIfNeed(ctx context.Context, client *ent.Client) error {
 		SetUsername("admin").
 		SetPassword(encrypt.CryptPassword("aA1234567")).
 		SetRoles([]string{"all"}).
-		OnConflict().
-		Ignore().
 		Exec(ctx)
 }
 

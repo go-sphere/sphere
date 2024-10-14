@@ -7,7 +7,7 @@
 package app
 
 import (
-	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/configs"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
 	"github.com/tbxark/go-base-api/internal/biz/task"
 	"github.com/tbxark/go-base-api/internal/pkg/boot"
@@ -20,7 +20,7 @@ import (
 
 // Injectors from wire.go:
 
-func NewDashApplication(conf *config.Config) (*boot.Application, error) {
+func NewDashApplication(conf *configs.Config) (*boot.Application, error) {
 	dashConfig := conf.Dash
 	clientConfig := conf.Database
 	entClient, err := client.NewDbClient(clientConfig)

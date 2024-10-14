@@ -3,7 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"github.com/spf13/cobra"
-	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/configs"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"os"
 )
@@ -24,7 +24,7 @@ func init() {
 
 func runConfig(cmd *cobra.Command, args []string) {
 	output := cmd.Flag("output").Value.String()
-	conf := config.NewEmptyConfig()
+	conf := configs.NewEmptyConfig()
 	switch cmd.Flag("database").Value.String() {
 	case "mysql":
 		conf.Database.Type = "mysql"

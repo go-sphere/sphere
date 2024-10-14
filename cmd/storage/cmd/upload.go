@@ -5,7 +5,7 @@ package cmd
 import (
 	"context"
 	"github.com/spf13/cobra"
-	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/configs"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/storage"
 	"github.com/tbxark/go-base-api/pkg/storage/qiniu"
@@ -36,7 +36,7 @@ func runUpload(cmd *cobra.Command, args []string) {
 	outP := cmd.Flag("output").Value.String()
 	dir := cmd.Flag("storage").Value.String()
 
-	cfg, err := config.LoadLocalConfig(confP)
+	cfg, err := configs.LoadLocalConfig(confP)
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}

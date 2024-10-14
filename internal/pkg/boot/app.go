@@ -1,7 +1,7 @@
 package boot
 
 import (
-	"github.com/tbxark/go-base-api/config"
+	"github.com/tbxark/go-base-api/configs"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/logfields"
 	"os"
@@ -74,9 +74,9 @@ func init() {
 	_ = os.Setenv("TZ", defaultLoc)
 }
 
-func Run(conf *config.Config, builder func(*config.Config) (*Application, error)) error {
-	log.Init(conf.Log, logfields.String("version", config.BuildVersion))
-	log.Info("Start application", logfields.String("version", config.BuildVersion))
+func Run(conf *configs.Config, builder func(*configs.Config) (*Application, error)) error {
+	log.Init(conf.Log, logfields.String("version", configs.BuildVersion))
+	log.Info("Start application", logfields.String("version", configs.BuildVersion))
 
 	app, err := builder(conf)
 	if err != nil {
