@@ -18,12 +18,11 @@ type AdminListResponse struct {
 }
 
 // AdminList
-// @Summary 管理员列表
-// @Tags dashboard
-// @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[AdminListResponse]
-// @Router /api/admin/list [get]
+//
+//	@Summary	管理员列表
+//	@Security	ApiKeyAuth
+//	@Success	200	{object}	web.DataResponse[AdminListResponse]
+//	@Router		/api/admin/list [get]
 func (w *Web) AdminList(ctx *gin.Context) (*AdminListResponse, error) {
 	all, err := w.DB.Admin.Query().All(ctx)
 	if err != nil {
@@ -49,14 +48,12 @@ type AdminInfoResponse struct {
 }
 
 // AdminCreate
-// @Summary 创建管理员
-// @Tags dashboard
-// @Accept json
-// @Produce json
-// @Param admin body AdminEditRequest true "管理员信息"
-// @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[AdminInfoResponse]
-// @Router /api/admin/create [post]
+//
+//	@Summary	创建管理员
+//	@Param		admin	body	AdminEditRequest	true	"管理员信息"
+//	@Security	ApiKeyAuth
+//	@Success	200	{object}	web.DataResponse[AdminInfoResponse]
+//	@Router		/api/admin/create [post]
 func (w *Web) AdminCreate(ctx *gin.Context) (*AdminInfoResponse, error) {
 	var req AdminEditRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -83,14 +80,15 @@ func (w *Web) AdminCreate(ctx *gin.Context) (*AdminInfoResponse, error) {
 }
 
 // AdminUpdate
-// @Summary 更新管理员
-// @Tags dashboard
-// @Accept json
-// @Produce json
-// @Param admin body AdminEditRequest true "管理员信息"
-// @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[AdminInfoResponse]
-// @Router /api/admin/update/{id} [post]
+//
+//	@Summary	更新管理员
+//	@Tags		dashboard
+//	@Accept		json
+//	@Produce	json
+//	@Param		admin	body	AdminEditRequest	true	"管理员信息"
+//	@Security	ApiKeyAuth
+//	@Success	200	{object}	web.DataResponse[AdminInfoResponse]
+//	@Router		/api/admin/update/{id} [post]
 func (w *Web) AdminUpdate(ctx *gin.Context) (*AdminInfoResponse, error) {
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
@@ -137,13 +135,14 @@ func (w *Web) getAdminByID(ctx *gin.Context, idParam string) (*ent.Admin, error)
 }
 
 // AdminDetail
-// @Summary 管理员详情
-// @Tags dashboard
-// @Produce json
-// @Param id path int true "管理员ID"
-// @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[AdminInfoResponse]
-// @Router /api/admin/detail/{id} [get]
+//
+//	@Summary	管理员详情
+//	@Tags		dashboard
+//	@Produce	json
+//	@Param		id	path	int	true	"管理员ID"
+//	@Security	ApiKeyAuth
+//	@Success	200	{object}	web.DataResponse[AdminInfoResponse]
+//	@Router		/api/admin/detail/{id} [get]
 func (w *Web) AdminDetail(ctx *gin.Context) (*AdminInfoResponse, error) {
 	adm, err := w.getAdminByID(ctx, ctx.Param("id"))
 	if err != nil {
@@ -155,13 +154,14 @@ func (w *Web) AdminDetail(ctx *gin.Context) (*AdminInfoResponse, error) {
 }
 
 // AdminDelete
-// @Summary 删除管理员
-// @Tags dashboard
-// @Produce json
-// @Param id path int true "管理员ID"
-// @Security ApiKeyAuth
-// @Success 200 {object} web.MessageResponse
-// @Router /api/admin/delete/{id} [delete]
+//
+//	@Summary	删除管理员
+//	@Tags		dashboard
+//	@Produce	json
+//	@Param		id	path	int	true	"管理员ID"
+//	@Security	ApiKeyAuth
+//	@Success	200	{object}	web.MessageResponse
+//	@Router		/api/admin/delete/{id} [delete]
 func (w *Web) AdminDelete(ctx *gin.Context) (*web.SimpleMessage, error) {
 	adm, err := w.getAdminByID(ctx, ctx.Param("id"))
 	if err != nil {

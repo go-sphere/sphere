@@ -28,8 +28,8 @@ config:
 docs:
 	rm -rf ./docs/dashboard
 	rm -rf ./docs/api
-	swag init --tags dashboard --output ./docs/dashboard --instanceName Dashboard -g docs.go
-	swag init --tags api  --output ./docs/api --instanceName API -g docs.go
+	swag init --output ./docs/api --instanceName API -g internal/biz/api/web.go
+	swag init --output ./docs/dashboard --instanceName Dashboard -g internal/biz/dash/web.go
 
 .PHONY: typescript
 typescript: docs

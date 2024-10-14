@@ -17,6 +17,17 @@ import (
 	"strings"
 )
 
+//	@title						API
+//	@version					1.0.0
+//  @description				API docs
+//	@accept						json
+//	@produce					json
+
+//	@securityDefinitions.apikey	ApiKeyAuth
+//	@in							header
+//	@name						Authorization
+//	@description				JWT token
+
 type Config struct {
 	JWT     string `json:"jwt"`
 	Address string `json:"address"`

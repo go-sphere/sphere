@@ -24,13 +24,11 @@ type AuthResponse struct {
 }
 
 // AuthWxMini
-// @Summary 微信小程序登录
-// @Tags api
-// @Accept json
-// @Produce json
-// @Param request body WxMiniAuthRequest true "登录信息"
-// @Success 200 {object} web.DataResponse[AuthResponse]
-// @Router /api/auth/wxmini [post]
+//
+//	@Summary	微信小程序登录
+//	@Param		request	body		WxMiniAuthRequest	true	"登录信息"
+//	@Success	200		{object}	web.DataResponse[AuthResponse]
+//	@Router		/api/auth/wxmini [post]
 func (w *Web) AuthWxMini(ctx *gin.Context) (*AuthResponse, error) {
 	var req WxMiniAuthRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {

@@ -22,13 +22,11 @@ type UserInfoMeResponse struct {
 }
 
 // UserMe
-// @Summary 获取当前用户信息
-// @Tags api
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[UserInfoMeResponse]
-// @Router /api/user/me [get]
+//
+//	@Summary	获取当前用户信息
+//	@Security	ApiKeyAuth
+//	@Success	200	{object}	web.DataResponse[UserInfoMeResponse]
+//	@Router		/api/user/me [get]
 func (w *Web) UserMe(ctx *gin.Context) (*UserInfoMeResponse, error) {
 	id, err := w.Auth.GetCurrentID(ctx)
 	if err != nil {
@@ -54,14 +52,12 @@ type UpdateUserInfoResponse struct {
 }
 
 // UserUpdate
-// @Summary 更新用户信息
-// @Tags api
-// @Accept json
-// @Produce json
-// @Param user body UpdateUserInfoRequest true "用户信息"
-// @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[UpdateUserInfoResponse]
-// @Router /api/user/update [post]
+//
+//	@Summary	更新用户信息
+//	@Param		user	body	UpdateUserInfoRequest	true	"用户信息"
+//	@Security	ApiKeyAuth
+//	@Success	200	{object}	web.DataResponse[UpdateUserInfoResponse]
+//	@Router		/api/user/update [post]
 func (w *Web) UserUpdate(ctx *gin.Context) (*UpdateUserInfoResponse, error) {
 	id, err := w.Auth.GetCurrentID(ctx)
 	if err != nil {
@@ -93,14 +89,12 @@ type WxMiniBindPhoneRequest struct {
 }
 
 // UserBindPhoneWxMini
-// @Summary 绑定手机号
-// @Tags api
-// @Accept json
-// @Produce json
-// @Param request body WxMiniBindPhoneRequest true "绑定信息"
-// @Security ApiKeyAuth
-// @Success 200 {object} web.MessageResponse
-// @Router /api/user/bind/phone/wxmini [post]
+//
+//	@Summary	绑定手机号
+//	@Param		request	body	WxMiniBindPhoneRequest	true	"绑定信息"
+//	@Security	ApiKeyAuth
+//	@Success	200	{object}	web.MessageResponse
+//	@Router		/api/user/bind/phone/wxmini [post]
 func (w *Web) UserBindPhoneWxMini(ctx *gin.Context) (*web.SimpleMessage, error) {
 	var req WxMiniBindPhoneRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {

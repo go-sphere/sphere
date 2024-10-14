@@ -9,14 +9,14 @@ import (
 )
 
 // UploadToken
-// @Summary 获取上传凭证
-// @Tags dashboard
-// @Accept json
-// @Produce json
-// @Param filename query string true "文件名"
-// @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[storage.FileUploadToken]
-// @Router /api/upload/token [get]
+//	@Summary	获取上传凭证
+//	@Tags		dashboard
+//	@Accept		json
+//	@Produce	json
+//	@Param		filename	query	string	true	"文件名"
+//	@Security	ApiKeyAuth
+//	@Success	200	{object}	web.DataResponse[storage.FileUploadToken]
+//	@Router		/api/upload/token [get]
 func (w *Web) UploadToken(ctx *gin.Context) (*storage.FileUploadToken, error) {
 	var req struct {
 		Filename string `form:"filename"`
@@ -36,12 +36,12 @@ func (w *Web) UploadToken(ctx *gin.Context) (*storage.FileUploadToken, error) {
 }
 
 // CacheReset
-// @Summary 重置缓存
-// @Tags dashboard
-// @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} web.MessageResponse
-// @Router /api/cache/reset [post]
+//	@Summary	重置缓存
+//	@Tags		dashboard
+//	@Produce	json
+//	@Security	ApiKeyAuth
+//	@Success	200	{object}	web.MessageResponse
+//	@Router		/api/cache/reset [post]
 func (w *Web) CacheReset(ctx *gin.Context) (*web.SimpleMessage, error) {
 	err := w.Cache.DelAll(ctx)
 	if err != nil {
