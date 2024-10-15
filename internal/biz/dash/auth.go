@@ -50,13 +50,10 @@ func (w *Web) createLoginResponse(u *ent.Admin) (*AdminLoginResponse, error) {
 
 // AuthLogin
 //
-//	@Summary	管理员登录
-//	@Tags		dashboard
-//	@Accept		json
-//	@Produce	json
-//	@Param		login	body		AdminLoginRequest	true	"登录信息"
-//	@Success	200		{object}	AdminLoginResponseWrapper
-//	@Router		/api/auth/login [post]
+// @Summary 管理员登录
+// @Param login body AdminLoginRequest true "登录信息"
+// @Success 200 {object} AdminLoginResponseWrapper
+// @Router /api/auth/login [post]
 func (w *Web) AuthLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 	var req AdminLoginRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -78,13 +75,10 @@ type AdminRefreshTokenRequest struct {
 
 // AuthRefresh
 //
-//	@Summary	刷新管理员Token
-//	@Tags		dashboard
-//	@Accept		json
-//	@Produce	json
-//	@Param		login	body		AdminRefreshTokenRequest	true	"刷新信息"
-//	@Success	200		{object}	AdminLoginResponseWrapper
-//	@Router		/api/auth/refresh [post]
+// @Summary 刷新管理员Token
+// @Param login body AdminRefreshTokenRequest true "刷新信息"
+// @Success 200 {object} AdminLoginResponseWrapper
+// @Router /api/auth/refresh [post]
 func (w *Web) AuthRefresh(ctx *gin.Context) (*AdminLoginResponse, error) {
 	var body AdminRefreshTokenRequest
 	if err := ctx.ShouldBindJSON(&body); err != nil {

@@ -26,15 +26,15 @@ config:
 
 .PHONY: docs
 docs:
-	rm -rf ./docs/dashboard
+	rm -rf ./docs/dash
 	rm -rf ./docs/api
-	swag init --output ./docs/api --instanceName API -g internal/biz/api/web.go
-	swag init --output ./docs/dashboard --instanceName Dashboard -g internal/biz/dash/web.go
+	swag init --output ./docs/api  --exclude internal/biz/dash --instanceName API  -g internal/biz/api/web.go
+	swag init --output ./docs/dash --exclude internal/biz/api  --instanceName Dash -g internal/biz/dash/web.go
 
 .PHONY: typescript
 typescript: docs
-	npx swagger-typescript-api -p ./docs/api/API_swagger.json -o ./docs/api/typescript --modular
-	npx swagger-typescript-api -p ./docs/dashboard/Dashboard_swagger.json -o ./docs/dashboard/typescript --modular
+	npx swagger-typescript-api -p ./docs/api/API_swagger.json   -o ./docs/api/typescript  --modular
+	npx swagger-typescript-api -p ./docs/dash/Dash_swagger.json -o ./docs/dash/typescript --modular
 
 .PHONY: tmpl
 tmpl:

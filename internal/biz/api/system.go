@@ -10,11 +10,11 @@ import (
 
 // UploadToken
 //
-//	@Summary	获取上传凭证
-//	@Param		filename	query	string	true	"文件名"
-//	@Security	ApiKeyAuth
-//	@Success	200	{object}	web.DataResponse[storage.FileUploadToken]
-//	@Router		/api/upload/token [get]
+// @Summary 获取上传凭证
+// @Security ApiKeyAuth
+// @Param filename query string true "文件名"
+// @Success 200 {object} web.DataResponse[storage.FileUploadToken]
+// @Router /api/upload/token [get]
 func (w *Web) UploadToken(ctx *gin.Context) (*storage.FileUploadToken, error) {
 	var req struct {
 		Filename string `form:"filename"`
@@ -35,11 +35,9 @@ func (w *Web) UploadToken(ctx *gin.Context) (*storage.FileUploadToken, error) {
 
 // Status
 //
-//	@Summary	获取系统状态
-//	@Accept		json
-//	@Produce	json
-//	@Success	200	{object}	web.MessageResponse
-//	@Router		/api/status [get]
+// @Summary 获取系统状态
+// @Success 200 {object} web.MessageResponse
+// @Router /api/status [get]
 func (w *Web) Status(ctx *gin.Context) (*web.SimpleMessage, error) {
 	return web.NewSuccessResponse(), nil
 }
