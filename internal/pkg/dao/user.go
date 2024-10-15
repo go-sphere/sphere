@@ -2,9 +2,9 @@ package dao
 
 import (
 	"context"
-	"github.com/tbxark/go-base-api/pkg/dao/ent"
-	"github.com/tbxark/go-base-api/pkg/dao/ent/user"
-	"github.com/tbxark/go-base-api/pkg/dao/ent/userplatform"
+	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
+	"github.com/tbxark/go-base-api/internal/pkg/database/ent/user"
+	"github.com/tbxark/go-base-api/internal/pkg/database/ent/userplatform"
 )
 
 func (d *Dao) GetUsers(ctx context.Context, ids []int) (map[int]*ent.User, error) {

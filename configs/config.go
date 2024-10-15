@@ -7,7 +7,7 @@ import (
 	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/bot"
 	"github.com/tbxark/go-base-api/internal/biz/dash"
-	"github.com/tbxark/go-base-api/pkg/dao/client"
+	"github.com/tbxark/go-base-api/internal/pkg/database/client"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/storage/qiniu"
 	"github.com/tbxark/go-base-api/pkg/wechat"

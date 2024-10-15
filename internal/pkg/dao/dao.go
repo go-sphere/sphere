@@ -1,6 +1,8 @@
 package dao
 
-import "github.com/tbxark/go-base-api/pkg/dao/ent"
+import (
+	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
+)
 
 type Dao struct {
 	*ent.Client

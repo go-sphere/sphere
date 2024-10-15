@@ -2,7 +2,7 @@ package dao
 
 import (
 	"context"
-	"github.com/tbxark/go-base-api/pkg/dao/ent"
+	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
 	"github.com/tbxark/go-base-api/pkg/log"
 	"github.com/tbxark/go-base-api/pkg/log/logfields"
 )

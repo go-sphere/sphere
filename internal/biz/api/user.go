@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
-	"github.com/tbxark/go-base-api/pkg/dao/ent"
-	"github.com/tbxark/go-base-api/pkg/dao/ent/user"
+	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
+	"github.com/tbxark/go-base-api/internal/pkg/database/ent/user"
 	"github.com/tbxark/go-base-api/pkg/web"
 )
 

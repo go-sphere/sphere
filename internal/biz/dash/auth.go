@@ -2,9 +2,9 @@ package dash
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
+	"github.com/tbxark/go-base-api/internal/pkg/database/ent/admin"
 	"github.com/tbxark/go-base-api/internal/pkg/encrypt"
-	"github.com/tbxark/go-base-api/pkg/dao/ent"
-	"github.com/tbxark/go-base-api/pkg/dao/ent/admin"
 	"github.com/tbxark/go-base-api/pkg/web"
 	"strconv"
 	"time"
@@ -49,6 +49,7 @@ func (w *Web) createLoginResponse(u *ent.Admin) (*AdminLoginResponse, error) {
 }
 
 // AuthLogin
+//
 //	@Summary	管理员登录
 //	@Tags		dashboard
 //	@Accept		json
@@ -76,6 +77,7 @@ type AdminRefreshTokenRequest struct {
 }
 
 // AuthRefresh
+//
 //	@Summary	刷新管理员Token
 //	@Tags		dashboard
 //	@Accept		json

@@ -15,8 +15,8 @@ import (
 // Injectors from wire.go:
 
 func NewBotApplication(conf *configs.Config) (*boot.Application, error) {
-	botConfig := conf.Bot
-	app := bot.NewApp(botConfig)
+	config := conf.Bot
+	app := bot.NewApp(config)
 	application := CreateApplication(app)
 	return application, nil
 }
