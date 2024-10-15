@@ -31,7 +31,7 @@
         systemd_name: "base-api"
         config_dest: "{{ config_dir }}/{{ systemd_name }}/config.json"
         config_source: "{{ project_dir }}/config_gen.json"
-        exec_start: "{{ deploy_dir }}/{{ binary_name }} start -c {{ config_dest }}" 
+        exec_start: "{{ deploy_dir }}/{{ binary_name }} -config {{ config_dest }}"
 
     - name: Deploy nginx
       include_role:
