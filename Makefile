@@ -3,7 +3,7 @@ BUILD=$(shell git rev-parse --short HEAD)@$(shell date +%s)
 CURRENT_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 CURRENT_ARCH := $(shell uname -m | tr '[:upper:]' '[:lower:]')
 
-LD_FLAGS="-X $(MODULE)/config.BuildVersion=$(BUILD)"
+LD_FLAGS="-X $(MODULE)/configs.BuildVersion=$(BUILD)"
 GO_BUILD=CGO_ENABLED=0 go build -ldflags $(LD_FLAGS)
 
 .PHONY: init
@@ -58,7 +58,7 @@ buildLinuxARM64:
 
 .PHONY: buildDockerImage
 buildDockerImage:
-	docker buildx build --platform=linux/amd64,linux/arm64 -t ghcr.io/tbxark/go-base-api:lastest . -f  cmd/cli/Dockerfile --push --provenance=false
+	docker buildx build --platform=linux/amd64,linux/arm64 -t ghcr.io/tbxark/$(MODULE):lastest . -f  cmd/app/Dockerfile --push --provenance=false
 
 .PHONY: delpoy
 deploy:
