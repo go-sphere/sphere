@@ -38,7 +38,7 @@ typescript: docs
 
 .PHONY: tmpl
 tmpl:
-	go run -tags=tmplGen ./assets/tmpl/gen/gen.go ./assets/tmpl
+	go run -tags=tmplgen ./assets/tmpl/gen/generate.go ./assets/tmpl
 
 .PHONY: dash
 dash:

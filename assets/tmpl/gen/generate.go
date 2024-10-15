@@ -1,5 +1,5 @@
-//go:build tmplGen
-// +build tmplGen
+//go:build tmplgen
+// +build tmplgen
 
 package main
 

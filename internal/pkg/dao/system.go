@@ -6,6 +6,33 @@ import (
 	"github.com/tbxark/go-base-api/pkg/dao/ent/keyvaluestore"
 )
 
+func GetKeyValueStore[T any](ctx context.Context, dao *Dao, key string) (*T, error) {
+	value, err := dao.KeyValueStore.Query().Where(keyvaluestore.KeyEQ(key)).Only(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var res T
+	err = json.Unmarshal(value.Value, &res)
+	if err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func SetSystemConfig[T any](ctx context.Context, dao *Dao, key string, value *T) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	err = dao.KeyValueStore.Create().
+		SetKey(key).
+		SetValue(data).
+		OnConflictColumns(keyvaluestore.FieldKey).
+		SetValue(data).
+		Exec(ctx)
+	return err
+}
+
 type SystemConfig struct {
 	ExampleField string `json:"example_field"`
 }
@@ -13,27 +40,9 @@ type SystemConfig struct {
 const SystemConfigKey = "system_config"
 
 func (d *Dao) GetSystemConfig(ctx context.Context) (*SystemConfig, error) {
-	var config SystemConfig
-	value, err := d.KeyValueStore.Query().Where(keyvaluestore.KeyEQ(SystemConfigKey)).Only(ctx)
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(value.Value, &config)
-	if err != nil {
-		return nil, err
-	}
-	return &config, nil
+	return GetKeyValueStore[SystemConfig](ctx, d, SystemConfigKey)
 }
 
 func (d *Dao) SetSystemConfig(ctx context.Context, config *SystemConfig) error {
-	data, err := json.Marshal(config)
-	if err != nil {
-		return err
-	}
-	err = d.KeyValueStore.Create().SetKey(SystemConfigKey).
-		SetValue(data).
-		OnConflictColumns(keyvaluestore.FieldKey).
-		SetValue(data).
-		Exec(ctx)
-	return err
+	return SetSystemConfig(ctx, d, SystemConfigKey, config)
 }

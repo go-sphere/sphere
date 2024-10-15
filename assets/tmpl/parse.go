@@ -1,4 +1,4 @@
-//go:build !tmplGen
+//go:build !tmplgen
 
 package tmpl
 
