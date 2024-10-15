@@ -1,7 +1,12 @@
 MODULE := $(shell go list -m)
-BUILD=$(shell git rev-parse --short HEAD)@$(shell date +%s)
+MODULE_NAME := $(lastword $(subst /, ,$(MODULE)))
+BUILD := $(shell git rev-parse --short HEAD)@$(shell date +%s)
 CURRENT_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 CURRENT_ARCH := $(shell uname -m | tr '[:upper:]' '[:lower:]')
+
+DOCKER_IMAGE=ghcr.io/tbxark/$(MODULE_NAME)
+DOCKER_FILE=cmd/app/Dockerfile
+
 
 LD_FLAGS="-X $(MODULE)/configs.BuildVersion=$(BUILD)"
 GO_BUILD=CGO_ENABLED=0 go build -ldflags $(LD_FLAGS)
@@ -58,7 +63,7 @@ buildLinuxARM64:
 
 .PHONY: buildDockerImage
 buildDockerImage:
-	docker buildx build --platform=linux/amd64,linux/arm64 -t ghcr.io/tbxark/$(MODULE):lastest . -f  cmd/app/Dockerfile --push --provenance=false
+	docker buildx build --platform=linux/amd64,linux/arm64 -t $(DOCKER_IMAGE) . -f  $(DOCKER_FILE) --push --provenance=false
 
 .PHONY: delpoy
 deploy:
