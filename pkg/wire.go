@@ -5,7 +5,6 @@ package pkg
 
 import (
 	"github.com/google/wire"
-	"github.com/tbxark/go-base-api/internal/pkg/database/client"
 	"github.com/tbxark/go-base-api/pkg/cache"
 	"github.com/tbxark/go-base-api/pkg/cache/memory"
 	"github.com/tbxark/go-base-api/pkg/storage"
@@ -23,4 +22,4 @@ var storageSet = wire.NewSet(
 	wire.Bind(new(storage.Storage), new(*qiniu.Qiniu)),
 )
 
-var ProviderSet = wire.NewSet(client.NewDataBaseClient, wechat.NewWechat, storageSet, cacheSet)
+var ProviderSet = wire.NewSet(wechat.NewWechat, storageSet, cacheSet)
