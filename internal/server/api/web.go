@@ -3,11 +3,11 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/sphere/internal/pkg/dao"
+	"github.com/tbxark/sphere/internal/pkg/render"
 	"github.com/tbxark/sphere/pkg/cache"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/log/logfields"
 	"github.com/tbxark/sphere/pkg/storage"
-	"github.com/tbxark/sphere/pkg/utils/render"
 	"github.com/tbxark/sphere/pkg/web/auth/jwtauth"
 	"github.com/tbxark/sphere/pkg/web/middleware/auth"
 	"github.com/tbxark/sphere/pkg/web/middleware/logger"
