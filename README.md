@@ -2,7 +2,16 @@
 
 **Sphere** is a multi-server application template that includes an API server, a dashboard server, and a bot server. It is designed to be a starting point for building a multi-server application.
 
+This project uses minimal encapsulation, the simplest structure, and reduces code hierarchy to achieve rapid development while maintaining code readability and maintainability.
+
+### Core Dependencies
+
+- **Web Framework**: Gin
+- **Dependency Injection**: Wire
+- **ORM**: Ent
+
 ### Project Structure
+
 ```
 ├── assets                      # embed assets
 │   └── dash                    # embed dashboard frontend
@@ -13,7 +22,7 @@
 │   ├── config                  # configuration cli tool
 │   ├── dash                    # dashboard server
 │   └── storage                 # storage cli tool
-├── configs                     # configuration
+├── config                      # configuration
 ├── devops                      # devops configuration
 ├── docs                        # documentation generate by swag
 ├── internal                    # internal packages
