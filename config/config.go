@@ -16,23 +16,23 @@ import (
 var BuildVersion = "dev"
 
 type RemoteConfig struct {
-	Provider   string `json:"provider"`
-	Endpoint   string `json:"endpoint"`
-	Path       string `json:"path"`
-	ConfigType string `json:"config_type"`
-	SecretKey  string `json:"secret"`
+	Provider   string `json:"provider" yaml:"provider"`
+	Endpoint   string `json:"endpoint" yaml:"endpoint"`
+	Path       string `json:"path" yaml:"path"`
+	ConfigType string `json:"config_type" yaml:"config_type"`
+	SecretKey  string `json:"secret_key" yaml:"secret_key"`
 }
 
 type Config struct {
-	Environments map[string]string `json:"environments"`
-	Remote       *RemoteConfig     `json:"remote"`
-	Log          *log.Options      `json:"log"`
-	Database     *client.Config    `json:"database"`
-	Dash         *dash.Config      `json:"dash"`
-	API          *api.Config       `json:"api"`
-	Storage      *qiniu.Config     `json:"storage"`
-	Bot          *bot.Config       `json:"bot"`
-	WxMini       *wechat.Config    `json:"wx_mini"`
+	Environments map[string]string `json:"environments" yaml:"environments"`
+	Remote       *RemoteConfig     `json:"remote" yaml:"remote"`
+	Log          *log.Options      `json:"log" yaml:"log"`
+	Database     *client.Config    `json:"database" yaml:"database"`
+	Dash         *dash.Config      `json:"dash" yaml:"dash"`
+	API          *api.Config       `json:"api" yaml:"api"`
+	Storage      *qiniu.Config     `json:"storage" yaml:"storage"`
+	Bot          *bot.Config       `json:"bot" yaml:"bot"`
+	WxMini       *wechat.Config    `json:"wx_mini" yaml:"wx_mini"`
 }
 
 func NewEmptyConfig() *Config {

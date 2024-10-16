@@ -20,12 +20,12 @@ var (
 )
 
 type Config struct {
-	AccessKey string `json:"access_key"`
-	SecretKey string `json:"secret_key"`
-	Bucket    string `json:"bucket"`
-	Dir       string `json:"dir"`
-	Domain    string `json:"domain"`
-	Host      string `json:"host"`
+	AccessKey string `json:"access_key" yaml:"access_key"`
+	SecretKey string `json:"secret_key" yaml:"secret_key"`
+	Bucket    string `json:"bucket" yaml:"bucket"`
+	Dir       string `json:"dir" yaml:"dir"`
+	Domain    string `json:"domain" yaml:"domain"`
+	Host      string `json:"host" yaml:"host"`
 }
 
 type Qiniu struct {

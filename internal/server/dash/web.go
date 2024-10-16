@@ -31,11 +31,11 @@ import (
 // @description JWT token
 
 type Config struct {
-	JWT        string `json:"jwt"`
-	Address    string `json:"address"`
-	Doc        bool   `json:"doc"`
-	DashCors   string `json:"dash_cors"`
-	DashStatic string `json:"dash_static"`
+	JWT        string `json:"jwt" yaml:"jwt"`
+	Address    string `json:"address" yaml:"address"`
+	Doc        bool   `json:"doc" yaml:"doc"`
+	DashCors   string `json:"dash_cors" yaml:"dash_cors"`
+	DashStatic string `json:"dash_static" yaml:"dash_static"`
 }
 
 type Web struct {

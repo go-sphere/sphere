@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"github.com/spf13/cobra"
 	"github.com/tbxark/sphere/config"
-	"github.com/tbxark/sphere/pkg/log"
+	"gopkg.in/yaml.v3"
+	"log"
 	"os"
+	"path/filepath"
 )
 
 // genCmd represents the config command
@@ -22,6 +24,10 @@ func init() {
 	genCmd.Flags().StringP("database", "d", "sqlite", "database type")
 }
 
+type Encoder interface {
+	Encode(v interface{}) error
+}
+
 func runConfig(cmd *cobra.Command, args []string) {
 	output := cmd.Flag("output").Value.String()
 	conf := config.NewEmptyConfig()
@@ -33,12 +39,25 @@ func runConfig(cmd *cobra.Command, args []string) {
 		conf.Database.Type = "sqlite3"
 		conf.Database.Path = "file:data.db?cache=shared&mode=rwc"
 	}
-	bytes, err := json.MarshalIndent(conf, "", "  ")
+	file, err := os.Create(output)
 	if err != nil {
-		log.Fatalf("marshal config error: %v", err)
+		log.Fatalf("create file error: %v", err)
 	}
-	err = os.WriteFile(output, bytes, 0644)
+	var encoder Encoder
+	ext := filepath.Ext(output)
+	switch ext {
+	case ".json":
+		en := json.NewEncoder(file)
+		en.SetEscapeHTML(false)
+		en.SetIndent("", "  ")
+		encoder = en
+	case ".yaml", ".yml":
+		encoder = yaml.NewEncoder(file)
+	default:
+		log.Fatalf("unsupported file type: %s", ext)
+	}
+	err = encoder.Encode(conf)
 	if err != nil {
-		log.Fatalf("write config error: %v", err)
+		log.Fatalf("encode config error: %v", err)
 	}
 }

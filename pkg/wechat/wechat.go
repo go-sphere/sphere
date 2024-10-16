@@ -13,10 +13,22 @@ import (
 	"unicode/utf8"
 )
 
+type MiniAppEnv string
+
+const (
+	MiniAppEnvRelease MiniAppEnv = "release" // 正式版
+	MiniAppEnvTrial   MiniAppEnv = "trial"   // 体验版
+	MiniAppEnvDevelop MiniAppEnv = "develop" // 开发版
+)
+
+func (e MiniAppEnv) String() string {
+	return string(e)
+}
+
 type Config struct {
-	AppID     string `json:"app_id"`
-	AppSecret string `json:"app_secret"`
-	Env       string `json:"env"` // 正式版为 "release"，体验版为 "trial"，开发版为 "develop"。默认是正式版。
+	AppID     string     `json:"app_id" yaml:"app_id"`
+	AppSecret string     `json:"app_secret" yaml:"app_secret"`
+	Env       MiniAppEnv `json:"env" yaml:"env"`
 }
 
 type Wechat struct {
@@ -84,7 +96,7 @@ func (w *Wechat) GetQrCode(code QrCodeRequest, retryable bool) ([]byte, error) {
 		return nil, err
 	}
 	if code.EnvVersion == "" {
-		code.EnvVersion = w.config.Env
+		code.EnvVersion = w.config.Env.String()
 	}
 	url, err := request.URL("https://api.weixin.qq.com/wxa/getwxacodeunlimit", map[string]string{
 		"access_token": token,
@@ -182,7 +194,7 @@ func (w *Wechat) SendMessageWithTemplate(temp *PushTemplateConfig, values []any,
 		Page:             temp.Page,
 		ToUser:           toUser,
 		Data:             data,
-		MiniprogramState: w.config.Env,
+		MiniprogramState: w.config.Env.String(),
 		Lang:             "zh_CN",
 	}
 	return w.SendMessage(msg, true)

@@ -31,8 +31,8 @@ import (
 // @description JWT token
 
 type Config struct {
-	JWT     string `json:"jwt"`
-	Address string `json:"address"`
+	JWT     string `json:"jwt" yaml:"jwt"`
+	Address string `json:"address" yaml:"address"`
 }
 
 type Web struct {

@@ -10,7 +10,7 @@ import (
 )
 
 type Config struct {
-	Token string `json:"token"`
+	Token string `json:"token" yaml:"token"`
 }
 
 type Bot struct {
