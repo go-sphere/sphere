@@ -19,7 +19,7 @@ func (a *ACL) Allow(subject, resource string) {
 
 func (a *ACL) IsAllowed(subject, resource string) bool {
 	if subjectPerms, ok := a.permissions[subject]; ok {
-		return subjectPerms[resource]
+		return subjectPerms[resource] // return false if resource not found
 	}
 	return false
 }

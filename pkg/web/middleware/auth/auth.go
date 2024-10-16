@@ -14,6 +14,10 @@ type Auth struct {
 	parser parser.AuthParser
 }
 
+type AccessControl interface {
+	IsAllowed(role, resource string) bool
+}
+
 func NewAuth(prefix string, parser parser.AuthParser) *Auth {
 	return &Auth{
 		Base:   &Base{},
@@ -22,67 +26,65 @@ func NewAuth(prefix string, parser parser.AuthParser) *Auth {
 	}
 }
 
-func (w *Auth) parseToken(token string) (claims *parser.Claims, err error) {
-	if len(w.prefix) > 0 && strings.HasPrefix(token, w.prefix+" ") {
-		token = token[len(w.prefix)+1:]
-	}
-	return w.parser.ParseToken(token)
-}
-
 func (w *Auth) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
+	abort := func(ctx *gin.Context) {
+		if abortOnError {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"message": "unauthorized",
+			})
+		}
+	}
+
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader(AuthorizationHeader)
 		if token == "" {
-			w.handleUnauthorized(ctx, abortOnError)
+			abort(ctx)
 			return
 		}
 
-		claims, err := w.parseToken(token)
+		if len(w.prefix) > 0 && strings.HasPrefix(token, w.prefix+" ") {
+			token = token[len(w.prefix)+1:]
+		}
+
+		claims, err := w.parser.ParseToken(token)
 		if err != nil {
-			w.handleUnauthorized(ctx, abortOnError)
+			abort(ctx)
 			return
 		}
-		w.setContextValues(ctx, claims)
+
+		id, _ := strconv.Atoi(claims.Subject)
+		ctx.Set(ContextKeyID, id)
+		ctx.Set(ContextKeyUsername, claims.Username)
+		ctx.Set(ContextKeyRoles, claims.Username)
 	}
 }
 
-func (w *Auth) handleUnauthorized(ctx *gin.Context, abortOnError bool) {
-	if abortOnError {
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+func (w *Auth) NewPermissionMiddleware(resource string, acl AccessControl) gin.HandlerFunc {
+	abort := func(ctx *gin.Context) {
+		ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"message": "forbidden",
+		})
 	}
-}
-
-func (w *Auth) setContextValues(ctx *gin.Context, claims *parser.Claims) {
-	id, _ := strconv.Atoi(claims.Subject)
-	ctx.Set(ContextKeyID, id)
-	ctx.Set(ContextKeyUsername, claims.Username)
-	ctx.Set(ContextKeyRoles, claims.Username)
-}
-
-func (w *Auth) NewPermissionMiddleware(resource string, acl *ACL) func(context *gin.Context) {
 	return func(ctx *gin.Context) {
 		rolesRaw, exist := ctx.Get(ContextKeyRoles)
 		if !exist {
-			ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"message": "forbidden",
-			})
+			abort(ctx)
 			return
 		}
+
 		roleStr, ok := rolesRaw.(string)
 		if !ok {
-			ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"message": "forbidden",
-			})
+			abort(ctx)
 			return
 		}
+
 		roles := w.parser.ParseRoles(roleStr)
-		for r := range roles {
+		for _, r := range roles {
 			if acl.IsAllowed(r, resource) {
 				return
 			}
 		}
-		ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"message": "forbidden",
-		})
+
+		abort(ctx)
 	}
 }

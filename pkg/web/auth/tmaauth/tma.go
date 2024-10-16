@@ -40,6 +40,6 @@ func (t *TmaAuth) ParseToken(token string) (*parser.Claims, error) {
 	}, nil
 }
 
-func (t *TmaAuth) ParseRoles(roles string) map[string]struct{} {
-	return make(map[string]struct{})
+func (t *TmaAuth) ParseRoles(roles string) []string {
+	return []string{roles}
 }

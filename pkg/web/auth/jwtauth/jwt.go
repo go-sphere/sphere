@@ -125,15 +125,8 @@ func (g *JwtAuth) ParseToken(signedToken string) (*parser.Claims, error) {
 	}, nil
 }
 
-func (g *JwtAuth) ParseRoles(roles string) map[string]struct{} {
-	roleMap := make(map[string]struct{})
-	if roles == "" {
-		return roleMap
-	}
-	for _, r := range strings.Split(roles, ",") {
-		roleMap[r] = struct{}{}
-	}
-	return roleMap
+func (g *JwtAuth) ParseRoles(roles string) []string {
+	return strings.Split(roles, ",")
 }
 
 func (g *JwtAuth) SetTokenDuration(duration time.Duration) {
