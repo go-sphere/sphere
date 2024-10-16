@@ -20,7 +20,7 @@ import (
 
 // Injectors from wire.go:
 
-func NewApplication(conf *configs.Config) (*boot.Application, error) {
+func NewDashApplication(conf *configs.Config) (*boot.Application, error) {
 	config := conf.Dash
 	clientConfig := conf.Database
 	entClient, err := client.NewDataBaseClient(clientConfig)

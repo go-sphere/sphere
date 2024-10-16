@@ -8,6 +8,7 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
+	"github.com/tbxark/sphere/internal/pkg/render"
 	"github.com/tbxark/sphere/pkg/web"
 	"strconv"
 	"time"
@@ -18,9 +19,9 @@ type WxMiniAuthRequest struct {
 }
 
 type AuthResponse struct {
-	IsNew bool      `json:"isNew"`
-	Token string    `json:"token"`
-	User  *ent.User `json:"user"`
+	IsNew bool         `json:"isNew"`
+	Token string       `json:"token"`
+	User  *render.User `json:"user"`
 }
 
 // AuthWxMini
@@ -50,7 +51,7 @@ func (w *Web) AuthWxMini(ctx *gin.Context) (*AuthResponse, error) {
 				return nil, ue
 			}
 			return &AuthResponse{
-				User:  u,
+				User:  w.Render.Me(u),
 				IsNew: false,
 			}, nil
 		}
@@ -75,7 +76,7 @@ func (w *Web) AuthWxMini(ctx *gin.Context) (*AuthResponse, error) {
 			return nil, e
 		}
 		return &AuthResponse{
-			User:  newUser,
+			User:  w.Render.Me(newUser),
 			IsNew: true,
 		}, nil
 	})
@@ -87,7 +88,6 @@ func (w *Web) AuthWxMini(ctx *gin.Context) (*AuthResponse, error) {
 		return nil, err
 	}
 	res.Token = token.Token
-	res.User = w.Render.Me(res.User)
 	return res, nil
 }
 

@@ -30,7 +30,7 @@ func (w *Web) AdminList(ctx *gin.Context) (*AdminListResponse, error) {
 	}
 	return &AdminListResponse{
 		Admins: lo.Map(all, func(a *ent.Admin, i int) *render.Admin {
-			return render.AdminWithRoles(a)
+			return w.Render.AdminWithRoles(a)
 		}),
 	}, nil
 }
@@ -75,7 +75,7 @@ func (w *Web) AdminCreate(ctx *gin.Context) (*AdminInfoResponse, error) {
 		return nil, err
 	}
 	return &AdminInfoResponse{
-		Admin: render.AdminWithRoles(u),
+		Admin: w.Render.AdminWithRoles(u),
 	}, nil
 }
 
@@ -113,7 +113,7 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (*AdminInfoResponse, error) {
 		return nil, err
 	}
 	return &AdminInfoResponse{
-		Admin: render.AdminWithRoles(u),
+		Admin: w.Render.AdminWithRoles(u),
 	}, nil
 }
 
@@ -144,7 +144,7 @@ func (w *Web) AdminDetail(ctx *gin.Context) (*AdminInfoResponse, error) {
 		return nil, err
 	}
 	return &AdminInfoResponse{
-		Admin: render.AdminWithRoles(adm),
+		Admin: w.Render.AdminWithRoles(adm),
 	}, nil
 }
 

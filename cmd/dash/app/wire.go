@@ -11,7 +11,7 @@ import (
 	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
-func NewApplication(conf *configs.Config) (*boot.Application, error) {
+func NewDashApplication(conf *configs.Config) (*boot.Application, error) {
 	wire.Build(configs.ProviderSet, pkg.ProviderSet, internal.ProviderSet, wire.NewSet(CreateApplication))
 	return &boot.Application{}, nil
 }
