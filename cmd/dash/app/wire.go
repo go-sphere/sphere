@@ -6,13 +6,12 @@ package app
 import (
 	"github.com/google/wire"
 	"github.com/tbxark/go-base-api/configs"
-	"github.com/tbxark/go-base-api/internal/biz"
-	ipkg "github.com/tbxark/go-base-api/internal/pkg"
-	"github.com/tbxark/go-base-api/internal/pkg/boot"
+	"github.com/tbxark/go-base-api/internal"
 	"github.com/tbxark/go-base-api/pkg"
+	"github.com/tbxark/go-base-api/pkg/utils/boot"
 )
 
-func NewDashApplication(conf *configs.Config) (*boot.Application, error) {
-	wire.Build(pkg.ProviderSet, ipkg.ProviderSet, biz.ProviderSet, configs.ProviderSet, wire.NewSet(CreateApplication))
+func NewApplication(conf *configs.Config) (*boot.Application, error) {
+	wire.Build(configs.ProviderSet, pkg.ProviderSet, internal.ProviderSet, wire.NewSet(CreateApplication))
 	return &boot.Application{}, nil
 }

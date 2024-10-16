@@ -2,13 +2,13 @@ package app
 
 import (
 	"github.com/tbxark/go-base-api/internal/biz/bot"
-	"github.com/tbxark/go-base-api/internal/pkg/boot"
+	"github.com/tbxark/go-base-api/pkg/utils/boot"
 )
 
-func CreateApplication(bot *bot.App) *boot.Application {
+func CreateApplication(app *bot.Bot) *boot.Application {
 	return boot.NewApplication(
 		[]boot.Task{
-			bot,
+			app,
 		},
 		[]boot.Cleaner{})
 }

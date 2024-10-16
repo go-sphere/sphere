@@ -4,8 +4,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
-	"github.com/tbxark/go-base-api/internal/pkg/encrypt"
-	"github.com/tbxark/go-base-api/internal/pkg/render"
+	"github.com/tbxark/go-base-api/pkg/utils/encrypt"
+	"github.com/tbxark/go-base-api/pkg/utils/render"
 	"github.com/tbxark/go-base-api/pkg/web"
 	"strconv"
 )

@@ -41,10 +41,6 @@ typescript: docs
 	npx swagger-typescript-api -p ./docs/api/API_swagger.json   -o ./docs/api/typescript  --modular
 	npx swagger-typescript-api -p ./docs/dash/Dash_swagger.json -o ./docs/dash/typescript --modular
 
-.PHONY: tmpl
-tmpl:
-	go run -tags=tmplgen ./assets/tmpl/gen/generate.go ./assets/tmpl
-
 .PHONY: dash
 dash:
 	sh ./assets/dash/build.sh

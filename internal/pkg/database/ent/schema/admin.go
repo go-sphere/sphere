@@ -3,7 +3,7 @@ package schema
 import (
 	"entgo.io/ent"
 	"entgo.io/ent/schema/field"
-	"github.com/tbxark/go-base-api/internal/pkg/database/idgenerator"
+	"github.com/tbxark/go-base-api/pkg/utils/idgenerator"
 )
 
 type Admin struct {

@@ -1,4 +1,4 @@
-package bot
+package telegram
 
 import (
 	"github.com/go-telegram/bot"
@@ -18,16 +18,13 @@ type Message struct {
 }
 
 func (m *Message) toInlineKeyboardMarkup() *models.InlineKeyboardMarkup {
-	if len(m.Button) == 0 {
-		return nil
-	}
 	keyboard := make([][]models.InlineKeyboardButton, 0, len(m.Button))
 	for _, row := range m.Button {
 		buttons := make([]models.InlineKeyboardButton, 0, len(row))
 		for _, btn := range row {
 			buttons = append(buttons, models.InlineKeyboardButton{
 				Text:         btn.Text,
-				CallbackData: marshalData(btn.Type, btn.Data),
+				CallbackData: MarshalData(btn.Type, btn.Data),
 			})
 		}
 		keyboard = append(keyboard, buttons)
@@ -38,20 +35,26 @@ func (m *Message) toInlineKeyboardMarkup() *models.InlineKeyboardMarkup {
 }
 
 func (m *Message) toSendMessageParams(chatID int64) *bot.SendMessageParams {
-	return &bot.SendMessageParams{
-		ChatID:      chatID,
-		Text:        m.Text,
-		ParseMode:   m.ParseMode,
-		ReplyMarkup: m.toInlineKeyboardMarkup(),
+	params := &bot.SendMessageParams{
+		ChatID:    chatID,
+		Text:      m.Text,
+		ParseMode: m.ParseMode,
 	}
+	if len(m.Button) > 0 {
+		params.ReplyMarkup = m.toInlineKeyboardMarkup()
+	}
+	return params
 }
 
 func (m *Message) toEditMessageTextParams(chatID int64, messageID int) *bot.EditMessageTextParams {
-	return &bot.EditMessageTextParams{
-		ChatID:      chatID,
-		MessageID:   messageID,
-		Text:        m.Text,
-		ParseMode:   m.ParseMode,
-		ReplyMarkup: m.toInlineKeyboardMarkup(),
+	params := &bot.EditMessageTextParams{
+		ChatID:    chatID,
+		MessageID: messageID,
+		Text:      m.Text,
+		ParseMode: m.ParseMode,
 	}
+	if len(m.Button) > 0 {
+		params.ReplyMarkup = m.toInlineKeyboardMarkup()
+	}
+	return params
 }

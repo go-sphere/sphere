@@ -4,7 +4,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
-	"github.com/tbxark/go-base-api/internal/pkg/database/idgenerator"
+	"github.com/tbxark/go-base-api/pkg/utils/idgenerator"
 )
 
 type User struct {

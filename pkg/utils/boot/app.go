@@ -65,13 +65,20 @@ func (a *Application) Clean() {
 	}
 }
 
+const DefaultTimezone = "Asia/Shanghai"
+
 func init() {
+	_ = InitTimezone(DefaultTimezone)
+}
+
+func InitTimezone(zone string) error {
 	defaultLoc := "Asia/Shanghai"
 	loc, err := time.LoadLocation(defaultLoc)
-	if err == nil {
-		time.Local = loc
+	if err != nil {
+		return err
 	}
-	_ = os.Setenv("TZ", defaultLoc)
+	time.Local = loc
+	return os.Setenv("TZ", defaultLoc)
 }
 
 func Run(conf *configs.Config, builder func(*configs.Config) (*Application, error)) error {

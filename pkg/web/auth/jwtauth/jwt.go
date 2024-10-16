@@ -63,13 +63,13 @@ func WithRefreshTokenDuration(d time.Duration) Option {
 	}
 }
 
-func (g *JwtAuth) GenerateSignedToken(uid, username string, roles ...string) (*Token, error) {
+func (g *JwtAuth) GenerateSignedToken(subject, username string, roles ...string) (*Token, error) {
 	expiresAt := time.Now().Local().Add(g.signedTokenDuration)
 	claims := &SignedDetails{
 		Username: username,
 		Roles:    strings.Join(roles, ","),
 		StandardClaims: jwt.StandardClaims{
-			Subject:   uid,
+			Subject:   subject,
 			ExpiresAt: expiresAt.Unix(),
 		},
 	}

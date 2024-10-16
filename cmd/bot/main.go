@@ -2,12 +2,12 @@ package main
 
 import (
 	"github.com/tbxark/go-base-api/cmd/bot/app"
-	"github.com/tbxark/go-base-api/internal/pkg/boot"
+	boot2 "github.com/tbxark/go-base-api/pkg/utils/boot"
 )
 
 func main() {
-	c := boot.DefaultCommandConfigFlagsParser()
-	err := boot.Run(c, app.NewBotApplication)
+	c := boot2.DefaultCommandConfigFlagsParser()
+	err := boot2.Run(c, app.NewBotApplication)
 	if err != nil {
 		panic(err)
 	}

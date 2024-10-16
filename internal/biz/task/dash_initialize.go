@@ -5,7 +5,7 @@ import (
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
 	"github.com/tbxark/go-base-api/internal/pkg/database/ent/keyvaluestore"
-	"github.com/tbxark/go-base-api/internal/pkg/encrypt"
+	"github.com/tbxark/go-base-api/pkg/utils/encrypt"
 	"strconv"
 	"time"
 )
@@ -14,7 +14,7 @@ type DashInitialize struct {
 	db *dao.Dao
 }
 
-func NewInitialize(db *dao.Dao) *DashInitialize {
+func NewDashInitialize(db *dao.Dao) *DashInitialize {
 	return &DashInitialize{db: db}
 }
 

@@ -1,4 +1,4 @@
-package client
+package sqlite
 
 import (
 	"database/sql"

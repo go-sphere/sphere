@@ -9,7 +9,7 @@ type ConnectCleaner struct {
 	db *ent.Client
 }
 
-func NewCleaner(db *ent.Client) *ConnectCleaner {
+func NewConnectCleaner(db *ent.Client) *ConnectCleaner {
 	return &ConnectCleaner{db: db}
 }
 

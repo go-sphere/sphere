@@ -3,7 +3,7 @@ package render
 import (
 	"github.com/samber/lo"
 	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
-	"github.com/tbxark/go-base-api/internal/pkg/encrypt"
+	"github.com/tbxark/go-base-api/pkg/utils/encrypt"
 	"golang.org/x/net/context"
 )
 

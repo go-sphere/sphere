@@ -8,13 +8,13 @@ package app
 
 import (
 	"github.com/tbxark/go-base-api/configs"
-	"github.com/tbxark/go-base-api/internal/biz/api"
 	"github.com/tbxark/go-base-api/internal/biz/task"
-	"github.com/tbxark/go-base-api/internal/pkg/boot"
 	"github.com/tbxark/go-base-api/internal/pkg/dao"
 	"github.com/tbxark/go-base-api/internal/pkg/database/client"
+	"github.com/tbxark/go-base-api/internal/server/api"
 	"github.com/tbxark/go-base-api/pkg/cache/memory"
 	"github.com/tbxark/go-base-api/pkg/storage/qiniu"
+	"github.com/tbxark/go-base-api/pkg/utils/boot"
 	"github.com/tbxark/go-base-api/pkg/wechat"
 )
 
@@ -34,8 +34,8 @@ func NewAPIApplication(conf *configs.Config) (*boot.Application, error) {
 	qiniuQiniu := qiniu.NewQiniu(qiniuConfig)
 	cache := memory.NewByteCache()
 	web := api.NewWebServer(config, daoDao, wechatWechat, qiniuQiniu, cache)
-	dashInitialize := task.NewInitialize(daoDao)
-	connectCleaner := task.NewCleaner(entClient)
+	dashInitialize := task.NewDashInitialize(daoDao)
+	connectCleaner := task.NewConnectCleaner(entClient)
 	application := CreateApplication(web, dashInitialize, connectCleaner)
 	return application, nil
 }

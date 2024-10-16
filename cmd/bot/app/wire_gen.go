@@ -9,14 +9,17 @@ package app
 import (
 	"github.com/tbxark/go-base-api/configs"
 	"github.com/tbxark/go-base-api/internal/biz/bot"
-	"github.com/tbxark/go-base-api/internal/pkg/boot"
+	"github.com/tbxark/go-base-api/pkg/utils/boot"
 )
 
 // Injectors from wire.go:
 
 func NewBotApplication(conf *configs.Config) (*boot.Application, error) {
 	config := conf.Bot
-	app := bot.NewApp(config)
-	application := CreateApplication(app)
+	botBot, err := bot.NewApp(config)
+	if err != nil {
+		return nil, err
+	}
+	application := CreateApplication(botBot)
 	return application, nil
 }
