@@ -59,7 +59,7 @@
 │   │       ├── logger          # logging middleware
 │   │       └── ratelimiter     # rate limiting middleware
 │   └── wechat                  # WeChat-related utilities
-
+```
 ### Usage
 
 | Executable | Description                                    |
