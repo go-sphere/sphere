@@ -98,6 +98,7 @@ func (w *Web) uploadRemoteImage(ctx *gin.Context, url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
 	ret, err := w.Storage.UploadFile(ctx, resp.Body, resp.ContentLength, key)
 	if err != nil {
 		return "", err

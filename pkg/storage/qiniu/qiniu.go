@@ -7,12 +7,16 @@ import (
 	"fmt"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
-	storage2 "github.com/tbxark/sphere/pkg/storage"
+	store "github.com/tbxark/sphere/pkg/storage"
 	"io"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
+)
+
+var (
+	ErrNotQiniuHost = fmt.Errorf("not qiniu host")
 )
 
 type Config struct {
@@ -93,7 +97,7 @@ func (n *Qiniu) ExtractKeyFromURLWithMode(uri string, strict bool) (string, erro
 	// 不是以CDN域名开头的直接返回或者报错
 	if u.Host != n.config.Host {
 		if strict {
-			return "", fmt.Errorf("invalid url")
+			return "", ErrNotQiniuHost
 		}
 		return uri, nil
 	}
@@ -105,7 +109,7 @@ func (n *Qiniu) ExtractKeyFromURL(uri string) string {
 	return key
 }
 
-func (n *Qiniu) GenerateUploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) storage2.FileUploadToken {
+func (n *Qiniu) GenerateUploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) store.FileUploadToken {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
 	nameMd5 := hex.EncodeToString(sum[:])
@@ -116,14 +120,14 @@ func (n *Qiniu) GenerateUploadToken(fileName string, dir string, nameBuilder fun
 		InsertOnly: 1,
 		MimeLimit:  "image/*;video/*",
 	}
-	return storage2.FileUploadToken{
+	return store.FileUploadToken{
 		Token: put.UploadToken(n.mac),
 		Key:   key,
 		URL:   n.GenerateURL(key),
 	}
 }
 
-func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*storage2.FileUploadResult, error) {
+func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*store.FileUploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -136,12 +140,12 @@ func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key 
 	if err != nil {
 		return nil, err
 	}
-	return &storage2.FileUploadResult{
+	return &store.FileUploadResult{
 		Key: ret.Key,
 	}, nil
 }
 
-func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*storage2.FileUploadResult, error) {
+func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*store.FileUploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -154,7 +158,7 @@ func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*
 	if err != nil {
 		return nil, err
 	}
-	return &storage2.FileUploadResult{
+	return &store.FileUploadResult{
 		Key: ret.Key,
 	}, nil
 }
