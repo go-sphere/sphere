@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
-	_ "github.com/tbxark/go-base-api/pkg/database/sqlite"
+	"github.com/tbxark/sphere/internal/pkg/database/ent"
+	_ "github.com/tbxark/sphere/pkg/database/sqlite"
 )
 
 type Config struct {

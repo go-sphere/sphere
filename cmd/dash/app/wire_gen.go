@@ -7,15 +7,15 @@
 package app
 
 import (
-	"github.com/tbxark/go-base-api/configs"
-	"github.com/tbxark/go-base-api/internal/biz/task"
-	"github.com/tbxark/go-base-api/internal/pkg/dao"
-	"github.com/tbxark/go-base-api/internal/pkg/database/client"
-	"github.com/tbxark/go-base-api/internal/server/dash"
-	"github.com/tbxark/go-base-api/pkg/cache/memory"
-	"github.com/tbxark/go-base-api/pkg/storage/qiniu"
-	"github.com/tbxark/go-base-api/pkg/utils/boot"
-	"github.com/tbxark/go-base-api/pkg/wechat"
+	"github.com/tbxark/sphere/configs"
+	"github.com/tbxark/sphere/internal/biz/task"
+	"github.com/tbxark/sphere/internal/pkg/dao"
+	"github.com/tbxark/sphere/internal/pkg/database/client"
+	"github.com/tbxark/sphere/internal/server/dash"
+	"github.com/tbxark/sphere/pkg/cache/memory"
+	"github.com/tbxark/sphere/pkg/storage/qiniu"
+	"github.com/tbxark/sphere/pkg/utils/boot"
+	"github.com/tbxark/sphere/pkg/wechat"
 )
 
 // Injectors from wire.go:

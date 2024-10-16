@@ -4,10 +4,10 @@ package cmd
 
 import (
 	"context"
-	"github.com/tbxark/go-base-api/configs"
-	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/storage"
-	"github.com/tbxark/go-base-api/pkg/storage/qiniu"
+	"github.com/tbxark/sphere/configs"
+	"github.com/tbxark/sphere/pkg/log"
+	"github.com/tbxark/sphere/pkg/storage"
+	"github.com/tbxark/sphere/pkg/storage/qiniu"
 	"net/http"
 	"net/url"
 	"os"

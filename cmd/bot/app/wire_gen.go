@@ -7,9 +7,9 @@
 package app
 
 import (
-	"github.com/tbxark/go-base-api/configs"
-	"github.com/tbxark/go-base-api/internal/biz/bot"
-	"github.com/tbxark/go-base-api/pkg/utils/boot"
+	"github.com/tbxark/sphere/configs"
+	"github.com/tbxark/sphere/internal/biz/bot"
+	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
 // Injectors from wire.go:

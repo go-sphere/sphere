@@ -2,8 +2,8 @@ package render
 
 import (
 	"github.com/samber/lo"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
-	"github.com/tbxark/go-base-api/pkg/utils/encrypt"
+	"github.com/tbxark/sphere/internal/pkg/database/ent"
+	"github.com/tbxark/sphere/pkg/utils/encrypt"
 	"golang.org/x/net/context"
 )
 

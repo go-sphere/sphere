@@ -12,10 +12,10 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/admin"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/keyvaluestore"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/user"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/userplatform"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/keyvaluestore"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
 )
 
 // ent aliases to avoid import conflicts in user's code.

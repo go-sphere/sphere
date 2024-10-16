@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/cobra"
-	"github.com/tbxark/go-base-api/configs"
-	"github.com/tbxark/go-base-api/pkg/log"
+	"github.com/tbxark/sphere/configs"
+	"github.com/tbxark/sphere/pkg/log"
 )
 
 // testCmd represents the test command

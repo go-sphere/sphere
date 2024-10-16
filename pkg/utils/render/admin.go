@@ -1,7 +1,7 @@
 package render
 
 import (
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
+	"github.com/tbxark/sphere/internal/pkg/database/ent"
 )
 
 type Admin struct {

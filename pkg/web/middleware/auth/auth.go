@@ -2,7 +2,7 @@ package auth
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/pkg/web/auth/parser"
+	"github.com/tbxark/sphere/pkg/web/auth/parser"
 	"net/http"
 	"strconv"
 	"strings"

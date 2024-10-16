@@ -2,10 +2,10 @@ package task
 
 import (
 	"context"
-	"github.com/tbxark/go-base-api/internal/pkg/dao"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/keyvaluestore"
-	"github.com/tbxark/go-base-api/pkg/utils/encrypt"
+	"github.com/tbxark/sphere/internal/pkg/dao"
+	"github.com/tbxark/sphere/internal/pkg/database/ent"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/keyvaluestore"
+	"github.com/tbxark/sphere/pkg/utils/encrypt"
 	"strconv"
 	"time"
 )

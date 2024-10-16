@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/tbxark/go-base-api/cmd/api/app"
-	boot2 "github.com/tbxark/go-base-api/pkg/utils/boot"
+	"github.com/tbxark/sphere/cmd/api/app"
+	boot2 "github.com/tbxark/sphere/pkg/utils/boot"
 )
 
 func main() {

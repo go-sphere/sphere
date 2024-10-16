@@ -2,9 +2,9 @@ package dao
 
 import (
 	"context"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
-	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/log/logfields"
+	"github.com/tbxark/sphere/internal/pkg/database/ent"
+	"github.com/tbxark/sphere/pkg/log"
+	"github.com/tbxark/sphere/pkg/log/logfields"
 )
 
 func WithTx[T any](ctx context.Context, db *ent.Client, exe func(ctx context.Context, tx *ent.Client) (*T, error)) (*T, error) {

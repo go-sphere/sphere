@@ -3,8 +3,8 @@ package s3
 import (
 	"context"
 	"fmt"
-	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/storage"
+	"github.com/tbxark/sphere/pkg/log"
+	"github.com/tbxark/sphere/pkg/storage"
 	"io"
 	"net/url"
 	"strings"

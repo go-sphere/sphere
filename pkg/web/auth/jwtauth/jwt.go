@@ -1,7 +1,7 @@
 package jwtauth
 
 import (
-	"github.com/tbxark/go-base-api/pkg/web/auth/parser"
+	"github.com/tbxark/sphere/pkg/web/auth/parser"
 	"strings"
 	"sync"
 	"time"

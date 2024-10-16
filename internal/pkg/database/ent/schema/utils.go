@@ -4,7 +4,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/mixin"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/schema/types"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/schema/types"
 	"time"
 )
 

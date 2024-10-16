@@ -10,8 +10,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/predicate"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/userplatform"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/predicate"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
 )
 
 // UserPlatformUpdate is the builder for updating UserPlatform entities.

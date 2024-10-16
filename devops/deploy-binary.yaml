@@ -28,7 +28,7 @@
         name: deploy_app
       vars:
         binary_name: "app"
-        systemd_name: "base-api"
+        systemd_name: "sphere"
         config_dest: "{{ config_dir }}/{{ systemd_name }}/config.json"
         config_source: "{{ project_dir }}/config_gen.json"
         exec_start: "{{ deploy_dir }}/{{ binary_name }} -config {{ config_dest }}"
@@ -37,13 +37,13 @@
       include_role:
         name: nginx_proxy
       vars:
-        server_name: "base-api"
+        server_name: "sphere"
         servers:
-          - name: "api.debian-amd.orb.local"
+          - name: "api.debian.orb.local"
             locations:
               - path: "/"
                 proxy_pass: "http://127.0.0.1:8899"
-          - name: "dash.debian-amd.orb.local"
+          - name: "dash.debian.orb.local"
             locations:
               - path: "/"
                 proxy_pass: "http://127.0.0.1:8800"

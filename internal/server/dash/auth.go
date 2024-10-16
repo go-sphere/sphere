@@ -2,10 +2,10 @@ package dash
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/admin"
-	"github.com/tbxark/go-base-api/pkg/utils/encrypt"
-	"github.com/tbxark/go-base-api/pkg/web"
+	"github.com/tbxark/sphere/internal/pkg/database/ent"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
+	"github.com/tbxark/sphere/pkg/utils/encrypt"
+	"github.com/tbxark/sphere/pkg/web"
 	"strconv"
 	"time"
 )

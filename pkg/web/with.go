@@ -3,8 +3,8 @@ package web
 import (
 	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/log/logfields"
+	"github.com/tbxark/sphere/pkg/log"
+	"github.com/tbxark/sphere/pkg/log/logfields"
 	"net/http"
 )
 

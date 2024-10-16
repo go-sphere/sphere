@@ -3,7 +3,7 @@ package bot
 import (
 	"context"
 	"github.com/go-telegram/bot/models"
-	"github.com/tbxark/go-base-api/pkg/telegram"
+	"github.com/tbxark/sphere/pkg/telegram"
 	"math/rand"
 )
 

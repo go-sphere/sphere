@@ -1,9 +1,9 @@
 package app
 
 import (
-	"github.com/tbxark/go-base-api/internal/biz/task"
-	"github.com/tbxark/go-base-api/internal/server/api"
-	"github.com/tbxark/go-base-api/pkg/utils/boot"
+	"github.com/tbxark/sphere/internal/biz/task"
+	"github.com/tbxark/sphere/internal/server/api"
+	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
 func CreateApplication(dash *api.Web, initialize *task.DashInitialize, cleaner *task.ConnectCleaner) *boot.Application {

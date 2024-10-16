@@ -1,7 +1,7 @@
 package task
 
 import (
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
+	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"golang.org/x/sync/errgroup"
 )
 

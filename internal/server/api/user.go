@@ -3,10 +3,10 @@ package api
 import (
 	"context"
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/internal/pkg/dao"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/user"
-	"github.com/tbxark/go-base-api/pkg/web"
+	"github.com/tbxark/sphere/internal/pkg/dao"
+	"github.com/tbxark/sphere/internal/pkg/database/ent"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
+	"github.com/tbxark/sphere/pkg/web"
 )
 
 type UserInfoMePlatform struct {

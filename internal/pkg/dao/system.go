@@ -3,7 +3,7 @@ package dao
 import (
 	"context"
 	"encoding/json"
-	keyvaluestore2 "github.com/tbxark/go-base-api/internal/pkg/database/ent/keyvaluestore"
+	keyvaluestore2 "github.com/tbxark/sphere/internal/pkg/database/ent/keyvaluestore"
 )
 
 func GetKeyValueStore[T any](ctx context.Context, dao *Dao, key string) (*T, error) {

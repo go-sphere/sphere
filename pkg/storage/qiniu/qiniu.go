@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
-	storage2 "github.com/tbxark/go-base-api/pkg/storage"
+	storage2 "github.com/tbxark/sphere/pkg/storage"
 	"io"
 	"net/url"
 	"path"

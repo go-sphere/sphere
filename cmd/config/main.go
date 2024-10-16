@@ -1,6 +1,6 @@
 package main
 
-import "github.com/tbxark/go-base-api/cmd/config/cmd"
+import "github.com/tbxark/sphere/cmd/config/cmd"
 
 func main() {
 	cmd.Execute()

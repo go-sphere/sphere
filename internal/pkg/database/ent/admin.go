@@ -9,7 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/admin"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
 )
 
 // Admin is the model entity for the Admin schema.

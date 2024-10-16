@@ -8,7 +8,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/user"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
 )
 
 // User is the model entity for the User schema.

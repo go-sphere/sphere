@@ -5,12 +5,12 @@ package enttest
 import (
 	"context"
 
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
+	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	// required by schema hooks.
-	_ "github.com/tbxark/go-base-api/internal/pkg/database/ent/runtime"
+	_ "github.com/tbxark/sphere/internal/pkg/database/ent/runtime"
 
 	"entgo.io/ent/dialect/sql/schema"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/migrate"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/migrate"
 )
 
 type (

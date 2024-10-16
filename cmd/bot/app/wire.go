@@ -5,9 +5,9 @@ package app
 
 import (
 	"github.com/google/wire"
-	"github.com/tbxark/go-base-api/configs"
-	"github.com/tbxark/go-base-api/internal"
-	"github.com/tbxark/go-base-api/pkg/utils/boot"
+	"github.com/tbxark/sphere/configs"
+	"github.com/tbxark/sphere/internal"
+	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
 func NewBotApplication(conf *configs.Config) (*boot.Application, error) {

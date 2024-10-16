@@ -8,7 +8,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/keyvaluestore"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/keyvaluestore"
 )
 
 // KeyValueStore is the model entity for the KeyValueStore schema.

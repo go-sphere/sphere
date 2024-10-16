@@ -10,7 +10,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/user"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
 )
 
 // UserCreate is the builder for creating a User entity.

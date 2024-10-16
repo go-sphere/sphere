@@ -3,8 +3,8 @@ package api
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/pkg/storage"
-	"github.com/tbxark/go-base-api/pkg/web"
+	"github.com/tbxark/sphere/pkg/storage"
+	"github.com/tbxark/sphere/pkg/web"
 	"strconv"
 )
 

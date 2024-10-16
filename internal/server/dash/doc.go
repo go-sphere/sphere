@@ -2,8 +2,8 @@ package dash
 
 import (
 	"github.com/gin-gonic/gin"
-	doc "github.com/tbxark/go-base-api/docs/dash"
-	"github.com/tbxark/go-base-api/pkg/web/docs"
+	doc "github.com/tbxark/sphere/docs/dash"
+	"github.com/tbxark/sphere/pkg/web/docs"
 )
 
 func (w *Web) bindDocRoute(r gin.IRouter) {

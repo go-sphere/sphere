@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/keyvaluestore"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/predicate"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/keyvaluestore"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/predicate"
 )
 
 // KeyValueStoreDelete is the builder for deleting a KeyValueStore entity.

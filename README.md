@@ -1,4 +1,6 @@
-# go-base-api
+# Sphere
+
+**Sphere** is a multi-server application template that includes an API server, a dashboard server, and a bot server. It is designed to be a starting point for building a multi-server application.
 
 ### Project Structure
 ```
@@ -70,3 +72,11 @@
 | `app`      | Start the multi server, api, dashboard and bot |
 | `config`   | Configuration cli tool                         |
 | `storage`  | Storage cli tool                               |
+
+You can fork this project and modify the code in internal and cmd to implement your own business logic. Please do not modify the code in pkg. If necessary, please raise an issue or PR.
+
+Alternatively, you can import this project in go mod and implement your own business logic in your project.
+
+### License
+
+**Sphere**  is released under the MIT license. See [LICENSE](LICENSE) for details.

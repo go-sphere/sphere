@@ -1,8 +1,8 @@
 package render
 
 import (
-	"github.com/tbxark/go-base-api/internal/pkg/dao"
-	"github.com/tbxark/go-base-api/pkg/storage"
+	"github.com/tbxark/sphere/internal/pkg/dao"
+	"github.com/tbxark/sphere/pkg/storage"
 )
 
 type Render struct {

@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/tbxark/go-base-api/internal/biz/bot"
-	"github.com/tbxark/go-base-api/pkg/utils/boot"
+	"github.com/tbxark/sphere/internal/biz/bot"
+	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
 func CreateApplication(app *bot.Bot) *boot.Application {

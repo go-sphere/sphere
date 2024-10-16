@@ -3,7 +3,7 @@ package boot
 import (
 	"flag"
 	"fmt"
-	"github.com/tbxark/go-base-api/configs"
+	"github.com/tbxark/sphere/configs"
 	"os"
 )
 

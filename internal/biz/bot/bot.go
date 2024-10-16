@@ -2,7 +2,7 @@ package bot
 
 import (
 	"github.com/go-telegram/bot"
-	"github.com/tbxark/go-base-api/pkg/telegram"
+	"github.com/tbxark/sphere/pkg/telegram"
 )
 
 type Config telegram.Config

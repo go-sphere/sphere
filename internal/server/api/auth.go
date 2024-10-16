@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/go-base-api/internal/pkg/consts"
-	"github.com/tbxark/go-base-api/internal/pkg/dao"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/userplatform"
-	"github.com/tbxark/go-base-api/pkg/web"
+	"github.com/tbxark/sphere/internal/pkg/consts"
+	"github.com/tbxark/sphere/internal/pkg/dao"
+	"github.com/tbxark/sphere/internal/pkg/database/ent"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
+	"github.com/tbxark/sphere/pkg/web"
 	"strconv"
 	"time"
 )
@@ -38,7 +38,7 @@ func (w *Web) AuthWxMini(ctx *gin.Context) (*AuthResponse, error) {
 	if err != nil {
 		return nil, err
 	}
- 
+
 	res, err := dao.WithTx[AuthResponse](ctx, w.DB.Client, func(ctx context.Context, client *ent.Client) (*AuthResponse, error) {
 		userPlat, e := client.UserPlatform.Query().
 			Where(userplatform.PlatformEQ(consts.WechatMiniPlatform), userplatform.PlatformIDEQ(wxUser.OpenID)).

@@ -1,9 +1,9 @@
 package boot
 
 import (
-	"github.com/tbxark/go-base-api/configs"
-	"github.com/tbxark/go-base-api/pkg/log"
-	"github.com/tbxark/go-base-api/pkg/log/logfields"
+	"github.com/tbxark/sphere/configs"
+	"github.com/tbxark/sphere/pkg/log"
+	"github.com/tbxark/sphere/pkg/log/logfields"
 	"os"
 	"sync"
 	"time"

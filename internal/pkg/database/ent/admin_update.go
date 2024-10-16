@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/admin"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/predicate"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/predicate"
 )
 
 // AdminUpdate is the builder for updating Admin entities.

@@ -4,7 +4,7 @@ package user
 
 import (
 	"entgo.io/ent/dialect/sql"
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent/predicate"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.

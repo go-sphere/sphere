@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/tbxark/go-base-api/internal/pkg/database/ent"
+	"github.com/tbxark/sphere/internal/pkg/database/ent"
 )
 
 // The AdminFunc type is an adapter to allow the use of ordinary

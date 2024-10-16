@@ -2,11 +2,11 @@ package pkg
 
 import (
 	"github.com/google/wire"
-	"github.com/tbxark/go-base-api/pkg/cache"
-	"github.com/tbxark/go-base-api/pkg/cache/memory"
-	"github.com/tbxark/go-base-api/pkg/storage"
-	"github.com/tbxark/go-base-api/pkg/storage/qiniu"
-	"github.com/tbxark/go-base-api/pkg/wechat"
+	"github.com/tbxark/sphere/pkg/cache"
+	"github.com/tbxark/sphere/pkg/cache/memory"
+	"github.com/tbxark/sphere/pkg/storage"
+	"github.com/tbxark/sphere/pkg/storage/qiniu"
+	"github.com/tbxark/sphere/pkg/wechat"
 )
 
 var cacheSet = wire.NewSet(
