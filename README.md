@@ -25,6 +25,7 @@
 │   │   ├── consts              # constants
 │   │   ├── dao                 # data access objects
 │   │   ├── database            # database-related packages
+│   │   ├── render              # model rendering utilities
 │   │   └── scache              # cache-related packages
 │   └── server                  # server
 │       ├── api                 # API server implementation
@@ -47,7 +48,6 @@
 │   │   ├── boot                # boot-related utilities
 │   │   ├── encrypt             # encryption utilities
 │   │   ├── idgenerator         # ID generation utilities
-│   │   ├── render              # rendering utilities
 │   │   ├── request             # request-related utilities
 │   │   └── safe                # safety-related utilities
 │   ├── web                     # web-related packages
