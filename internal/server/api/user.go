@@ -6,6 +6,7 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
+	"github.com/tbxark/sphere/internal/pkg/render"
 	"github.com/tbxark/sphere/pkg/web"
 )
 
@@ -17,8 +18,8 @@ type UserInfoMePlatform struct {
 }
 
 type UserInfoMeResponse struct {
-	Info    *ent.User `json:"info"`
-	Inviter *ent.User `json:"inviter"`
+	Info    *render.User `json:"info"`
+	Inviter *render.User `json:"inviter"`
 }
 
 // UserMe
@@ -48,7 +49,7 @@ type UpdateUserInfoRequest struct {
 }
 
 type UpdateUserInfoResponse struct {
-	Info *ent.User `json:"info"`
+	Info *render.User `json:"info"`
 }
 
 // UserUpdate

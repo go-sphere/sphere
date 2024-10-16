@@ -33,8 +33,8 @@ config:
 docs:
 	rm -rf ./docs/dash
 	rm -rf ./docs/api
-	swag init --output ./docs/api  --exclude internal/biz/dash --instanceName API  -g internal/biz/api/web.go
-	swag init --output ./docs/dash --exclude internal/biz/api  --instanceName Dash -g internal/biz/dash/web.go
+	swag init --output ./docs/api  --exclude internal/server/dash --instanceName API  -g internal/server/api/web.go
+	swag init --output ./docs/dash --exclude internal/server/api  --instanceName Dash -g internal/server/dash/web.go
 
 .PHONY: typescript
 typescript: docs

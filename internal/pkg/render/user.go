@@ -7,44 +7,48 @@ import (
 	"golang.org/x/net/context"
 )
 
+type User struct {
+	ID       int    `json:"id,omitempty"`
+	Username string `json:"username,omitempty"`
+	Avatar   string `json:"avatar,omitempty"`
+	Phone    string `json:"phone,omitempty"`
+}
+
 type UserWithPlatform struct {
-	*ent.User
-	Platforms []*ent.UserPlatform `json:"platforms"`
+	*User
+	Platforms []*ent.UserPlatform `json:"platforms,omitempty"`
 }
 
-func (r *Render) Me(u *ent.User) *ent.User {
+func (r *Render) Me(u *ent.User) *User {
 	if u == nil {
 		return nil
 	}
-	u.Remark = ""
-	u.UpdatedAt = 0
-	u.CreatedAt = 0
-	u.Avatar = r.cdn.GenerateImageURL(u.Avatar, ImageWidthForAvatar)
-	return u
+	return &User{
+		ID:       u.ID,
+		Username: u.Username,
+		Avatar:   r.cdn.GenerateImageURL(u.Avatar, ImageWidthForAvatar),
+		Phone:    u.Phone,
+	}
 }
 
-func (r *Render) User(u *ent.User) *ent.User {
+func (r *Render) User(u *ent.User) *User {
 	if u == nil {
 		return nil
 	}
-	if r.hidePrivacy {
-		u.Phone = ""
-		u.Remark = ""
-		u.CreatedAt = 0
-		u.UpdatedAt = 0
-		u.Flags = 0
+	return &User{
+		ID:       u.ID,
+		Username: u.Username,
+		Avatar:   r.cdn.GenerateImageURL(u.Avatar, ImageWidthForAvatar),
 	}
-	u.Avatar = r.cdn.GenerateImageURL(u.Avatar, ImageWidthForAvatar)
-	return u
 }
 
-func (r *Render) CensorUser(u *ent.User) *ent.User {
+func (r *Render) CensorUser(u *ent.User) *User {
 	if u == nil {
 		return nil
 	}
-	u = r.User(u)
-	u.Username = encrypt.CensorString(u.Username, 5)
-	return u
+	user := r.User(u)
+	user.Username = encrypt.CensorString(u.Username, 5)
+	return user
 }
 
 func (r *Render) UserWithPlatform(ctx context.Context, u *ent.User) *UserWithPlatform {

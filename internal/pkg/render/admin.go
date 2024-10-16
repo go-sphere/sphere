@@ -20,7 +20,7 @@ func (r *Render) Admin(a *ent.Admin) *Admin {
 	}
 }
 
-func AdminWithRoles(a *ent.Admin) *Admin {
+func (r *Render) AdminWithRoles(a *ent.Admin) *Admin {
 	return &Admin{
 		ID:       a.ID,
 		Username: a.Username,
