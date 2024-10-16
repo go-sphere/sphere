@@ -4,7 +4,7 @@ package cmd
 
 import (
 	"context"
-	"github.com/tbxark/sphere/configs"
+	"github.com/tbxark/sphere/config"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/storage"
 	"github.com/tbxark/sphere/pkg/storage/qiniu"
@@ -44,7 +44,7 @@ func runMigrate(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Panicf("read file error: %v", err)
 	}
-	cfg, err := configs.LoadLocalConfig(cfgP)
+	cfg, err := config.LoadLocalConfig(cfgP)
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}

@@ -3,18 +3,18 @@ package boot
 import (
 	"flag"
 	"fmt"
-	"github.com/tbxark/sphere/configs"
+	"github.com/tbxark/sphere/config"
 	"os"
 )
 
-func DefaultCommandConfigFlagsParser() *configs.Config {
+func DefaultCommandConfigFlagsParser() *config.Config {
 	path := flag.String("config", "config.json", "config file path")
 	version := flag.Bool("version", false, "show version")
 	help := flag.Bool("help", false, "show help")
 	flag.Parse()
 
 	if *version {
-		fmt.Println(configs.BuildVersion)
+		fmt.Println(config.BuildVersion)
 		os.Exit(0)
 	}
 
@@ -31,8 +31,8 @@ func DefaultCommandConfigFlagsParser() *configs.Config {
 	return conf
 }
 
-func LoadConfig(path string) (*configs.Config, error) {
-	conf, err := configs.LoadLocalConfig(path)
+func LoadConfig(path string) (*config.Config, error) {
+	conf, err := config.LoadLocalConfig(path)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func LoadConfig(path string) (*configs.Config, error) {
 	if conf.Remote == nil {
 		return conf, nil
 	}
-	conf, err = configs.LoadRemoteConfig(conf.Remote)
+	conf, err = config.LoadRemoteConfig(conf.Remote)
 	if err != nil {
 		return nil, err
 	}

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/cobra"
-	"github.com/tbxark/sphere/configs"
+	"github.com/tbxark/sphere/config"
 	"github.com/tbxark/sphere/pkg/log"
 )
 
@@ -23,7 +23,7 @@ func init() {
 
 func runTest(cmd *cobra.Command, args []string) {
 	conf := cmd.Flag("config").Value.String()
-	con, err := configs.LoadLocalConfig(conf)
+	con, err := config.LoadLocalConfig(conf)
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}

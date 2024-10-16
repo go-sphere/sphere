@@ -1,7 +1,7 @@
 package boot
 
 import (
-	"github.com/tbxark/sphere/configs"
+	"github.com/tbxark/sphere/config"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/log/logfields"
 	"os"
@@ -81,9 +81,9 @@ func InitTimezone(zone string) error {
 	return os.Setenv("TZ", defaultLoc)
 }
 
-func Run(conf *configs.Config, builder func(*configs.Config) (*Application, error)) error {
-	log.Init(conf.Log, logfields.String("version", configs.BuildVersion))
-	log.Info("Start application", logfields.String("version", configs.BuildVersion))
+func Run(conf *config.Config, builder func(*config.Config) (*Application, error)) error {
+	log.Init(conf.Log, logfields.String("version", config.BuildVersion))
+	log.Info("Start application", logfields.String("version", config.BuildVersion))
 
 	app, err := builder(conf)
 	if err != nil {

@@ -7,16 +7,16 @@
 package app
 
 import (
-	"github.com/tbxark/sphere/configs"
+	"github.com/tbxark/sphere/config"
 	"github.com/tbxark/sphere/internal/biz/bot"
 	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
 // Injectors from wire.go:
 
-func NewBotApplication(conf *configs.Config) (*boot.Application, error) {
-	config := conf.Bot
-	botBot, err := bot.NewApp(config)
+func NewBotApplication(conf *config.Config) (*boot.Application, error) {
+	botConfig := conf.Bot
+	botBot, err := bot.NewApp(botConfig)
 	if err != nil {
 		return nil, err
 	}

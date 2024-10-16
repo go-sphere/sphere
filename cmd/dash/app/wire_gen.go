@@ -7,7 +7,7 @@
 package app
 
 import (
-	"github.com/tbxark/sphere/configs"
+	"github.com/tbxark/sphere/config"
 	"github.com/tbxark/sphere/internal/biz/task"
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/database/client"
@@ -20,8 +20,8 @@ import (
 
 // Injectors from wire.go:
 
-func NewDashApplication(conf *configs.Config) (*boot.Application, error) {
-	config := conf.Dash
+func NewDashApplication(conf *config.Config) (*boot.Application, error) {
+	dashConfig := conf.Dash
 	clientConfig := conf.Database
 	entClient, err := client.NewDataBaseClient(clientConfig)
 	if err != nil {
@@ -33,7 +33,7 @@ func NewDashApplication(conf *configs.Config) (*boot.Application, error) {
 	qiniuConfig := conf.Storage
 	qiniuQiniu := qiniu.NewQiniu(qiniuConfig)
 	cache := memory.NewByteCache()
-	web := dash.NewWebServer(config, daoDao, wechatWechat, qiniuQiniu, cache)
+	web := dash.NewWebServer(dashConfig, daoDao, wechatWechat, qiniuQiniu, cache)
 	connectCleaner := task.NewConnectCleaner(entClient)
 	application := CreateApplication(web, connectCleaner)
 	return application, nil

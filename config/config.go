@@ -1,7 +1,6 @@
-package configs
+package config
 
 import (
-	"encoding/json"
 	"github.com/spf13/viper"
 	_ "github.com/spf13/viper/remote"
 	"github.com/tbxark/sphere/internal/biz/bot"
@@ -12,7 +11,6 @@ import (
 	"github.com/tbxark/sphere/pkg/storage/qiniu"
 	"github.com/tbxark/sphere/pkg/wechat"
 	"math/rand"
-	"os"
 )
 
 var BuildVersion = "dev"
@@ -94,12 +92,13 @@ func setDefaultConfig(config *Config) *Config {
 }
 
 func LoadLocalConfig(path string) (*Config, error) {
-	bytes, err := os.ReadFile(path)
+	viper.SetConfigFile(path)
+	err := viper.ReadInConfig()
 	if err != nil {
 		return nil, err
 	}
 	config := &Config{}
-	err = json.Unmarshal(bytes, config)
+	err = viper.Unmarshal(config)
 	if err != nil {
 		return nil, err
 	}
