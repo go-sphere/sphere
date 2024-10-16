@@ -1,3 +1,3 @@
-package go_base_api
+package sphere
 
 // If you remove this file, swag generation will result in an error.
