@@ -27,15 +27,16 @@ func URL(base string, query map[string]string) (string, error) {
 	return baseURL.String(), nil
 }
 
-func GET[T any](url string) (*T, error) {
-	return GETx[T](url, nil)
-}
+type Modifier func(client *http.Client, req *http.Request)
 
-func GETx[T any](url string, reqModifier func(req *http.Request)) (*T, error) {
+func GET[T any](url string, modifier ...Modifier) (*T, error) {
 	client := DefaultHttpClient()
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
+	}
+	for _, m := range modifier {
+		m(client, req)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -50,11 +51,7 @@ func GETx[T any](url string, reqModifier func(req *http.Request)) (*T, error) {
 	return &result, nil
 }
 
-func POST[T any](url string, data any) (*T, error) {
-	return POSTx[T](url, data, nil)
-}
-
-func POSTx[T any](url string, data any, reqModifier func(req *http.Request)) (*T, error) {
+func POST[T any](url string, data any, modifier ...Modifier) (*T, error) {
 	client := DefaultHttpClient()
 	body, err := json.Marshal(data)
 	if err != nil {
@@ -65,8 +62,8 @@ func POSTx[T any](url string, data any, reqModifier func(req *http.Request)) (*T
 		return nil, err
 	}
 	req.Header.Add("Content-Type", "application/json; charset=utf-8")
-	if reqModifier != nil {
-		reqModifier(req)
+	for _, m := range modifier {
+		m(client, req)
 	}
 	resp, err := client.Do(req)
 	if err != nil {

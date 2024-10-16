@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/render"
@@ -15,6 +16,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // @title API
@@ -34,15 +36,16 @@ type Config struct {
 }
 
 type Web struct {
-	config  *Config
-	engine  *gin.Engine
-	DB      *dao.Dao
-	Storage storage.Storage
-	Cache   cache.ByteCache
-	Wechat  *wechat.Wechat
-	Render  *render.Render
-	JwtAuth *jwtauth.JwtAuth
-	Auth    *auth.Auth
+	config     *Config
+	engine     *gin.Engine
+	DB         *dao.Dao
+	Storage    storage.Storage
+	Cache      cache.ByteCache
+	Wechat     *wechat.Wechat
+	Render     *render.Render
+	JwtAuth    *jwtauth.JwtAuth
+	Auth       *auth.Auth
+	httpClient *http.Client
 }
 
 func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cache.ByteCache) *Web {
@@ -57,6 +60,9 @@ func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, store storage.
 		Render:  render.NewRender(store, db, true),
 		JwtAuth: token,
 		Auth:    auth.NewAuth(jwtauth.AuthorizationPrefixBearer, token),
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -81,6 +87,14 @@ func (w *Web) Run() error {
 	return w.engine.Run(w.config.Address)
 }
 
+const (
+	RemoteImageMaxSize = 1024 * 1024 * 2
+)
+
+var (
+	ErrImageSizeExceed = fmt.Errorf("image size exceed")
+)
+
 func (w *Web) uploadRemoteImage(ctx *gin.Context, url string) (string, error) {
 	key := w.Storage.ExtractKeyFromURL(url)
 	if key == "" {
@@ -94,9 +108,12 @@ func (w *Web) uploadRemoteImage(ctx *gin.Context, url string) (string, error) {
 		return "", err
 	}
 	key = storage.DefaultKeyBuilder(strconv.Itoa(id))(url, "user")
-	resp, err := http.Get(url)
+	resp, err := w.httpClient.Get(url)
 	if err != nil {
 		return "", err
+	}
+	if resp.ContentLength > RemoteImageMaxSize {
+		return "", ErrImageSizeExceed
 	}
 	defer resp.Body.Close()
 	ret, err := w.Storage.UploadFile(ctx, resp.Body, resp.ContentLength, key)
