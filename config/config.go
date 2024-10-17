@@ -1,8 +1,6 @@
 package config
 
 import (
-	"github.com/spf13/viper"
-	_ "github.com/spf13/viper/remote"
 	"github.com/tbxark/sphere/internal/biz/bot"
 	"github.com/tbxark/sphere/internal/pkg/database/client"
 	"github.com/tbxark/sphere/internal/server/api"
@@ -11,16 +9,17 @@ import (
 	"github.com/tbxark/sphere/pkg/storage/qiniu"
 	"github.com/tbxark/sphere/pkg/wechat"
 	"math/rand"
+	"net/http"
+	"os"
+	"time"
 )
 
 var BuildVersion = "dev"
 
 type RemoteConfig struct {
-	Provider   string `json:"provider" yaml:"provider"`
-	Endpoint   string `json:"endpoint" yaml:"endpoint"`
-	Path       string `json:"path" yaml:"path"`
-	ConfigType string `json:"config_type" yaml:"config_type"`
-	SecretKey  string `json:"secret_key" yaml:"secret_key"`
+	URL     string            `json:"url" yaml:"url"`
+	Method  string            `json:"method" yaml:"method"`
+	Headers map[string]string `json:"headers" yaml:"headers"`
 }
 
 type Config struct {
@@ -92,13 +91,12 @@ func setDefaultConfig(config *Config) *Config {
 }
 
 func LoadLocalConfig(path string) (*Config, error) {
-	viper.SetConfigFile(path)
-	err := viper.ReadInConfig()
+	file, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 	config := &Config{}
-	err = viper.Unmarshal(config)
+	err = Unmarshal(Ext(path), file, config)
 	if err != nil {
 		return nil, err
 	}
@@ -106,17 +104,27 @@ func LoadLocalConfig(path string) (*Config, error) {
 }
 
 func LoadRemoteConfig(remote *RemoteConfig) (*Config, error) {
-	viper.SetConfigType(remote.ConfigType)
-	err := viper.AddSecureRemoteProvider(remote.Provider, remote.Endpoint, remote.Path, remote.SecretKey)
+	httpClient := http.Client{
+		Timeout: time.Second * 10,
+	}
+	req, err := http.NewRequest(remote.Method, remote.URL, nil)
 	if err != nil {
 		return nil, err
 	}
-	err = viper.ReadRemoteConfig()
+	for k, v := range remote.Headers {
+		req.Header.Add(k, v)
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 	config := &Config{}
-	err = viper.Unmarshal(config)
+	decoder := NewDecoder(Ext(remote.URL), resp.Body)
+	if decoder == nil {
+		return nil, ErrUnknownCoderType
+	}
+	err = decoder.Decode(config)
 	if err != nil {
 		return nil, err
 	}

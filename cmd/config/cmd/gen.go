@@ -1,13 +1,10 @@
 package cmd
 
 import (
-	"encoding/json"
 	"github.com/spf13/cobra"
 	"github.com/tbxark/sphere/config"
-	"gopkg.in/yaml.v3"
 	"log"
 	"os"
-	"path/filepath"
 )
 
 // genCmd represents the config command
@@ -43,21 +40,13 @@ func runConfig(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("create file error: %v", err)
 	}
-	var encoder Encoder
-	ext := filepath.Ext(output)
-	switch ext {
-	case ".json":
-		en := json.NewEncoder(file)
-		en.SetEscapeHTML(false)
-		en.SetIndent("", "  ")
-		encoder = en
-	case ".yaml", ".yml":
-		encoder = yaml.NewEncoder(file)
-	default:
-		log.Fatalf("unsupported file type: %s", ext)
+	defer file.Close()
+	encoder := config.NewEncoder(config.Ext(output), file)
+	if encoder == nil {
+		log.Fatalf("unsupported file type: %s", output)
 	}
 	err = encoder.Encode(conf)
 	if err != nil {
-		log.Fatalf("encode config error: %v", err)
+		log.Fatalf("encode error: %v", err)
 	}
 }
