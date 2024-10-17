@@ -10,8 +10,8 @@ import (
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/log/logfields"
 	"github.com/tbxark/sphere/pkg/storage"
-	"github.com/tbxark/sphere/pkg/web"
 	"github.com/tbxark/sphere/pkg/web/auth/jwtauth"
+	"github.com/tbxark/sphere/pkg/web/ginx"
 	"github.com/tbxark/sphere/pkg/web/middleware/auth"
 	"github.com/tbxark/sphere/pkg/web/middleware/logger"
 	"github.com/tbxark/sphere/pkg/web/middleware/ratelimiter"
@@ -30,6 +30,8 @@ import (
 // @in header
 // @name Authorization
 // @description JWT token
+
+// @security ApiKeyAuth []
 
 type Config struct {
 	JWT        string `json:"jwt" yaml:"jwt"`
@@ -85,7 +87,7 @@ func (w *Web) Run() error {
 	// ignore embed: web.Fs(w.config.DashStatic, nil, "")
 	// 2. 使用embed集成
 	// with embed: web.Fs("", &dash.Assets, dash.AssetsPath)
-	if dashFs, err := web.Fs(w.config.DashStatic, nil, ""); err == nil && dashFs != nil {
+	if dashFs, err := ginx.Fs(w.config.DashStatic, nil, ""); err == nil && dashFs != nil {
 		d := w.engine.Group("/dash", gzip.Gzip(gzip.DefaultCompression))
 		d.StaticFS("/", dashFs)
 	}

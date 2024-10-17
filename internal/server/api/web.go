@@ -30,6 +30,8 @@ import (
 // @name Authorization
 // @description JWT token
 
+// @security ApiKeyAuth []
+
 type Config struct {
 	JWT     string `json:"jwt" yaml:"jwt"`
 	Address string `json:"address" yaml:"address"`

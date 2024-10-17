@@ -6,7 +6,7 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/render"
 	"github.com/tbxark/sphere/pkg/utils/secure"
-	"github.com/tbxark/sphere/pkg/web"
+	"github.com/tbxark/sphere/pkg/web/ginx"
 	"strconv"
 )
 
@@ -20,8 +20,7 @@ type AdminListResponse struct {
 // AdminList
 //
 // @Summary 管理员列表
-// @Security ApiKeyAuth
-// @Success 200 {object} web.DataResponse[AdminListResponse]
+// @Success 200 {object} ginx.DataResponse[AdminListResponse]
 // @Router /api/admin/list [get]
 func (w *Web) AdminList(ctx *gin.Context) (*AdminListResponse, error) {
 	all, err := w.DB.Admin.Query().All(ctx)
@@ -50,9 +49,8 @@ type AdminInfoResponse struct {
 // AdminCreate
 //
 // @Summary 创建管理员
-// @Security ApiKeyAuth
 // @Param admin body AdminEditRequest true "管理员信息"
-// @Success 200 {object} web.DataResponse[AdminInfoResponse]
+// @Success 200 {object} ginx.DataResponse[AdminInfoResponse]
 // @Router /api/admin/create [post]
 func (w *Web) AdminCreate(ctx *gin.Context) (*AdminInfoResponse, error) {
 	var req AdminEditRequest
@@ -62,7 +60,7 @@ func (w *Web) AdminCreate(ctx *gin.Context) (*AdminInfoResponse, error) {
 	if len(req.Password) > 8 {
 		req.Password = secure.CryptPassword(req.Password)
 	} else {
-		return nil, web.NewHTTPError(400, "password is too short")
+		return nil, ginx.NewHTTPError(400, "password is too short")
 	}
 	u, err := w.DB.Admin.Create().
 		SetAvatar(w.Storage.ExtractKeyFromURL(req.Avatar)).
@@ -82,9 +80,8 @@ func (w *Web) AdminCreate(ctx *gin.Context) (*AdminInfoResponse, error) {
 // AdminUpdate
 //
 // @Summary 更新管理员
-// @Security ApiKeyAuth
 // @Param admin body AdminEditRequest true "管理员信息"
-// @Success 200 {object} web.DataResponse[AdminInfoResponse]
+// @Success 200 {object} ginx.DataResponse[AdminInfoResponse]
 // @Router /api/admin/update/{id} [post]
 func (w *Web) AdminUpdate(ctx *gin.Context) (*AdminInfoResponse, error) {
 	id, err := strconv.Atoi(ctx.Param("id"))
@@ -105,7 +102,7 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (*AdminInfoResponse, error) {
 		if len(req.Password) > 8 {
 			req.Password = secure.CryptPassword(req.Password)
 		} else {
-			return nil, web.NewHTTPError(400, "password is too short")
+			return nil, ginx.NewHTTPError(400, "password is too short")
 		}
 	}
 	u, err := update.Save(ctx)
@@ -134,9 +131,8 @@ func (w *Web) getAdminByID(ctx *gin.Context, idParam string) (*ent.Admin, error)
 // AdminDetail
 //
 // @Summary 管理员详情
-// @Security ApiKeyAuth
 // @Param id path int true "管理员ID"
-// @Success 200 {object} web.DataResponse[AdminInfoResponse]
+// @Success 200 {object} ginx.DataResponse[AdminInfoResponse]
 // @Router /api/admin/detail/{id} [get]
 func (w *Web) AdminDetail(ctx *gin.Context) (*AdminInfoResponse, error) {
 	adm, err := w.getAdminByID(ctx, ctx.Param("id"))
@@ -151,11 +147,10 @@ func (w *Web) AdminDetail(ctx *gin.Context) (*AdminInfoResponse, error) {
 // AdminDelete
 //
 // @Summary 删除管理员
-// @Security ApiKeyAuth
 // @Param id path int true "管理员ID"
-// @Success 200 {object} web.MessageResponse
+// @Success 200 {object} ginx.MessageResponse
 // @Router /api/admin/delete/{id} [delete]
-func (w *Web) AdminDelete(ctx *gin.Context) (*web.SimpleMessage, error) {
+func (w *Web) AdminDelete(ctx *gin.Context) (*ginx.SimpleMessage, error) {
 	adm, err := w.getAdminByID(ctx, ctx.Param("id"))
 	if err != nil {
 		return nil, err
@@ -165,20 +160,20 @@ func (w *Web) AdminDelete(ctx *gin.Context) (*web.SimpleMessage, error) {
 		return nil, err
 	}
 	if adm.Username == value {
-		return nil, web.NewHTTPError(400, "can not delete self")
+		return nil, ginx.NewHTTPError(400, "can not delete self")
 	}
 	err = w.DB.Admin.DeleteOneID(adm.ID).Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return web.NewSuccessResponse(), nil
+	return ginx.NewSuccessResponse(), nil
 }
 
 func (w *Web) bindAdminRoute(r gin.IRouter) {
 	route := r.Group("/", w.NewPermissionMiddleware(WebPermissionAdmin))
-	route.GET("/api/admin/list", web.WithJson(w.AdminList))
-	route.POST("/api/admin/create", web.WithJson(w.AdminCreate))
-	route.POST("/api/admin/update/:id", web.WithJson(w.AdminUpdate))
-	route.GET("/api/admin/detail/:id", web.WithJson(w.AdminDetail))
-	route.DELETE("/api/admin/delete/:id", web.WithJson(w.AdminDelete))
+	route.GET("/api/admin/list", ginx.WithJson(w.AdminList))
+	route.POST("/api/admin/create", ginx.WithJson(w.AdminCreate))
+	route.POST("/api/admin/update/:id", ginx.WithJson(w.AdminUpdate))
+	route.GET("/api/admin/detail/:id", ginx.WithJson(w.AdminDetail))
+	route.DELETE("/api/admin/delete/:id", ginx.WithJson(w.AdminDelete))
 }

@@ -1,4 +1,4 @@
-package web
+package ginx
 
 type PaginationParams struct {
 	Page  int `json:"page" form:"page"`

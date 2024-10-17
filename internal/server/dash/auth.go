@@ -5,7 +5,7 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
 	"github.com/tbxark/sphere/pkg/utils/secure"
-	"github.com/tbxark/sphere/pkg/web"
+	"github.com/tbxark/sphere/pkg/web/ginx"
 	"strconv"
 	"time"
 )
@@ -25,7 +25,7 @@ type AdminLoginResponse struct {
 	Expires      string   `json:"expires"`
 }
 
-type AdminLoginResponseWrapper = web.DataResponse[AdminLoginResponse]
+type AdminLoginResponseWrapper = ginx.DataResponse[AdminLoginResponse]
 
 func (w *Web) createLoginResponse(u *ent.Admin) (*AdminLoginResponse, error) {
 	id := strconv.Itoa(u.ID)
@@ -64,7 +64,7 @@ func (w *Web) AuthLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 		return nil, err
 	}
 	if !secure.IsPasswordMatch(req.Password, u.Password) {
-		return nil, web.NewHTTPError(400, "password not match")
+		return nil, ginx.NewHTTPError(400, "password not match")
 	}
 	return w.createLoginResponse(u)
 }
@@ -101,6 +101,6 @@ func (w *Web) AuthRefresh(ctx *gin.Context) (*AdminLoginResponse, error) {
 
 func (w *Web) bindAuthRoute(r gin.IRouter) {
 	route := r.Group("/")
-	route.POST("/api/auth/login", web.WithJson(w.AuthLogin))
-	route.POST("/api/auth/refresh", web.WithJson(w.AuthRefresh))
+	route.POST("/api/auth/login", ginx.WithJson(w.AuthLogin))
+	route.POST("/api/auth/refresh", ginx.WithJson(w.AuthRefresh))
 }

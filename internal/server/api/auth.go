@@ -9,7 +9,7 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
 	"github.com/tbxark/sphere/internal/pkg/render"
-	"github.com/tbxark/sphere/pkg/web"
+	"github.com/tbxark/sphere/pkg/web/ginx"
 	"strconv"
 	"time"
 )
@@ -28,7 +28,7 @@ type AuthResponse struct {
 //
 // @Summary 微信小程序登录
 // @Param request body WxMiniAuthRequest true "登录信息"
-// @Success 200 {object} web.DataResponse[AuthResponse]
+// @Success 200 {object} ginx.DataResponse[AuthResponse]
 // @Router /api/auth/wxmini [post]
 func (w *Web) AuthWxMini(ctx *gin.Context) (*AuthResponse, error) {
 	var req WxMiniAuthRequest
@@ -93,5 +93,5 @@ func (w *Web) AuthWxMini(ctx *gin.Context) (*AuthResponse, error) {
 
 func (w *Web) bindAuthRoute(r gin.IRouter) {
 	route := r.Group("/")
-	route.POST("/api/auth/wxmini", web.WithJson(w.AuthWxMini))
+	route.POST("/api/auth/wxmini", ginx.WithJson(w.AuthWxMini))
 }

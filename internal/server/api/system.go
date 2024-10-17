@@ -4,16 +4,15 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/sphere/pkg/storage"
-	"github.com/tbxark/sphere/pkg/web"
+	"github.com/tbxark/sphere/pkg/web/ginx"
 	"strconv"
 )
 
 // UploadToken
 //
 // @Summary 获取上传凭证
-// @Security ApiKeyAuth
 // @Param filename query string true "文件名"
-// @Success 200 {object} web.DataResponse[storage.FileUploadToken]
+// @Success 200 {object} ginx.DataResponse[storage.FileUploadToken]
 // @Router /api/upload/token [get]
 func (w *Web) UploadToken(ctx *gin.Context) (*storage.FileUploadToken, error) {
 	var req struct {
@@ -36,14 +35,14 @@ func (w *Web) UploadToken(ctx *gin.Context) (*storage.FileUploadToken, error) {
 // Status
 //
 // @Summary 获取系统状态
-// @Success 200 {object} web.MessageResponse
+// @Success 200 {object} ginx.MessageResponse
 // @Router /api/status [get]
-func (w *Web) Status(ctx *gin.Context) (*web.SimpleMessage, error) {
-	return web.NewSuccessResponse(), nil
+func (w *Web) Status(ctx *gin.Context) (*ginx.SimpleMessage, error) {
+	return ginx.NewSuccessResponse(), nil
 }
 
 func (w *Web) bindSystemRoute(r gin.IRouter) {
 	route := r.Group("/")
-	route.GET("/api/status", web.WithJson(w.Status))
-	route.GET("/api/upload/token", web.WithJson(w.UploadToken))
+	route.GET("/api/status", ginx.WithJson(w.Status))
+	route.GET("/api/upload/token", ginx.WithJson(w.UploadToken))
 }
