@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/log/logfields"
-	"github.com/tbxark/sphere/pkg/utils/request"
+	"github.com/tbxark/sphere/pkg/utils/httpclient"
 	"io"
 	"net/http"
 	"time"
@@ -47,7 +47,7 @@ func NewWechat(config *Config) *Wechat {
 }
 
 func (w *Wechat) Auth(code string) (*AuthResponse, error) {
-	url, err := request.URL("https://api.weixin.qq.com/sns/jscode2session", map[string]string{
+	url, err := httpclient.URL("https://api.weixin.qq.com/sns/jscode2session", map[string]string{
 		"appid":      w.config.AppID,
 		"secret":     w.config.AppSecret,
 		"js_code":    code,
@@ -56,7 +56,7 @@ func (w *Wechat) Auth(code string) (*AuthResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	result, err := request.GET[AuthResponse](url)
+	result, err := httpclient.GET[AuthResponse](url)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (w *Wechat) GetAccessToken(reload bool) (string, error) {
 	if !reload && w.accessToken != "" && time.Now().Before(w.accessTokenExpire) {
 		return w.accessToken, nil
 	}
-	url, err := request.URL("https://api.weixin.qq.com/cgi-bin/token", map[string]string{
+	url, err := httpclient.URL("https://api.weixin.qq.com/cgi-bin/token", map[string]string{
 		"grant_type": "client_credential",
 		"appid":      w.config.AppID,
 		"secret":     w.config.AppSecret,
@@ -78,7 +78,7 @@ func (w *Wechat) GetAccessToken(reload bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	result, err := request.GET[AccessTokenResponse](url)
+	result, err := httpclient.GET[AccessTokenResponse](url)
 	if err != nil {
 		return "", err
 	}
@@ -98,7 +98,7 @@ func (w *Wechat) GetQrCode(code QrCodeRequest, retryable bool) ([]byte, error) {
 	if code.EnvVersion == "" {
 		code.EnvVersion = w.config.Env.String()
 	}
-	url, err := request.URL("https://api.weixin.qq.com/wxa/getwxacodeunlimit", map[string]string{
+	url, err := httpclient.URL("https://api.weixin.qq.com/wxa/getwxacodeunlimit", map[string]string{
 		"access_token": token,
 	})
 	if err != nil {
@@ -113,7 +113,7 @@ func (w *Wechat) GetQrCode(code QrCodeRequest, retryable bool) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Add("Content-Type", "application/json; charset=utf-8")
-	resp, err := request.DefaultHttpClient().Do(req)
+	resp, err := httpclient.DefaultHttpClient().Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -154,13 +154,13 @@ func (w *Wechat) SendMessage(msg SubscribeMessageRequest, retryable bool) error 
 			msg.MiniprogramState = "developer"
 		}
 	}
-	url, err := request.URL("https://api.weixin.qq.com/cgi-bin/message/subscribe/send", map[string]string{
+	url, err := httpclient.URL("https://api.weixin.qq.com/cgi-bin/message/subscribe/send", map[string]string{
 		"access_token": token,
 	})
 	if err != nil {
 		return err
 	}
-	result, err := request.POST[EmptyResponse](url, msg)
+	result, err := httpclient.POST[EmptyResponse](url, msg)
 	if err != nil {
 		return err
 	}
@@ -205,13 +205,13 @@ func (w *Wechat) GetUserPhoneNumber(code string, retryable bool) (*GetUserPhoneN
 	if err != nil {
 		return nil, err
 	}
-	url, err := request.URL("https://api.weixin.qq.com/wxa/business/getuserphonenumber", map[string]string{
+	url, err := httpclient.URL("https://api.weixin.qq.com/wxa/business/getuserphonenumber", map[string]string{
 		"access_token": token,
 	})
 	if err != nil {
 		return nil, err
 	}
-	result, err := request.POST[GetUserPhoneNumberResponse](url, map[string]string{"code": code})
+	result, err := httpclient.POST[GetUserPhoneNumberResponse](url, map[string]string{"code": code})
 	if err != nil {
 		return nil, err
 	}

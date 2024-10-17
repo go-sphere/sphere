@@ -1,4 +1,4 @@
-package parser
+package authparser
 
 type AuthParser interface {
 	ParseToken(token string) (*Claims, error)

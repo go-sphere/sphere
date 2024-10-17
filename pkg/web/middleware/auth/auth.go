@@ -2,7 +2,7 @@ package auth
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/sphere/pkg/web/auth/parser"
+	"github.com/tbxark/sphere/pkg/web/auth/authparser"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,14 +11,14 @@ import (
 type Auth struct {
 	*Base
 	prefix string
-	parser parser.AuthParser
+	parser authparser.AuthParser
 }
 
 type AccessControl interface {
 	IsAllowed(role, resource string) bool
 }
 
-func NewAuth(prefix string, parser parser.AuthParser) *Auth {
+func NewAuth(prefix string, parser authparser.AuthParser) *Auth {
 	return &Auth{
 		Base:   &Base{},
 		prefix: prefix,

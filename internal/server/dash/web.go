@@ -15,7 +15,7 @@ import (
 	"github.com/tbxark/sphere/pkg/web/middleware/auth"
 	"github.com/tbxark/sphere/pkg/web/middleware/logger"
 	"github.com/tbxark/sphere/pkg/web/middleware/ratelimiter"
-	"github.com/tbxark/sphere/pkg/web/pprof"
+	"github.com/tbxark/sphere/pkg/web/route/pprof"
 	"github.com/tbxark/sphere/pkg/wechat"
 	"time"
 )

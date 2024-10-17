@@ -1,7 +1,7 @@
 package jwtauth
 
 import (
-	"github.com/tbxark/sphere/pkg/web/auth/parser"
+	"github.com/tbxark/sphere/pkg/web/auth/authparser"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +15,7 @@ const (
 	DefaultRefreshDuration    = time.Hour * 24 * 7
 )
 
-var _ parser.AuthParser = &JwtAuth{}
+var _ authparser.AuthParser = &JwtAuth{}
 
 type SignedDetails struct {
 	jwt.StandardClaims
@@ -106,7 +106,7 @@ func (g *JwtAuth) GenerateRefreshToken(uid string) (*Token, error) {
 	}, nil
 }
 
-func (g *JwtAuth) ParseToken(signedToken string) (*parser.Claims, error) {
+func (g *JwtAuth) ParseToken(signedToken string) (*authparser.Claims, error) {
 	claims := &SignedDetails{}
 	_, err := jwt.ParseWithClaims(signedToken, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -117,7 +117,7 @@ func (g *JwtAuth) ParseToken(signedToken string) (*parser.Claims, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &parser.Claims{
+	return &authparser.Claims{
 		Subject:  claims.Subject,
 		Username: claims.Username,
 		Roles:    claims.Roles,
