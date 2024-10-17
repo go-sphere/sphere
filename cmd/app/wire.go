@@ -1,7 +1,7 @@
 //go:build wireinject
 // +build wireinject
 
-package app
+package main
 
 import (
 	"github.com/google/wire"
@@ -11,7 +11,7 @@ import (
 	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
-func NewAPIApplication(conf *config.Config) (*boot.Application, error) {
-	wire.Build(config.ProviderSet, pkg.ProviderSet, internal.ProviderSet, wire.NewSet(CreateApplication))
+func NewApplication(conf *config.Config) (*boot.Application, error) {
+	wire.Build(config.ProviderSet, pkg.ProviderSet, internal.ProviderSet, wire.NewSet(newApplication))
 	return &boot.Application{}, nil
 }

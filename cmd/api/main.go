@@ -1,15 +1,23 @@
 package main
 
 import (
-	"github.com/tbxark/sphere/cmd/api/app"
-	"github.com/tbxark/sphere/config"
+	"github.com/tbxark/sphere/internal/biz/task"
+	"github.com/tbxark/sphere/internal/pkg/app"
+	"github.com/tbxark/sphere/internal/server/api"
 	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
 func main() {
-	conf := boot.DefaultCommandConfigFlagsParser(config.NewConfig)
-	err := boot.Run(conf, app.NewAPIApplication)
-	if err != nil {
-		panic(err)
-	}
+	app.Execute(NewAPIApplication)
+}
+
+func newApplication(dash *api.Web, initialize *task.DashInitialize, cleaner *task.ConnectCleaner) *boot.Application {
+	return boot.NewApplication(
+		[]boot.Task{
+			dash,
+			initialize,
+		},
+		[]boot.Cleaner{
+			cleaner,
+		})
 }

@@ -1,5 +1,7 @@
 package secure
 
+import "math/rand"
+
 func CensorString(src string, outLength int) string {
 	runs := []rune(src)
 	out := make([]rune, 0, len(runs))
@@ -27,4 +29,13 @@ func CensorString(src string, outLength int) string {
 		out = append(out, runs[len(runs)-1])
 	}
 	return string(out)
+}
+
+func RandString(length int) string {
+	chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	res := make([]byte, length)
+	for i := range res {
+		res[i] = chars[rand.Intn(len(chars))]
+	}
+	return string(res)
 }

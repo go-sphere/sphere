@@ -44,7 +44,7 @@ func runMigrate(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Panicf("read file error: %v", err)
 	}
-	cfg, err := config.LoadLocalConfig(cfgP)
+	cfg, err := config.NewConfig(cfgP)
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}

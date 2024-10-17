@@ -36,7 +36,7 @@ func runUpload(cmd *cobra.Command, args []string) {
 	outP := cmd.Flag("output").Value.String()
 	dir := cmd.Flag("storage").Value.String()
 
-	cfg, err := config.LoadLocalConfig(confP)
+	cfg, err := config.NewConfig(confP)
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}

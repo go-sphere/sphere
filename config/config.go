@@ -8,8 +8,8 @@ import (
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/storage/qiniu"
 	"github.com/tbxark/sphere/pkg/utils/config/parser"
+	"github.com/tbxark/sphere/pkg/utils/secure"
 	"github.com/tbxark/sphere/pkg/wechat"
-	"math/rand"
 )
 
 var BuildVersion = "dev"
@@ -27,14 +27,6 @@ type Config struct {
 }
 
 func NewEmptyConfig() *Config {
-	randJWTPassword := func() string {
-		jwtChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-		jwt := make([]byte, 32)
-		for i := range jwt {
-			jwt[i] = jwtChars[rand.Intn(len(jwtChars))]
-		}
-		return string(jwt)
-	}
 	return &Config{
 		Environments: map[string]string{
 			"GIN_MODE":          "release",
@@ -52,11 +44,11 @@ func NewEmptyConfig() *Config {
 		Database: &client.Config{},
 		Dash: &dash.Config{
 			Address: "0.0.0.0:8800",
-			JWT:     randJWTPassword(),
+			JWT:     secure.RandString(32),
 		},
 		API: &api.Config{
 			Address: "0.0.0.0:8899",
-			JWT:     randJWTPassword(),
+			JWT:     secure.RandString(32),
 		},
 		Storage: &qiniu.Config{
 			AccessKey: "",

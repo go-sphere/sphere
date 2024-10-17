@@ -4,7 +4,7 @@
 //go:build !wireinject
 // +build !wireinject
 
-package app
+package main
 
 import (
 	"github.com/tbxark/sphere/config"
@@ -17,6 +17,6 @@ import (
 func NewBotApplication(conf *config.Config) (*boot.Application, error) {
 	botConfig := conf.Bot
 	botBot := bot.NewApp(botConfig)
-	application := CreateApplication(botBot)
+	application := newApplication(botBot)
 	return application, nil
 }
