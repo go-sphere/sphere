@@ -17,6 +17,7 @@ init:
 	go get entgo.io/ent/cmd/ent@latest
 	go get github.com/google/wire/cmd/wire@latest
 	go install github.com/swaggo/swag/cmd/swag@latest
+	go install github.com/bufbuild/buf/cmd/buf@latest
 	go mod download
 	$(MAKE) generate
 	$(MAKE) docs
