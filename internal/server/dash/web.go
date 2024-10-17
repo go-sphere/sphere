@@ -15,6 +15,7 @@ import (
 	"github.com/tbxark/sphere/pkg/web/middleware/auth"
 	"github.com/tbxark/sphere/pkg/web/middleware/logger"
 	"github.com/tbxark/sphere/pkg/web/middleware/ratelimiter"
+	"github.com/tbxark/sphere/pkg/web/pprof"
 	"github.com/tbxark/sphere/pkg/wechat"
 	"time"
 )
@@ -34,6 +35,7 @@ type Config struct {
 	JWT        string `json:"jwt" yaml:"jwt"`
 	Address    string `json:"address" yaml:"address"`
 	Doc        bool   `json:"doc" yaml:"doc"`
+	PProf      bool   `json:"pprof" yaml:"pprof"`
 	DashCors   string `json:"dash_cors" yaml:"dash_cors"`
 	DashStatic string `json:"dash_static" yaml:"dash_static"`
 }
@@ -104,6 +106,9 @@ func (w *Web) Run() error {
 
 	if w.config.Doc {
 		w.bindDocRoute(api)
+	}
+	if w.config.PProf {
+		pprof.SetupPProf(api)
 	}
 	w.bindAuthRoute(api.Group("/", rateLimiter))
 	w.bindSystemRoute(authRoute)
