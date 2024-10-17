@@ -5,7 +5,7 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/keyvaluestore"
-	"github.com/tbxark/sphere/pkg/utils/encrypt"
+	"github.com/tbxark/sphere/pkg/utils/secure"
 	"strconv"
 	"time"
 )
@@ -25,7 +25,7 @@ func initAdminIfNeed(ctx context.Context, client *ent.Client) error {
 	}
 	return client.Admin.Create().
 		SetUsername("admin").
-		SetPassword(encrypt.CryptPassword("aA1234567")).
+		SetPassword(secure.CryptPassword("aA1234567")).
 		SetRoles([]string{"all"}).
 		Exec(ctx)
 }

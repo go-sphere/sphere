@@ -5,7 +5,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/render"
-	"github.com/tbxark/sphere/pkg/utils/encrypt"
+	"github.com/tbxark/sphere/pkg/utils/secure"
 	"github.com/tbxark/sphere/pkg/web"
 	"strconv"
 )
@@ -60,7 +60,7 @@ func (w *Web) AdminCreate(ctx *gin.Context) (*AdminInfoResponse, error) {
 		return nil, err
 	}
 	if len(req.Password) > 8 {
-		req.Password = encrypt.CryptPassword(req.Password)
+		req.Password = secure.CryptPassword(req.Password)
 	} else {
 		return nil, web.NewHTTPError(400, "password is too short")
 	}
@@ -101,9 +101,9 @@ func (w *Web) AdminUpdate(ctx *gin.Context) (*AdminInfoResponse, error) {
 		SetNickname(req.Nickname).
 		SetRoles(req.Roles)
 	if req.Password != "" {
-		update = update.SetPassword(encrypt.CryptPassword(req.Password))
+		update = update.SetPassword(secure.CryptPassword(req.Password))
 		if len(req.Password) > 8 {
-			req.Password = encrypt.CryptPassword(req.Password)
+			req.Password = secure.CryptPassword(req.Password)
 		} else {
 			return nil, web.NewHTTPError(400, "password is too short")
 		}

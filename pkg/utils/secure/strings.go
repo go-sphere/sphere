@@ -1,4 +1,4 @@
-package encrypt
+package secure
 
 func CensorString(src string, outLength int) string {
 	runs := []rune(src)

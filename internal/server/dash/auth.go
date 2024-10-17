@@ -4,7 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
-	"github.com/tbxark/sphere/pkg/utils/encrypt"
+	"github.com/tbxark/sphere/pkg/utils/secure"
 	"github.com/tbxark/sphere/pkg/web"
 	"strconv"
 	"time"
@@ -63,7 +63,7 @@ func (w *Web) AuthLogin(ctx *gin.Context) (*AdminLoginResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !encrypt.IsPasswordMatch(req.Password, u.Password) {
+	if !secure.IsPasswordMatch(req.Password, u.Password) {
 		return nil, web.NewHTTPError(400, "password not match")
 	}
 	return w.createLoginResponse(u)

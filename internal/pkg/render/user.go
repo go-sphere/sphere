@@ -3,7 +3,7 @@ package render
 import (
 	"github.com/samber/lo"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
-	"github.com/tbxark/sphere/pkg/utils/encrypt"
+	"github.com/tbxark/sphere/pkg/utils/secure"
 	"golang.org/x/net/context"
 )
 
@@ -47,7 +47,7 @@ func (r *Render) CensorUser(u *ent.User) *User {
 		return nil
 	}
 	user := r.User(u)
-	user.Username = encrypt.CensorString(u.Username, 5)
+	user.Username = secure.CensorString(u.Username, 5)
 	return user
 }
 
