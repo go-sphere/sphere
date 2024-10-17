@@ -26,15 +26,6 @@ This project uses minimal encapsulation, the simplest structure, and reduces cod
 ```
 ### Usage
 
-| Executable | Description                                    |
-|------------|------------------------------------------------|
-| `api`      | Start the API server                           |
-| `dash`     | Start the dashboard server                     |
-| `bot`      | Start the bot server                           |
-| `app`      | Start the multi server, api, dashboard and bot |
-| `config`   | Configuration cli tool                         |
-| `storage`  | Storage cli tool                               |
-
 You can fork this project and modify the code in internal and cmd to implement your own business logic. Please do not modify the code in pkg. If necessary, please raise an issue or PR.
 
 Alternatively, you can import this project in go mod and implement your own business logic in your project.
