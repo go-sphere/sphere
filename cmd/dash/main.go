@@ -2,12 +2,13 @@ package main
 
 import (
 	"github.com/tbxark/sphere/cmd/dash/app"
+	"github.com/tbxark/sphere/config"
 	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
 func main() {
-	c := boot.DefaultCommandConfigFlagsParser()
-	err := boot.Run(c, app.NewDashApplication)
+	conf := boot.DefaultCommandConfigFlagsParser(config.NewConfig)
+	err := boot.Run(conf, app.NewDashApplication)
 	if err != nil {
 		panic(err)
 	}

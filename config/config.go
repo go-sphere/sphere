@@ -7,31 +7,23 @@ import (
 	"github.com/tbxark/sphere/internal/server/dash"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/storage/qiniu"
+	"github.com/tbxark/sphere/pkg/utils/config/parser"
 	"github.com/tbxark/sphere/pkg/wechat"
 	"math/rand"
-	"net/http"
-	"os"
-	"time"
 )
 
 var BuildVersion = "dev"
 
-type RemoteConfig struct {
-	URL     string            `json:"url" yaml:"url"`
-	Method  string            `json:"method" yaml:"method"`
-	Headers map[string]string `json:"headers" yaml:"headers"`
-}
-
 type Config struct {
-	Environments map[string]string `json:"environments" yaml:"environments"`
-	Remote       *RemoteConfig     `json:"remote" yaml:"remote"`
-	Log          *log.Options      `json:"log" yaml:"log"`
-	Database     *client.Config    `json:"database" yaml:"database"`
-	Dash         *dash.Config      `json:"dash" yaml:"dash"`
-	API          *api.Config       `json:"api" yaml:"api"`
-	Storage      *qiniu.Config     `json:"storage" yaml:"storage"`
-	Bot          *bot.Config       `json:"bot" yaml:"bot"`
-	WxMini       *wechat.Config    `json:"wx_mini" yaml:"wx_mini"`
+	Environments map[string]string    `json:"environments" yaml:"environments"`
+	Remote       *parser.RemoteConfig `json:"remote" yaml:"remote"`
+	Log          *log.Options         `json:"log" yaml:"log"`
+	Database     *client.Config       `json:"database" yaml:"database"`
+	Dash         *dash.Config         `json:"dash" yaml:"dash"`
+	API          *api.Config          `json:"api" yaml:"api"`
+	Storage      *qiniu.Config        `json:"storage" yaml:"storage"`
+	Bot          *bot.Config          `json:"bot" yaml:"bot"`
+	WxMini       *wechat.Config       `json:"wx_mini" yaml:"wx_mini"`
 }
 
 func NewEmptyConfig() *Config {
@@ -90,41 +82,15 @@ func setDefaultConfig(config *Config) *Config {
 	return config
 }
 
-func LoadLocalConfig(path string) (*Config, error) {
-	file, err := os.ReadFile(path)
+func NewConfig(path string) (*Config, error) {
+	config, err := parser.Local[Config](path)
 	if err != nil {
 		return nil, err
 	}
-	config := &Config{}
-	err = Unmarshal(Ext(path), file, config)
-	if err != nil {
-		return nil, err
+	if config.Remote == nil {
+		return config, nil
 	}
-	return setDefaultConfig(config), nil
-}
-
-func LoadRemoteConfig(remote *RemoteConfig) (*Config, error) {
-	httpClient := http.Client{
-		Timeout: time.Second * 10,
-	}
-	req, err := http.NewRequest(remote.Method, remote.URL, nil)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range remote.Headers {
-		req.Header.Add(k, v)
-	}
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	config := &Config{}
-	decoder := NewDecoder(Ext(remote.URL), resp.Body)
-	if decoder == nil {
-		return nil, ErrUnknownCoderType
-	}
-	err = decoder.Decode(config)
+	config, err = parser.Remote[Config](config.Remote)
 	if err != nil {
 		return nil, err
 	}

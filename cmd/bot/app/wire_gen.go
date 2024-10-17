@@ -16,10 +16,7 @@ import (
 
 func NewBotApplication(conf *config.Config) (*boot.Application, error) {
 	botConfig := conf.Bot
-	botBot, err := bot.NewApp(botConfig)
-	if err != nil {
-		return nil, err
-	}
+	botBot := bot.NewApp(botConfig)
 	application := CreateApplication(botBot)
 	return application, nil
 }

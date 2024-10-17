@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 	"github.com/tbxark/sphere/config"
+	"github.com/tbxark/sphere/pkg/utils/config/parser"
 	"log"
 	"os"
 )
@@ -41,7 +42,7 @@ func runConfig(cmd *cobra.Command, args []string) {
 		log.Fatalf("create file error: %v", err)
 	}
 	defer file.Close()
-	encoder := config.NewEncoder(config.Ext(output), file)
+	encoder := parser.NewEncoder(parser.Ext(output), file)
 	if encoder == nil {
 		log.Fatalf("unsupported file type: %s", output)
 	}

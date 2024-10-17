@@ -11,11 +11,11 @@ type Bot struct {
 	*telegram.Bot
 }
 
-func NewApp(conf *Config) (*Bot, error) {
+func NewApp(conf *Config) *Bot {
 	app := telegram.NewApp((*telegram.Config)(conf))
 	return &Bot{
 		Bot: app,
-	}, nil
+	}
 }
 
 func (b *Bot) Identifier() string {
