@@ -63,7 +63,7 @@ message AdminCreateResponse {
 }
 
 message AdminUpdateRequest {
-  int64 id = 1;
+  int64 id = 1; // @gotags: json:"-"` uri:"id"`
   string avatar = 2;
   string username = 3;
   string nickname = 4;
@@ -76,7 +76,7 @@ message AdminUpdateResponse {
 }
 
 message AdminDetailRequest {
-  int64 id = 1;
+  int64 id = 1; // @gotags: json:"-"` uri:"id"`
 }
 
 message AdminDetailResponse {
@@ -84,7 +84,7 @@ message AdminDetailResponse {
 }
 
 message AdminDeleteRequest {
-  int64 id = 1;
+  int64 id = 1; // @gotags: json:"-"` uri:"id"`
 }
 
 message AdminDeleteResponse {

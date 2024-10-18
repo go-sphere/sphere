@@ -525,9 +525,6 @@ const docTemplateDash = `{
                 "avatar": {
                     "type": "string"
                 },
-                "id": {
-                    "type": "integer"
-                },
                 "nickname": {
                     "type": "string"
                 },
