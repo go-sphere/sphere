@@ -3,7 +3,6 @@ syntax = "proto3";
 package api.v1;
 
 import "google/api/annotations.proto";
-import "shared/v1/storage.proto";
 
 service SystemService {
   rpc Status(StatusRequest) returns (StatusResponse) {

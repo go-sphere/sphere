@@ -78,6 +78,7 @@ deploy:
 .PHONY: lint
 lint:
 	golangci-lint run
+	buf lint
 
 .PHONY: help
 help:
