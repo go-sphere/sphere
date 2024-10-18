@@ -10,37 +10,80 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type TagNameGetter interface {
+	Get(f reflect.StructField) string
+}
+
+type TagNameFunc func(f reflect.StructField) string
+
+func (f TagNameFunc) Get(field reflect.StructField) string {
+	return f(field)
+}
+
+func simpleTagNameFunc(tag string) TagNameFunc {
+	// example: `form:"name,required,min=1,max=100"`
+	return func(f reflect.StructField) string {
+		return strings.Split(f.Tag.Get(tag), ",")[0]
+	}
+}
+
+func protobufTagNameFunc(f reflect.StructField) string {
+	// example: `protobuf:"bytes,1,opt,name=code,proto3"`
+	cmp := strings.Split(f.Tag.Get("protobuf"), ",")
+	for _, s := range cmp {
+		if strings.HasPrefix(s, "name=") {
+			return strings.TrimPrefix(s, "name=")
+		}
+	}
+	return ""
+}
+
+func multiTagNameFunc(fns ...TagNameFunc) TagNameFunc {
+	return func(f reflect.StructField) string {
+		for _, fn := range fns {
+			if name := fn.Get(f); name != "" && name != "-" {
+				return name
+			}
+		}
+		return ""
+	}
+}
+
 type UniverseBinding struct {
 	tagName     string
+	tagGetter   TagNameGetter
 	valueGetter func(c *gin.Context, name string) (string, bool)
 }
 
 func (u *UniverseBinding) Name() string {
-	return "custom"
+	return "universe"
 }
+
+var (
+	ErrBindingElementMustBePointer = errors.New("binding element must be a pointer")
+	ErrBindingElementMustBeStruct  = errors.New("binding element must be a struct")
+	ErrUnsupportedFieldType        = errors.New("unsupported field type")
+)
 
 func (u *UniverseBinding) Bind(c *gin.Context, obj interface{}) error {
 	value := reflect.ValueOf(obj)
 	if value.Kind() != reflect.Ptr {
-		return errors.New("binding element must be a pointer")
+		return ErrBindingElementMustBePointer
 	}
 	value = value.Elem()
 	if value.Kind() != reflect.Struct {
-		return errors.New("binding element must be a struct")
+		return ErrBindingElementMustBeStruct
 	}
 
 	for i := 0; i < value.NumField(); i++ {
 		field := value.Type().Field(i)
 		fieldValue := value.Field(i)
 
-		tag := field.Tag.Get(u.tagName)
-		if tag == "" {
+		tag := u.tagGetter.Get(field)
+		if tag == "" || tag == "-" {
 			continue
 		}
-
-		// 尝试获取值
-		bindName := strings.Split(tag, ",")[0]
-		val, ok := u.valueGetter(c, bindName)
+		val, ok := u.valueGetter(c, tag)
 		if !ok {
 			continue
 		}
@@ -74,7 +117,7 @@ func (u *UniverseBinding) Bind(c *gin.Context, obj interface{}) error {
 			}
 			fieldValue.SetBool(boolVal)
 		default:
-			return errors.New("unsupported field type")
+			return ErrUnsupportedFieldType
 		}
 	}
 	if binding.Validator == nil {
@@ -85,13 +128,15 @@ func (u *UniverseBinding) Bind(c *gin.Context, obj interface{}) error {
 
 var (
 	uriBinding = &UniverseBinding{
-		tagName: "uri",
+		tagName:   "uri",
+		tagGetter: multiTagNameFunc(simpleTagNameFunc("uri"), protobufTagNameFunc),
 		valueGetter: func(c *gin.Context, name string) (string, bool) {
 			return c.Params.Get(name)
 		},
 	}
 	queryBinding = &UniverseBinding{
-		tagName: "form",
+		tagName:   "form",
+		tagGetter: multiTagNameFunc(simpleTagNameFunc("form"), protobufTagNameFunc),
 		valueGetter: func(c *gin.Context, name string) (string, bool) {
 			return c.GetQuery(name)
 		},
