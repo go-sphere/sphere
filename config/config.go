@@ -45,7 +45,8 @@ func NewEmptyConfig() *Config {
 		},
 		Database: &client.Config{},
 		Dash: &dash.Config{
-			JWT: secure.RandString(32),
+			AuthJWT:    secure.RandString(32),
+			RefreshJWT: secure.RandString(32),
 			HTTP: dash.HTTPConfig{
 				Address: "0.0.0.0:8800",
 			},

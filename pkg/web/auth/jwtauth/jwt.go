@@ -19,8 +19,8 @@ var _ authorizer.Authorizer = &JwtAuth{}
 
 type SignedDetails struct {
 	jwt.StandardClaims
-	Username string `json:"username"`
-	Roles    string `json:"roles"`
+	Username string `json:"username,omitempty"`
+	Roles    string `json:"roles,omitempty"`
 }
 
 type JwtAuth struct {
@@ -58,7 +58,7 @@ func WithRefreshTokenDuration(d time.Duration) Option {
 	}
 }
 
-func (g *JwtAuth) GenerateSignedToken(subject, username string, roles ...string) (*authorizer.Token, error) {
+func (g *JwtAuth) GenerateToken(subject, username string, roles ...string) (*authorizer.Token, error) {
 	expiresAt := time.Now().Local().Add(g.signedTokenDuration)
 	claims := &SignedDetails{
 		Username: username,
@@ -76,27 +76,6 @@ func (g *JwtAuth) GenerateSignedToken(subject, username string, roles ...string)
 
 	return &authorizer.Token{
 		Token:     token,
-		ExpiresAt: expiresAt,
-	}, nil
-}
-
-func (g *JwtAuth) GenerateRefreshToken(uid string) (*authorizer.Token, error) {
-
-	expiresAt := time.Now().Local().Add(g.signedRefreshDuration)
-	refreshClaims := &SignedDetails{
-		StandardClaims: jwt.StandardClaims{
-			Subject:   uid,
-			ExpiresAt: expiresAt.Unix(),
-		},
-	}
-
-	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString(g.secret)
-	if err != nil {
-		return nil, err
-	}
-
-	return &authorizer.Token{
-		Token:     refreshToken,
 		ExpiresAt: expiresAt,
 	}, nil
 }

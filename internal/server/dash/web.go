@@ -43,7 +43,8 @@ const (
 )
 
 func (w *Web) Run() error {
-	authorizer := jwtauth.NewJwtAuth(w.config.JWT)
+	authorizer := jwtauth.NewJwtAuth(w.config.AuthJWT)
+	authRefresher := jwtauth.NewJwtAuth(w.config.RefreshJWT)
 	authControl := auth.NewAuth(jwtauth.AuthorizationPrefixBearer, authorizer)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "dash"))
@@ -71,7 +72,7 @@ func (w *Web) Run() error {
 	api := w.engine.Group("/")
 	needAuthRoute := api.Group("/", authMiddleware)
 
-	w.service.Init(authControl, authorizer)
+	w.service.Init(authControl, authorizer, authRefresher)
 
 	if w.config.HTTP.PProf {
 		pprof.SetupPProf(api)

@@ -25,11 +25,11 @@ type AdminLoginResponseWrapper = ginx.DataResponse[AdminToken]
 
 func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
 	id := strconv.Itoa(int(u.ID))
-	token, err := s.Authorizer.GenerateSignedToken(id, u.Username, u.Roles...)
+	token, err := s.Authorizer.GenerateToken(id, u.Username, u.Roles...)
 	if err != nil {
 		return nil, err
 	}
-	refresh, err := s.Authorizer.GenerateRefreshToken(id)
+	refresh, err := s.AuthRefresher.GenerateToken(id, u.Username)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (s *Service) AuthLogin(ctx context.Context, req *dashv1.AuthLoginRequest) (
 }
 
 func (s *Service) AuthRefresh(ctx context.Context, req *dashv1.AuthRefreshRequest) (*dashv1.AuthRefreshResponse, error) {
-	claims, err := s.Authorizer.ParseToken(req.RefreshToken)
+	claims, err := s.AuthRefresher.ParseToken(req.RefreshToken)
 	if err != nil {
 		return nil, err
 	}

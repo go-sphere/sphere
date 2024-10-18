@@ -8,6 +8,7 @@ type HTTPConfig struct {
 }
 
 type Config struct {
-	JWT  string     `json:"jwt" yaml:"jwt"`
-	HTTP HTTPConfig `json:"http" yaml:"http"`
+	AuthJWT    string     `json:"auth_jwt" yaml:"auth_jwt"`
+	RefreshJWT string     `json:"refresh_jwt" yaml:"refresh_jwt"`
+	HTTP       HTTPConfig `json:"http" yaml:"http"`
 }

@@ -11,14 +11,16 @@ import (
 )
 
 type Service struct {
-	DB         *dao.Dao
-	Storage    storage.Storage
-	Cache      cache.ByteCache
-	WeChat     *wechat.Wechat
-	Render     *render.Render
-	Authorizer authorizer.Authorizer
-	Auth       *auth.Auth
-	ACL        *auth.ACL
+	DB      *dao.Dao
+	Storage storage.Storage
+	Cache   cache.ByteCache
+	WeChat  *wechat.Wechat
+	Render  *render.Render
+
+	Authorizer    authorizer.Authorizer
+	AuthRefresher authorizer.Authorizer
+	Auth          *auth.Auth
+	ACL           *auth.ACL
 }
 
 func NewService(db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cache.ByteCache) *Service {
@@ -32,7 +34,8 @@ func NewService(db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cac
 	}
 }
 
-func (s *Service) Init(auth *auth.Auth, authorizer authorizer.Authorizer) {
+func (s *Service) Init(auth *auth.Auth, authorizer authorizer.Authorizer, authRefresher authorizer.Authorizer) {
 	s.Auth = auth
 	s.Authorizer = authorizer
+	s.AuthRefresher = authRefresher
 }

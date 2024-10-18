@@ -63,7 +63,7 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) 
 	if err != nil {
 		return nil, err
 	}
-	token, err := s.Authorizer.GenerateSignedToken(strconv.Itoa(int(res.User.Id)), consts.WechatMiniPlatform+":"+wxUser.OpenID)
+	token, err := s.Authorizer.GenerateToken(strconv.Itoa(int(res.User.Id)), consts.WechatMiniPlatform+":"+wxUser.OpenID)
 	if err != nil {
 		return nil, err
 	}

@@ -20,19 +20,27 @@
     "debug": false
   },
   "dash": {
-    "jwt": "sEI6QIRqVEn05zRhZiICNIkrP8sjoMVQ",
+    "auth_jwt": "sZX68lbzXW1zaOIpR3ZuP2XpKERfsk6q",
+    "refresh_jwt": "ss86nPLDdz2kfMEk5RXHrrrUscBfsxGH",
     "http": {
       "address": "0.0.0.0:8800",
-      "doc": false,
       "pprof": false,
-      "cors": "",
+      "cors": null,
       "static": ""
     }
   },
   "api": {
-    "jwt": "Bz0iPUVKxSWhi6LIdHUuRI8N8H1hFLQ2",
+    "jwt": "P0chnup5lk3VON6zpBiQQn3HVHDlzHqJ",
     "http": {
-      "address": "0.0.0.0:8899"
+      "address": "0.0.0.0:8899",
+      "cors": null
+    }
+  },
+  "docs": {
+    "address": "0.0.0.0:9999",
+    "targets": {
+      "api": "http://localhost:8899",
+      "dash": "http://localhost:8800"
     }
   },
   "storage": {

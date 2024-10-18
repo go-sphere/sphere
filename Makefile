@@ -47,7 +47,7 @@ generate:
 
 .PHONY: config
 config:
-	go run ./cmd/config gen
+	go run ./cmd/cli/config gen
 
 .PHONY: dash
 dash:

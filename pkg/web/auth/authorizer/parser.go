@@ -20,8 +20,7 @@ type Parser interface {
 }
 
 type Generator interface {
-	GenerateRefreshToken(subject string) (*Token, error)
-	GenerateSignedToken(subject, username string, roles ...string) (*Token, error)
+	GenerateToken(subject, username string, roles ...string) (*Token, error)
 }
 
 type Authorizer interface {
