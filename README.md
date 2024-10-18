@@ -38,6 +38,7 @@ Targets:
   build-docker        Build docker image
   deploy              Deploy binary
   lint                Run linter
+  fmt                 Run formatter
   help                Show this help message
 ```
 
