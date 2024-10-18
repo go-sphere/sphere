@@ -53,6 +53,7 @@ func setup(spec *swag.Spec, engine *gin.Engine, group, target string) error {
 
 	spec.Host = ""
 	spec.BasePath = fmt.Sprintf("/%s/api", group)
+	spec.Description = fmt.Sprintf("Proxy for %s", target)
 
 	route := engine.Group("/" + group)
 	docs.Setup(route.Group("/doc"), spec)
