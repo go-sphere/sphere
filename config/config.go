@@ -48,21 +48,19 @@ func NewEmptyConfig() *Config {
 			JWT: secure.RandString(32),
 			HTTP: dash.HTTPConfig{
 				Address: "0.0.0.0:8800",
-				Cors:    "*",
 			},
 		},
 		API: &api.Config{
 			JWT: secure.RandString(32),
 			HTTP: api.HTTPConfig{
 				Address: "0.0.0.0:8899",
-				Cros:    "*",
 			},
 		},
 		Docs: &docs.Config{
 			Address: "0.0.0.0:9999",
-			Hosts: docs.Hosts{
-				API:  "0.0.0.0:8899",
-				Dash: "0.0.0.0:8800",
+			Targets: docs.Targets{
+				API:  "http://localhost:8899",
+				Dash: "http://localhost:8800",
 			},
 		},
 		Storage: &qiniu.Config{

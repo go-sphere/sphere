@@ -32,7 +32,7 @@ type AuthServiceHTTPServer interface {
 func _AuthService_AuthLogin0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AuthLoginResponse, error) {
 		var in AuthLoginRequest
-		if err := ctx.ShouldBindJSON(&in); err != nil {
+		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
 		out, err := srv.AuthLogin(ctx, &in)
@@ -55,7 +55,7 @@ func _AuthService_AuthLogin0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *g
 func _AuthService_AuthRefresh0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AuthRefreshResponse, error) {
 		var in AuthRefreshRequest
-		if err := ctx.ShouldBindJSON(&in); err != nil {
+		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
 		out, err := srv.AuthRefresh(ctx, &in)

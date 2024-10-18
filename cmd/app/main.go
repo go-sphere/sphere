@@ -5,6 +5,7 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/app"
 	"github.com/tbxark/sphere/internal/server/api"
 	"github.com/tbxark/sphere/internal/server/dash"
+	"github.com/tbxark/sphere/internal/server/docs"
 	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
@@ -12,11 +13,12 @@ func main() {
 	app.Execute(NewApplication)
 }
 
-func newApplication(dash *dash.Web, api *api.Web, initialize *task.DashInitialize, cleaner *task.ConnectCleaner) *boot.Application {
+func newApplication(dash *dash.Web, api *api.Web, docs *docs.Web, initialize *task.DashInitialize, cleaner *task.ConnectCleaner) *boot.Application {
 	return boot.NewApplication(
 		[]boot.Task{
 			dash,
 			api,
+			docs,
 			initialize,
 		},
 		[]boot.Cleaner{

@@ -31,7 +31,7 @@ type AuthServiceHTTPServer interface {
 func _AuthService_AuthWxMini0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AuthWxMiniResponse, error) {
 		var in AuthWxMiniRequest
-		if err := ctx.ShouldBindJSON(&in); err != nil {
+		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
 		out, err := srv.AuthWxMini(ctx, &in)

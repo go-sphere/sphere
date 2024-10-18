@@ -15,5 +15,3 @@ func Setup(route gin.IRouter, origins []string) {
 		MaxAge:           12 * time.Hour,
 	}))
 }
-
-func isLoc

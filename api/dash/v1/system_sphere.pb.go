@@ -31,7 +31,7 @@ type SystemServiceHTTPServer interface {
 func _SystemService_CacheReset0_HTTP_Handler(srv SystemServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*CacheResetResponse, error) {
 		var in CacheResetRequest
-		if err := ctx.ShouldBindJSON(&in); err != nil {
+		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
 		out, err := srv.CacheReset(ctx, &in)

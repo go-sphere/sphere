@@ -31,7 +31,7 @@ type StorageServiceHTTPServer interface {
 func _StorageService_UploadToken0_HTTP_Handler(srv StorageServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*UploadTokenResponse, error) {
 		var in UploadTokenRequest
-		if err := ctx.ShouldBindJSON(&in); err != nil {
+		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
 		out, err := srv.UploadToken(ctx, &in)

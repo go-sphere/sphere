@@ -15,7 +15,7 @@ func (s *Service) AdminCreate(ctx context.Context, req *dashv1.AdminCreateReques
 	if len(req.Password) > 8 {
 		req.Password = secure.CryptPassword(req.Password)
 	} else {
-		return nil, statuserr.NewHTTPError(400, "password is too short")
+		return nil, statuserr.NewError(400, "password is too short")
 	}
 	u, err := s.DB.Admin.Create().
 		SetAvatar(s.Storage.ExtractKeyFromURL(req.Avatar)).
@@ -42,7 +42,7 @@ func (s *Service) AdminDelete(ctx context.Context, req *dashv1.AdminDeleteReques
 		return nil, err
 	}
 	if adm.Username == value {
-		return nil, statuserr.NewHTTPError(400, "can not delete self")
+		return nil, statuserr.NewError(400, "can not delete self")
 	}
 	err = s.DB.Admin.DeleteOneID(adm.ID).Exec(ctx)
 	if err != nil {
@@ -84,7 +84,7 @@ func (s *Service) AdminUpdate(ctx context.Context, req *dashv1.AdminUpdateReques
 		if len(req.Password) > 8 {
 			req.Password = secure.CryptPassword(req.Password)
 		} else {
-			return nil, statuserr.NewHTTPError(400, "password is too short")
+			return nil, statuserr.NewError(400, "password is too short")
 		}
 	}
 	u, err := update.Save(ctx)

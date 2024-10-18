@@ -52,7 +52,7 @@ func _UserService_Me0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.Cont
 func _UserService_Update0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*UpdateResponse, error) {
 		var in UpdateRequest
-		if err := ctx.ShouldBindJSON(&in); err != nil {
+		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
 		out, err := srv.Update(ctx, &in)
@@ -75,7 +75,7 @@ func _UserService_Update0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.
 func _UserService_BindPhoneWxMini0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*BindPhoneWxMiniResponse, error) {
 		var in BindPhoneWxMiniRequest
-		if err := ctx.ShouldBindJSON(&in); err != nil {
+		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
 		out, err := srv.BindPhoneWxMini(ctx, &in)

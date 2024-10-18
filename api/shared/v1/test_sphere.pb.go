@@ -35,7 +35,7 @@ type TestServiceHTTPServer interface {
 func _TestService_RunTest0_HTTP_Handler(srv TestServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*RunTestResponse, error) {
 		var in RunTestRequest
-		if err := ctx.ShouldBindJSON(&in); err != nil {
+		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
 		if err := ginx.ShouldBindQuery(ctx, &in); err != nil {

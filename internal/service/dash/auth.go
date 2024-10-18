@@ -48,7 +48,7 @@ func (s *Service) AuthLogin(ctx context.Context, req *dashv1.AuthLoginRequest) (
 		return nil, err
 	}
 	if !secure.IsPasswordMatch(req.Password, u.Password) {
-		return nil, statuserr.NewHTTPError(400, "password not match")
+		return nil, statuserr.NewError(400, "password not match")
 	}
 	token, err := s.createToken(u)
 	if err != nil {

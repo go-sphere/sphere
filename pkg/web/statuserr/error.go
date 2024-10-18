@@ -2,29 +2,29 @@ package statuserr
 
 import "errors"
 
-type HTTPError struct {
+type StatusError struct {
 	Code    int
 	Message string
 }
 
-func NewHTTPError(code int, message string) HTTPError {
-	return HTTPError{
+func NewError(code int, message string) StatusError {
+	return StatusError{
 		Code:    code,
 		Message: message,
 	}
 }
 
-func JoinHTTPError(code int, err error) error {
+func JoinError(code int, err error) error {
 	if err == nil {
 		return nil
 	}
-	return errors.Join(err, NewHTTPError(code, err.Error()))
+	return errors.Join(err, NewError(code, err.Error()))
 }
 
-func (e HTTPError) Error() string {
+func (e StatusError) Error() string {
 	return e.Message
 }
 
-func (e HTTPError) Status() int {
+func (e StatusError) Status() int {
 	return e.Code
 }

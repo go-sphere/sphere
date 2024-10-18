@@ -21,7 +21,7 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) fu
 	return ginx.WithJson(func(ctx *gin.Context) (*{{.Reply}}, error) {
 		var in {{.Request}}
 		{{- if .HasBody}}
-		if err := ctx.ShouldBindJSON(&in{{.Body}}); err != nil {
+		if err := ginx.ShouldBindJSON(ctx, &in{{.Body}}); err != nil {
 			return nil, err
 		}
 		{{- end}}

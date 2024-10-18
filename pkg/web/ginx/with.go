@@ -8,10 +8,12 @@ import (
 	"net/http"
 )
 
-type HttpStatusError interface {
+type statusError interface {
 	error
 	Status() int
 }
+
+type Context = gin.Context
 
 func Value[T any](key string, ctx *gin.Context) (*T, bool) {
 	v, exists := ctx.Get(key)
@@ -25,7 +27,7 @@ func Value[T any](key string, ctx *gin.Context) (*T, bool) {
 }
 
 func abortWithJsonError(ctx *gin.Context, err error) {
-	var hErr HttpStatusError
+	var hErr statusError
 	if errors.As(err, &hErr) {
 		ctx.AbortWithStatusJSON(hErr.Status(), gin.H{
 			"message": hErr.Error(),

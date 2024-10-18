@@ -13,6 +13,7 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/database/client"
 	api2 "github.com/tbxark/sphere/internal/server/api"
 	dash2 "github.com/tbxark/sphere/internal/server/dash"
+	"github.com/tbxark/sphere/internal/server/docs"
 	"github.com/tbxark/sphere/internal/service/api"
 	"github.com/tbxark/sphere/internal/service/dash"
 	"github.com/tbxark/sphere/pkg/cache/memory"
@@ -41,8 +42,10 @@ func NewApplication(conf *config.Config) (*boot.Application, error) {
 	apiConfig := conf.API
 	apiService := api.NewService(daoDao, wechatWechat, qiniuQiniu, cache)
 	apiWeb := api2.NewWebServer(apiConfig, apiService)
+	docsConfig := conf.Docs
+	docsWeb := docs.NewWebServer(docsConfig)
 	dashInitialize := task.NewDashInitialize(daoDao)
 	connectCleaner := task.NewConnectCleaner(entClient)
-	application := newApplication(web, apiWeb, dashInitialize, connectCleaner)
+	application := newApplication(web, apiWeb, docsWeb, dashInitialize, connectCleaner)
 	return application, nil
 }

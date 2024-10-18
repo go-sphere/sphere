@@ -12,7 +12,6 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/database/client"
 	dash2 "github.com/tbxark/sphere/internal/server/dash"
-	"github.com/tbxark/sphere/internal/server/docs"
 	"github.com/tbxark/sphere/internal/service/dash"
 	"github.com/tbxark/sphere/pkg/cache/memory"
 	"github.com/tbxark/sphere/pkg/storage/qiniu"
@@ -37,10 +36,8 @@ func NewDashApplication(conf *config.Config) (*boot.Application, error) {
 	cache := memory.NewByteCache()
 	service := dash.NewService(daoDao, wechatWechat, qiniuQiniu, cache)
 	web := dash2.NewWebServer(dashConfig, service)
-	docsConfig := conf.Docs
-	docsWeb := docs.NewWebServer(docsConfig)
 	connectCleaner := task.NewConnectCleaner(entClient)
 	dashInitialize := task.NewDashInitialize(daoDao)
-	application := newApplication(web, docsWeb, connectCleaner, dashInitialize)
+	application := newApplication(web, connectCleaner, dashInitialize)
 	return application, nil
 }

@@ -54,7 +54,7 @@ func _AdminService_AdminList0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx 
 func _AdminService_AdminCreate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AdminCreateResponse, error) {
 		var in AdminCreateRequest
-		if err := ctx.ShouldBindJSON(&in); err != nil {
+		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
 		out, err := srv.AdminCreate(ctx, &in)
@@ -78,7 +78,7 @@ func _AdminService_AdminCreate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 func _AdminService_AdminUpdate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AdminUpdateResponse, error) {
 		var in AdminUpdateRequest
-		if err := ctx.ShouldBindJSON(&in); err != nil {
+		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
 		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
