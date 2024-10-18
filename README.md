@@ -1,10 +1,23 @@
 # Sphere
 
-**Sphere** is a multi-server application template that includes an API server, a dashboard server, and a bot server. It is designed to be a starting point for building a multi-server application.
+**Sphere** is a multi-server application template. **Sphere** aims to provide a simple, fast, and maintainable multi-server application template. All modules are replaceable, and you can replace modules according to your needs. You can customize your own microservice framework without being limited.
 
-This project uses minimal encapsulation, the simplest structure, and reduces code hierarchy to achieve rapid development while maintaining code readability and maintainability.
 
-You can define your api in the proto file and generate the code by running `make gen-proto`. You can also generate swagger docs by running `make gen-docs`.
+### Features
+
+- **Simple**: Simple code that is easy to maintain.
+- **Fast**: One-click code generation for rapid development.
+- **Maintainable**: Clear code structure that is easy to extend.
+- **Replaceable**: All modules are replaceable.
+- **Code Generator**: One-click code generation. The generator automatically generates code, including proto files, Swagger documents, TypeScript clients, and more.
+
+
+### Core Dependencies
+
+- **Web Framework**: Gin
+- **Dependency Injection**: Wire
+- **ORM**: Ent
+
 
 ### Usage
 ```
@@ -28,12 +41,6 @@ Targets:
   help                Show this help message
 ```
 
-### Core Dependencies
-
-- **Web Framework**: Gin
-- **Dependency Injection**: Wire
-- **ORM**: Ent
-
 ### Project Structure
 
 ```
@@ -50,11 +57,13 @@ Targets:
 ├── pkg                         # common packages
 ├── proto                       # proto files
 ```
+
 ### Usage
 
-You can fork this project and modify the code in internal and cmd to implement your own business logic. Please do not modify the code in pkg. If necessary, please raise an issue or PR.
+You can fork this project and modify the code in proto, internal and cmd to implement your own business logic. Please do not modify the code in pkg. If necessary, please raise an issue or PR.
 
 Alternatively, you can import this project in go mod and implement your own business logic in your project.
+
 
 ### License
 
