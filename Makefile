@@ -22,6 +22,7 @@ init:
 	go install github.com/github.com/tbxark/sphere/cmd/cli/protoc-gen-sphere@latest
 	go install github.com/favadi/protoc-go-inject-tag@latest
 	go mod download
+	buf mod update
 	$(MAKE) generate
 	$(MAKE) docs
 
@@ -80,6 +81,11 @@ lint:
 	golangci-lint run
 	buf lint
 
+.PHONY: fmt
+fmt:
+	go fmt ./...
+	buf format
+
 .PHONY: help
 help:
 	@echo "Usage: make <target>"
@@ -99,5 +105,6 @@ help:
 	@echo "  build-docker        Build docker image"
 	@echo "  deploy              Deploy binary"
 	@echo "  lint                Run linter"
+	@echo "  fmt                 Run formatter"
 	@echo "  help                Show this help message"
 	@echo ""
