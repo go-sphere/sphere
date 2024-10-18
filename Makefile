@@ -22,7 +22,7 @@ init:
 	go install github.com/tbxark/sphere/cmd/cli/protoc-gen-sphere@latest
 	go install github.com/favadi/protoc-go-inject-tag@latest
 	go mod download
-	buf mod update
+	buf dep update
 	$(MAKE) generate
 	$(MAKE) docs
 
