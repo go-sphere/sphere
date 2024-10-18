@@ -18,7 +18,8 @@ init:
 	go get github.com/google/wire/cmd/wire@latest
 	go install github.com/swaggo/swag/cmd/swag@latest
 	go install github.com/bufbuild/buf/cmd/buf@latest
-	go install github.com/github.com/tbxark/sphere/cmd/protoc-gen-sphere@latest
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	go install github.com/github.com/tbxark/sphere/cmd/cli/protoc-gen-sphere@latest
 	go install github.com/favadi/protoc-go-inject-tag@latest
 	go mod download
 	$(MAKE) generate
