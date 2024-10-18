@@ -14,6 +14,9 @@ type {{.ServiceType}}HTTPServer interface {
 
 
 {{range .Methods}}
+	{{- if ne .Swagger ""}}
+	{{.Swagger}}
+	{{- end -}}
 func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) func(ctx *gin.Context)  {
 	return ginx.WithJson(func(ctx *gin.Context) (*{{.Reply}}, error) {
 		var in {{.Request}}

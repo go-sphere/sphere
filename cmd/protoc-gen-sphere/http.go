@@ -50,7 +50,7 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 		return
 	}
 	g.P("var _ = new(", ginPackage.Ident("Context"), ")")
-	g.P("var _ = ", ginxPackage.Ident("WithJson"))
+	g.P("var _ = new(", ginxPackage.Ident("DataResponse[string]"), ")")
 
 	g.P()
 
@@ -171,39 +171,15 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path string) *methodDesc {
 	defer func() { methodSets[m.GoName]++ }()
 
-	vars := buildPathVars(path)
+	ginPath := convertProtoPathToGinPath(path)
+	pathParams := extractPathParams(path)
+	queryParams := extractQueryParams(path)
 
-	for v, s := range vars {
-		fields := m.Input.Desc.Fields()
-
-		if s != nil {
-			path = replacePath(v, *s, path)
-		}
-		for _, field := range strings.Split(v, ".") {
-			if strings.TrimSpace(field) == "" {
-				continue
-			}
-			if strings.Contains(field, ":") {
-				field = strings.Split(field, ":")[0]
-			}
-			fd := fields.ByName(protoreflect.Name(field))
-			if fd == nil {
-				fmt.Fprintf(os.Stderr, "\u001B[31mERROR\u001B[m: The corresponding field '%s' declaration in message could not be found in '%s'\n", v, path)
-				os.Exit(2)
-			}
-			if fd.IsMap() {
-				fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a map.\n", v)
-			} else if fd.IsList() {
-				fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a list.\n", v)
-			} else if fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.GroupKind {
-				fields = fd.Message().Fields()
-			}
-		}
-	}
 	comment := m.Comments.Leading.String() + m.Comments.Trailing.String()
 	if comment != "" {
 		comment = "// " + m.GoName + strings.TrimPrefix(strings.TrimSuffix(comment, "\n"), "//")
 	}
+
 	return &methodDesc{
 		Name:         m.GoName,
 		OriginalName: string(m.Desc.Name()),
@@ -213,40 +189,10 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 		Comment:      comment,
 		Path:         path,
 		Method:       method,
-		HasVars:      len(vars) > 0,
+		HasVars:      len(pathParams) > 0,
+		GinPath:      ginPath,
+		Swagger:      buildSwaggerAnnotations(m, method, ginPath, pathParams, queryParams),
 	}
-}
-
-func buildPathVars(path string) (res map[string]*string) {
-	if strings.HasSuffix(path, "/") {
-		fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: Path %s should not end with \"/\" \n", path)
-	}
-	pattern := regexp.MustCompile(`(?i){([a-z.0-9_\s]*)=?([^{}]*)}`)
-	matches := pattern.FindAllStringSubmatch(path, -1)
-	res = make(map[string]*string, len(matches))
-	for _, m := range matches {
-		name := strings.TrimSpace(m[1])
-		if len(name) > 1 && len(m[2]) > 0 {
-			res[name] = &m[2]
-		} else {
-			res[name] = nil
-		}
-	}
-	return
-}
-
-func replacePath(name string, value string, path string) string {
-	pattern := regexp.MustCompile(fmt.Sprintf(`(?i){([\s]*%s\b[\s]*)=?([^{}]*)}`, name))
-	idx := pattern.FindStringIndex(path)
-	if len(idx) > 0 {
-		path = fmt.Sprintf("%s{%s:%s}%s",
-			path[:idx[0]], // The start of the match
-			name,
-			strings.ReplaceAll(value, "*", ".*"),
-			path[idx[1]:],
-		)
-	}
-	return path
 }
 
 func camelCaseVars(s string) string {
@@ -328,3 +274,106 @@ func protocVersion(gen *protogen.Plugin) string {
 }
 
 const deprecationComment = "// Deprecated: Do not use."
+
+func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars []string, queryParams []string) string {
+	var builder strings.Builder
+
+	builder.WriteString("// @Summary " + string(m.Desc.Name()) + "\n")
+	builder.WriteString("// @Description " + strings.TrimSpace(string(m.Desc.Name())) + "\n")
+	builder.WriteString("// @Tags " + string(m.Parent.Desc.ParentFile().Package()) + "\n")
+	builder.WriteString("// @Accept json\n")
+	builder.WriteString("// @Produce json\n")
+	builder.WriteString("// @Param Authorization header string false \"Bearer token\"\n")
+
+	// Add path parameters
+	for _, param := range pathVars {
+		paramType := getFieldType(m.Input.Desc, param)
+		builder.WriteString(fmt.Sprintf("// @Param %s path %s true \"%s\"\n", param, paramType, param))
+	}
+
+	// Add query parameters
+	for _, param := range queryParams {
+		paramType := getFieldType(m.Input.Desc, param)
+		builder.WriteString(fmt.Sprintf("// @Param %s query %s false \"%s\"\n", param, paramType, param))
+	}
+
+	if method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch {
+		builder.WriteString("// @Param request body " + m.Input.GoIdent.GoName + " true \"Request body\"\n")
+	}
+
+	builder.WriteString("// @Success 200 {object} ginx.DataResponse[" + m.Output.GoIdent.GoName + "]\n")
+	builder.WriteString("// @Router " + path + " [" + strings.ToLower(method) + "]\n")
+
+	return builder.String()
+}
+
+func getFieldType(messageDesc protoreflect.MessageDescriptor, fieldName string) string {
+	field := messageDesc.Fields().ByName(protoreflect.Name(fieldName))
+	if field == nil {
+		return "string" // Default to string if field not found
+	}
+
+	switch field.Kind() {
+	case protoreflect.BoolKind:
+		return "boolean"
+	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Uint32Kind,
+		protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Uint64Kind,
+		protoreflect.Sfixed32Kind, protoreflect.Fixed32Kind,
+		protoreflect.Sfixed64Kind, protoreflect.Fixed64Kind:
+		return "integer"
+	case protoreflect.FloatKind, protoreflect.DoubleKind:
+		return "number"
+	case protoreflect.StringKind:
+		return "string"
+	case protoreflect.BytesKind:
+		return "string" // Swagger doesn't have a specific type for bytes, so we use string
+	case protoreflect.EnumKind:
+		return "string" // Enums are typically represented as strings in HTTP APIs
+	case protoreflect.MessageKind:
+		return "object"
+	default:
+		return "string" // Default to string for unknown types
+	}
+}
+
+var ginRe = regexp.MustCompile(`\{([^}]+)\}`)
+var queryRe = regexp.MustCompile(`([^}]+)=\{([^}]+)\}`)
+
+func convertProtoPathToGinPath(protoPath string) string {
+	if idx := strings.Index(protoPath, "?"); idx > 0 {
+		protoPath = protoPath[:idx]
+	}
+	return ginRe.ReplaceAllString(protoPath, ":$1")
+}
+
+func extractQueryParams(path string) []string {
+	if idx := strings.Index(path, "?"); idx > 0 {
+		queryString := path[idx+1:]
+		queryParams := strings.Split(queryString, "&")
+		for i, param := range queryParams {
+			queryResult := queryRe.FindStringSubmatch(param)
+			if len(queryResult) != 3 {
+				fmt.Fprintf(os.Stderr, "\u001B[31mERROR\u001B[m: Query parameter '%s' is not in the correct format.\n", param)
+				os.Exit(2)
+			}
+			if queryResult[1] != queryResult[2] {
+				fmt.Fprintf(os.Stderr, "\u001B[31mERROR\u001B[m: Query parameter '%s' is not in the correct format.\n", param)
+				os.Exit(2)
+			}
+			queryParams[i] = queryResult[1]
+		}
+		return queryParams
+	}
+	return []string{}
+}
+
+func extractPathParams(path string) []string {
+	if idx := strings.Index(path, "?"); idx > 0 {
+		path = path[:idx]
+	}
+	var params []string
+	for _, match := range ginRe.FindAllStringSubmatch(path, -1) {
+		params = append(params, match[1])
+	}
+	return params
+}

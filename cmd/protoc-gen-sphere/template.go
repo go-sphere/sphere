@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	_ "embed"
-	"regexp"
 	"strings"
 	"text/template"
 )
@@ -34,6 +33,9 @@ type methodDesc struct {
 	HasBody      bool
 	Body         string
 	ResponseBody string
+	// Temp
+	Swagger string
+	GinPath string
 }
 
 func (s *serviceDesc) execute() string {
@@ -50,15 +52,4 @@ func (s *serviceDesc) execute() string {
 		panic(err)
 	}
 	return strings.Trim(buf.String(), "\r\n")
-}
-
-var ginRe = regexp.MustCompile(`\{([^}]+)\}`)
-
-func convertProtoPathToGinPath(protoPath string) string {
-	return ginRe.ReplaceAllString(protoPath, ":$1")
-}
-
-func (m *methodDesc) GinPath() string {
-	return convertProtoPathToGinPath(m.Path)
-
 }
