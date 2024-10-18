@@ -17,7 +17,7 @@ type Admin struct {
 	config `json:"-"`
 	// ID of the ent.
 	// 用户ID
-	ID int `json:"id,omitempty"`
+	ID int64 `json:"id,omitempty"`
 	// 创建时间
 	CreatedAt int64 `json:"created_at,omitempty"`
 	// 更新时间
@@ -66,7 +66,7 @@ func (a *Admin) assignValues(columns []string, values []any) error {
 			if !ok {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
-			a.ID = int(value.Int64)
+			a.ID = int64(value.Int64)
 		case admin.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])

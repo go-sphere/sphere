@@ -18,10 +18,26 @@ init:
 	go get github.com/google/wire/cmd/wire@latest
 	go install github.com/swaggo/swag/cmd/swag@latest
 	go install github.com/bufbuild/buf/cmd/buf@latest
+	go install github.com/github.com/tbxark/sphere/cmd/protoc-gen-sphere@latest
+	go install github.com/favadi/protoc-go-inject-tag@latest
 	go mod download
 	$(MAKE) generate
 	$(MAKE) docs
-	#$(MAKE) config
+
+.PHONY: gen-proto
+gen-proto:
+	buf generate
+	protoc-go-inject-tag -input="./api/*/*/*.pb.go" -remove_tag_comment
+
+.PHONY: gen-docs
+gen-docs: gen-proto
+	swag init --output ./docs/api  --tags api.v1,shared.v1   --instanceName API  -g docs.go
+	swag init --output ./docs/dash --tags dash.v1,shared.v1  --instanceName Dash -g docs.go
+
+.PHONY: gen-ts
+gen-ts: docs
+	npx swagger-typescript-api -p ./docs/api/API_swagger.json   -o ./docs/api/typescript  --modular
+	npx swagger-typescript-api -p ./docs/dash/Dash_swagger.json -o ./docs/dash/typescript --modular
 
 .PHONY: generate
 generate:
@@ -30,18 +46,6 @@ generate:
 .PHONY: config
 config:
 	go run ./cmd/config gen
-
-.PHONY: docs
-docs:
-	rm -rf ./docs/dash
-	rm -rf ./docs/api
-	swag init --output ./docs/api  --exclude internal/server/dash --instanceName API  -g internal/server/api/web.go
-	swag init --output ./docs/dash --exclude internal/server/api  --instanceName Dash -g internal/server/dash/web.go
-
-.PHONY: typescript
-typescript: docs
-	npx swagger-typescript-api -p ./docs/api/API_swagger.json   -o ./docs/api/typescript  --modular
-	npx swagger-typescript-api -p ./docs/dash/Dash_swagger.json -o ./docs/dash/typescript --modular
 
 .PHONY: dash
 dash:
@@ -74,25 +78,24 @@ deploy:
 lint:
 	golangci-lint run
 
-.PHONY: clean
-clean:
-	rm -rf ./build
-	rm -rf ./docs/dash
-	rm -rf ./docs/api
-
 .PHONY: help
 help:
-	@echo "Available targets:"
-	@echo "  init          - Initialize the project"
-	@echo "  generate      - Generate code"
-	@echo "  config        - Generate config"
-	@echo "  docs          - Generate API documentation"
-	@echo "  typescript    - Generate TypeScript API"
-	@echo "  dash          - Build dashboard"
-	@echo "  build         - Build for current OS and architecture"
-	@echo "  build-all     - Build for all supported platforms"
-	@echo "  build-docker  - Build and push Docker image"
-	@echo "  deploy        - Deploy using Ansible"
-	@echo "  lint          - Run linter"
-	@echo "  clean         - Clean build artifacts"
-	@echo "  help          - Show this help message"
+	@echo "Usage: make <target>"
+	@echo ""
+	@echo "Targets:"
+	@echo "  init                Install all dependencies"
+	@echo "  gen-proto           Generate proto files"
+	@echo "  gen-docs            Generate swagger docs"
+	@echo "  gen-ts              Generate typescript client"
+	@echo "  generate            Generate code"
+	@echo "  config              Generate config"
+	@echo "  dash                Build dash"
+	@echo "  build               Build binary"
+	@echo "  build-linux-amd     Build linux amd64 binary"
+	@echo "  build-linux-arm     Build linux arm64 binary"
+	@echo "  build-all           Build all binary"
+	@echo "  build-docker        Build docker image"
+	@echo "  deploy              Deploy binary"
+	@echo "  lint                Run linter"
+	@echo "  help                Show this help message"
+	@echo ""

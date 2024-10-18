@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	ginPackage  = protogen.GoImportPath("github.com/gin-gonic/gin")
-	ginxPackage = protogen.GoImportPath("github.com/tbxark/sphere/pkg/web/ginx")
+	contextPackage = protogen.GoImportPath("context")
+	ginPackage     = protogen.GoImportPath("github.com/gin-gonic/gin")
+	ginxPackage    = protogen.GoImportPath("github.com/tbxark/sphere/pkg/web/ginx")
 )
 
 var methodSets = make(map[string]int)
@@ -49,6 +50,7 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	if len(file.Services) == 0 {
 		return
 	}
+	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
 	g.P("var _ = new(", ginPackage.Ident("Context"), ")")
 	g.P("var _ = new(", ginxPackage.Ident("DataResponse[string]"), ")")
 
@@ -190,8 +192,9 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 		Path:         path,
 		Method:       method,
 		HasVars:      len(pathParams) > 0,
+		HasQuery:     len(queryParams) > 0,
 		GinPath:      ginPath,
-		Swagger:      buildSwaggerAnnotations(m, method, ginPath, pathParams, queryParams),
+		Swagger:      buildSwaggerAnnotations(m, method, path, pathParams, queryParams),
 	}
 }
 
@@ -277,6 +280,10 @@ const deprecationComment = "// Deprecated: Do not use."
 
 func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars []string, queryParams []string) string {
 	var builder strings.Builder
+
+	if idx := strings.Index(path, "?"); idx > 0 {
+		path = path[:idx]
+	}
 
 	builder.WriteString("// @Summary " + string(m.Desc.Name()) + "\n")
 	builder.WriteString("// @Description " + strings.TrimSpace(string(m.Desc.Name())) + "\n")

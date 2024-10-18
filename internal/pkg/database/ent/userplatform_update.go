@@ -48,14 +48,14 @@ func (upu *UserPlatformUpdate) ClearUpdatedAt() *UserPlatformUpdate {
 }
 
 // SetUserID sets the "user_id" field.
-func (upu *UserPlatformUpdate) SetUserID(i int) *UserPlatformUpdate {
+func (upu *UserPlatformUpdate) SetUserID(i int64) *UserPlatformUpdate {
 	upu.mutation.ResetUserID()
 	upu.mutation.SetUserID(i)
 	return upu
 }
 
 // SetNillableUserID sets the "user_id" field if the given value is not nil.
-func (upu *UserPlatformUpdate) SetNillableUserID(i *int) *UserPlatformUpdate {
+func (upu *UserPlatformUpdate) SetNillableUserID(i *int64) *UserPlatformUpdate {
 	if i != nil {
 		upu.SetUserID(*i)
 	}
@@ -63,7 +63,7 @@ func (upu *UserPlatformUpdate) SetNillableUserID(i *int) *UserPlatformUpdate {
 }
 
 // AddUserID adds i to the "user_id" field.
-func (upu *UserPlatformUpdate) AddUserID(i int) *UserPlatformUpdate {
+func (upu *UserPlatformUpdate) AddUserID(i int64) *UserPlatformUpdate {
 	upu.mutation.AddUserID(i)
 	return upu
 }
@@ -185,10 +185,10 @@ func (upu *UserPlatformUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		_spec.ClearField(userplatform.FieldUpdatedAt, field.TypeInt64)
 	}
 	if value, ok := upu.mutation.UserID(); ok {
-		_spec.SetField(userplatform.FieldUserID, field.TypeInt, value)
+		_spec.SetField(userplatform.FieldUserID, field.TypeInt64, value)
 	}
 	if value, ok := upu.mutation.AddedUserID(); ok {
-		_spec.AddField(userplatform.FieldUserID, field.TypeInt, value)
+		_spec.AddField(userplatform.FieldUserID, field.TypeInt64, value)
 	}
 	if value, ok := upu.mutation.Platform(); ok {
 		_spec.SetField(userplatform.FieldPlatform, field.TypeString, value)
@@ -244,14 +244,14 @@ func (upuo *UserPlatformUpdateOne) ClearUpdatedAt() *UserPlatformUpdateOne {
 }
 
 // SetUserID sets the "user_id" field.
-func (upuo *UserPlatformUpdateOne) SetUserID(i int) *UserPlatformUpdateOne {
+func (upuo *UserPlatformUpdateOne) SetUserID(i int64) *UserPlatformUpdateOne {
 	upuo.mutation.ResetUserID()
 	upuo.mutation.SetUserID(i)
 	return upuo
 }
 
 // SetNillableUserID sets the "user_id" field if the given value is not nil.
-func (upuo *UserPlatformUpdateOne) SetNillableUserID(i *int) *UserPlatformUpdateOne {
+func (upuo *UserPlatformUpdateOne) SetNillableUserID(i *int64) *UserPlatformUpdateOne {
 	if i != nil {
 		upuo.SetUserID(*i)
 	}
@@ -259,7 +259,7 @@ func (upuo *UserPlatformUpdateOne) SetNillableUserID(i *int) *UserPlatformUpdate
 }
 
 // AddUserID adds i to the "user_id" field.
-func (upuo *UserPlatformUpdateOne) AddUserID(i int) *UserPlatformUpdateOne {
+func (upuo *UserPlatformUpdateOne) AddUserID(i int64) *UserPlatformUpdateOne {
 	upuo.mutation.AddUserID(i)
 	return upuo
 }
@@ -411,10 +411,10 @@ func (upuo *UserPlatformUpdateOne) sqlSave(ctx context.Context) (_node *UserPlat
 		_spec.ClearField(userplatform.FieldUpdatedAt, field.TypeInt64)
 	}
 	if value, ok := upuo.mutation.UserID(); ok {
-		_spec.SetField(userplatform.FieldUserID, field.TypeInt, value)
+		_spec.SetField(userplatform.FieldUserID, field.TypeInt64, value)
 	}
 	if value, ok := upuo.mutation.AddedUserID(); ok {
-		_spec.AddField(userplatform.FieldUserID, field.TypeInt, value)
+		_spec.AddField(userplatform.FieldUserID, field.TypeInt64, value)
 	}
 	if value, ok := upuo.mutation.Platform(); ok {
 		_spec.SetField(userplatform.FieldPlatform, field.TypeString, value)

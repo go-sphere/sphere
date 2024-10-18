@@ -48,7 +48,7 @@ func init() {
 	// adminDescID is the schema descriptor for id field.
 	adminDescID := adminFields[0].Descriptor()
 	// admin.DefaultID holds the default value on creation for the id field.
-	admin.DefaultID = adminDescID.Default.(func() int)
+	admin.DefaultID = adminDescID.Default.(func() int64)
 	keyvaluestoreMixin := schema.KeyValueStore{}.Mixin()
 	keyvaluestoreMixinFields0 := keyvaluestoreMixin[0].Fields()
 	_ = keyvaluestoreMixinFields0
@@ -102,7 +102,7 @@ func init() {
 	// userDescID is the schema descriptor for id field.
 	userDescID := userFields[0].Descriptor()
 	// user.DefaultID holds the default value on creation for the id field.
-	user.DefaultID = userDescID.Default.(func() int)
+	user.DefaultID = userDescID.Default.(func() int64)
 	userplatformMixin := schema.UserPlatform{}.Mixin()
 	userplatformMixinFields0 := userplatformMixin[0].Fields()
 	_ = userplatformMixinFields0

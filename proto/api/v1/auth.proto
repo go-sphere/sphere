@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package api.v1;
+
+import "google/api/annotations.proto";
+import "shared/v1/user.proto";
+
+service AuthService {
+  rpc AuthWxMini(AuthWxMiniRequest) returns (AuthWxMiniResponse) {
+    option (google.api.http) = {
+      post: "/v1/users/create"
+      body: "*"
+    };
+  }
+}
+
+message AuthWxMiniRequest {
+  string code = 1;
+}
+message AuthWxMiniResponse {
+  bool is_new = 1;
+  string token = 2;
+  shared.v1.User user = 3;
+}

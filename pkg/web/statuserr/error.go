@@ -1,4 +1,4 @@
-package ginx
+package statuserr
 
 import "errors"
 

@@ -5,6 +5,7 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/database/client"
 	"github.com/tbxark/sphere/internal/server/api"
 	"github.com/tbxark/sphere/internal/server/dash"
+	"github.com/tbxark/sphere/internal/server/docs"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/storage/qiniu"
 	"github.com/tbxark/sphere/pkg/utils/config/parser"
@@ -21,6 +22,7 @@ type Config struct {
 	Database     *client.Config       `json:"database" yaml:"database"`
 	Dash         *dash.Config         `json:"dash" yaml:"dash"`
 	API          *api.Config          `json:"api" yaml:"api"`
+	Docs         *docs.Config         `json:"docs" yaml:"docs"`
 	Storage      *qiniu.Config        `json:"storage" yaml:"storage"`
 	Bot          *bot.Config          `json:"bot" yaml:"bot"`
 	WxMini       *wechat.Config       `json:"wx_mini" yaml:"wx_mini"`
@@ -34,7 +36,7 @@ func NewEmptyConfig() *Config {
 		},
 		Log: &log.Options{
 			File: &log.FileOptions{
-				FileName:   "/var/log/go-base-api.log",
+				FileName:   "./var/log/sphere.log",
 				MaxSize:    10,
 				MaxBackups: 10,
 				MaxAge:     10,
@@ -43,12 +45,25 @@ func NewEmptyConfig() *Config {
 		},
 		Database: &client.Config{},
 		Dash: &dash.Config{
-			Address: "0.0.0.0:8800",
-			JWT:     secure.RandString(32),
+			JWT: secure.RandString(32),
+			HTTP: dash.HTTPConfig{
+				Address: "0.0.0.0:8800",
+				Cors:    "*",
+			},
 		},
 		API: &api.Config{
-			Address: "0.0.0.0:8899",
-			JWT:     secure.RandString(32),
+			JWT: secure.RandString(32),
+			HTTP: api.HTTPConfig{
+				Address: "0.0.0.0:8899",
+				Cros:    "*",
+			},
+		},
+		Docs: &docs.Config{
+			Address: "0.0.0.0:9999",
+			Hosts: docs.Hosts{
+				API:  "0.0.0.0:8899",
+				Dash: "0.0.0.0:8800",
+			},
 		},
 		Storage: &qiniu.Config{
 			AccessKey: "",

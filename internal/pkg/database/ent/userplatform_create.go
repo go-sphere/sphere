@@ -50,7 +50,7 @@ func (upc *UserPlatformCreate) SetNillableUpdatedAt(i *int64) *UserPlatformCreat
 }
 
 // SetUserID sets the "user_id" field.
-func (upc *UserPlatformCreate) SetUserID(i int) *UserPlatformCreate {
+func (upc *UserPlatformCreate) SetUserID(i int64) *UserPlatformCreate {
 	upc.mutation.SetUserID(i)
 	return upc
 }
@@ -177,7 +177,7 @@ func (upc *UserPlatformCreate) createSpec() (*UserPlatform, *sqlgraph.CreateSpec
 		_node.UpdatedAt = value
 	}
 	if value, ok := upc.mutation.UserID(); ok {
-		_spec.SetField(userplatform.FieldUserID, field.TypeInt, value)
+		_spec.SetField(userplatform.FieldUserID, field.TypeInt64, value)
 		_node.UserID = value
 	}
 	if value, ok := upc.mutation.Platform(); ok {
@@ -269,7 +269,7 @@ func (u *UserPlatformUpsert) ClearUpdatedAt() *UserPlatformUpsert {
 }
 
 // SetUserID sets the "user_id" field.
-func (u *UserPlatformUpsert) SetUserID(v int) *UserPlatformUpsert {
+func (u *UserPlatformUpsert) SetUserID(v int64) *UserPlatformUpsert {
 	u.Set(userplatform.FieldUserID, v)
 	return u
 }
@@ -281,7 +281,7 @@ func (u *UserPlatformUpsert) UpdateUserID() *UserPlatformUpsert {
 }
 
 // AddUserID adds v to the "user_id" field.
-func (u *UserPlatformUpsert) AddUserID(v int) *UserPlatformUpsert {
+func (u *UserPlatformUpsert) AddUserID(v int64) *UserPlatformUpsert {
 	u.Add(userplatform.FieldUserID, v)
 	return u
 }
@@ -402,14 +402,14 @@ func (u *UserPlatformUpsertOne) ClearUpdatedAt() *UserPlatformUpsertOne {
 }
 
 // SetUserID sets the "user_id" field.
-func (u *UserPlatformUpsertOne) SetUserID(v int) *UserPlatformUpsertOne {
+func (u *UserPlatformUpsertOne) SetUserID(v int64) *UserPlatformUpsertOne {
 	return u.Update(func(s *UserPlatformUpsert) {
 		s.SetUserID(v)
 	})
 }
 
 // AddUserID adds v to the "user_id" field.
-func (u *UserPlatformUpsertOne) AddUserID(v int) *UserPlatformUpsertOne {
+func (u *UserPlatformUpsertOne) AddUserID(v int64) *UserPlatformUpsertOne {
 	return u.Update(func(s *UserPlatformUpsert) {
 		s.AddUserID(v)
 	})
@@ -711,14 +711,14 @@ func (u *UserPlatformUpsertBulk) ClearUpdatedAt() *UserPlatformUpsertBulk {
 }
 
 // SetUserID sets the "user_id" field.
-func (u *UserPlatformUpsertBulk) SetUserID(v int) *UserPlatformUpsertBulk {
+func (u *UserPlatformUpsertBulk) SetUserID(v int64) *UserPlatformUpsertBulk {
 	return u.Update(func(s *UserPlatformUpsert) {
 		s.SetUserID(v)
 	})
 }
 
 // AddUserID adds v to the "user_id" field.
-func (u *UserPlatformUpsertBulk) AddUserID(v int) *UserPlatformUpsertBulk {
+func (u *UserPlatformUpsertBulk) AddUserID(v int64) *UserPlatformUpsertBulk {
 	return u.Update(func(s *UserPlatformUpsert) {
 		s.AddUserID(v)
 	})

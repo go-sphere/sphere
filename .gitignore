@@ -29,6 +29,5 @@ go.work
 .idea
 .vscode
 /build
-/docs
 /var
 /config.json

@@ -7,7 +7,7 @@ type {{.ServiceType}}HTTPServer interface {
 	{{- if ne .Comment ""}}
 	{{.Comment}}
 	{{- end}}
-	{{.Name}}(*gin.Context, *{{.Request}}) (*{{.Reply}}, error)
+	{{.Name}}(context.Context, *{{.Request}}) (*{{.Reply}}, error)
 {{- end}}
 }
 
@@ -25,11 +25,13 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) fu
 			return nil, err
 		}
 		{{- end}}
-		if err := ctx.ShouldBindQuery(&in); err != nil {
+		{{- if .HasQuery}}
+		if err := ginx.ShouldBindQuery(ctx, &in); err != nil {
 			return nil, err
 		}
+		{{- end}}
 		{{- if .HasVars}}
-		if err := ctx.ShouldBindUri(&in); err != nil {
+		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
 			return nil, err
 		}
 		{{- end}}

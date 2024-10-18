@@ -5,11 +5,11 @@ managed:
     - module: buf.build/googleapis/googleapis
   override:
     - file_option: go_package_prefix
-      value: github.com/tbxark/sphere/internal/services
+      value: github.com/tbxark/sphere/api
 plugins:
   - local: protoc-gen-go
-    out: internal/services
+    out: api
     opt: paths=source_relative
   - local: protoc-gen-sphere
-    out: internal/services
+    out: api
     opt: paths=source_relative

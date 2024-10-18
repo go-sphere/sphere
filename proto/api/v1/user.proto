@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package api.v1;
+
+import "google/api/annotations.proto";
+import "shared/v1/user.proto";
+
+
+service UserService {
+  rpc Me(MeRequest) returns (MeResponse) {
+    option (google.api.http) = {
+      get: "/api/user/me"
+    };
+  }
+  rpc Update(UpdateRequest) returns (UpdateResponse) {
+    option (google.api.http) = {
+      post: "/api/user/update"
+      body: "*"
+    };
+  }
+  rpc BindPhoneWxMini(BindPhoneWxMiniRequest) returns (BindPhoneWxMiniResponse) {
+    option (google.api.http) = {
+      post: "/api/user/bind/phone/wxmini"
+      body: "*"
+    };
+  }
+}
+
+message MeRequest {
+}
+
+message MeResponse {
+  shared.v1.User user = 1;
+}
+
+message UpdateRequest {
+  string username = 1;
+  string avatar = 2;
+}
+
+message UpdateResponse {
+  shared.v1.User user = 1;
+}
+
+message BindPhoneWxMiniRequest {
+  string code = 1;
+}
+
+message BindPhoneWxMiniResponse {
+}

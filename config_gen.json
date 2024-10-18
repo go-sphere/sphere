@@ -1,10 +1,12 @@
 {
-  "system": {
-    "gin_mode": "debug"
+  "environments": {
+    "CONSUL_HTTP_TOKEN": "",
+    "GIN_MODE": "release"
   },
+  "remote": null,
   "log": {
     "file": {
-      "file_name": "/var/logs/go-base-api.log",
+      "file_name": "./var/log/sphere.log",
       "max_size": 10,
       "max_backups": 10,
       "max_age": 10
@@ -14,25 +16,35 @@
   },
   "database": {
     "type": "sqlite3",
-    "path": "file:/etc/base-api/data.db?cache=shared&mode=rwc",
+    "path": "file:./var/sphere/data.db?cache=shared&mode=rwc",
     "debug": false
   },
   "dash": {
-    "jwt": "Fxar6KDjfp2NT8Uwa9Lgdf457OleFtyH",
-    "address": "0.0.0.0:8800",
-    "doc": false
+    "jwt": "sEI6QIRqVEn05zRhZiICNIkrP8sjoMVQ",
+    "http": {
+      "address": "0.0.0.0:8800",
+      "doc": false,
+      "pprof": false,
+      "cors": "",
+      "static": ""
+    }
   },
   "api": {
-    "jwt": "wLMEO0geOXprXCp1odmSyBX4rGucjYdL",
-    "address": "0.0.0.0:8899"
+    "jwt": "Bz0iPUVKxSWhi6LIdHUuRI8N8H1hFLQ2",
+    "http": {
+      "address": "0.0.0.0:8899"
+    }
   },
-  "cdn": {
+  "storage": {
     "access_key": "",
     "secret_key": "",
     "bucket": "",
     "dir": "",
     "domain": "",
     "host": ""
+  },
+  "bot": {
+    "token": ""
   },
   "wx_mini": {
     "app_id": "",

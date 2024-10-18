@@ -4,6 +4,30 @@
 
 This project uses minimal encapsulation, the simplest structure, and reduces code hierarchy to achieve rapid development while maintaining code readability and maintainability.
 
+You can define your api in the proto file and generate the code by running `make gen-proto`. You can also generate swagger docs by running `make gen-docs`.
+
+### Usage
+```
+Usage: make <target>
+
+Targets:
+  init                Install all dependencies
+  gen-proto           Generate proto files
+  gen-docs            Generate swagger docs
+  gen-ts              Generate typescript client
+  generate            Generate code
+  config              Generate config
+  dash                Build dash
+  build               Build binary
+  build-linux-amd     Build linux amd64 binary
+  build-linux-arm     Build linux arm64 binary
+  build-all           Build all binary
+  build-docker        Build docker image
+  deploy              Deploy binary
+  lint                Run linter
+  help                Show this help message
+```
+
 ### Core Dependencies
 
 - **Web Framework**: Gin
@@ -13,6 +37,7 @@ This project uses minimal encapsulation, the simplest structure, and reduces cod
 ### Project Structure
 
 ```
+├── api                         # generated proto files
 ├── assets                      # embed assets
 ├── cmd                         # main entry
 ├── config                      # configuration
@@ -23,6 +48,7 @@ This project uses minimal encapsulation, the simplest structure, and reduces cod
 │   ├── pkg                     # internal common packages
 │   └── server                  # server
 ├── pkg                         # common packages
+├── proto                       # proto files
 ```
 ### Usage
 

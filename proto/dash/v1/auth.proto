@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package dash.v1;
+
+import "google/api/annotations.proto";
+
+
+service AuthService {
+  rpc AuthLogin(AuthLoginRequest) returns (AuthLoginResponse) {
+    option (google.api.http) = {
+      post: "/api/auth/login"
+      body: "*"
+    };
+  }
+
+  rpc AuthRefresh(AuthRefreshRequest) returns (AuthRefreshResponse) {
+    option (google.api.http) = {
+      post: "/api/auth/refresh"
+      body: "*"
+    };
+  }
+}
+
+message AuthLoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message AuthLoginResponse {
+  string avatar = 1;
+  string username = 2;
+  string nickname = 3;
+  repeated string roles = 4;
+  string access_token = 5;
+  string refresh_token = 6;
+  string expires = 7;
+}
+
+message AuthRefreshRequest {
+  string refresh_token = 1;
+}
+
+message AuthRefreshResponse {
+  string access_token = 5;
+  string refresh_token = 6;
+  string expires = 7;
+}

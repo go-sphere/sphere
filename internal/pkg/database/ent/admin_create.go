@@ -96,13 +96,13 @@ func (ac *AdminCreate) SetRoles(s []string) *AdminCreate {
 }
 
 // SetID sets the "id" field.
-func (ac *AdminCreate) SetID(i int) *AdminCreate {
+func (ac *AdminCreate) SetID(i int64) *AdminCreate {
 	ac.mutation.SetID(i)
 	return ac
 }
 
 // SetNillableID sets the "id" field if the given value is not nil.
-func (ac *AdminCreate) SetNillableID(i *int) *AdminCreate {
+func (ac *AdminCreate) SetNillableID(i *int64) *AdminCreate {
 	if i != nil {
 		ac.SetID(*i)
 	}
@@ -202,7 +202,7 @@ func (ac *AdminCreate) sqlSave(ctx context.Context) (*Admin, error) {
 	}
 	if _spec.ID.Value != _node.ID {
 		id := _spec.ID.Value.(int64)
-		_node.ID = int(id)
+		_node.ID = int64(id)
 	}
 	ac.mutation.id = &_node.ID
 	ac.mutation.done = true
@@ -212,7 +212,7 @@ func (ac *AdminCreate) sqlSave(ctx context.Context) (*Admin, error) {
 func (ac *AdminCreate) createSpec() (*Admin, *sqlgraph.CreateSpec) {
 	var (
 		_node = &Admin{config: ac.config}
-		_spec = sqlgraph.NewCreateSpec(admin.Table, sqlgraph.NewFieldSpec(admin.FieldID, field.TypeInt))
+		_spec = sqlgraph.NewCreateSpec(admin.Table, sqlgraph.NewFieldSpec(admin.FieldID, field.TypeInt64))
 	)
 	_spec.OnConflict = ac.conflict
 	if id, ok := ac.mutation.ID(); ok {
@@ -574,7 +574,7 @@ func (u *AdminUpsertOne) ExecX(ctx context.Context) {
 }
 
 // Exec executes the UPSERT query and returns the inserted/updated ID.
-func (u *AdminUpsertOne) ID(ctx context.Context) (id int, err error) {
+func (u *AdminUpsertOne) ID(ctx context.Context) (id int64, err error) {
 	node, err := u.create.Save(ctx)
 	if err != nil {
 		return id, err
@@ -583,7 +583,7 @@ func (u *AdminUpsertOne) ID(ctx context.Context) (id int, err error) {
 }
 
 // IDX is like ID, but panics if an error occurs.
-func (u *AdminUpsertOne) IDX(ctx context.Context) int {
+func (u *AdminUpsertOne) IDX(ctx context.Context) int64 {
 	id, err := u.ID(ctx)
 	if err != nil {
 		panic(err)
@@ -640,7 +640,7 @@ func (acb *AdminCreateBulk) Save(ctx context.Context) ([]*Admin, error) {
 				mutation.id = &nodes[i].ID
 				if specs[i].ID.Value != nil && nodes[i].ID == 0 {
 					id := specs[i].ID.Value.(int64)
-					nodes[i].ID = int(id)
+					nodes[i].ID = int64(id)
 				}
 				mutation.done = true
 				return nodes[i], nil

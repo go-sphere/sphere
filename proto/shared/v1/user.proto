@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package shared.v1;
+
+message User {
+    int64 id = 1;
+    string username = 2;
+    string avatar = 3;
+    string phone = 4;
+}

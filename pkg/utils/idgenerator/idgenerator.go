@@ -18,6 +18,6 @@ func init() {
 	idgen.SetIdGenerator(options)
 }
 
-func NextId() int {
-	return int(idgen.NextId())
+func NextId() int64 {
+	return idgen.NextId()
 }

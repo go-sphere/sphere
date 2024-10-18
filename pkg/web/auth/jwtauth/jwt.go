@@ -1,7 +1,7 @@
 package jwtauth
 
 import (
-	"github.com/tbxark/sphere/pkg/web/auth/authparser"
+	"github.com/tbxark/sphere/pkg/web/auth/authorizer"
 	"strings"
 	"sync"
 	"time"
@@ -15,17 +15,12 @@ const (
 	DefaultRefreshDuration    = time.Hour * 24 * 7
 )
 
-var _ authparser.AuthParser = &JwtAuth{}
+var _ authorizer.Authorizer = &JwtAuth{}
 
 type SignedDetails struct {
 	jwt.StandardClaims
 	Username string `json:"username"`
 	Roles    string `json:"roles"`
-}
-
-type Token struct {
-	Token     string
-	ExpiresAt time.Time
 }
 
 type JwtAuth struct {
@@ -63,7 +58,7 @@ func WithRefreshTokenDuration(d time.Duration) Option {
 	}
 }
 
-func (g *JwtAuth) GenerateSignedToken(subject, username string, roles ...string) (*Token, error) {
+func (g *JwtAuth) GenerateSignedToken(subject, username string, roles ...string) (*authorizer.Token, error) {
 	expiresAt := time.Now().Local().Add(g.signedTokenDuration)
 	claims := &SignedDetails{
 		Username: username,
@@ -79,13 +74,13 @@ func (g *JwtAuth) GenerateSignedToken(subject, username string, roles ...string)
 		return nil, err
 	}
 
-	return &Token{
+	return &authorizer.Token{
 		Token:     token,
 		ExpiresAt: expiresAt,
 	}, nil
 }
 
-func (g *JwtAuth) GenerateRefreshToken(uid string) (*Token, error) {
+func (g *JwtAuth) GenerateRefreshToken(uid string) (*authorizer.Token, error) {
 
 	expiresAt := time.Now().Local().Add(g.signedRefreshDuration)
 	refreshClaims := &SignedDetails{
@@ -100,13 +95,13 @@ func (g *JwtAuth) GenerateRefreshToken(uid string) (*Token, error) {
 		return nil, err
 	}
 
-	return &Token{
+	return &authorizer.Token{
 		Token:     refreshToken,
 		ExpiresAt: expiresAt,
 	}, nil
 }
 
-func (g *JwtAuth) ParseToken(signedToken string) (*authparser.Claims, error) {
+func (g *JwtAuth) ParseToken(signedToken string) (*authorizer.Claims, error) {
 	claims := &SignedDetails{}
 	_, err := jwt.ParseWithClaims(signedToken, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -117,7 +112,7 @@ func (g *JwtAuth) ParseToken(signedToken string) (*authparser.Claims, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &authparser.Claims{
+	return &authorizer.Claims{
 		Subject:  claims.Subject,
 		Username: claims.Username,
 		Roles:    claims.Roles,

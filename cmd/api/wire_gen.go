@@ -11,7 +11,8 @@ import (
 	"github.com/tbxark/sphere/internal/biz/task"
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/database/client"
-	"github.com/tbxark/sphere/internal/server/api"
+	api2 "github.com/tbxark/sphere/internal/server/api"
+	"github.com/tbxark/sphere/internal/service/api"
 	"github.com/tbxark/sphere/pkg/cache/memory"
 	"github.com/tbxark/sphere/pkg/storage/qiniu"
 	"github.com/tbxark/sphere/pkg/utils/boot"
@@ -33,7 +34,8 @@ func NewAPIApplication(conf *config.Config) (*boot.Application, error) {
 	qiniuConfig := conf.Storage
 	qiniuQiniu := qiniu.NewQiniu(qiniuConfig)
 	cache := memory.NewByteCache()
-	web := api.NewWebServer(apiConfig, daoDao, wechatWechat, qiniuQiniu, cache)
+	service := api.NewService(daoDao, wechatWechat, qiniuQiniu, cache)
+	web := api2.NewWebServer(apiConfig, service)
 	dashInitialize := task.NewDashInitialize(daoDao)
 	connectCleaner := task.NewConnectCleaner(entClient)
 	application := newApplication(web, dashInitialize, connectCleaner)

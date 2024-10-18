@@ -10,7 +10,7 @@ import (
 var (
 	// AdminsColumns holds the columns for the "admins" table.
 	AdminsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "id", Type: field.TypeInt64, Increment: true},
 		{Name: "created_at", Type: field.TypeInt64, Nullable: true},
 		{Name: "updated_at", Type: field.TypeInt64, Nullable: true},
 		{Name: "username", Type: field.TypeString, Unique: true},
@@ -41,7 +41,7 @@ var (
 	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "id", Type: field.TypeInt64, Increment: true},
 		{Name: "created_at", Type: field.TypeInt64, Nullable: true},
 		{Name: "updated_at", Type: field.TypeInt64, Nullable: true},
 		{Name: "username", Type: field.TypeString},
@@ -61,7 +61,7 @@ var (
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "created_at", Type: field.TypeInt64, Nullable: true},
 		{Name: "updated_at", Type: field.TypeInt64, Nullable: true},
-		{Name: "user_id", Type: field.TypeInt},
+		{Name: "user_id", Type: field.TypeInt64},
 		{Name: "platform", Type: field.TypeString},
 		{Name: "platform_id", Type: field.TypeString},
 		{Name: "second_id", Type: field.TypeString, Nullable: true, Default: ""},

@@ -32,10 +32,10 @@ func runConfig(cmd *cobra.Command, args []string) {
 	switch cmd.Flag("database").Value.String() {
 	case "mysql":
 		conf.Database.Type = "mysql"
-		conf.Database.Path = "api:password@tcp(localhost:3306)/go-base?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s"
+		conf.Database.Path = "api:password@tcp(localhost:3306)/sphere?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s"
 	case "sqlite":
 		conf.Database.Type = "sqlite3"
-		conf.Database.Path = "file:data.db?cache=shared&mode=rwc"
+		conf.Database.Path = "file:./var/sphere/data.db?cache=shared&mode=rwc"
 	}
 	file, err := os.Create(output)
 	if err != nil {

@@ -2,25 +2,25 @@ package auth
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/sphere/pkg/web/auth/authparser"
+	"github.com/tbxark/sphere/pkg/web/auth/authorizer"
 	"net/http"
 	"strconv"
 	"strings"
 )
 
 type Auth struct {
-	*Base
+	*Base[int64, string]
 	prefix string
-	parser authparser.AuthParser
+	parser authorizer.Parser
 }
 
 type AccessControl interface {
 	IsAllowed(role, resource string) bool
 }
 
-func NewAuth(prefix string, parser authparser.AuthParser) *Auth {
+func NewAuth(prefix string, parser authorizer.Parser) *Auth {
 	return &Auth{
-		Base:   &Base{},
+		Base:   &Base[int64, string]{},
 		prefix: prefix,
 		parser: parser,
 	}
@@ -53,7 +53,7 @@ func (w *Auth) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
 		}
 
 		id, _ := strconv.Atoi(claims.Subject)
-		ctx.Set(ContextKeyID, id)
+		ctx.Set(ContextKeyID, int64(id))
 		ctx.Set(ContextKeyUsername, claims.Username)
 		ctx.Set(ContextKeyRoles, claims.Username)
 	}

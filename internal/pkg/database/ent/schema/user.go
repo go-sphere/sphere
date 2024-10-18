@@ -13,7 +13,7 @@ type User struct {
 
 func (User) Fields() []ent.Field {
 	return []ent.Field{
-		field.Int("id").Unique().Immutable().DefaultFunc(idgenerator.NextId).Comment("用户ID"),
+		field.Int64("id").Unique().Immutable().DefaultFunc(idgenerator.NextId).Comment("用户ID"),
 		field.String("username").Comment("用户名").MinLen(1),
 		field.String("remark").Optional().Default("").Comment("备注").MaxLen(30),
 		field.String("avatar").Comment("头像"),
@@ -38,7 +38,7 @@ type UserPlatform struct {
 
 func (UserPlatform) Fields() []ent.Field {
 	return []ent.Field{
-		field.Int("user_id").Comment("用户ID"),
+		field.Int64("user_id").Comment("用户ID"),
 		field.String("platform").Comment("平台"),
 		field.String("platform_id").Comment("平台ID"),
 		field.String("second_id").Optional().Default("").Comment("第二ID"),

@@ -1,70 +1,30 @@
 package api
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/sphere/internal/pkg/dao"
-	"github.com/tbxark/sphere/internal/pkg/render"
-	"github.com/tbxark/sphere/pkg/cache"
+	apiv1 "github.com/tbxark/sphere/api/api/v1"
+	sharedv1 "github.com/tbxark/sphere/api/shared/v1"
+	"github.com/tbxark/sphere/internal/service/api"
+	"github.com/tbxark/sphere/internal/service/shared"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/log/logfields"
-	"github.com/tbxark/sphere/pkg/storage"
 	"github.com/tbxark/sphere/pkg/web/auth/jwtauth"
 	"github.com/tbxark/sphere/pkg/web/middleware/auth"
 	"github.com/tbxark/sphere/pkg/web/middleware/logger"
-	"github.com/tbxark/sphere/pkg/wechat"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
+	"github.com/tbxark/sphere/pkg/web/route/cors"
 )
 
-// @title API
-// @version 1.0.0
-// @description API docs
-// @accept json
-// @produce json
-
-// @securityDefinitions.apikey ApiKeyAuth
-// @in header
-// @name Authorization
-// @description JWT token
-
-// @security ApiKeyAuth []
-
-type Config struct {
-	JWT     string `json:"jwt" yaml:"jwt"`
-	Address string `json:"address" yaml:"address"`
-}
-
 type Web struct {
-	config     *Config
-	engine     *gin.Engine
-	DB         *dao.Dao
-	Storage    storage.Storage
-	Cache      cache.ByteCache
-	Wechat     *wechat.Wechat
-	Render     *render.Render
-	JwtAuth    *jwtauth.JwtAuth
-	Auth       *auth.Auth
-	httpClient *http.Client
+	config  *Config
+	engine  *gin.Engine
+	service *api.Service
 }
 
-func NewWebServer(config *Config, db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cache.ByteCache) *Web {
-	token := jwtauth.NewJwtAuth(config.JWT)
+func NewWebServer(conf *Config, service *api.Service) *Web {
 	return &Web{
-		config:  config,
+		config:  conf,
 		engine:  gin.New(),
-		DB:      db,
-		Storage: store,
-		Cache:   cache,
-		Wechat:  wx,
-		Render:  render.NewRender(store, db, true),
-		JwtAuth: token,
-		Auth:    auth.NewAuth(jwtauth.AuthorizationPrefixBearer, token),
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		service: service,
 	}
 }
 
@@ -73,54 +33,33 @@ func (w *Web) Identifier() string {
 }
 
 func (w *Web) Run() error {
+
+	authorizer := jwtauth.NewJwtAuth(w.config.JWT)
+	authControl := auth.NewAuth(jwtauth.AuthorizationPrefixBearer, authorizer)
+
 	zapLogger := log.ZapLogger().With(logfields.String("module", "api"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
+	authMiddleware := authControl.NewAuthMiddleware(false)
 	//rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
 	w.engine.Use(loggerMiddleware, recoveryMiddleware)
 
-	api := w.engine.Group("/", w.Auth.NewAuthMiddleware(false))
+	// 使用swagger的时候需要打开
+	if len(w.config.HTTP.Cors) > 0 {
+		cors.Setup(w.engine, w.config.HTTP.Cors)
+	}
 
-	w.bindAuthRoute(api)
-	w.bindUserRoute(api)
-	w.bindSystemRoute(api)
+	w.service.Init(authControl, authorizer)
 
-	return w.engine.Run(w.config.Address)
-}
+	route := w.engine.Group("/", authMiddleware)
 
-const (
-	RemoteImageMaxSize = 1024 * 1024 * 2
-)
+	sharedSrc := shared.NewService(authControl, w.service.Storage, "user")
 
-var (
-	ErrImageSizeExceed = fmt.Errorf("image size exceed")
-)
+	sharedv1.RegisterStorageServiceHTTPServer(route, sharedSrc)
+	apiv1.RegisterAuthServiceHTTPServer(route, w.service)
+	apiv1.RegisterSystemServiceHTTPServer(route, w.service)
+	apiv1.RegisterUserServiceHTTPServer(route, w.service)
 
-func (w *Web) uploadRemoteImage(ctx *gin.Context, url string) (string, error) {
-	key := w.Storage.ExtractKeyFromURL(url)
-	if key == "" {
-		return key, nil
-	}
-	if !(strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://")) {
-		return key, nil
-	}
-	id, err := w.Auth.GetCurrentID(ctx)
-	if err != nil {
-		return "", err
-	}
-	key = storage.DefaultKeyBuilder(strconv.Itoa(id))(url, "user")
-	resp, err := w.httpClient.Get(url)
-	if err != nil {
-		return "", err
-	}
-	if resp.ContentLength > RemoteImageMaxSize {
-		return "", ErrImageSizeExceed
-	}
-	defer resp.Body.Close()
-	ret, err := w.Storage.UploadFile(ctx, resp.Body, resp.ContentLength, key)
-	if err != nil {
-		return "", err
-	}
-	return ret.Key, nil
+	return w.engine.Run(w.config.HTTP.Address)
 }

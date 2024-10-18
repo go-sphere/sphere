@@ -37,7 +37,7 @@ type AdminMutation struct {
 	config
 	op            Op
 	typ           string
-	id            *int
+	id            *int64
 	created_at    *int64
 	addcreated_at *int64
 	updated_at    *int64
@@ -74,7 +74,7 @@ func newAdminMutation(c config, op Op, opts ...adminOption) *AdminMutation {
 }
 
 // withAdminID sets the ID field of the mutation.
-func withAdminID(id int) adminOption {
+func withAdminID(id int64) adminOption {
 	return func(m *AdminMutation) {
 		var (
 			err   error
@@ -126,13 +126,13 @@ func (m AdminMutation) Tx() (*Tx, error) {
 
 // SetID sets the value of the id field. Note that this
 // operation is only accepted on creation of Admin entities.
-func (m *AdminMutation) SetID(id int) {
+func (m *AdminMutation) SetID(id int64) {
 	m.id = &id
 }
 
 // ID returns the ID value in the mutation. Note that the ID is only available
 // if it was provided to the builder or after it was returned from the database.
-func (m *AdminMutation) ID() (id int, exists bool) {
+func (m *AdminMutation) ID() (id int64, exists bool) {
 	if m.id == nil {
 		return
 	}
@@ -143,12 +143,12 @@ func (m *AdminMutation) ID() (id int, exists bool) {
 // That means, if the mutation is applied within a transaction with an isolation level such
 // as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
 // or updated by the mutation.
-func (m *AdminMutation) IDs(ctx context.Context) ([]int, error) {
+func (m *AdminMutation) IDs(ctx context.Context) ([]int64, error) {
 	switch {
 	case m.op.Is(OpUpdateOne | OpDeleteOne):
 		id, exists := m.ID()
 		if exists {
-			return []int{id}, nil
+			return []int64{id}, nil
 		}
 		fallthrough
 	case m.op.Is(OpUpdate | OpDelete):
@@ -1478,7 +1478,7 @@ type UserMutation struct {
 	config
 	op            Op
 	typ           string
-	id            *int
+	id            *int64
 	created_at    *int64
 	addcreated_at *int64
 	updated_at    *int64
@@ -1515,7 +1515,7 @@ func newUserMutation(c config, op Op, opts ...userOption) *UserMutation {
 }
 
 // withUserID sets the ID field of the mutation.
-func withUserID(id int) userOption {
+func withUserID(id int64) userOption {
 	return func(m *UserMutation) {
 		var (
 			err   error
@@ -1567,13 +1567,13 @@ func (m UserMutation) Tx() (*Tx, error) {
 
 // SetID sets the value of the id field. Note that this
 // operation is only accepted on creation of User entities.
-func (m *UserMutation) SetID(id int) {
+func (m *UserMutation) SetID(id int64) {
 	m.id = &id
 }
 
 // ID returns the ID value in the mutation. Note that the ID is only available
 // if it was provided to the builder or after it was returned from the database.
-func (m *UserMutation) ID() (id int, exists bool) {
+func (m *UserMutation) ID() (id int64, exists bool) {
 	if m.id == nil {
 		return
 	}
@@ -1584,12 +1584,12 @@ func (m *UserMutation) ID() (id int, exists bool) {
 // That means, if the mutation is applied within a transaction with an isolation level such
 // as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
 // or updated by the mutation.
-func (m *UserMutation) IDs(ctx context.Context) ([]int, error) {
+func (m *UserMutation) IDs(ctx context.Context) ([]int64, error) {
 	switch {
 	case m.op.Is(OpUpdateOne | OpDeleteOne):
 		id, exists := m.ID()
 		if exists {
-			return []int{id}, nil
+			return []int64{id}, nil
 		}
 		fallthrough
 	case m.op.Is(OpUpdate | OpDelete):
@@ -2322,8 +2322,8 @@ type UserPlatformMutation struct {
 	addcreated_at *int64
 	updated_at    *int64
 	addupdated_at *int64
-	user_id       *int
-	adduser_id    *int
+	user_id       *int64
+	adduser_id    *int64
 	platform      *string
 	platform_id   *string
 	second_id     *string
@@ -2572,13 +2572,13 @@ func (m *UserPlatformMutation) ResetUpdatedAt() {
 }
 
 // SetUserID sets the "user_id" field.
-func (m *UserPlatformMutation) SetUserID(i int) {
+func (m *UserPlatformMutation) SetUserID(i int64) {
 	m.user_id = &i
 	m.adduser_id = nil
 }
 
 // UserID returns the value of the "user_id" field in the mutation.
-func (m *UserPlatformMutation) UserID() (r int, exists bool) {
+func (m *UserPlatformMutation) UserID() (r int64, exists bool) {
 	v := m.user_id
 	if v == nil {
 		return
@@ -2589,7 +2589,7 @@ func (m *UserPlatformMutation) UserID() (r int, exists bool) {
 // OldUserID returns the old "user_id" field's value of the UserPlatform entity.
 // If the UserPlatform object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *UserPlatformMutation) OldUserID(ctx context.Context) (v int, err error) {
+func (m *UserPlatformMutation) OldUserID(ctx context.Context) (v int64, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
 	}
@@ -2604,7 +2604,7 @@ func (m *UserPlatformMutation) OldUserID(ctx context.Context) (v int, err error)
 }
 
 // AddUserID adds i to the "user_id" field.
-func (m *UserPlatformMutation) AddUserID(i int) {
+func (m *UserPlatformMutation) AddUserID(i int64) {
 	if m.adduser_id != nil {
 		*m.adduser_id += i
 	} else {
@@ -2613,7 +2613,7 @@ func (m *UserPlatformMutation) AddUserID(i int) {
 }
 
 // AddedUserID returns the value that was added to the "user_id" field in this mutation.
-func (m *UserPlatformMutation) AddedUserID() (r int, exists bool) {
+func (m *UserPlatformMutation) AddedUserID() (r int64, exists bool) {
 	v := m.adduser_id
 	if v == nil {
 		return
@@ -2866,7 +2866,7 @@ func (m *UserPlatformMutation) SetField(name string, value ent.Value) error {
 		m.SetUpdatedAt(v)
 		return nil
 	case userplatform.FieldUserID:
-		v, ok := value.(int)
+		v, ok := value.(int64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -2948,7 +2948,7 @@ func (m *UserPlatformMutation) AddField(name string, value ent.Value) error {
 		m.AddUpdatedAt(v)
 		return nil
 	case userplatform.FieldUserID:
-		v, ok := value.(int)
+		v, ok := value.(int64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}

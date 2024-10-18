@@ -63,7 +63,7 @@ func UpdatedAt(v int64) predicate.UserPlatform {
 }
 
 // UserID applies equality check predicate on the "user_id" field. It's identical to UserIDEQ.
-func UserID(v int) predicate.UserPlatform {
+func UserID(v int64) predicate.UserPlatform {
 	return predicate.UserPlatform(sql.FieldEQ(FieldUserID, v))
 }
 
@@ -183,42 +183,42 @@ func UpdatedAtNotNil() predicate.UserPlatform {
 }
 
 // UserIDEQ applies the EQ predicate on the "user_id" field.
-func UserIDEQ(v int) predicate.UserPlatform {
+func UserIDEQ(v int64) predicate.UserPlatform {
 	return predicate.UserPlatform(sql.FieldEQ(FieldUserID, v))
 }
 
 // UserIDNEQ applies the NEQ predicate on the "user_id" field.
-func UserIDNEQ(v int) predicate.UserPlatform {
+func UserIDNEQ(v int64) predicate.UserPlatform {
 	return predicate.UserPlatform(sql.FieldNEQ(FieldUserID, v))
 }
 
 // UserIDIn applies the In predicate on the "user_id" field.
-func UserIDIn(vs ...int) predicate.UserPlatform {
+func UserIDIn(vs ...int64) predicate.UserPlatform {
 	return predicate.UserPlatform(sql.FieldIn(FieldUserID, vs...))
 }
 
 // UserIDNotIn applies the NotIn predicate on the "user_id" field.
-func UserIDNotIn(vs ...int) predicate.UserPlatform {
+func UserIDNotIn(vs ...int64) predicate.UserPlatform {
 	return predicate.UserPlatform(sql.FieldNotIn(FieldUserID, vs...))
 }
 
 // UserIDGT applies the GT predicate on the "user_id" field.
-func UserIDGT(v int) predicate.UserPlatform {
+func UserIDGT(v int64) predicate.UserPlatform {
 	return predicate.UserPlatform(sql.FieldGT(FieldUserID, v))
 }
 
 // UserIDGTE applies the GTE predicate on the "user_id" field.
-func UserIDGTE(v int) predicate.UserPlatform {
+func UserIDGTE(v int64) predicate.UserPlatform {
 	return predicate.UserPlatform(sql.FieldGTE(FieldUserID, v))
 }
 
 // UserIDLT applies the LT predicate on the "user_id" field.
-func UserIDLT(v int) predicate.UserPlatform {
+func UserIDLT(v int64) predicate.UserPlatform {
 	return predicate.UserPlatform(sql.FieldLT(FieldUserID, v))
 }
 
 // UserIDLTE applies the LTE predicate on the "user_id" field.
-func UserIDLTE(v int) predicate.UserPlatform {
+func UserIDLTE(v int64) predicate.UserPlatform {
 	return predicate.UserPlatform(sql.FieldLTE(FieldUserID, v))
 }
 

@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package dash.v1;
+
+import "google/api/annotations.proto";
+
+
+service SystemService {
+  rpc CacheReset(CacheResetRequest) returns (CacheResetResponse) {
+    option (google.api.http) = {
+      post: "/api/cache/reset"
+      body: "*"
+    };
+  }
+}
+
+message CacheResetRequest {
+}
+
+message CacheResetResponse {
+}

@@ -1,28 +1,23 @@
 package render
 
 import (
+	dashv1 "github.com/tbxark/sphere/api/dash/v1"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 )
 
-type Admin struct {
-	ID       int      `json:"id"`
-	Username string   `json:"username"`
-	Roles    []string `json:"roles,omitempty"`
-}
-
-func (r *Render) Admin(a *ent.Admin) *Admin {
+func (r *Render) Admin(a *ent.Admin) *dashv1.Admin {
 	if a == nil {
 		return nil
 	}
-	return &Admin{
-		ID:       a.ID,
+	return &dashv1.Admin{
+		Id:       a.ID,
 		Username: a.Username,
 	}
 }
 
-func (r *Render) AdminWithRoles(a *ent.Admin) *Admin {
-	return &Admin{
-		ID:       a.ID,
+func (r *Render) AdminWithRoles(a *ent.Admin) *dashv1.Admin {
+	return &dashv1.Admin{
+		Id:       a.ID,
 		Username: a.Username,
 		Roles:    a.Roles,
 	}

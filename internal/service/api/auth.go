@@ -3,44 +3,24 @@ package api
 import (
 	"context"
 	"fmt"
-	"github.com/gin-gonic/gin"
+	apiv1 "github.com/tbxark/sphere/api/api/v1"
 	"github.com/tbxark/sphere/internal/pkg/consts"
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
-	"github.com/tbxark/sphere/internal/pkg/render"
-	"github.com/tbxark/sphere/pkg/web/ginx"
 	"strconv"
 	"time"
 )
 
-type WxMiniAuthRequest struct {
-	Code string `json:"code" binding:"required"`
-}
+var _ apiv1.AuthServiceHTTPServer = (*Service)(nil)
 
-type AuthResponse struct {
-	IsNew bool         `json:"isNew"`
-	Token string       `json:"token"`
-	User  *render.User `json:"user"`
-}
-
-// AuthWxMini
-//
-// @Summary 微信小程序登录
-// @Param request body WxMiniAuthRequest true "登录信息"
-// @Success 200 {object} ginx.DataResponse[AuthResponse]
-// @Router /api/auth/wxmini [post]
-func (w *Web) AuthWxMini(ctx *gin.Context) (*AuthResponse, error) {
-	var req WxMiniAuthRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		return nil, err
-	}
-	wxUser, err := w.Wechat.Auth(req.Code)
+func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) (*apiv1.AuthWxMiniResponse, error) {
+	wxUser, err := s.Wechat.Auth(req.Code)
 	if err != nil {
 		return nil, err
 	}
 
-	res, err := dao.WithTx[AuthResponse](ctx, w.DB.Client, func(ctx context.Context, client *ent.Client) (*AuthResponse, error) {
+	res, err := dao.WithTx[apiv1.AuthWxMiniResponse](ctx, s.DB.Client, func(ctx context.Context, client *ent.Client) (*apiv1.AuthWxMiniResponse, error) {
 		userPlat, e := client.UserPlatform.Query().
 			Where(userplatform.PlatformEQ(consts.WechatMiniPlatform), userplatform.PlatformIDEQ(wxUser.OpenID)).
 			Only(ctx)
@@ -50,8 +30,8 @@ func (w *Web) AuthWxMini(ctx *gin.Context) (*AuthResponse, error) {
 			if ue != nil {
 				return nil, ue
 			}
-			return &AuthResponse{
-				User:  w.Render.Me(u),
+			return &apiv1.AuthWxMiniResponse{
+				User:  s.Render.Me(u),
 				IsNew: false,
 			}, nil
 		}
@@ -75,23 +55,18 @@ func (w *Web) AuthWxMini(ctx *gin.Context) (*AuthResponse, error) {
 		if e != nil {
 			return nil, e
 		}
-		return &AuthResponse{
-			User:  w.Render.Me(newUser),
+		return &apiv1.AuthWxMiniResponse{
+			User:  s.Render.Me(newUser),
 			IsNew: true,
 		}, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	token, err := w.JwtAuth.GenerateSignedToken(strconv.Itoa(res.User.ID), consts.WechatMiniPlatform+":"+wxUser.OpenID)
+	token, err := s.Authorizer.GenerateSignedToken(strconv.Itoa(int(res.User.Id)), consts.WechatMiniPlatform+":"+wxUser.OpenID)
 	if err != nil {
 		return nil, err
 	}
 	res.Token = token.Token
 	return res, nil
-}
-
-func (w *Web) bindAuthRoute(r gin.IRouter) {
-	route := r.Group("/")
-	route.POST("/api/auth/wxmini", ginx.WithJson(w.AuthWxMini))
 }

@@ -67,7 +67,7 @@ var (
 	// DefaultRoles holds the default value on creation for the "roles" field.
 	DefaultRoles []string
 	// DefaultID holds the default value on creation for the "id" field.
-	DefaultID func() int
+	DefaultID func() int64
 )
 
 // OrderOption defines the ordering options for the Admin queries.

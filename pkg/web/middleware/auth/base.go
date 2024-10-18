@@ -1,6 +1,8 @@
 package auth
 
-import "github.com/gin-gonic/gin"
+import (
+	"context"
+)
 
 const (
 	ContextKeyID        = "uid"
@@ -9,39 +11,41 @@ const (
 	AuthorizationHeader = "Authorization"
 )
 
-type Base struct {
+type Base[ID comparable, USERNAME any] struct {
+	zeroID   ID
+	zeroName USERNAME
 }
 
-func (b *Base) GetCurrentID(ctx *gin.Context) (int, error) {
-	raw, exist := ctx.Get(ContextKeyID)
-	if !exist {
-		return 0, NeedLoginError
+func (b *Base[ID, USERNAME]) GetCurrentID(ctx context.Context) (ID, error) {
+	raw := ctx.Value(ContextKeyID)
+	if raw == nil {
+		return b.zeroID, NeedLoginError
 	}
-	id, ok := raw.(int)
+	id, ok := raw.(ID)
 	if !ok {
-		return 0, NeedLoginError
+		return b.zeroID, NeedLoginError
 	}
 	return id, nil
 }
 
-func (b *Base) GetCurrentUsername(ctx *gin.Context) (string, error) {
-	raw, exist := ctx.Get(ContextKeyUsername)
-	if !exist {
-		return "", NeedLoginError
+func (b *Base[ID, USERNAME]) GetCurrentUsername(ctx context.Context) (USERNAME, error) {
+	raw := ctx.Value(ContextKeyUsername)
+	if raw == nil {
+		return b.zeroName, NeedLoginError
 	}
-	username, ok := raw.(string)
+	username, ok := raw.(USERNAME)
 	if !ok {
-		return "", NeedLoginError
+		return b.zeroName, NeedLoginError
 	}
 	return username, nil
 }
 
-func (b *Base) CheckAuthStatus(ctx *gin.Context) error {
+func (b *Base[ID, USERNAME]) CheckAuthStatus(ctx context.Context) error {
 	_, err := b.GetCurrentID(ctx)
 	return err
 }
 
-func (b *Base) CheckAuthID(ctx *gin.Context, id int) error {
+func (b *Base[ID, USERNAME]) CheckAuthID(ctx context.Context, id ID) error {
 	currentId, err := b.GetCurrentID(ctx)
 	if err != nil {
 		return err

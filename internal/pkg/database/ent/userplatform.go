@@ -21,7 +21,7 @@ type UserPlatform struct {
 	// 更新时间
 	UpdatedAt int64 `json:"updated_at,omitempty"`
 	// 用户ID
-	UserID int `json:"user_id,omitempty"`
+	UserID int64 `json:"user_id,omitempty"`
 	// 平台
 	Platform string `json:"platform,omitempty"`
 	// 平台ID
@@ -77,7 +77,7 @@ func (up *UserPlatform) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field user_id", values[i])
 			} else if value.Valid {
-				up.UserID = int(value.Int64)
+				up.UserID = value.Int64
 			}
 		case userplatform.FieldPlatform:
 			if value, ok := values[i].(*sql.NullString); !ok {

@@ -30,6 +30,7 @@ type methodDesc struct {
 	Path         string
 	Method       string
 	HasVars      bool
+	HasQuery     bool
 	HasBody      bool
 	Body         string
 	ResponseBody string
