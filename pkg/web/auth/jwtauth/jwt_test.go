@@ -7,7 +7,7 @@ import (
 
 func TestJwtAuth_ParseToken(t *testing.T) {
 	auth := NewJwtAuth("secret")
-	token, err := auth.GenerateSignedToken("1", "username", "admin")
+	token, err := auth.GenerateToken("1", "username", "admin")
 	if err != nil {
 		t.Error(err)
 	}
@@ -25,7 +25,7 @@ func TestJwtAuth_ParseToken(t *testing.T) {
 		t.Error("subject not match")
 	}
 	auth.SetTokenDuration(0)
-	token, err = auth.GenerateSignedToken("1", "username", "admin")
+	token, err = auth.GenerateToken("1", "username", "admin")
 	if err != nil {
 		t.Error(err)
 	}
