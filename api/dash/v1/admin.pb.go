@@ -316,7 +316,7 @@ type AdminUpdateRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id       int64    `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`
+	Id       int64    `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`  
 	Avatar   string   `protobuf:"bytes,2,opt,name=avatar,proto3" json:"avatar,omitempty"`
 	Username string   `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
 	Nickname string   `protobuf:"bytes,4,opt,name=nickname,proto3" json:"nickname,omitempty"`
@@ -450,7 +450,7 @@ type AdminDetailRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`
+	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`  
 }
 
 func (x *AdminDetailRequest) Reset() {
@@ -544,7 +544,7 @@ type AdminDeleteRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`
+	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`  
 }
 
 func (x *AdminDeleteRequest) Reset() {

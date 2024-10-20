@@ -5,9 +5,9 @@ import (
 	dashv1 "github.com/tbxark/sphere/api/dash/v1"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
+	"github.com/tbxark/sphere/pkg/server/ginx"
+	"github.com/tbxark/sphere/pkg/server/statuserr"
 	"github.com/tbxark/sphere/pkg/utils/secure"
-	"github.com/tbxark/sphere/pkg/web/ginx"
-	"github.com/tbxark/sphere/pkg/web/statuserr"
 	"strconv"
 	"time"
 )

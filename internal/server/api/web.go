@@ -8,10 +8,10 @@ import (
 	"github.com/tbxark/sphere/internal/service/shared"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/log/logfields"
-	"github.com/tbxark/sphere/pkg/web/auth/jwtauth"
-	"github.com/tbxark/sphere/pkg/web/middleware/auth"
-	"github.com/tbxark/sphere/pkg/web/middleware/logger"
-	"github.com/tbxark/sphere/pkg/web/route/cors"
+	"github.com/tbxark/sphere/pkg/server/auth/jwtauth"
+	"github.com/tbxark/sphere/pkg/server/middleware/auth"
+	"github.com/tbxark/sphere/pkg/server/middleware/logger"
+	"github.com/tbxark/sphere/pkg/server/route/cors"
 )
 
 type Web struct {
@@ -35,7 +35,7 @@ func (w *Web) Identifier() string {
 func (w *Web) Run() error {
 
 	authorizer := jwtauth.NewJwtAuth(w.config.JWT)
-	authControl := auth.NewAuth(jwtauth.AuthorizationPrefixBearer, authorizer)
+	authControl := auth.NewAuth[int64, string](jwtauth.AuthorizationPrefixBearer, authorizer)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "api"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
@@ -45,7 +45,6 @@ func (w *Web) Run() error {
 
 	w.engine.Use(loggerMiddleware, recoveryMiddleware)
 
-	// 使用swagger的时候需要打开
 	if len(w.config.HTTP.Cors) > 0 {
 		cors.Setup(w.engine, w.config.HTTP.Cors)
 	}

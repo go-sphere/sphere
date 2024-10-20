@@ -7,8 +7,8 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
+	"github.com/tbxark/sphere/pkg/server/statuserr"
 	"github.com/tbxark/sphere/pkg/storage"
-	"github.com/tbxark/sphere/pkg/web/statuserr"
 	"strconv"
 	"strings"
 )

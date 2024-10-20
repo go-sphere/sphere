@@ -1,7 +1,7 @@
 package tmaauth
 
 import (
-	"github.com/tbxark/sphere/pkg/web/auth/authorizer"
+	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 	"strconv"
 	"time"

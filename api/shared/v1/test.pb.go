@@ -28,10 +28,10 @@ type RunTestRequest struct {
 
 	FieldTest1 string `protobuf:"bytes,1,opt,name=field_test1,json=fieldTest1,proto3" json:"field_test1,omitempty"`
 	FieldTest2 int64  `protobuf:"varint,2,opt,name=field_test2,json=fieldTest2,proto3" json:"field_test2,omitempty"`
-	PathTest1  string `protobuf:"bytes,3,opt,name=path_test1,json=pathTest1,proto3" json:"-" uri:"path_test1"`
-	PathTest2  int64  `protobuf:"varint,4,opt,name=path_test2,json=pathTest2,proto3" json:"-" uri:"path_test2"`
-	QueryTest1 string `protobuf:"bytes,5,opt,name=query_test1,json=queryTest1,proto3" json:"-" form:"query_test1"`
-	QueryTest2 int64  `protobuf:"varint,6,opt,name=query_test2,json=queryTest2,proto3" json:"-" form:"query_test2"`
+	PathTest1  string `protobuf:"bytes,3,opt,name=path_test1,json=pathTest1,proto3" json:"-" uri:"path_test1"`      
+	PathTest2  int64  `protobuf:"varint,4,opt,name=path_test2,json=pathTest2,proto3" json:"-" uri:"path_test2"`     
+	QueryTest1 string `protobuf:"bytes,5,opt,name=query_test1,json=queryTest1,proto3" json:"-" form:"query_test1"`   
+	QueryTest2 int64  `protobuf:"varint,6,opt,name=query_test2,json=queryTest2,proto3" json:"-" form:"query_test2"`  
 }
 
 func (x *RunTestRequest) Reset() {

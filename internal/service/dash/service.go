@@ -4,9 +4,9 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/render"
 	"github.com/tbxark/sphere/pkg/cache"
+	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
+	"github.com/tbxark/sphere/pkg/server/middleware/auth"
 	"github.com/tbxark/sphere/pkg/storage"
-	"github.com/tbxark/sphere/pkg/web/auth/authorizer"
-	"github.com/tbxark/sphere/pkg/web/middleware/auth"
 	"github.com/tbxark/sphere/pkg/wechat"
 )
 
@@ -19,7 +19,7 @@ type Service struct {
 
 	Authorizer    authorizer.Authorizer
 	AuthRefresher authorizer.Authorizer
-	Auth          *auth.Auth
+	Auth          *auth.Auth[int64, string]
 	ACL           *auth.ACL
 }
 
@@ -34,7 +34,7 @@ func NewService(db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cac
 	}
 }
 
-func (s *Service) Init(auth *auth.Auth, authorizer authorizer.Authorizer, authRefresher authorizer.Authorizer) {
+func (s *Service) Init(auth *auth.Auth[int64, string], authorizer authorizer.Authorizer, authRefresher authorizer.Authorizer) {
 	s.Auth = auth
 	s.Authorizer = authorizer
 	s.AuthRefresher = authRefresher

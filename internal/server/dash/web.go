@@ -9,13 +9,13 @@ import (
 	"github.com/tbxark/sphere/internal/service/shared"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/log/logfields"
-	"github.com/tbxark/sphere/pkg/web/auth/jwtauth"
-	"github.com/tbxark/sphere/pkg/web/ginx"
-	"github.com/tbxark/sphere/pkg/web/middleware/auth"
-	"github.com/tbxark/sphere/pkg/web/middleware/logger"
-	"github.com/tbxark/sphere/pkg/web/middleware/ratelimiter"
-	"github.com/tbxark/sphere/pkg/web/route/cors"
-	"github.com/tbxark/sphere/pkg/web/route/pprof"
+	"github.com/tbxark/sphere/pkg/server/auth/jwtauth"
+	"github.com/tbxark/sphere/pkg/server/ginx"
+	"github.com/tbxark/sphere/pkg/server/middleware/auth"
+	"github.com/tbxark/sphere/pkg/server/middleware/logger"
+	"github.com/tbxark/sphere/pkg/server/middleware/ratelimiter"
+	"github.com/tbxark/sphere/pkg/server/route/cors"
+	"github.com/tbxark/sphere/pkg/server/route/pprof"
 	"time"
 )
 
@@ -45,7 +45,7 @@ const (
 func (w *Web) Run() error {
 	authorizer := jwtauth.NewJwtAuth(w.config.AuthJWT)
 	authRefresher := jwtauth.NewJwtAuth(w.config.RefreshJWT)
-	authControl := auth.NewAuth(jwtauth.AuthorizationPrefixBearer, authorizer)
+	authControl := auth.NewAuth[int64, string](jwtauth.AuthorizationPrefixBearer, authorizer)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "dash"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
@@ -86,7 +86,7 @@ func (w *Web) Run() error {
 	authRoute := api.Group("/", rateLimiter)
 	dashv1.RegisterAuthServiceHTTPServer(authRoute, w.service)
 
-	adminRoute := needAuthRoute.Group("/", w.NewPermissionMiddleware(WebPermissionAdmin))
+	adminRoute := needAuthRoute.Group("/", w.NewPermissionMiddleware(authControl, WebPermissionAdmin))
 	dashv1.RegisterAdminServiceHTTPServer(adminRoute, w.service)
 
 	systemRoute := needAuthRoute.Group("/")
@@ -95,8 +95,8 @@ func (w *Web) Run() error {
 	return w.engine.Run(w.config.HTTP.Address)
 }
 
-func (w *Web) NewPermissionMiddleware(resource string) gin.HandlerFunc {
-	return w.service.Auth.NewPermissionMiddleware(resource, w.service.ACL)
+func (w *Web) NewPermissionMiddleware(authControl *auth.Auth[int64, string], resource string) gin.HandlerFunc {
+	return authControl.NewPermissionMiddleware(resource, w.service.ACL)
 }
 
 func initDefaultRolesACL(acl *auth.ACL) {

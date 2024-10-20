@@ -1,7 +1,7 @@
 package jwtauth
 
 import (
-	"github.com/tbxark/sphere/pkg/web/auth/authorizer"
+	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
 	"strings"
 	"sync"
 	"time"

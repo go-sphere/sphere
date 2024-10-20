@@ -38,8 +38,7 @@ func loadTestConfig() (*testConfig, error) {
 func TestWechat_GetAccessToken(t *testing.T) {
 	cfg, err := loadTestConfig()
 	if err != nil {
-		t.Logf("Load config error: %v", err)
-		t.Log("Skip test")
+		t.Skip("load config error", err)
 		return
 
 	}
@@ -55,8 +54,7 @@ func TestWechat_GetAccessToken(t *testing.T) {
 func TestWechat_SendMessageWithTemplate(t *testing.T) {
 	cfg, err := loadTestConfig()
 	if err != nil {
-		t.Logf("Load config error: %v", err)
-		t.Log("Skip test")
+		t.Skip("load config error", err)
 		return
 
 	}
