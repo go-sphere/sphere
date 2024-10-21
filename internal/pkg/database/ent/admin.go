@@ -31,7 +31,7 @@ type Admin struct {
 	// 密码
 	Password string `json:"-"`
 	// 权限
-	Roles        []string `json:"roles,omitempty"`
+	Roles        []string `json:"-"`
 	selectValues sql.SelectValues
 }
 
@@ -164,8 +164,7 @@ func (a *Admin) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("password=<sensitive>")
 	builder.WriteString(", ")
-	builder.WriteString("roles=")
-	builder.WriteString(fmt.Sprintf("%v", a.Roles))
+	builder.WriteString("roles=<sensitive>")
 	builder.WriteByte(')')
 	return builder.String()
 }

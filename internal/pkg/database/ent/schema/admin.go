@@ -17,7 +17,7 @@ func (Admin) Fields() []ent.Field {
 		field.String("nickname").Optional().Default("").Comment("昵称"),
 		field.String("avatar").Optional().Default("").Comment("头像"),
 		field.String("password").Comment("密码").Sensitive(),
-		field.Strings("roles").Default([]string{}).Comment("权限"),
+		field.Strings("roles").Default([]string{}).Comment("权限").Sensitive(),
 	}
 }
 

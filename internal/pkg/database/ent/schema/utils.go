@@ -4,16 +4,11 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/mixin"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/schema/types"
 	"time"
 )
 
 func TimestampDefaultFunc() int64 {
 	return time.Now().Unix()
-}
-
-func KeyValueItemDefaultFunc() []types.KeyValueItem {
-	return []types.KeyValueItem{}
 }
 
 type TimeMixin struct {

@@ -41,6 +41,10 @@ gen-ts: docs
 	npx swagger-typescript-api -p ./docs/api/API_swagger.json   -o ./docs/api/typescript  --modular
 	npx swagger-typescript-api -p ./docs/dash/Dash_swagger.json -o ./docs/dash/typescript --modular
 
+.PHONY: gen-ent
+gen-ent:
+	go generate ./internal/pkg/database/ent
+
 .PHONY: generate
 generate:
 	go generate ./...
