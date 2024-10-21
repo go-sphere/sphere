@@ -2,13 +2,24 @@ package ginx
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin/binding"
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 )
+
+// Errors
+
+var (
+	ErrBindingElementMustBePointer = errors.New("binding element must be a pointer")
+	ErrBindingElementMustBeStruct  = errors.New("binding element must be a struct")
+	ErrUnsupportedFieldType        = errors.New("unsupported field type")
+)
+
+// TagNameFunc
 
 type TagNameGetter interface {
 	Get(f reflect.StructField) string
@@ -21,14 +32,12 @@ func (f TagNameFunc) Get(field reflect.StructField) string {
 }
 
 func simpleTagNameFunc(tag string) TagNameFunc {
-	// example: `form:"name,required,min=1,max=100"`
 	return func(f reflect.StructField) string {
 		return strings.Split(f.Tag.Get(tag), ",")[0]
 	}
 }
 
 func protobufTagNameFunc(f reflect.StructField) string {
-	// example: `protobuf:"bytes,1,opt,name=code,proto3"`
 	cmp := strings.Split(f.Tag.Get("protobuf"), ",")
 	for _, s := range cmp {
 		if strings.HasPrefix(s, "name=") {
@@ -49,21 +58,18 @@ func multiTagNameFunc(fns ...TagNameFunc) TagNameFunc {
 	}
 }
 
+// UniverseBinding
+
 type UniverseBinding struct {
 	tagName     string
 	tagGetter   TagNameGetter
 	valueGetter func(c *gin.Context, name string) (string, bool)
+	cache       sync.Map
 }
 
 func (u *UniverseBinding) Name() string {
 	return "universe"
 }
-
-var (
-	ErrBindingElementMustBePointer = errors.New("binding element must be a pointer")
-	ErrBindingElementMustBeStruct  = errors.New("binding element must be a struct")
-	ErrUnsupportedFieldType        = errors.New("unsupported field type")
-)
 
 func (u *UniverseBinding) Bind(c *gin.Context, obj interface{}) error {
 	value := reflect.ValueOf(obj)
@@ -75,49 +81,21 @@ func (u *UniverseBinding) Bind(c *gin.Context, obj interface{}) error {
 		return ErrBindingElementMustBeStruct
 	}
 
-	for i := 0; i < value.NumField(); i++ {
-		field := value.Type().Field(i)
-		fieldValue := value.Field(i)
+	typ := value.Type()
+	fields, ok := u.getFieldsFromCache(typ)
+	if !ok {
+		fields = u.analyzeFields(typ)
+		u.cache.Store(typ, fields)
+	}
 
-		tag := u.tagGetter.Get(field)
-		if tag == "" || tag == "-" {
+	for _, field := range fields {
+		val, exist := u.valueGetter(c, field.tag)
+		if !exist {
 			continue
 		}
-		val, ok := u.valueGetter(c, tag)
-		if !ok {
-			continue
-		}
-
-		// 根据字段类型进行转换
-		switch fieldValue.Kind() {
-		case reflect.String:
-			fieldValue.SetString(val)
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			intVal, err := strconv.ParseInt(val, 10, 64)
-			if err != nil {
-				return err
-			}
-			fieldValue.SetInt(intVal)
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			uintVal, err := strconv.ParseUint(val, 10, 64)
-			if err != nil {
-				return err
-			}
-			fieldValue.SetUint(uintVal)
-		case reflect.Float32, reflect.Float64:
-			floatVal, err := strconv.ParseFloat(val, 64)
-			if err != nil {
-				return err
-			}
-			fieldValue.SetFloat(floatVal)
-		case reflect.Bool:
-			boolVal, err := strconv.ParseBool(val)
-			if err != nil {
-				return err
-			}
-			fieldValue.SetBool(boolVal)
-		default:
-			return ErrUnsupportedFieldType
+		fieldValue := value.Field(field.index)
+		if err := u.setFieldValue(fieldValue, val); err != nil {
+			return err
 		}
 	}
 	if binding.Validator == nil {
@@ -125,6 +103,69 @@ func (u *UniverseBinding) Bind(c *gin.Context, obj interface{}) error {
 	}
 	return binding.Validator.ValidateStruct(obj)
 }
+
+/// fieldInfo
+
+type fieldInfo struct {
+	index int
+	tag   string
+}
+
+func (u *UniverseBinding) getFieldsFromCache(typ reflect.Type) ([]fieldInfo, bool) {
+	if cached, ok := u.cache.Load(typ); ok {
+		return cached.([]fieldInfo), true
+	}
+	return nil, false
+}
+
+func (u *UniverseBinding) analyzeFields(typ reflect.Type) []fieldInfo {
+	var fields []fieldInfo
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		tag := u.tagGetter.Get(field)
+		if tag == "" || tag == "-" {
+			continue
+		}
+		fields = append(fields, fieldInfo{index: i, tag: tag})
+	}
+	return fields
+}
+
+func (u *UniverseBinding) setFieldValue(fieldValue reflect.Value, val string) error {
+	switch fieldValue.Kind() {
+	case reflect.String:
+		fieldValue.SetString(val)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		intVal, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return err
+		}
+		fieldValue.SetInt(intVal)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		uintVal, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			return err
+		}
+		fieldValue.SetUint(uintVal)
+	case reflect.Float32, reflect.Float64:
+		floatVal, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			return err
+		}
+		fieldValue.SetFloat(floatVal)
+	case reflect.Bool:
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return err
+		}
+		fieldValue.SetBool(boolVal)
+	default:
+		return ErrUnsupportedFieldType
+	}
+	return nil
+}
+
+/// Predefined bindings
 
 var (
 	uriBinding = &UniverseBinding{
@@ -142,6 +183,8 @@ var (
 		},
 	}
 )
+
+/// Public functions
 
 func ShouldBindUri(c *gin.Context, obj interface{}) error {
 	return uriBinding.Bind(c, obj)
