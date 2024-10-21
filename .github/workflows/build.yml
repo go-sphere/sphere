@@ -22,7 +22,6 @@ jobs:
       run: |
         make init
         make generate
-        make gen-docs
         make build
 
     - name: Test

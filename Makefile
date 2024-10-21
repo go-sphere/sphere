@@ -45,9 +45,14 @@ gen-ts: docs
 gen-ent:
 	go generate ./internal/pkg/database/ent
 
+.PHONY: gen-wire
+gen-wire:
+	go generate ./cmd/...
+
 .PHONY: generate
 generate:
 	go generate ./...
+	$(MAKE) gen-docs
 
 .PHONY: config
 config:
@@ -99,6 +104,8 @@ help:
 	@echo "  gen-proto           Generate proto files"
 	@echo "  gen-docs            Generate swagger docs"
 	@echo "  gen-ts              Generate typescript client"
+	@echo "  gen-ent             Generate ent code"
+	@echo "  gen-wire            Generate wire code"
 	@echo "  generate            Generate code"
 	@echo "  config              Generate config"
 	@echo "  dash                Build dash"
