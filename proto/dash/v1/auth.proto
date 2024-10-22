@@ -3,6 +3,7 @@ syntax = "proto3";
 package dash.v1;
 
 import "google/api/annotations.proto";
+import "buf/validate/validate.proto";
 
 
 service AuthService {
@@ -23,7 +24,7 @@ service AuthService {
 
 message AuthLoginRequest {
   string username = 1;
-  string password = 2;
+  string password = 2 [(buf.validate.field).string = {min_len: 6}];
 }
 
 message AuthLoginResponse {
