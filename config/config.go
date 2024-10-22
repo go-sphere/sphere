@@ -1,9 +1,9 @@
 package config
 
 import (
-	"github.com/tbxark/sphere/internal/biz/bot"
 	"github.com/tbxark/sphere/internal/pkg/database/client"
 	"github.com/tbxark/sphere/internal/server/api"
+	"github.com/tbxark/sphere/internal/server/bot"
 	"github.com/tbxark/sphere/internal/server/dash"
 	"github.com/tbxark/sphere/internal/server/docs"
 	"github.com/tbxark/sphere/pkg/log"

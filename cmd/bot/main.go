@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/tbxark/sphere/internal/biz/bot"
 	"github.com/tbxark/sphere/internal/pkg/app"
+	"github.com/tbxark/sphere/internal/server/bot"
 	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
