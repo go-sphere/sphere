@@ -8,10 +8,30 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
+	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
 	"time"
 )
 
 var _ apiv1.AuthServiceHTTPServer = (*Service)(nil)
+
+const (
+	AppTokenValidDuration = time.Hour * 24 * 7
+)
+
+func renderClaims(user *ent.User, pla *ent.UserPlatform, duration time.Duration) *authorizer.Claims[int64] {
+	return &authorizer.Claims[int64]{
+		UID:       user.ID,
+		Subject:   pla.PlatformID,
+		Roles:     "",
+		ExpiresAt: time.Now().Add(duration).Unix(),
+	}
+}
+
+type userContext struct {
+	isNew    bool
+	user     *ent.User
+	platform *ent.UserPlatform
+}
 
 func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) (*apiv1.AuthWxMiniResponse, error) {
 	wxUser, err := s.Wechat.Auth(req.Code)
@@ -19,7 +39,7 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) 
 		return nil, err
 	}
 
-	res, err := dao.WithTx[apiv1.AuthWxMiniResponse](ctx, s.DB.Client, func(ctx context.Context, client *ent.Client) (*apiv1.AuthWxMiniResponse, error) {
+	res, err := dao.WithTx[userContext](ctx, s.DB.Client, func(ctx context.Context, client *ent.Client) (*userContext, error) {
 		userPlat, e := client.UserPlatform.Query().
 			Where(userplatform.PlatformEQ(consts.WechatMiniPlatform), userplatform.PlatformIDEQ(wxUser.OpenID)).
 			Only(ctx)
@@ -29,9 +49,9 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) 
 			if ue != nil {
 				return nil, ue
 			}
-			return &apiv1.AuthWxMiniResponse{
-				User:  s.Render.Me(u),
-				IsNew: false,
+			return &userContext{
+				user:     u,
+				platform: userPlat,
 			}, nil
 		}
 		// 其他错误
@@ -46,7 +66,7 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) 
 		if e != nil {
 			return nil, e
 		}
-		_, e = client.UserPlatform.Create().SetUserID(newUser.ID).
+		userPlat, e = client.UserPlatform.Create().SetUserID(newUser.ID).
 			SetPlatform(consts.WechatMiniPlatform).
 			SetPlatformID(wxUser.OpenID).
 			SetSecondID(wxUser.UnionID).
@@ -54,18 +74,22 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) 
 		if e != nil {
 			return nil, e
 		}
-		return &apiv1.AuthWxMiniResponse{
-			User:  s.Render.Me(newUser),
-			IsNew: true,
+		return &userContext{
+			isNew:    true,
+			user:     newUser,
+			platform: userPlat,
 		}, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	token, err := s.Authorizer.GenerateToken(res.User.Id, consts.WechatMiniPlatform+":"+wxUser.OpenID)
+	token, err := s.Authorizer.GenerateToken(renderClaims(res.user, res.platform, AppTokenValidDuration))
 	if err != nil {
 		return nil, err
 	}
-	res.Token = token.Token
-	return res, nil
+	return &apiv1.AuthWxMiniResponse{
+		IsNew: res.isNew,
+		Token: token.Token,
+		User:  s.Render.Me(res.user),
+	}, nil
 }

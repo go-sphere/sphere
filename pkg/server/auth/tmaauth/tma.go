@@ -32,10 +32,10 @@ func (t *TmaAuth) ParseToken(token string) (*authorizer.Claims[int64], error) {
 		return nil, err
 	}
 	return &authorizer.Claims[int64]{
-		UID:     initData.Chat.ID,
-		Subject: initData.Chat.Username,
-		Roles:   string(initData.Chat.Type),
-		Exp:     initData.AuthDate().Add(t.expIn).Unix(),
+		UID:       initData.Chat.ID,
+		Subject:   initData.Chat.Username,
+		Roles:     string(initData.Chat.Type),
+		ExpiresAt: initData.AuthDate().Add(t.expIn).Unix(),
 	}, nil
 }
 

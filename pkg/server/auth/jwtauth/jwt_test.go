@@ -1,13 +1,14 @@
 package jwtauth
 
 import (
+	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
 	"testing"
 	"time"
 )
 
 func TestJwtAuth_ParseToken(t *testing.T) {
 	auth := NewJwtAuth[string]("secret")
-	token, err := auth.GenerateToken("1", "username", "admin")
+	token, err := auth.GenerateToken(authorizer.NewClaims[string]("1", "username", "admin", time.Now().Add(time.Hour).Unix()))
 	if err != nil {
 		t.Error(err)
 	}
@@ -24,8 +25,7 @@ func TestJwtAuth_ParseToken(t *testing.T) {
 	if claims.UID != "1" {
 		t.Error("uid not match")
 	}
-	auth.SetTokenDuration(0)
-	token, err = auth.GenerateToken("1", "username", "admin")
+	token, err = auth.GenerateToken(authorizer.NewClaims[string]("1", "username", "admin", time.Now().Add(-time.Hour).Unix()))
 	if err != nil {
 		t.Error(err)
 	}
