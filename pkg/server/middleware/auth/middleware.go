@@ -3,6 +3,7 @@ package auth
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -15,6 +16,52 @@ func (a *Auth[I, U]) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
 			})
 		}
 	}
+
+	bitMap := map[reflect.Kind]int{
+		reflect.Int:    strconv.IntSize,
+		reflect.Int8:   8,
+		reflect.Int16:  16,
+		reflect.Int32:  32,
+		reflect.Int64:  64,
+		reflect.Uint:   64,
+		reflect.Uint8:  strconv.IntSize,
+		reflect.Uint16: 16,
+		reflect.Uint32: 32,
+		reflect.Uint64: 64,
+	}
+
+	idSetter := func(t reflect.Type) func(ctx *gin.Context, id string) {
+		switch t.Kind() {
+		case reflect.String:
+			return func(ctx *gin.Context, id string) {
+				ctx.Set(ContextKeyID, id)
+			}
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			bit := bitMap[t.Kind()]
+			return func(ctx *gin.Context, id string) {
+				num, err := strconv.ParseInt(id, 10, bit)
+				if err != nil {
+					abort(ctx)
+					return
+				}
+				ctx.Set(ContextKeyID, I(num))
+			}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			bit := bitMap[t.Kind()]
+			return func(ctx *gin.Context, id string) {
+				num, err := strconv.ParseUint(id, 10, bit)
+				if err != nil {
+					abort(ctx)
+					return
+				}
+				ctx.Set(ContextKeyID, I(num))
+			}
+		default:
+			return func(ctx *gin.Context, id string) {
+				abort(ctx)
+			}
+		}
+	}(reflect.TypeOf(a.zeroID))
 
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader(AuthorizationHeader)
@@ -32,11 +79,9 @@ func (a *Auth[I, U]) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
 			abort(ctx)
 			return
 		}
-
-		id, _ := strconv.Atoi(claims.Subject)
-		ctx.Set(ContextKeyID, int64(id))
+		idSetter(ctx, claims.Subject)
 		ctx.Set(ContextKeyUsername, claims.Username)
-		ctx.Set(ContextKeyRoles, claims.Username)
+		ctx.Set(ContextKeyRoles, claims.Roles)
 	}
 }
 
