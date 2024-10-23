@@ -19,7 +19,7 @@ type Service struct {
 
 	Authorizer    authorizer.Authorizer
 	AuthRefresher authorizer.Authorizer
-	Auth          *auth.Auth[int64, string]
+	Auth          *auth.Auth[int64]
 	ACL           *auth.ACL
 }
 
@@ -34,7 +34,7 @@ func NewService(db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cac
 	}
 }
 
-func (s *Service) Init(auth *auth.Auth[int64, string], authorizer authorizer.Authorizer, authRefresher authorizer.Authorizer) {
+func (s *Service) Init(auth *auth.Auth[int64], authorizer authorizer.Authorizer, authRefresher authorizer.Authorizer) {
 	s.Auth = auth
 	s.Authorizer = authorizer
 	s.AuthRefresher = authRefresher

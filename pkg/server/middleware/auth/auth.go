@@ -35,29 +35,24 @@ type ID interface {
 	constraints.Integer | string
 }
 
-type UserName interface {
-	string
-}
-
-type Auth[I ID, U UserName] struct {
-	zeroID   I
-	zeroName U
-	prefix   string
-	parser   authorizer.Parser
+type Auth[I ID] struct {
+	zeroID I
+	prefix string
+	parser authorizer.Parser
 }
 
 type AccessControl interface {
 	IsAllowed(role, resource string) bool
 }
 
-func NewAuth[I ID, U UserName](prefix string, parser authorizer.Parser) *Auth[I, U] {
-	return &Auth[I, U]{
+func NewAuth[I ID](prefix string, parser authorizer.Parser) *Auth[I] {
+	return &Auth[I]{
 		prefix: prefix,
 		parser: parser,
 	}
 }
 
-func (a *Auth[I, U]) GetCurrentID(ctx context.Context) (I, error) {
+func (a *Auth[I]) GetCurrentID(ctx context.Context) (I, error) {
 	raw := ctx.Value(ContextKeyID)
 	if raw == nil {
 		return a.zeroID, NeedLoginError
@@ -69,24 +64,21 @@ func (a *Auth[I, U]) GetCurrentID(ctx context.Context) (I, error) {
 	return id, nil
 }
 
-func (a *Auth[I, U]) GetCurrentUsername(ctx context.Context) (U, error) {
+func (a *Auth[I]) GetCurrentUsername(ctx context.Context) (string, error) {
 	raw := ctx.Value(ContextKeyUsername)
-	if raw == nil {
-		return a.zeroName, NeedLoginError
-	}
-	username, ok := raw.(U)
+	username, ok := raw.(string)
 	if !ok {
-		return a.zeroName, NeedLoginError
+		return "", NeedLoginError
 	}
 	return username, nil
 }
 
-func (a *Auth[I, U]) CheckAuthStatus(ctx context.Context) error {
+func (a *Auth[I]) CheckAuthStatus(ctx context.Context) error {
 	_, err := a.GetCurrentID(ctx)
 	return err
 }
 
-func (a *Auth[I, U]) CheckAuthID(ctx context.Context, id I) error {
+func (a *Auth[I]) CheckAuthID(ctx context.Context, id I) error {
 	currentId, err := a.GetCurrentID(ctx)
 	if err != nil {
 		return err

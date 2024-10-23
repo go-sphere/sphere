@@ -45,7 +45,7 @@ const (
 func (w *Web) Run() error {
 	authorizer := jwtauth.NewJwtAuth(w.config.AuthJWT)
 	authRefresher := jwtauth.NewJwtAuth(w.config.RefreshJWT)
-	authControl := auth.NewAuth[int64, string](jwtauth.AuthorizationPrefixBearer, authorizer)
+	authControl := auth.NewAuth[int64](jwtauth.AuthorizationPrefixBearer, authorizer)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "dash"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
@@ -95,7 +95,7 @@ func (w *Web) Run() error {
 	return w.engine.Run(w.config.HTTP.Address)
 }
 
-func (w *Web) NewPermissionMiddleware(authControl *auth.Auth[int64, string], resource string) gin.HandlerFunc {
+func (w *Web) NewPermissionMiddleware(authControl *auth.Auth[int64], resource string) gin.HandlerFunc {
 	return authControl.NewPermissionMiddleware(resource, w.service.ACL)
 }
 

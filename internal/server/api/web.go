@@ -35,7 +35,7 @@ func (w *Web) Identifier() string {
 func (w *Web) Run() error {
 
 	authorizer := jwtauth.NewJwtAuth(w.config.JWT)
-	authControl := auth.NewAuth[int64, string](jwtauth.AuthorizationPrefixBearer, authorizer)
+	authControl := auth.NewAuth[int64](jwtauth.AuthorizationPrefixBearer, authorizer)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "api"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)

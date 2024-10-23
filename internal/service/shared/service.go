@@ -6,12 +6,12 @@ import (
 )
 
 type Service struct {
-	Auth       *auth.Auth[int64, string]
+	Auth       *auth.Auth[int64]
 	Storage    storage.Storage
 	StorageDir string
 }
 
-func NewService(auth *auth.Auth[int64, string], store storage.Storage, storageDir string) *Service {
+func NewService(auth *auth.Auth[int64], store storage.Storage, storageDir string) *Service {
 	return &Service{
 		Auth:       auth,
 		Storage:    store,

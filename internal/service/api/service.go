@@ -19,7 +19,7 @@ type Service struct {
 	Wechat     *wechat.Wechat
 	Render     *render.Render
 	Authorizer authorizer.Authorizer
-	Auth       *auth.Auth[int64, string]
+	Auth       *auth.Auth[int64]
 	httpClient *http.Client
 }
 
@@ -36,7 +36,7 @@ func NewService(db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cac
 	}
 }
 
-func (s *Service) Init(auth *auth.Auth[int64, string], authorizer authorizer.Authorizer) {
+func (s *Service) Init(auth *auth.Auth[int64], authorizer authorizer.Authorizer) {
 	s.Auth = auth
 	s.Authorizer = authorizer
 }

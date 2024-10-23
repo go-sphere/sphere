@@ -4,11 +4,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"reflect"
-	"strconv"
 	"strings"
 )
 
-func (a *Auth[I, U]) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
+func (a *Auth[I]) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
 	abort := func(ctx *gin.Context) {
 		if abortOnError {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -17,52 +16,7 @@ func (a *Auth[I, U]) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
 		}
 	}
 
-	bitMap := map[reflect.Kind]int{
-		reflect.Int:    strconv.IntSize,
-		reflect.Int8:   8,
-		reflect.Int16:  16,
-		reflect.Int32:  32,
-		reflect.Int64:  64,
-		reflect.Uint:   64,
-		reflect.Uint8:  strconv.IntSize,
-		reflect.Uint16: 16,
-		reflect.Uint32: 32,
-		reflect.Uint64: 64,
-	}
-
-	idSetter := func(t reflect.Type) func(ctx *gin.Context, id string) {
-		switch t.Kind() {
-		case reflect.String:
-			return func(ctx *gin.Context, id string) {
-				ctx.Set(ContextKeyID, id)
-			}
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			bit := bitMap[t.Kind()]
-			return func(ctx *gin.Context, id string) {
-				num, err := strconv.ParseInt(id, 10, bit)
-				if err != nil {
-					abort(ctx)
-					return
-				}
-				ctx.Set(ContextKeyID, I(num))
-			}
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			bit := bitMap[t.Kind()]
-			return func(ctx *gin.Context, id string) {
-				num, err := strconv.ParseUint(id, 10, bit)
-				if err != nil {
-					abort(ctx)
-					return
-				}
-				ctx.Set(ContextKeyID, I(num))
-			}
-		default:
-			return func(ctx *gin.Context, id string) {
-				abort(ctx)
-			}
-		}
-	}(reflect.TypeOf(a.zeroID))
-
+	parser := strParser(reflect.TypeOf(a.zeroID).Kind())
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader(AuthorizationHeader)
 		if token == "" {
@@ -79,13 +33,18 @@ func (a *Auth[I, U]) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
 			abort(ctx)
 			return
 		}
-		idSetter(ctx, claims.Subject)
+		subject, err := parser(claims.Subject)
+		if err != nil {
+			abort(ctx)
+			return
+		}
+		ctx.Set(ContextKeyID, subject)
 		ctx.Set(ContextKeyUsername, claims.Username)
 		ctx.Set(ContextKeyRoles, claims.Roles)
 	}
 }
 
-func (a *Auth[I, U]) NewPermissionMiddleware(resource string, acl AccessControl) gin.HandlerFunc {
+func (a *Auth[I]) NewPermissionMiddleware(resource string, acl AccessControl) gin.HandlerFunc {
 	abort := func(ctx *gin.Context) {
 		ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 			"message": "forbidden",
