@@ -3,12 +3,11 @@ package auth
 import (
 	"context"
 	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
-	"golang.org/x/exp/constraints"
 )
 
 const (
-	ContextKeyID        = "uid"
-	ContextKeyUsername  = "username"
+	ContextKeyUID       = "uid"
+	ContextKeySubject   = "subject"
 	ContextKeyRoles     = "roles"
 	AuthorizationHeader = "Authorization"
 )
@@ -31,21 +30,17 @@ var (
 	PermissionError = Error{403, "permission denied"}
 )
 
-type ID interface {
-	constraints.Integer | string
-}
-
-type Auth[I ID] struct {
+type Auth[I authorizer.UID] struct {
 	zeroID I
 	prefix string
-	parser authorizer.Parser
+	parser authorizer.Parser[I]
 }
 
 type AccessControl interface {
 	IsAllowed(role, resource string) bool
 }
 
-func NewAuth[I ID](prefix string, parser authorizer.Parser) *Auth[I] {
+func NewAuth[I authorizer.UID](prefix string, parser authorizer.Parser[I]) *Auth[I] {
 	return &Auth[I]{
 		prefix: prefix,
 		parser: parser,
@@ -53,7 +48,7 @@ func NewAuth[I ID](prefix string, parser authorizer.Parser) *Auth[I] {
 }
 
 func (a *Auth[I]) GetCurrentID(ctx context.Context) (I, error) {
-	raw := ctx.Value(ContextKeyID)
+	raw := ctx.Value(ContextKeyUID)
 	if raw == nil {
 		return a.zeroID, NeedLoginError
 	}
@@ -65,7 +60,7 @@ func (a *Auth[I]) GetCurrentID(ctx context.Context) (I, error) {
 }
 
 func (a *Auth[I]) GetCurrentUsername(ctx context.Context) (string, error) {
-	raw := ctx.Value(ContextKeyUsername)
+	raw := ctx.Value(ContextKeySubject)
 	username, ok := raw.(string)
 	if !ok {
 		return "", NeedLoginError

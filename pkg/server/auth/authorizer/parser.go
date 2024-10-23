@@ -1,12 +1,19 @@
 package authorizer
 
-import "time"
+import (
+	"golang.org/x/exp/constraints"
+	"time"
+)
 
-type Claims struct {
-	Subject  string
-	Username string
-	Roles    string
-	Exp      int64
+type UID interface {
+	constraints.Integer | string
+}
+
+type Claims[T UID] struct {
+	UID     T
+	Subject string
+	Roles   string
+	Exp     int64
 }
 
 type Token struct {
@@ -14,16 +21,16 @@ type Token struct {
 	ExpiresAt time.Time
 }
 
-type Parser interface {
-	ParseToken(token string) (*Claims, error)
+type Parser[T UID] interface {
+	ParseToken(token string) (*Claims[T], error)
 	ParseRoles(roles string) []string
 }
 
-type Generator interface {
-	GenerateToken(subject, username string, roles ...string) (*Token, error)
+type Generator[T UID] interface {
+	GenerateToken(uid T, subject string, roles ...string) (*Token, error)
 }
 
-type Authorizer interface {
-	Parser
-	Generator
+type Authorizer[T UID] interface {
+	Parser[T]
+	Generator[T]
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
-	"strconv"
 	"time"
 )
 
@@ -63,7 +62,7 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) 
 	if err != nil {
 		return nil, err
 	}
-	token, err := s.Authorizer.GenerateToken(strconv.Itoa(int(res.User.Id)), consts.WechatMiniPlatform+":"+wxUser.OpenID)
+	token, err := s.Authorizer.GenerateToken(res.User.Id, consts.WechatMiniPlatform+":"+wxUser.OpenID)
 	if err != nil {
 		return nil, err
 	}

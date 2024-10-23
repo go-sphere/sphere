@@ -12,33 +12,30 @@ import (
 const (
 	AuthorizationPrefixBearer = "Bearer"
 	DefaultTokenDuration      = time.Hour * 24 * 7
-	DefaultRefreshDuration    = time.Hour * 24 * 7
 )
 
-var _ authorizer.Authorizer = &JwtAuth{}
+var _ authorizer.Authorizer[int64] = &JwtAuth[int64]{}
 
-type SignedDetails struct {
+type SignedDetails[T authorizer.UID] struct {
 	jwt.StandardClaims
-	Username string `json:"username,omitempty"`
-	Roles    string `json:"roles,omitempty"`
+	UID   T      `json:"uid,omitempty"`
+	Roles string `json:"roles,omitempty"`
 }
 
-type JwtAuth struct {
-	secret                []byte
-	signingMethod         jwt.SigningMethod
-	signedTokenDuration   time.Duration
-	signedRefreshDuration time.Duration
-	mu                    sync.RWMutex // 添加互斥锁
+type JwtAuth[T authorizer.UID] struct {
+	secret              []byte
+	signingMethod       jwt.SigningMethod
+	signedTokenDuration time.Duration
+	mu                  sync.RWMutex // 添加互斥锁
 }
 
-type Option func(*JwtAuth)
+type Option[T authorizer.UID] func(*JwtAuth[T])
 
-func NewJwtAuth(secret string, opts ...Option) *JwtAuth {
-	ja := &JwtAuth{
-		secret:                []byte(secret),
-		signingMethod:         jwt.SigningMethodHS256,
-		signedTokenDuration:   DefaultTokenDuration,
-		signedRefreshDuration: DefaultRefreshDuration,
+func NewJwtAuth[T authorizer.UID](secret string, opts ...Option[T]) *JwtAuth[T] {
+	ja := &JwtAuth[T]{
+		secret:              []byte(secret),
+		signingMethod:       jwt.SigningMethodHS256,
+		signedTokenDuration: DefaultTokenDuration,
 	}
 	for _, opt := range opts {
 		opt(ja)
@@ -46,23 +43,17 @@ func NewJwtAuth(secret string, opts ...Option) *JwtAuth {
 	return ja
 }
 
-func WithTokenDuration(d time.Duration) Option {
-	return func(ja *JwtAuth) {
+func WithTokenDuration[T authorizer.UID](d time.Duration) Option[T] {
+	return func(ja *JwtAuth[T]) {
 		ja.signedTokenDuration = d
 	}
 }
 
-func WithRefreshTokenDuration(d time.Duration) Option {
-	return func(ja *JwtAuth) {
-		ja.signedRefreshDuration = d
-	}
-}
-
-func (g *JwtAuth) GenerateToken(subject, username string, roles ...string) (*authorizer.Token, error) {
+func (g *JwtAuth[T]) GenerateToken(uid T, subject string, roles ...string) (*authorizer.Token, error) {
 	expiresAt := time.Now().Local().Add(g.signedTokenDuration)
-	claims := &SignedDetails{
-		Username: username,
-		Roles:    strings.Join(roles, ","),
+	claims := &SignedDetails[T]{
+		UID:   uid,
+		Roles: strings.Join(roles, ","),
 		StandardClaims: jwt.StandardClaims{
 			Subject:   subject,
 			ExpiresAt: expiresAt.Unix(),
@@ -80,8 +71,8 @@ func (g *JwtAuth) GenerateToken(subject, username string, roles ...string) (*aut
 	}, nil
 }
 
-func (g *JwtAuth) ParseToken(signedToken string) (*authorizer.Claims, error) {
-	claims := &SignedDetails{}
+func (g *JwtAuth[T]) ParseToken(signedToken string) (*authorizer.Claims[T], error) {
+	claims := &SignedDetails[T]{}
 	_, err := jwt.ParseWithClaims(signedToken, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
@@ -91,26 +82,20 @@ func (g *JwtAuth) ParseToken(signedToken string) (*authorizer.Claims, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &authorizer.Claims{
-		Subject:  claims.Subject,
-		Username: claims.Username,
-		Roles:    claims.Roles,
-		Exp:      claims.ExpiresAt,
+	return &authorizer.Claims[T]{
+		UID:     claims.UID,
+		Subject: claims.Subject,
+		Roles:   claims.Roles,
+		Exp:     claims.ExpiresAt,
 	}, nil
 }
 
-func (g *JwtAuth) ParseRoles(roles string) []string {
+func (g *JwtAuth[T]) ParseRoles(roles string) []string {
 	return strings.Split(roles, ",")
 }
 
-func (g *JwtAuth) SetTokenDuration(duration time.Duration) {
+func (g *JwtAuth[T]) SetTokenDuration(duration time.Duration) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.signedTokenDuration = duration
-}
-
-func (g *JwtAuth) SetRefreshTokenDuration(duration time.Duration) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.signedRefreshDuration = duration
 }

@@ -24,12 +24,11 @@ type AdminToken struct {
 type AdminLoginResponseWrapper = ginx.DataResponse[AdminToken]
 
 func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
-	id := strconv.Itoa(int(u.ID))
-	token, err := s.Authorizer.GenerateToken(id, u.Username, u.Roles...)
+	token, err := s.Authorizer.GenerateToken(u.ID, u.Username, u.Roles...)
 	if err != nil {
 		return nil, err
 	}
-	refresh, err := s.AuthRefresher.GenerateToken(id, u.Username)
+	refresh, err := s.AuthRefresher.GenerateToken(u.ID, u.Username)
 	if err != nil {
 		return nil, err
 	}

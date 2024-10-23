@@ -43,8 +43,8 @@ const (
 )
 
 func (w *Web) Run() error {
-	authorizer := jwtauth.NewJwtAuth(w.config.AuthJWT)
-	authRefresher := jwtauth.NewJwtAuth(w.config.RefreshJWT)
+	authorizer := jwtauth.NewJwtAuth[int64](w.config.AuthJWT)
+	authRefresher := jwtauth.NewJwtAuth[int64](w.config.RefreshJWT)
 	authControl := auth.NewAuth[int64](jwtauth.AuthorizationPrefixBearer, authorizer)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "dash"))

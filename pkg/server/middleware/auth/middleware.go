@@ -3,7 +3,6 @@ package auth
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
-	"reflect"
 	"strings"
 )
 
@@ -16,7 +15,6 @@ func (a *Auth[I]) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
 		}
 	}
 
-	parser := strParser(reflect.TypeOf(a.zeroID).Kind())
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader(AuthorizationHeader)
 		if token == "" {
@@ -33,13 +31,9 @@ func (a *Auth[I]) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
 			abort(ctx)
 			return
 		}
-		subject, err := parser(claims.Subject)
-		if err != nil {
-			abort(ctx)
-			return
-		}
-		ctx.Set(ContextKeyID, subject)
-		ctx.Set(ContextKeyUsername, claims.Username)
+
+		ctx.Set(ContextKeyUID, claims.UID)
+		ctx.Set(ContextKeySubject, claims.Subject)
 		ctx.Set(ContextKeyRoles, claims.Roles)
 	}
 }
