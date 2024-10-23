@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (a *Auth[ID, USERNAME]) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
+func (a *Auth[I, U]) NewAuthMiddleware(abortOnError bool) gin.HandlerFunc {
 	abort := func(ctx *gin.Context) {
 		if abortOnError {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{

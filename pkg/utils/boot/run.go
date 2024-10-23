@@ -52,7 +52,11 @@ func DefaultConfigParser[T any](ver string, parser func(string) (*T, error)) *T 
 func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Application, error)) error {
 	log.Init(logConf, logfields.String("version", ver))
 	log.Info("Start application", logfields.String("version", ver))
-
+	defer func() {
+		if e := log.Sync(); e != nil {
+			fmt.Println("log sync error: ", e)
+		}
+	}()
 	app, err := builder(conf)
 	if err != nil {
 		return err
