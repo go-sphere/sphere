@@ -1,8 +1,7 @@
 package jwtauth
 
 import (
-	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
-	"strings"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -12,20 +11,25 @@ const (
 	AuthorizationPrefixBearer = "Bearer"
 )
 
-var _ authorizer.Authorizer[int64] = &JwtAuth[int64]{}
-
-type SignedDetails[T authorizer.UID] struct {
-	jwt.StandardClaims
-	UID   T      `json:"uid,omitempty"`
-	Roles string `json:"roles,omitempty"`
+type Jwt struct {
+	token   string
+	expires time.Time
 }
 
-type JwtAuth[T authorizer.UID] struct {
+func (t *Jwt) String() string {
+	return t.token
+}
+
+func (t *Jwt) ExpiresAt() time.Time {
+	return t.expires
+}
+
+type JwtAuth[T jwt.Claims] struct {
 	secret        []byte
 	signingMethod jwt.SigningMethod
 }
 
-func NewJwtAuth[T authorizer.UID](secret string) *JwtAuth[T] {
+func NewJwtAuth[T jwt.Claims](secret string) *JwtAuth[T] {
 	ja := &JwtAuth[T]{
 		secret:        []byte(secret),
 		signingMethod: jwt.SigningMethodHS256,
@@ -33,22 +37,21 @@ func NewJwtAuth[T authorizer.UID](secret string) *JwtAuth[T] {
 	return ja
 }
 
-func (g *JwtAuth[T]) GenerateToken(claims *authorizer.Claims[T]) (*authorizer.Token, error) {
-
-	token, err := jwt.NewWithClaims(g.signingMethod, claims).SignedString(g.secret)
+func (g *JwtAuth[T]) GenerateToken(claims *T) (string, error) {
+	token, err := jwt.NewWithClaims(g.signingMethod, *claims).SignedString(g.secret)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-
-	return &authorizer.Token{
-		Token:     token,
-		ExpiresAt: time.Unix(claims.ExpiresAt, 0),
-	}, nil
+	return token, nil
 }
 
-func (g *JwtAuth[T]) ParseToken(signedToken string) (*authorizer.Claims[T], error) {
-	claims := &authorizer.Claims[T]{}
-	_, err := jwt.ParseWithClaims(signedToken, claims, func(token *jwt.Token) (interface{}, error) {
+func (g *JwtAuth[T]) ParseToken(signedToken string) (*T, error) {
+	claims := new(T)
+	jwtClaims, ok := any(claims).(jwt.Claims) // magic
+	if !ok {
+		return nil, fmt.Errorf("claims must be jwt.Claims")
+	}
+	_, err := jwt.ParseWithClaims(signedToken, jwtClaims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
@@ -58,12 +61,4 @@ func (g *JwtAuth[T]) ParseToken(signedToken string) (*authorizer.Claims[T], erro
 		return nil, err
 	}
 	return claims, nil
-}
-
-func (g *JwtAuth[T]) ParseRoles(roles string) []string {
-	return strings.Split(roles, ",")
-}
-
-func (g *JwtAuth[T]) GenerateRoles(roles []string) string {
-	return strings.Join(roles, ",")
 }

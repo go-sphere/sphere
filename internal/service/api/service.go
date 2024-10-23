@@ -5,12 +5,13 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/render"
 	"github.com/tbxark/sphere/pkg/cache"
 	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
-	"github.com/tbxark/sphere/pkg/server/middleware/auth"
 	"github.com/tbxark/sphere/pkg/storage"
 	"github.com/tbxark/sphere/pkg/wechat"
 	"net/http"
 	"time"
 )
+
+type TokenAuthorizer = authorizer.TokenAuthorizer[authorizer.RBACClaims[int64]]
 
 type Service struct {
 	DB         *dao.Dao
@@ -18,8 +19,7 @@ type Service struct {
 	Cache      cache.ByteCache
 	Wechat     *wechat.Wechat
 	Render     *render.Render
-	Authorizer authorizer.Authorizer[int64]
-	Auth       *auth.Auth[int64]
+	Authorizer TokenAuthorizer
 	httpClient *http.Client
 }
 
@@ -36,7 +36,6 @@ func NewService(db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cac
 	}
 }
 
-func (s *Service) Init(auth *auth.Auth[int64], authorizer authorizer.Authorizer[int64]) {
-	s.Auth = auth
+func (s *Service) Init(authorizer TokenAuthorizer) {
 	s.Authorizer = authorizer
 }

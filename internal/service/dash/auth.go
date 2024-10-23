@@ -28,30 +28,31 @@ type AdminToken struct {
 
 type AdminLoginResponseWrapper = ginx.DataResponse[AdminToken]
 
-func renderClaims(auth authorizer.Authorizer[int64], admin *ent.Admin, duration time.Duration) *authorizer.Claims[int64] {
-	return &authorizer.Claims[int64]{
+func renderClaims(admin *ent.Admin, duration time.Duration) *authorizer.RBACClaims[int64] {
+	return &authorizer.RBACClaims[int64]{
 		UID:       admin.ID,
 		Subject:   admin.Username,
-		Roles:     auth.GenerateRoles(admin.Roles),
+		Roles:     admin.Roles,
 		ExpiresAt: time.Now().Add(duration).Unix(),
 	}
 }
 
 func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
-	token, err := s.Authorizer.GenerateToken(renderClaims(s.Authorizer, u, AuthTokenValidDuration))
+	claims := renderClaims(u, AuthTokenValidDuration)
+	token, err := s.Authorizer.GenerateToken(claims)
 	if err != nil {
 		return nil, err
 	}
-	refresh, err := s.AuthRefresher.GenerateToken(renderClaims(s.Authorizer, u, RefreshTokenValidDuration))
+	refresh, err := s.AuthRefresher.GenerateToken(renderClaims(u, RefreshTokenValidDuration))
 	if err != nil {
 		return nil, err
 	}
 	u.Avatar = s.Storage.GenerateImageURL(u.Avatar, 512)
 	return &AdminToken{
 		Admin:        u,
-		AccessToken:  token.Token,
-		RefreshToken: refresh.Token,
-		Expires:      token.ExpiresAt.Format(time.DateTime),
+		AccessToken:  token,
+		RefreshToken: refresh,
+		Expires:      time.Unix(claims.ExpiresAt, 0).Format(time.RFC3339),
 	}, nil
 }
 

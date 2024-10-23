@@ -4,11 +4,13 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/render"
 	"github.com/tbxark/sphere/pkg/cache"
+	"github.com/tbxark/sphere/pkg/server/auth/acl"
 	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
-	"github.com/tbxark/sphere/pkg/server/middleware/auth"
 	"github.com/tbxark/sphere/pkg/storage"
 	"github.com/tbxark/sphere/pkg/wechat"
 )
+
+type TokenAuthorizer = authorizer.TokenAuthorizer[authorizer.RBACClaims[int64]]
 
 type Service struct {
 	DB      *dao.Dao
@@ -17,10 +19,9 @@ type Service struct {
 	WeChat  *wechat.Wechat
 	Render  *render.Render
 
-	Authorizer    authorizer.Authorizer[int64]
-	AuthRefresher authorizer.Authorizer[int64]
-	Auth          *auth.Auth[int64]
-	ACL           *auth.ACL
+	Authorizer    TokenAuthorizer
+	AuthRefresher TokenAuthorizer
+	ACL           *acl.ACL
 }
 
 func NewService(db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cache.ByteCache) *Service {
@@ -30,12 +31,11 @@ func NewService(db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cac
 		Cache:   cache,
 		WeChat:  wx,
 		Render:  render.NewRender(store, db, true),
-		ACL:     auth.NewACL(),
+		ACL:     acl.NewACL(),
 	}
 }
 
-func (s *Service) Init(auth *auth.Auth[int64], authorizer authorizer.Authorizer[int64], authRefresher authorizer.Authorizer[int64]) {
-	s.Auth = auth
+func (s *Service) Init(authorizer TokenAuthorizer, authRefresher TokenAuthorizer) {
 	s.Authorizer = authorizer
 	s.AuthRefresher = authRefresher
 }

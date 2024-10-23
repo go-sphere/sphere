@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	sharedv1 "github.com/tbxark/sphere/api/shared/v1"
+	"github.com/tbxark/sphere/pkg/server/middleware/auth"
 	"github.com/tbxark/sphere/pkg/storage"
 	"strconv"
 )
@@ -14,7 +15,7 @@ func (s *Service) UploadToken(ctx context.Context, req *sharedv1.UploadTokenRequ
 	if req.Filename == "" {
 		return nil, fmt.Errorf("filename is required")
 	}
-	id, err := s.Auth.GetCurrentID(ctx)
+	id, err := auth.GetCurrentID[int64](ctx)
 	if err != nil {
 		return nil, err
 	}

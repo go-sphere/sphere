@@ -18,11 +18,11 @@ const (
 	AppTokenValidDuration = time.Hour * 24 * 7
 )
 
-func renderClaims(user *ent.User, pla *ent.UserPlatform, duration time.Duration) *authorizer.Claims[int64] {
-	return &authorizer.Claims[int64]{
+func renderClaims(user *ent.User, pla *ent.UserPlatform, duration time.Duration) *authorizer.RBACClaims[int64] {
+	return &authorizer.RBACClaims[int64]{
 		UID:       user.ID,
 		Subject:   pla.PlatformID,
-		Roles:     "",
+		Roles:     nil,
 		ExpiresAt: time.Now().Add(duration).Unix(),
 	}
 }
@@ -89,7 +89,7 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) 
 	}
 	return &apiv1.AuthWxMiniResponse{
 		IsNew: res.isNew,
-		Token: token.Token,
+		Token: token,
 		User:  s.Render.Me(res.user),
 	}, nil
 }

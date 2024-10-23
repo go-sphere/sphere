@@ -9,6 +9,8 @@ import (
 	"github.com/tbxark/sphere/internal/service/shared"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/log/logfields"
+	"github.com/tbxark/sphere/pkg/server/auth/acl"
+	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
 	"github.com/tbxark/sphere/pkg/server/auth/jwtauth"
 	"github.com/tbxark/sphere/pkg/server/ginx"
 	"github.com/tbxark/sphere/pkg/server/middleware/auth"
@@ -43,14 +45,13 @@ const (
 )
 
 func (w *Web) Run() error {
-	authorizer := jwtauth.NewJwtAuth[int64](w.config.AuthJWT)
-	authRefresher := jwtauth.NewJwtAuth[int64](w.config.RefreshJWT)
-	authControl := auth.NewAuth[int64](jwtauth.AuthorizationPrefixBearer, authorizer)
+	jwtAuthorizer := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.AuthJWT)
+	jwtRefresher := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.RefreshJWT)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "dash"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
-	authMiddleware := authControl.NewAuthMiddleware(true)
+	authMiddleware := auth.NewAuthMiddleware(jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, false)
 	rateLimiter := ratelimiter.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
 	w.engine.Use(loggerMiddleware, recoveryMiddleware)
@@ -72,21 +73,21 @@ func (w *Web) Run() error {
 	api := w.engine.Group("/")
 	needAuthRoute := api.Group("/", authMiddleware)
 
-	w.service.Init(authControl, authorizer, authRefresher)
+	w.service.Init(jwtAuthorizer, jwtRefresher)
 
 	if w.config.HTTP.PProf {
 		pprof.SetupPProf(api)
 	}
 	initDefaultRolesACL(w.service.ACL)
 
-	sharedSrc := shared.NewService(authControl, w.service.Storage, "dash")
+	sharedSrc := shared.NewService(w.service.Storage, "dash")
 	sharedv1.RegisterStorageServiceHTTPServer(needAuthRoute, sharedSrc)
 	sharedv1.RegisterTestServiceHTTPServer(api, sharedSrc)
 
 	authRoute := api.Group("/", rateLimiter)
 	dashv1.RegisterAuthServiceHTTPServer(authRoute, w.service)
 
-	adminRoute := needAuthRoute.Group("/", w.NewPermissionMiddleware(authControl, WebPermissionAdmin))
+	adminRoute := needAuthRoute.Group("/", w.NewPermissionMiddleware(WebPermissionAdmin))
 	dashv1.RegisterAdminServiceHTTPServer(adminRoute, w.service)
 
 	systemRoute := needAuthRoute.Group("/")
@@ -95,11 +96,11 @@ func (w *Web) Run() error {
 	return w.engine.Run(w.config.HTTP.Address)
 }
 
-func (w *Web) NewPermissionMiddleware(authControl *auth.Auth[int64], resource string) gin.HandlerFunc {
-	return authControl.NewPermissionMiddleware(resource, w.service.ACL)
+func (w *Web) NewPermissionMiddleware(resource string) gin.HandlerFunc {
+	return auth.NewPermissionMiddleware(resource, w.service.ACL)
 }
 
-func initDefaultRolesACL(acl *auth.ACL) {
+func initDefaultRolesACL(acl *acl.ACL) {
 	roles := []string{
 		WebPermissionAdmin,
 	}

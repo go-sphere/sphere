@@ -7,30 +7,32 @@ import (
 )
 
 func TestJwtAuth_ParseToken(t *testing.T) {
-	auth := NewJwtAuth[string]("secret")
-	token, err := auth.GenerateToken(authorizer.NewClaims[string]("1", "username", "admin", time.Now().Add(time.Hour).Unix()))
+	auth := NewJwtAuth[authorizer.RBACClaims[int64]]("secret")
+	info := authorizer.NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(time.Hour).Unix())
+	token, err := auth.GenerateToken(info)
 	if err != nil {
 		t.Error(err)
 	}
-	claims, err := auth.ParseToken(token.Token)
+	claims1, err := auth.ParseToken(token)
 	if err != nil {
 		t.Error(err)
 	}
-	if claims.Subject != "username" {
+	if claims1.Subject != "username" {
 		t.Error("subject not match")
 	}
-	if claims.Roles != "admin" {
+	if claims1.Roles[0] != "admin" {
 		t.Error("roles not match")
 	}
-	if claims.UID != "1" {
+	if claims1.UID != 1 {
 		t.Error("uid not match")
 	}
-	token, err = auth.GenerateToken(authorizer.NewClaims[string]("1", "username", "admin", time.Now().Add(-time.Hour).Unix()))
+	info = authorizer.NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(-time.Hour).Unix())
+	token, err = auth.GenerateToken(info)
 	if err != nil {
 		t.Error(err)
 	}
 	time.Sleep(time.Second)
-	_, err = auth.ParseToken(token.Token)
+	_, err = auth.ParseToken(token)
 	if err == nil {
 		t.Error("token should be expired")
 	}

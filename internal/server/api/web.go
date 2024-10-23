@@ -8,6 +8,7 @@ import (
 	"github.com/tbxark/sphere/internal/service/shared"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/log/logfields"
+	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
 	"github.com/tbxark/sphere/pkg/server/auth/jwtauth"
 	"github.com/tbxark/sphere/pkg/server/middleware/auth"
 	"github.com/tbxark/sphere/pkg/server/middleware/logger"
@@ -34,13 +35,12 @@ func (w *Web) Identifier() string {
 
 func (w *Web) Run() error {
 
-	authorizer := jwtauth.NewJwtAuth[int64](w.config.JWT)
-	authControl := auth.NewAuth[int64](jwtauth.AuthorizationPrefixBearer, authorizer)
+	jwtAuthorizer := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.JWT)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "api"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
-	authMiddleware := authControl.NewAuthMiddleware(false)
+	authMiddleware := auth.NewAuthMiddleware(jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, false)
 	//rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
 	w.engine.Use(loggerMiddleware, recoveryMiddleware)
@@ -49,11 +49,11 @@ func (w *Web) Run() error {
 		cors.Setup(w.engine, w.config.HTTP.Cors)
 	}
 
-	w.service.Init(authControl, authorizer)
+	w.service.Init(jwtAuthorizer)
 
 	route := w.engine.Group("/", authMiddleware)
 
-	sharedSrc := shared.NewService(authControl, w.service.Storage, "user")
+	sharedSrc := shared.NewService(w.service.Storage, "user")
 
 	sharedv1.RegisterStorageServiceHTTPServer(route, sharedSrc)
 	apiv1.RegisterAuthServiceHTTPServer(route, w.service)

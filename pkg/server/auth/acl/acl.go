@@ -1,4 +1,4 @@
-package auth
+package acl
 
 type ACL struct {
 	permissions map[string]map[string]bool

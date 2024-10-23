@@ -5,6 +5,7 @@ import (
 	"github.com/samber/lo"
 	dashv1 "github.com/tbxark/sphere/api/dash/v1"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
+	"github.com/tbxark/sphere/pkg/server/middleware/auth"
 	"github.com/tbxark/sphere/pkg/server/statuserr"
 	"github.com/tbxark/sphere/pkg/utils/secure"
 )
@@ -37,7 +38,7 @@ func (s *Service) AdminDelete(ctx context.Context, req *dashv1.AdminDeleteReques
 	if err != nil {
 		return nil, err
 	}
-	value, err := s.Auth.GetCurrentUsername(ctx)
+	value, err := auth.GetCurrentUsername(ctx)
 	if err != nil {
 		return nil, err
 	}

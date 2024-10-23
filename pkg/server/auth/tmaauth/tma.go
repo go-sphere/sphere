@@ -8,7 +8,20 @@ import (
 
 const AuthorizationPrefixTMA = "tma"
 
-var _ authorizer.Parser[int64] = &TmaAuth{}
+type Claims struct {
+	UID       int64              `json:"uid"`
+	InitData  *initdata.InitData `json:"init_data"`
+	ExpiresAt time.Time          `json:"exp"`
+}
+
+var _ authorizer.Claims = &Claims{}
+
+func (c *Claims) Valid() error {
+	if c.ExpiresAt.Before(time.Now()) {
+		return authorizer.ErrorExpiredToken
+	}
+	return nil
+}
 
 type TmaAuth struct {
 	token string
@@ -22,7 +35,7 @@ func NewTmaAuth(token string) *TmaAuth {
 	}
 }
 
-func (t *TmaAuth) ParseToken(token string) (*authorizer.Claims[int64], error) {
+func (t *TmaAuth) ParseToken(token string) (*Claims, error) {
 	err := initdata.Validate(token, t.token, t.expIn)
 	if err != nil {
 		return nil, err
@@ -31,14 +44,10 @@ func (t *TmaAuth) ParseToken(token string) (*authorizer.Claims[int64], error) {
 	if err != nil {
 		return nil, err
 	}
-	return &authorizer.Claims[int64]{
-		UID:       initData.Chat.ID,
-		Subject:   initData.Chat.Username,
-		Roles:     string(initData.Chat.Type),
-		ExpiresAt: initData.AuthDate().Add(t.expIn).Unix(),
-	}, nil
-}
-
-func (t *TmaAuth) ParseRoles(roles string) []string {
-	return []string{roles}
+	claims := Claims{
+		UID:       initData.User.ID,
+		InitData:  &initData,
+		ExpiresAt: time.Now().Add(t.expIn),
+	}
+	return &claims, nil
 }
