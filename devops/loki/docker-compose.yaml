@@ -1,5 +1,4 @@
 version: '3'
-name: loki
 
 services:
   loki:
