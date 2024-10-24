@@ -7,6 +7,7 @@ package dashv1
 
 import (
 	context "context"
+	protovalidate_go "github.com/bufbuild/protovalidate-go"
 	gin "github.com/gin-gonic/gin"
 	ginx "github.com/tbxark/sphere/pkg/server/ginx"
 )
@@ -14,6 +15,7 @@ import (
 var _ = new(context.Context)
 var _ = new(gin.Context)
 var _ = new(ginx.DataResponse[string])
+var _ = new(protovalidate_go.Validator)
 
 type AuthServiceHTTPServer interface {
 	AuthLogin(context.Context, *AuthLoginRequest) (*AuthLoginResponse, error)
@@ -32,6 +34,9 @@ func _AuthService_AuthLogin0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *g
 	return ginx.WithJson(func(ctx *gin.Context) (*AuthLoginResponse, error) {
 		var in AuthLoginRequest
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
+			return nil, err
+		}
+		if err := protovalidate_go.Validate(&in); err != nil {
 			return nil, err
 		}
 		out, err := srv.AuthLogin(ctx, &in)

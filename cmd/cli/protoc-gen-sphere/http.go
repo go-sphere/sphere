@@ -1,6 +1,7 @@
 package main
 
 import (
+	validatepb "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"fmt"
 	"net/http"
 	"os"
@@ -16,9 +17,10 @@ import (
 )
 
 const (
-	contextPackage = protogen.GoImportPath("context")
-	ginPackage     = protogen.GoImportPath("github.com/gin-gonic/gin")
-	ginxPackage    = protogen.GoImportPath("github.com/tbxark/sphere/pkg/server/ginx")
+	contextPackage  = protogen.GoImportPath("context")
+	ginPackage      = protogen.GoImportPath("github.com/gin-gonic/gin")
+	ginxPackage     = protogen.GoImportPath("github.com/tbxark/sphere/pkg/server/ginx")
+	validatePackage = protogen.GoImportPath("github.com/bufbuild/protovalidate-go")
 )
 
 var methodSets = make(map[string]int)
@@ -53,7 +55,7 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
 	g.P("var _ = new(", ginPackage.Ident("Context"), ")")
 	g.P("var _ = new(", ginxPackage.Ident("DataResponse[string]"), ")")
-
+	g.P("var _ = new(", validatePackage.Ident("Validator"), ")")
 	g.P()
 
 	for _, service := range file.Services {
@@ -204,6 +206,14 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 		}
 	}
 
+	needValidate := false
+	for _, field := range m.Input.Fields {
+		if hasValidateOptions(field) {
+			needValidate = true
+			break
+		}
+	}
+
 	comment := m.Comments.Leading.String() + m.Comments.Trailing.String()
 	if comment != "" {
 		comment = "// " + m.GoName + strings.TrimPrefix(strings.TrimSuffix(comment, "\n"), "//")
@@ -221,6 +231,7 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 		HasQuery:     len(query) > 0,
 		GinPath:      convertProtoPathToGinPath(path),
 		Swagger:      buildSwaggerAnnotations(m, method, path, m.Comments.Leading.String(), vars, query, swaggerAuth),
+		NeedValidate: needValidate,
 	}
 }
 
@@ -446,4 +457,9 @@ func convertProtoPathToGinPath(protoPath string) string {
 		protoPath = protoPath[:idx]
 	}
 	return ginRe.ReplaceAllString(protoPath, ":$1")
+}
+
+func hasValidateOptions(field *protogen.Field) bool {
+	opts := field.Desc.Options().(*descriptorpb.FieldOptions)
+	return proto.HasExtension(opts, validatepb.E_Field)
 }

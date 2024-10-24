@@ -7,6 +7,7 @@ package sharedv1
 
 import (
 	context "context"
+	protovalidate_go "github.com/bufbuild/protovalidate-go"
 	gin "github.com/gin-gonic/gin"
 	ginx "github.com/tbxark/sphere/pkg/server/ginx"
 )
@@ -14,6 +15,7 @@ import (
 var _ = new(context.Context)
 var _ = new(gin.Context)
 var _ = new(ginx.DataResponse[string])
+var _ = new(protovalidate_go.Validator)
 
 type StorageServiceHTTPServer interface {
 	UploadToken(context.Context, *UploadTokenRequest) (*UploadTokenResponse, error)

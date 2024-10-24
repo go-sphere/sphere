@@ -35,6 +35,11 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) fu
 			return nil, err
 		}
 		{{- end}}
+		{{- if .NeedValidate}}
+		if err := protovalidate_go.Validate(&in); err != nil {
+            return nil, err
+        }
+        {{- end}}
 		out, err := srv.{{.Name}}(ctx, &in)
 		if err != nil {
 			return nil, err

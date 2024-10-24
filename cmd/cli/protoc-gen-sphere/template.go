@@ -35,8 +35,9 @@ type methodDesc struct {
 	Body         string
 	ResponseBody string
 	// Temp
-	Swagger string
-	GinPath string
+	Swagger      string
+	GinPath      string
+	NeedValidate bool
 }
 
 func (s *serviceDesc) execute() string {
