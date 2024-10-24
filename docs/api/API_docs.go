@@ -23,7 +23,6 @@ const docTemplateAPI = `{
     "paths": {
         "/api/status": {
             "get": {
-                "description": "Status",
                 "consumes": [
                     "application/json"
                 ],
@@ -54,7 +53,6 @@ const docTemplateAPI = `{
         },
         "/api/test/{path_test1}/second/{path_test2}": {
             "post": {
-                "description": "RunTest",
                 "consumes": [
                     "application/json"
                 ],
@@ -120,7 +118,6 @@ const docTemplateAPI = `{
         },
         "/api/upload/token": {
             "post": {
-                "description": "UploadToken",
                 "consumes": [
                     "application/json"
                 ],
@@ -160,7 +157,6 @@ const docTemplateAPI = `{
         },
         "/api/user/bind/phone/wxmini": {
             "post": {
-                "description": "BindPhoneWxMini",
                 "consumes": [
                     "application/json"
                 ],
@@ -200,7 +196,6 @@ const docTemplateAPI = `{
         },
         "/api/user/me": {
             "get": {
-                "description": "Me",
                 "consumes": [
                     "application/json"
                 ],
@@ -231,7 +226,6 @@ const docTemplateAPI = `{
         },
         "/api/user/update": {
             "post": {
-                "description": "Update",
                 "consumes": [
                     "application/json"
                 ],
@@ -269,9 +263,9 @@ const docTemplateAPI = `{
                 }
             }
         },
-        "/v1/users/create": {
+        "/v1/auth/wxmini": {
             "post": {
-                "description": "AuthWxMini",
+                "description": "请求小程序",
                 "consumes": [
                     "application/json"
                 ],

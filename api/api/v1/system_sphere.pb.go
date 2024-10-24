@@ -20,7 +20,6 @@ type SystemServiceHTTPServer interface {
 }
 
 // @Summary Status
-// @Description Status
 // @Tags api.v1
 // @Accept json
 // @Produce json

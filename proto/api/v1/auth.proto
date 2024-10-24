@@ -6,9 +6,10 @@ import "google/api/annotations.proto";
 import "shared/v1/user.proto";
 
 service AuthService {
+  // 请求小程序
   rpc AuthWxMini(AuthWxMiniRequest) returns (AuthWxMiniResponse) {
     option (google.api.http) = {
-      post: "/v1/users/create"
+      post: "/v1/auth/wxmini"
       body: "*"
     };
   }

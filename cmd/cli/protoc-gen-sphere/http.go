@@ -220,7 +220,7 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 		HasVars:      len(vars) > 0,
 		HasQuery:     len(query) > 0,
 		GinPath:      convertProtoPathToGinPath(path),
-		Swagger:      buildSwaggerAnnotations(m, method, path, vars, query, swaggerAuth),
+		Swagger:      buildSwaggerAnnotations(m, method, path, m.Comments.Leading.String(), vars, query, swaggerAuth),
 	}
 }
 
@@ -286,7 +286,7 @@ func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*st
 			res = append(res, formName)
 		} else if method == http.MethodGet || method == http.MethodDelete {
 			// All fields are query parameters for GET and DELETE methods except for path parameters
-			res = append(res, name)
+			res = append(res, field.Desc.JSONName())
 			continue
 		}
 	}
@@ -373,7 +373,7 @@ func protocVersion(gen *protogen.Plugin) string {
 
 const deprecationComment = "// Deprecated: Do not use."
 
-func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars map[string]*string, queryParams []string, swaggerAuth string) string {
+func buildSwaggerAnnotations(m *protogen.Method, method, path, desc string, pathVars map[string]*string, queryParams []string, swaggerAuth string) string {
 	var builder strings.Builder
 
 	if idx := strings.Index(path, "?"); idx > 0 {
@@ -381,7 +381,10 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars m
 	}
 
 	builder.WriteString("// @Summary " + string(m.Desc.Name()) + "\n")
-	builder.WriteString("// @Description " + strings.TrimSpace(string(m.Desc.Name())) + "\n")
+	if desc != "" {
+		desc = strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(desc, "\n"), "//"))
+		builder.WriteString("// @Description " + desc + "\n")
+	}
 	builder.WriteString("// @Tags " + string(m.Parent.Desc.ParentFile().Package()) + "\n")
 	builder.WriteString("// @Accept json\n")
 	builder.WriteString("// @Produce json\n")

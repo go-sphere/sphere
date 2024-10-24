@@ -22,7 +22,6 @@ type UserServiceHTTPServer interface {
 }
 
 // @Summary Me
-// @Description Me
 // @Tags api.v1
 // @Accept json
 // @Produce json
@@ -41,7 +40,6 @@ func _UserService_Me0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.Cont
 }
 
 // @Summary Update
-// @Description Update
 // @Tags api.v1
 // @Accept json
 // @Produce json
@@ -64,7 +62,6 @@ func _UserService_Update0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.
 }
 
 // @Summary BindPhoneWxMini
-// @Description BindPhoneWxMini
 // @Tags api.v1
 // @Accept json
 // @Produce json

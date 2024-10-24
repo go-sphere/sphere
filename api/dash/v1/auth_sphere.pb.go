@@ -21,7 +21,6 @@ type AuthServiceHTTPServer interface {
 }
 
 // @Summary AuthLogin
-// @Description AuthLogin
 // @Tags dash.v1
 // @Accept json
 // @Produce json
@@ -44,7 +43,6 @@ func _AuthService_AuthLogin0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *g
 }
 
 // @Summary AuthRefresh
-// @Description AuthRefresh
 // @Tags dash.v1
 // @Accept json
 // @Produce json

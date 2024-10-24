@@ -20,7 +20,6 @@ type StorageServiceHTTPServer interface {
 }
 
 // @Summary UploadToken
-// @Description UploadToken
 // @Tags shared.v1
 // @Accept json
 // @Produce json

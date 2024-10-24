@@ -23,7 +23,6 @@ const docTemplateDash = `{
     "paths": {
         "/api/admin/create": {
             "post": {
-                "description": "AdminCreate",
                 "consumes": [
                     "application/json"
                 ],
@@ -63,7 +62,6 @@ const docTemplateDash = `{
         },
         "/api/admin/delete/{id}": {
             "delete": {
-                "description": "AdminDelete",
                 "consumes": [
                     "application/json"
                 ],
@@ -101,7 +99,6 @@ const docTemplateDash = `{
         },
         "/api/admin/detail/{id}": {
             "get": {
-                "description": "AdminDetail",
                 "consumes": [
                     "application/json"
                 ],
@@ -139,7 +136,6 @@ const docTemplateDash = `{
         },
         "/api/admin/list": {
             "get": {
-                "description": "AdminList",
                 "consumes": [
                     "application/json"
                 ],
@@ -170,7 +166,6 @@ const docTemplateDash = `{
         },
         "/api/admin/update/{id}": {
             "post": {
-                "description": "AdminUpdate",
                 "consumes": [
                     "application/json"
                 ],
@@ -217,7 +212,6 @@ const docTemplateDash = `{
         },
         "/api/auth/login": {
             "post": {
-                "description": "AuthLogin",
                 "consumes": [
                     "application/json"
                 ],
@@ -257,7 +251,6 @@ const docTemplateDash = `{
         },
         "/api/auth/refresh": {
             "post": {
-                "description": "AuthRefresh",
                 "consumes": [
                     "application/json"
                 ],
@@ -297,7 +290,6 @@ const docTemplateDash = `{
         },
         "/api/cache/reset": {
             "post": {
-                "description": "CacheReset",
                 "consumes": [
                     "application/json"
                 ],
@@ -337,7 +329,6 @@ const docTemplateDash = `{
         },
         "/api/test/{path_test1}/second/{path_test2}": {
             "post": {
-                "description": "RunTest",
                 "consumes": [
                     "application/json"
                 ],
@@ -403,7 +394,6 @@ const docTemplateDash = `{
         },
         "/api/upload/token": {
             "post": {
-                "description": "UploadToken",
                 "consumes": [
                     "application/json"
                 ],

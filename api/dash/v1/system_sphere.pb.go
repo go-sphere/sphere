@@ -20,7 +20,6 @@ type SystemServiceHTTPServer interface {
 }
 
 // @Summary CacheReset
-// @Description CacheReset
 // @Tags dash.v1
 // @Accept json
 // @Produce json

@@ -24,7 +24,6 @@ type AdminServiceHTTPServer interface {
 }
 
 // @Summary AdminList
-// @Description AdminList
 // @Tags dash.v1
 // @Accept json
 // @Produce json
@@ -43,7 +42,6 @@ func _AdminService_AdminList0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx 
 }
 
 // @Summary AdminCreate
-// @Description AdminCreate
 // @Tags dash.v1
 // @Accept json
 // @Produce json
@@ -66,7 +64,6 @@ func _AdminService_AdminCreate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 }
 
 // @Summary AdminUpdate
-// @Description AdminUpdate
 // @Tags dash.v1
 // @Accept json
 // @Produce json
@@ -93,7 +90,6 @@ func _AdminService_AdminUpdate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 }
 
 // @Summary AdminDetail
-// @Description AdminDetail
 // @Tags dash.v1
 // @Accept json
 // @Produce json
@@ -116,7 +112,6 @@ func _AdminService_AdminDetail0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 }
 
 // @Summary AdminDelete
-// @Description AdminDelete
 // @Tags dash.v1
 // @Accept json
 // @Produce json

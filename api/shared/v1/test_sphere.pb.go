@@ -20,7 +20,6 @@ type TestServiceHTTPServer interface {
 }
 
 // @Summary RunTest
-// @Description RunTest
 // @Tags shared.v1
 // @Accept json
 // @Produce json

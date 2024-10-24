@@ -16,18 +16,19 @@ var _ = new(gin.Context)
 var _ = new(ginx.DataResponse[string])
 
 type AuthServiceHTTPServer interface {
+	// AuthWxMini 请求小程序
 	AuthWxMini(context.Context, *AuthWxMiniRequest) (*AuthWxMiniResponse, error)
 }
 
 // @Summary AuthWxMini
-// @Description AuthWxMini
+// @Description 请求小程序
 // @Tags api.v1
 // @Accept json
 // @Produce json
 // @Param Authorization header string false "Bearer token"
 // @Param request body AuthWxMiniRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[AuthWxMiniResponse]
-// @Router /v1/users/create [post]
+// @Router /v1/auth/wxmini [post]
 func _AuthService_AuthWxMini0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AuthWxMiniResponse, error) {
 		var in AuthWxMiniRequest
@@ -44,5 +45,5 @@ func _AuthService_AuthWxMini0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *
 
 func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer) {
 	r := route.Group("/")
-	r.POST("/v1/users/create", _AuthService_AuthWxMini0_HTTP_Handler(srv))
+	r.POST("/v1/auth/wxmini", _AuthService_AuthWxMini0_HTTP_Handler(srv))
 }
