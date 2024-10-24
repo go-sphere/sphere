@@ -7,7 +7,6 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
-	"github.com/tbxark/sphere/pkg/server/middleware/auth"
 	"github.com/tbxark/sphere/pkg/server/statuserr"
 	"github.com/tbxark/sphere/pkg/storage"
 	"strconv"
@@ -21,7 +20,7 @@ const RemoteImageMaxSize = 1024 * 1024 * 2
 var ErrImageSizeExceed = fmt.Errorf("image size exceed")
 
 func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMiniRequest) (*apiv1.BindPhoneWxMiniResponse, error) {
-	userId, err := auth.GetCurrentID[int64](ctx)
+	userId, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +52,7 @@ func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMin
 }
 
 func (s *Service) Me(ctx context.Context, req *apiv1.MeRequest) (*apiv1.MeResponse, error) {
-	id, err := auth.GetCurrentID[int64](ctx)
+	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +66,7 @@ func (s *Service) Me(ctx context.Context, req *apiv1.MeRequest) (*apiv1.MeRespon
 }
 
 func (s *Service) Update(ctx context.Context, req *apiv1.UpdateRequest) (*apiv1.UpdateResponse, error) {
-	id, err := auth.GetCurrentID[int64](ctx)
+	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +95,7 @@ func (s *Service) uploadRemoteImage(ctx context.Context, url string) (string, er
 	if !(strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://")) {
 		return key, nil
 	}
-	id, err := auth.GetCurrentID[int64](ctx)
+	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return "", err
 	}

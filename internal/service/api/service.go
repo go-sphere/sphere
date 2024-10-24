@@ -14,6 +14,7 @@ import (
 type TokenAuthorizer = authorizer.TokenAuthorizer[authorizer.RBACClaims[int64]]
 
 type Service struct {
+	authorizer.ContextUtils[int64]
 	DB         *dao.Dao
 	Storage    storage.Storage
 	Cache      cache.ByteCache

@@ -11,6 +11,10 @@ const (
 	AuthorizationHeader = "Authorization"
 )
 
+type AccessControl interface {
+	IsAllowed(role, resource string) bool
+}
+
 func NewAuthMiddleware(prefix string, parser authorizer.Parser[authorizer.RBACClaims[int64]], abortOnError bool) gin.HandlerFunc {
 	abort := func(ctx *gin.Context) {
 		if abortOnError {
