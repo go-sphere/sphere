@@ -27,6 +27,9 @@ message AuthLoginRequest {
   string password = 2 [(buf.validate.field).string = {min_len: 6}];
 }
 
+// 兼容pure-admin登录
+// https://github.com/pure-admin/vue-pure-admin/blob/main/src/api/user.ts
+
 message AuthLoginResponse {
   string avatar = 1;
   string username = 2;

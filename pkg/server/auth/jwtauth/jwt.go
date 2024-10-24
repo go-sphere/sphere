@@ -32,10 +32,15 @@ func (g *JwtAuth[T]) GenerateToken(claims *T) (string, error) {
 
 func (g *JwtAuth[T]) ParseToken(signedToken string) (*T, error) {
 	claims := new(T)
-	jwtClaims, ok := any(claims).(jwt.Claims) // magic, if you parse *claims, it will panic "token is malformed: could not JSON decode claim: json: cannot unmarshal object into Go value of type jwt.Claims"
+	// magic, if you parse *claims, it will panic "token is malformed: could not JSON decode claim: json: cannot unmarshal object into Go value of type jwt.Claims"
+	jwtClaims, ok := any(claims).(jwt.Claims)
 	if !ok {
 		return nil, fmt.Errorf("claims must be jwt.Claims")
 	}
+	// ParseWithClaims second argument must be a pointer to jwt.Claims
+	// Or you can do this:
+	// var claims T
+	// jwtClaims, ok := any(&claims).(jwt.Claims)
 	token, err := jwt.ParseWithClaims(signedToken, jwtClaims, func(token *jwt.Token) (interface{}, error) {
 		if _, mOk := token.Method.(*jwt.SigningMethodHMAC); !mOk {
 			return nil, jwt.ErrSignatureInvalid
@@ -45,6 +50,7 @@ func (g *JwtAuth[T]) ParseToken(signedToken string) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
+	// you can return claims directly, or you can do this:
 	res, ok := any(token.Claims).(*T)
 	if !ok {
 		return nil, fmt.Errorf("claims must be jwt.Claims")

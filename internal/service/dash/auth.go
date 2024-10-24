@@ -17,6 +17,7 @@ var _ dashv1.AuthServiceHTTPServer = (*Service)(nil)
 const (
 	AuthTokenValidDuration    = time.Hour * 24
 	RefreshTokenValidDuration = time.Hour * 24 * 30
+	AuthExpiresTimeFormat     = "2006/01/02 15:04:05"
 )
 
 type AdminToken struct {
@@ -47,7 +48,7 @@ func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
 		Admin:        u,
 		AccessToken:  token,
 		RefreshToken: refresh,
-		Expires:      claims.ExpiresAt.Format(time.RFC3339),
+		Expires:      claims.ExpiresAt.Format(AuthExpiresTimeFormat),
 	}, nil
 }
 
