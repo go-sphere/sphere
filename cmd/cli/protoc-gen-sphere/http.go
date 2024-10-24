@@ -384,7 +384,7 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars m
 	builder.WriteString("// @Tags " + string(m.Parent.Desc.ParentFile().Package()) + "\n")
 	builder.WriteString("// @Accept json\n")
 	builder.WriteString("// @Produce json\n")
-	builder.WriteString("// @Param Authorization header string false \"Bearer token\"\n")
+	builder.WriteString(swaggerAuth + "\n")
 
 	// Add path parameters
 	for param, _ := range pathVars {
