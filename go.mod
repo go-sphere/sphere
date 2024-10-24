@@ -12,19 +12,19 @@ require (
 	github.com/gin-contrib/zap v1.1.4
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-sql-driver/mysql v1.8.1
-	github.com/go-telegram/bot v1.9.0
+	github.com/go-telegram/bot v1.9.1
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/wire v0.6.0
 	github.com/meilisearch/meilisearch-go v0.28.0
 	github.com/minio/minio-go/v7 v7.0.78
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/qiniu/go-sdk/v7 v7.23.0
+	github.com/qiniu/go-sdk/v7 v7.24.0
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/samber/lo v1.47.0
 	github.com/spf13/cobra v1.8.1
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
-	github.com/swaggo/swag v1.16.3
+	github.com/swaggo/swag v1.16.4
 	github.com/telegram-mini-apps/init-data-golang v1.1.5
 	github.com/yitter/idgenerator-go v1.3.3
 	go.uber.org/zap v1.27.0

@@ -1,35 +1,27 @@
 package tmaauth
 
 import (
-	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
+	"bytes"
+	"encoding/json"
 	initdata "github.com/telegram-mini-apps/init-data-golang"
+	"net/url"
+	"strconv"
 	"time"
 )
 
 const AuthorizationPrefixTMA = "tma"
 
-type Claims struct {
-	UID       int64              `json:"uid"`
-	InitData  *initdata.InitData `json:"init_data"`
-	ExpiresAt time.Time          `json:"exp"`
-}
-
-func (c *Claims) Valid() error {
-	if c.ExpiresAt.Before(time.Now()) {
-		return authorizer.ErrorExpiredToken
-	}
-	return nil
-}
+type Claims initdata.InitData
 
 type TmaAuth struct {
 	token string
 	expIn time.Duration
 }
 
-func NewTmaAuth(token string) *TmaAuth {
+func NewTmaAuth(token string, expIn time.Duration) *TmaAuth {
 	return &TmaAuth{
 		token: token,
-		expIn: time.Hour * 24,
+		expIn: expIn,
 	}
 }
 
@@ -38,14 +30,50 @@ func (t *TmaAuth) ParseToken(token string) (*Claims, error) {
 	if err != nil {
 		return nil, err
 	}
-	initData, err := initdata.Parse(token)
+	data, err := initdata.Parse(token)
 	if err != nil {
 		return nil, err
 	}
-	claims := Claims{
-		UID:       initData.User.ID,
-		InitData:  &initData,
-		ExpiresAt: time.Now().Add(t.expIn),
+	return (*Claims)(&data), nil
+}
+
+func (t *TmaAuth) GenerateToken(claims *Claims) (string, error) {
+	rawInitMap := map[string]any{}
+	initBytes, err := json.Marshal(claims)
+	if err != nil {
+		return "", err
 	}
-	return &claims, nil
+	decoder := json.NewDecoder(bytes.NewReader(initBytes))
+	decoder.UseNumber()
+	err = decoder.Decode(&rawInitMap)
+	if err != nil {
+		return "", err
+	}
+	delete(rawInitMap, "hash")
+	delete(rawInitMap, "auth_date")
+	params := make(map[string]string)
+	values := url.Values{}
+	for k, v := range rawInitMap {
+		if str, ok := v.(string); ok {
+			params[k] = v.(string)
+			values.Add(k, str)
+			continue
+		}
+		if num, ok := v.(json.Number); ok {
+			params[k] = num.String()
+			values.Add(k, num.String())
+			continue
+		}
+		partBytes, e := json.Marshal(v)
+		if e != nil {
+			return "", e
+		}
+		params[k] = string(partBytes)
+		values.Add(k, string(partBytes))
+	}
+	exp := time.Unix(int64(claims.AuthDateRaw), 0)
+	sign := initdata.Sign(params, t.token, exp)
+	values.Set("hash", sign)
+	values.Set("auth_date", strconv.FormatInt(exp.Unix(), 10))
+	return values.Encode(), nil
 }
