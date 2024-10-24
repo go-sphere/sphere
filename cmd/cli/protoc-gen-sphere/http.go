@@ -257,7 +257,7 @@ func replacePath(name string, value string, path string) string {
 }
 
 func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*string) (res []string) {
-	r := regexp.MustCompile(`@gotags:.*form:"([^"]*)"`)
+	r := regexp.MustCompile(`@gotags:.*form:"([^"^,]*).*"`)
 	findQueryParam := func(str string) string {
 		cmp := r.FindStringSubmatch(str)
 		if len(cmp) == 2 {
@@ -266,28 +266,29 @@ func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*st
 		return ""
 	}
 	for _, field := range m.Input.Fields {
-		name := field.Desc.JSONName()
+		name := string(field.Desc.Name())
 		if _, ok := pathVars[name]; ok {
 			continue
 		}
-		// All fields are query parameters for GET and DELETE methods except for path parameters
-		if method == http.MethodGet || method == http.MethodDelete {
-			res = append(res, name)
-			continue
-		}
+
+		formName := ""
 		if field.Comments.Leading.String() != "" {
-			if uri := findQueryParam(field.Comments.Leading.String()); uri != "" {
-				res = append(res, uri)
-				continue
+			if n := findQueryParam(field.Comments.Leading.String()); n != "" {
+				formName = n
 			}
 		}
 		if field.Comments.Trailing.String() != "" {
-			if uri := findQueryParam(field.Comments.Trailing.String()); uri != "" {
-				res = append(res, uri)
-				continue
+			if n := findQueryParam(field.Comments.Trailing.String()); n != "" {
+				formName = n
 			}
 		}
-
+		if formName != "" {
+			res = append(res, formName)
+		} else if method == http.MethodGet || method == http.MethodDelete {
+			// All fields are query parameters for GET and DELETE methods except for path parameters
+			res = append(res, name)
+			continue
+		}
 	}
 	return
 }
@@ -404,7 +405,6 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars m
 
 	builder.WriteString("// @Success 200 {object} ginx.DataResponse[" + m.Output.GoIdent.GoName + "]\n")
 	builder.WriteString("// @Router " + path + " [" + strings.ToLower(method) + "]\n")
-	//builder.WriteString("// Origin Path: " + path + "\n")
 	return builder.String()
 }
 
@@ -413,7 +413,6 @@ func getFieldType(messageDesc protoreflect.MessageDescriptor, fieldName string) 
 	if field == nil {
 		return "string" // Default to string if field not found
 	}
-
 	switch field.Kind() {
 	case protoreflect.BoolKind:
 		return "boolean"

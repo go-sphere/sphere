@@ -31,7 +31,7 @@ type RunTestRequest struct {
 	PathTest1  string `protobuf:"bytes,3,opt,name=path_test1,json=pathTest1,proto3" json:"-" uri:"path_test1"`      
 	PathTest2  int64  `protobuf:"varint,4,opt,name=path_test2,json=pathTest2,proto3" json:"-" uri:"path_test2"`     
 	QueryTest1 string `protobuf:"bytes,5,opt,name=query_test1,json=queryTest1,proto3" json:"-" form:"query_test1"`   
-	QueryTest2 int64  `protobuf:"varint,6,opt,name=query_test2,json=queryTest2,proto3" json:"-" form:"query_test2"`  
+	QueryTest2 int64  `protobuf:"varint,6,opt,name=query_test2,json=queryTest2,proto3" json:"-" form:"query_test2,omitempty"`  
 }
 
 func (x *RunTestRequest) Reset() {
