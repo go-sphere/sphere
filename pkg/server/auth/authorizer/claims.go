@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"errors"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/exp/constraints"
 	"time"
 )
@@ -21,24 +22,19 @@ const (
 )
 
 type RBACClaims[T UID] struct {
-	UID       T        `json:"uid,omitempty"`
-	Subject   string   `json:"sub,omitempty"`
-	Roles     []string `json:"roles,omitempty"`
-	ExpiresAt int64    `json:"exp,omitempty"`
+	jwt.RegisteredClaims
+	UID   T        `json:"uid,omitempty"`
+	Roles []string `json:"roles,omitempty"`
 }
 
-func NewRBACClaims[T UID](uid T, subject string, roles []string, expiresAt int64) *RBACClaims[T] {
+func NewRBACClaims[T UID](uid T, subject string, roles []string, expiresAt time.Time) *RBACClaims[T] {
 	return &RBACClaims[T]{
-		UID:       uid,
-		Subject:   subject,
-		Roles:     roles,
-		ExpiresAt: expiresAt,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   subject,
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+		UID:   uid,
+		Roles: roles,
 	}
-}
-
-func (c RBACClaims[T]) Valid() error {
-	if c.ExpiresAt < time.Now().Unix() {
-		return ErrorExpiredToken
-	}
-	return nil
 }

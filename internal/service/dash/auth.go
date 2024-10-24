@@ -29,12 +29,7 @@ type AdminToken struct {
 type AdminLoginResponseWrapper = ginx.DataResponse[AdminToken]
 
 func renderClaims(admin *ent.Admin, duration time.Duration) *authorizer.RBACClaims[int64] {
-	return &authorizer.RBACClaims[int64]{
-		UID:       admin.ID,
-		Subject:   admin.Username,
-		Roles:     admin.Roles,
-		ExpiresAt: time.Now().Add(duration).Unix(),
-	}
+	return authorizer.NewRBACClaims(admin.ID, admin.Username, admin.Roles, time.Now().Add(duration))
 }
 
 func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
@@ -52,7 +47,7 @@ func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
 		Admin:        u,
 		AccessToken:  token,
 		RefreshToken: refresh,
-		Expires:      time.Unix(claims.ExpiresAt, 0).Format(time.RFC3339),
+		Expires:      claims.ExpiresAt.Format(time.RFC3339),
 	}, nil
 }
 

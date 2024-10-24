@@ -2,27 +2,12 @@ package jwtauth
 
 import (
 	"fmt"
-	"time"
-
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 const (
 	AuthorizationPrefixBearer = "Bearer"
 )
-
-type Jwt struct {
-	token   string
-	expires time.Time
-}
-
-func (t *Jwt) String() string {
-	return t.token
-}
-
-func (t *Jwt) ExpiresAt() time.Time {
-	return t.expires
-}
 
 type JwtAuth[T jwt.Claims] struct {
 	secret        []byte
@@ -47,12 +32,12 @@ func (g *JwtAuth[T]) GenerateToken(claims *T) (string, error) {
 
 func (g *JwtAuth[T]) ParseToken(signedToken string) (*T, error) {
 	claims := new(T)
-	jwtClaims, ok := any(claims).(jwt.Claims) // magic
+	jwtClaims, ok := any(claims).(jwt.Claims) // magic, if you parse *claims, it will panic "token is malformed: could not JSON decode claim: json: cannot unmarshal object into Go value of type jwt.Claims"
 	if !ok {
 		return nil, fmt.Errorf("claims must be jwt.Claims")
 	}
-	_, err := jwt.ParseWithClaims(signedToken, jwtClaims, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+	token, err := jwt.ParseWithClaims(signedToken, jwtClaims, func(token *jwt.Token) (interface{}, error) {
+		if _, mOk := token.Method.(*jwt.SigningMethodHMAC); !mOk {
 			return nil, jwt.ErrSignatureInvalid
 		}
 		return g.secret, nil
@@ -60,5 +45,9 @@ func (g *JwtAuth[T]) ParseToken(signedToken string) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
-	return claims, nil
+	res, ok := any(token.Claims).(*T)
+	if !ok {
+		return nil, fmt.Errorf("claims must be jwt.Claims")
+	}
+	return res, nil
 }

@@ -8,7 +8,7 @@ import (
 
 func TestJwtAuth_ParseToken(t *testing.T) {
 	auth := NewJwtAuth[authorizer.RBACClaims[int64]]("secret")
-	info := authorizer.NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(time.Hour).Unix())
+	info := authorizer.NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(time.Hour))
 	token, err := auth.GenerateToken(info)
 	if err != nil {
 		t.Error(err)
@@ -26,7 +26,7 @@ func TestJwtAuth_ParseToken(t *testing.T) {
 	if claims1.UID != 1 {
 		t.Error("uid not match")
 	}
-	info = authorizer.NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(-time.Hour).Unix())
+	info = authorizer.NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(-time.Hour))
 	token, err = auth.GenerateToken(info)
 	if err != nil {
 		t.Error(err)

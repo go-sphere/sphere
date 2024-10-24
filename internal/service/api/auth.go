@@ -19,12 +19,7 @@ const (
 )
 
 func renderClaims(user *ent.User, pla *ent.UserPlatform, duration time.Duration) *authorizer.RBACClaims[int64] {
-	return &authorizer.RBACClaims[int64]{
-		UID:       user.ID,
-		Subject:   pla.PlatformID,
-		Roles:     nil,
-		ExpiresAt: time.Now().Add(duration).Unix(),
-	}
+	return authorizer.NewRBACClaims(user.ID, user.Username, []string{}, time.Now().Add(duration))
 }
 
 type userContext struct {

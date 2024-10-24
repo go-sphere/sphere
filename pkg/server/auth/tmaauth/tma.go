@@ -14,8 +14,6 @@ type Claims struct {
 	ExpiresAt time.Time          `json:"exp"`
 }
 
-var _ authorizer.Claims = &Claims{}
-
 func (c *Claims) Valid() error {
 	if c.ExpiresAt.Before(time.Now()) {
 		return authorizer.ErrorExpiredToken
