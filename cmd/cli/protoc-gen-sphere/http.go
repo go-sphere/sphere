@@ -297,7 +297,7 @@ func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*st
 			res = append(res, formName)
 		} else if method == http.MethodGet || method == http.MethodDelete {
 			// All fields are query parameters for GET and DELETE methods except for path parameters
-			res = append(res, field.Desc.JSONName())
+			res = append(res, name)
 			continue
 		}
 	}
@@ -413,7 +413,8 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path, desc string, path
 		builder.WriteString(fmt.Sprintf("// @Param %s query %s false \"%s\"\n", param, paramType, param))
 	}
 
-	if method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch {
+	// Add request body
+	if !(method == http.MethodGet || method == http.MethodDelete) {
 		builder.WriteString("// @Param request body " + m.Input.GoIdent.GoName + " true \"Request body\"\n")
 	}
 
