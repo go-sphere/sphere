@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/samber/lo"
 	dashv1 "github.com/tbxark/sphere/api/dash/v1"
-	datav1 "github.com/tbxark/sphere/api/data/v1"
+	"github.com/tbxark/sphere/api/entpb"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/pkg/server/statuserr"
 	"github.com/tbxark/sphere/pkg/utils/secure"
@@ -68,7 +68,7 @@ func (s *Service) AdminList(ctx context.Context, req *dashv1.AdminListRequest) (
 		return nil, err
 	}
 	return &dashv1.AdminListResponse{
-		Admins: lo.Map(all, func(admin *ent.Admin, i int) *datav1.Admin {
+		Admins: lo.Map(all, func(admin *ent.Admin, i int) *entpb.Admin {
 			return s.Render.AdminFull(admin)
 		}),
 	}, nil

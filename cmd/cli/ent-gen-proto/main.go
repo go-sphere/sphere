@@ -1,67 +1,78 @@
 package main
 
 import (
-	"entgo.io/ent/entc/load"
+	"entgo.io/contrib/entproto"
+	"entgo.io/ent/entc"
+	"entgo.io/ent/entc/gen"
 	"flag"
 	"log"
-	"os"
 	"path/filepath"
-	"strings"
-	"text/template"
+	"sort"
 )
 
 func main() {
-	path := flag.String("path", "./internal/pkg/database/ent/schema", "path to the schema directory")
-	protoPath := flag.String("proto", "./proto/data/v1/model.proto", "path to the generated proto file")
-	protoPackage := flag.String("package", "data.v1", "package name for the generated proto file")
+	var (
+		schemaPath        = flag.String("path", "./internal/pkg/database/ent/schema", "path to schema directory")
+		protoDir          = flag.String("proto", "./proto", "path to proto directory")
+		ignoreOptional    = flag.Bool("ignore-optional", true, "ignore optional keyword")
+		autoAddAnnotation = flag.Bool("auto-annotation", true, "auto add annotation to the schema")
+	)
 	flag.Parse()
-	spec, err := localSchemaSpec(path)
+	abs, err := filepath.Abs(*schemaPath)
 	if err != nil {
-		log.Panic(err)
+		log.Fatalf("entproto: failed getting absolute path: %v", err)
 	}
-	fileDesc := genFileDesc(protoPackage, spec)
-	file, err := createProtoFile(err, *protoPath)
-	defer file.Close()
-	parse, err := template.New("proto").Parse(strings.TrimSpace(protoTpl))
+	graph, err := entc.LoadGraph(*schemaPath, &gen.Config{
+		Target: filepath.Dir(abs),
+	})
 	if err != nil {
-		log.Panic(err)
+		log.Fatalf("entproto: failed loading ent graph: %v", err)
 	}
-	err = parse.Execute(file, fileDesc)
-	if err != nil {
-		log.Panic(err)
-	}
-}
+	if *autoAddAnnotation {
+		for i := 0; i < len(graph.Nodes); i++ {
+			node := graph.Nodes[i]
+			if node.Annotations == nil {
+				node.Annotations = make(map[string]interface{}, 1)
+			}
+			if node.Annotations[entproto.MessageAnnotation] == nil {
+				node.Annotations[entproto.MessageAnnotation] = entproto.Message()
+				fieldID := 1
+				if node.ID.Annotations == nil {
+					node.ID.Annotations = make(map[string]interface{}, 1)
+					node.ID.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
+				}
+				sort.Slice(node.Fields, func(i, j int) bool {
+					if node.Fields[i].Position.MixedIn != node.Fields[j].Position.MixedIn {
+						// MixedIn fields should be at the end of the list.
+						return !node.Fields[i].Position.MixedIn
+					}
+					return node.Fields[i].Position.Index < node.Fields[j].Position.Index
+				})
 
-func localSchemaSpec(path *string) (*load.SchemaSpec, error) {
-	schemaPath, err := filepath.Abs(*path)
+				for j := 0; j < len(node.Fields); j++ {
+					field := node.Fields[j]
+					if field.Annotations == nil {
+						field.Annotations = make(map[string]interface{}, 1)
+					}
+					fieldID++
+					field.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
+					if field.Optional && *ignoreOptional {
+						field.Optional = false
+					}
+				}
+			}
+		}
+	}
+	extension, err := entproto.NewExtension(
+		entproto.EnableOptional(),
+		entproto.WithProtoDir(*protoDir),
+		entproto.SkipGenFile(),
+	)
 	if err != nil {
-		log.Panic(err)
+		log.Fatalf("entproto: failed creating entproto extension: %v", err)
 	}
-	log.Printf("loading schema from %s", schemaPath)
-	config := load.Config{
-		Path:       schemaPath,
-		Names:      nil,
-		BuildFlags: nil,
-	}
-	spec, err := config.Load()
+	err = extension.Generate(graph)
 	if err != nil {
-		log.Panic(err)
+		log.Fatalf("entproto: failed generating protos: %s", err)
 	}
-	return spec, err
-}
-
-func createProtoFile(err error, protoPath string) (*os.File, error) {
-	protoFile, err := filepath.Abs(protoPath)
-	if err != nil {
-		return nil, err
-	}
-	err = os.MkdirAll(filepath.Dir(protoFile), os.ModePerm)
-	if err != nil {
-		return nil, err
-	}
-	file, err := os.Create(protoFile)
-	if err != nil {
-		return nil, err
-	}
-	return file, nil
 }
