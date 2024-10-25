@@ -175,7 +175,7 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path string, swaggerAuth string) *methodDesc {
 	defer func() { methodSets[m.GoName]++ }()
 
-	vars := buildPathVars(path)
+	vars, paths := buildPathVars(path)
 	query := buildQueryParams(m, method, vars)
 
 	for v, s := range vars {
@@ -230,18 +230,19 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 		HasVars:      len(vars) > 0,
 		HasQuery:     len(query) > 0,
 		GinPath:      convertProtoPathToGinPath(path),
-		Swagger:      buildSwaggerAnnotations(m, method, path, m.Comments.Leading.String(), vars, query, swaggerAuth),
+		Swagger:      buildSwaggerAnnotations(m, method, path, m.Comments.Leading.String(), paths, query, swaggerAuth),
 		NeedValidate: needValidate,
 	}
 }
 
-func buildPathVars(path string) (res map[string]*string) {
+func buildPathVars(path string) (map[string]*string, []string) {
 	if strings.HasSuffix(path, "/") {
 		fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: Path %s should not end with \"/\" \n", path)
 	}
 	pattern := regexp.MustCompile(`(?i){([a-z.0-9_\s]*)=?([^{}]*)}`)
 	matches := pattern.FindAllStringSubmatch(path, -1)
-	res = make(map[string]*string, len(matches))
+	res := make(map[string]*string, len(matches))
+	vars := make([]string, 0, len(matches))
 	for _, m := range matches {
 		name := strings.TrimSpace(m[1])
 		if len(name) > 1 && len(m[2]) > 0 {
@@ -249,8 +250,9 @@ func buildPathVars(path string) (res map[string]*string) {
 		} else {
 			res[name] = nil
 		}
+		vars = append(vars, name)
 	}
-	return
+	return res, vars
 }
 
 func replacePath(name string, value string, path string) string {
@@ -384,7 +386,7 @@ func protocVersion(gen *protogen.Plugin) string {
 
 const deprecationComment = "// Deprecated: Do not use."
 
-func buildSwaggerAnnotations(m *protogen.Method, method, path, desc string, pathVars map[string]*string, queryParams []string, swaggerAuth string) string {
+func buildSwaggerAnnotations(m *protogen.Method, method, path, desc string, pathVars []string, queryParams []string, swaggerAuth string) string {
 	var builder strings.Builder
 
 	if idx := strings.Index(path, "?"); idx > 0 {
@@ -402,7 +404,7 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path, desc string, path
 	builder.WriteString(swaggerAuth + "\n")
 
 	// Add path parameters
-	for param, _ := range pathVars {
+	for _, param := range pathVars {
 		paramType := getFieldType(m.Input.Desc, param)
 		builder.WriteString(fmt.Sprintf("// @Param %s path %s true \"%s\"\n", param, paramType, param))
 	}
