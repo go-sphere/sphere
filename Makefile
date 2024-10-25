@@ -44,6 +44,7 @@ gen-ts: docs
 .PHONY: gen-ent
 gen-ent:
 	go generate ./internal/pkg/database/ent
+	go run ./cmd/cli/ent-gen-proto
 
 .PHONY: gen-wire
 gen-wire:
