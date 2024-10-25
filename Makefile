@@ -24,7 +24,6 @@ init:
 	go mod download
 	buf dep update
 	$(MAKE) generate
-	$(MAKE) docs
 
 .PHONY: gen-proto
 gen-proto:
