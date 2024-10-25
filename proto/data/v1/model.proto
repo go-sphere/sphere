@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package data.v1;
 
+
 message Admin {
 	int64 id = 1; // 用户ID
 	string username = 2; // 用户名

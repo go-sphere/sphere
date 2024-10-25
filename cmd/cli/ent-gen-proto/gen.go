@@ -7,12 +7,24 @@ import (
 	"strings"
 )
 
+type EnumCase struct {
+	Name   string
+	Origin string
+	Index  int
+}
+
+type EnumDesc struct {
+	Name   string
+	Values []*EnumCase
+}
+
 type FieldDesc struct {
 	ProtoType string
 	Name      string
 	Index     int
 	Comment   string
 	Optional  bool
+	Enum      *EnumDesc
 }
 
 type SchemaDesc struct {
@@ -72,7 +84,7 @@ func genSchemaDesc(s *load.Schema) SchemaDesc {
 	fields := make([]FieldDesc, 0)
 	mixFields := make([]FieldDesc, 0)
 	for _, f := range s.Fields {
-		fieldDesc := genFieldDesc(f)
+		fieldDesc := genFieldDesc(s, f)
 		if f.Position.MixedIn {
 			mixFields = append(mixFields, fieldDesc)
 		} else {
@@ -90,7 +102,7 @@ func genSchemaDesc(s *load.Schema) SchemaDesc {
 	return schemaDesc
 }
 
-func genFieldDesc(f *load.Field) FieldDesc {
+func genFieldDesc(s *load.Schema, f *load.Field) FieldDesc {
 	protoType := protoTypeMap[f.Info.Type]
 	if protoType == "" {
 		protoType = "google.protobuf.Any"
@@ -114,6 +126,28 @@ func genFieldDesc(f *load.Field) FieldDesc {
 		Index:     0,
 		Comment:   f.Comment,
 		Optional:  optional,
+	}
+	if f.Info.Type == field.TypeEnum {
+		enumDesc := EnumDesc{
+			Name:   pascal(s.Name) + pascal(f.Name),
+			Values: nil,
+		}
+		caseName := func(str string) string {
+			return strings.ToUpper(snake(enumDesc.Name + "_" + str))
+		}
+		enumDesc.Values = append(enumDesc.Values, &EnumCase{
+			Name:   caseName("UNSPECIFIED"),
+			Origin: "UNSPECIFIED",
+		})
+		for i, enum := range f.Enums {
+			enumDesc.Values = append(enumDesc.Values, &EnumCase{
+				Name:   caseName(enum.N),
+				Origin: enum.V,
+				Index:  i + 1,
+			})
+		}
+		fieldDesc.Enum = &enumDesc
+		fieldDesc.ProtoType = enumDesc.Name
 	}
 	return fieldDesc
 }

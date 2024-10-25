@@ -16,12 +16,8 @@ func (User) Fields() []ent.Field {
 		field.Int64("id").Unique().Immutable().DefaultFunc(idgenerator.NextId).Comment("用户ID"),
 		field.String("username").Comment("用户名").MinLen(1),
 		field.String("remark").Optional().Default("").Comment("备注").MaxLen(30),
-		field.String("avatar").Comment("头像"),
-		field.String("phone").
-			Optional().
-			Default("").
-			Comment("手机号").
-			MaxLen(20),
+		field.String("avatar").Comment("头像").Default(""),
+		field.String("phone").Optional().Default("").Comment("手机号").MaxLen(20),
 		field.Uint64("flags").Default(0).Comment("标记位"),
 	}
 }

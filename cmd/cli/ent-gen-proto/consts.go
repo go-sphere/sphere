@@ -1,8 +1,15 @@
 package main
 
 import (
+	"entgo.io/ent/entc/gen"
 	"entgo.io/ent/schema/field"
 	"regexp"
+)
+
+var (
+	snake  = gen.Funcs["snake"].(func(string) string)
+	pascal = gen.Funcs["pascal"].(func(string) string)
+	camel  = gen.Funcs["camel"].(func(string) string)
 )
 
 const protoTpl = `
@@ -12,11 +19,23 @@ package {{.Package}};
 {{range .Imports -}}
 import "{{.}}";
 {{- end -}}
+
+{{range .Schemas}}
+	{{- range .Fields -}}
+		{{- if .Enum}}
+enum {{.Enum.Name}} {
+			{{- range .Enum.Values}}
+	{{.Name}} = {{.Index}}; // {{.Origin}}
+			{{- end}}
+}
+		{{- end}}
+	{{- end}}
+{{- end}}
 {{range .Schemas}}
 message {{.Name}} {
-{{- range .Fields}}
+	{{- range .Fields}}
 	{{if .Optional}}optional {{end}}{{.ProtoType}} {{.Name}} = {{.Index}};{{if .Comment}} // {{.Comment}}{{end}}
-{{- end}}
+	{{- end}}
 }
 {{end}}
 `
@@ -29,7 +48,7 @@ var (
 		field.TypeJSON:    "google.protobuf.Any",
 		field.TypeUUID:    "string",
 		field.TypeBytes:   "bytes",
-		field.TypeEnum:    "int32",
+		field.TypeEnum:    "string",
 		field.TypeString:  "string",
 		field.TypeOther:   "string",
 		field.TypeInt8:    "int32",
