@@ -35,12 +35,13 @@ func main() {
 				node.Annotations = make(map[string]interface{}, 1)
 			}
 			if node.Annotations[entproto.MessageAnnotation] == nil {
+				// If the node does not have the message annotation, add it.
 				node.Annotations[entproto.MessageAnnotation] = entproto.Message()
 				fieldID := 1
 				if node.ID.Annotations == nil {
 					node.ID.Annotations = make(map[string]interface{}, 1)
-					node.ID.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
 				}
+				node.ID.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
 				sort.Slice(node.Fields, func(i, j int) bool {
 					if node.Fields[i].Position.MixedIn != node.Fields[j].Position.MixedIn {
 						// MixedIn fields should be at the end of the list.
