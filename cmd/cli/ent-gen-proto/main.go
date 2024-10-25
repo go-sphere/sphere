@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 )
 
@@ -21,7 +22,7 @@ func main() {
 	fileDesc := genFileDesc(protoPackage, spec)
 	file, err := createProtoFile(err, *protoPath)
 	defer file.Close()
-	parse, err := template.New("proto").Parse(protoTpl)
+	parse, err := template.New("proto").Parse(strings.TrimSpace(protoTpl))
 	if err != nil {
 		log.Panic(err)
 	}

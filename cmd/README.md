@@ -8,7 +8,15 @@ This directory contains the main entry of the application. There are some execut
 | `dash`     | Start the dashboard server                     |
 | `bot`      | Start the bot server                           |
 | `app`      | Start the multi server, api, dashboard and bot |
-| `config`   | Configuration cli tool                         |
-| `storage`  | Storage cli tool                               |
+
+
+## Cli tools
+
+| Executable          | Description                          |
+|---------------------|--------------------------------------|
+| `config`            | Configuration cli tool               |
+| `storage`           | Storage cli tool                     |
+| `ent-gen-proto`     | Generate proto files by ent schema   |
+| `protoc-gen-sphere` | Generate http server by proto files  |
 
 
