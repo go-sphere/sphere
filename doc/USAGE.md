@@ -41,13 +41,13 @@ Targets:
 ├── cmd                         # main entry
 ├── config                      # configuration
 ├── devops                      # devops configuration
-├── docs                        # documentation generate by swag
 ├── internal                    # internal packages
 │   ├── biz                     # business logic
 │   ├── pkg                     # internal common packages
 │   └── server                  # server
 ├── pkg                         # common packages
 ├── proto                       # proto files
+├── swagger                     # documentation generate by swag
 ```
 
 

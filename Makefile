@@ -33,13 +33,13 @@ gen-proto:
 
 .PHONY: gen-docs
 gen-docs: gen-proto
-	swag init --output ./docs/api  --tags api.v1,shared.v1   --instanceName API  -g docs.go
-	swag init --output ./docs/dash --tags dash.v1,shared.v1  --instanceName Dash -g docs.go
+	swag init --output ./swagger/api  --tags api.v1,shared.v1   --instanceName API  -g docs.go
+	swag init --output ./swagger/dash --tags dash.v1,shared.v1  --instanceName Dash -g docs.go
 
 .PHONY: gen-ts
-gen-ts: docs
-	npx swagger-typescript-api -p ./docs/api/API_swagger.json   -o ./docs/api/typescript  --modular
-	npx swagger-typescript-api -p ./docs/dash/Dash_swagger.json -o ./docs/dash/typescript --modular
+gen-ts: gen-docs
+	npx swagger-typescript-api -p ./swagger/api/API_swagger.json   -o ./swagger/api/typescript  --modular
+	npx swagger-typescript-api -p ./swagger/dash/Dash_swagger.json -o ./swagger/dash/typescript --modular
 
 .PHONY: gen-ent
 gen-ent:

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/swaggo/swag"
-	"github.com/tbxark/sphere/docs/api"
-	"github.com/tbxark/sphere/docs/dash"
 	"github.com/tbxark/sphere/pkg/server/route/cors"
 	"github.com/tbxark/sphere/pkg/server/route/docs"
+	"github.com/tbxark/sphere/swagger/api"
+	"github.com/tbxark/sphere/swagger/dash"
 	"net/http/httputil"
 	"net/url"
 )
