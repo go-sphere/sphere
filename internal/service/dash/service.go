@@ -10,6 +10,11 @@ import (
 	"github.com/tbxark/sphere/pkg/wechat"
 )
 
+const (
+	PermissionAll   = "all"
+	PermissionAdmin = "admin"
+)
+
 type TokenAuthorizer = authorizer.TokenAuthorizer[authorizer.RBACClaims[int64]]
 
 type Service struct {

@@ -12,17 +12,17 @@ import (
 var _ dashv1.AdminServiceHTTPServer = (*Service)(nil)
 
 func (s *Service) AdminCreate(ctx context.Context, req *dashv1.AdminCreateRequest) (*dashv1.AdminCreateResponse, error) {
-	if len(req.Password) > 8 {
-		req.Password = secure.CryptPassword(req.Password)
+	if len(req.Admin.Password) > 8 {
+		req.Admin.Password = secure.CryptPassword(req.Admin.Password)
 	} else {
 		return nil, statuserr.NewError(400, "password is too short")
 	}
 	u, err := s.DB.Admin.Create().
-		SetAvatar(s.Storage.ExtractKeyFromURL(req.Avatar)).
-		SetUsername(req.Username).
-		SetNickname(req.Nickname).
-		SetPassword(req.Password).
-		SetRoles(req.Roles).
+		SetAvatar(s.Storage.ExtractKeyFromURL(req.Admin.Avatar)).
+		SetUsername(req.Admin.Username).
+		SetNickname(req.Admin.Nickname).
+		SetPassword(req.Admin.Password).
+		SetRoles(req.Admin.Roles).
 		Save(ctx)
 	if err != nil {
 		return nil, err
@@ -75,17 +75,13 @@ func (s *Service) AdminList(ctx context.Context, req *dashv1.AdminListRequest) (
 
 func (s *Service) AdminUpdate(ctx context.Context, req *dashv1.AdminUpdateRequest) (*dashv1.AdminUpdateResponse, error) {
 	update := s.DB.Admin.UpdateOneID(req.Id).
-		SetAvatar(s.Storage.ExtractKeyFromURL(req.Avatar)).
-		SetUsername(req.Username).
-		SetNickname(req.Nickname).
-		SetRoles(req.Roles)
-	if req.Password != "" {
-		update = update.SetPassword(secure.CryptPassword(req.Password))
-		if len(req.Password) > 8 {
-			req.Password = secure.CryptPassword(req.Password)
-		} else {
-			return nil, statuserr.NewError(400, "password is too short")
-		}
+		SetAvatar(s.Storage.ExtractKeyFromURL(req.Admin.Avatar)).
+		SetUsername(req.Admin.Username).
+		SetNickname(req.Admin.Nickname).
+		SetRoles(req.Admin.Roles)
+	if req.Admin.Password != "" {
+		req.Admin.Password = secure.CryptPassword(req.Admin.Password)
+		update = update.SetPassword(req.Admin.Password)
 	}
 	u, err := update.Save(ctx)
 	if err != nil {
@@ -93,5 +89,14 @@ func (s *Service) AdminUpdate(ctx context.Context, req *dashv1.AdminUpdateReques
 	}
 	return &dashv1.AdminUpdateResponse{
 		Admin: s.Render.AdminWithRoles(u),
+	}, nil
+}
+
+func (s *Service) AdminRoleList(ctx context.Context, request *dashv1.AdminRoleListRequest) (*dashv1.AdminRoleListResponse, error) {
+	return &dashv1.AdminRoleListResponse{
+		Roles: []string{
+			PermissionAll,
+			PermissionAdmin,
+		},
 	}, nil
 }

@@ -164,6 +164,36 @@ const docTemplateDash = `{
                 }
             }
         },
+        "/api/admin/role/list": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dash.v1"
+                ],
+                "summary": "AdminRoleList",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.DataResponse-dashv1_AdminRoleListResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/update/{id}": {
             "post": {
                 "consumes": [
@@ -459,23 +489,8 @@ const docTemplateDash = `{
         "dashv1.AdminCreateRequest": {
             "type": "object",
             "properties": {
-                "avatar": {
-                    "type": "string"
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "password": {
-                    "type": "string"
-                },
-                "roles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "username": {
-                    "type": "string"
+                "admin": {
+                    "$ref": "#/definitions/dashv1.AdminEdit"
                 }
             }
         },
@@ -498,18 +513,7 @@ const docTemplateDash = `{
                 }
             }
         },
-        "dashv1.AdminListResponse": {
-            "type": "object",
-            "properties": {
-                "admins": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dashv1.Admin"
-                    }
-                }
-            }
-        },
-        "dashv1.AdminUpdateRequest": {
+        "dashv1.AdminEdit": {
             "type": "object",
             "properties": {
                 "avatar": {
@@ -529,6 +533,36 @@ const docTemplateDash = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "dashv1.AdminListResponse": {
+            "type": "object",
+            "properties": {
+                "admins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dashv1.Admin"
+                    }
+                }
+            }
+        },
+        "dashv1.AdminRoleListResponse": {
+            "type": "object",
+            "properties": {
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "dashv1.AdminUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "admin": {
+                    "$ref": "#/definitions/dashv1.AdminEdit"
                 }
             }
         },
@@ -655,6 +689,20 @@ const docTemplateDash = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminListResponse"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "ginx.DataResponse-dashv1_AdminRoleListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/dashv1.AdminRoleListResponse"
                 },
                 "message": {
                     "type": "string"

@@ -22,6 +22,7 @@ type AdminServiceHTTPServer interface {
 	AdminDelete(context.Context, *AdminDeleteRequest) (*AdminDeleteResponse, error)
 	AdminDetail(context.Context, *AdminDetailRequest) (*AdminDetailResponse, error)
 	AdminList(context.Context, *AdminListRequest) (*AdminListResponse, error)
+	AdminRoleList(context.Context, *AdminRoleListRequest) (*AdminRoleListResponse, error)
 	AdminUpdate(context.Context, *AdminUpdateRequest) (*AdminUpdateResponse, error)
 }
 
@@ -135,6 +136,24 @@ func _AdminService_AdminDelete0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 	})
 }
 
+// @Summary AdminRoleList
+// @Tags dash.v1
+// @Accept json
+// @Produce json
+// @Param Authorization header string false "Bearer token"
+// @Success 200 {object} ginx.DataResponse[AdminRoleListResponse]
+// @Router /api/admin/role/list [get]
+func _AdminService_AdminRoleList0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
+	return ginx.WithJson(func(ctx *gin.Context) (*AdminRoleListResponse, error) {
+		var in AdminRoleListRequest
+		out, err := srv.AdminRoleList(ctx, &in)
+		if err != nil {
+			return nil, err
+		}
+		return out, nil
+	})
+}
+
 func RegisterAdminServiceHTTPServer(route gin.IRouter, srv AdminServiceHTTPServer) {
 	r := route.Group("/")
 	r.GET("/api/admin/list", _AdminService_AdminList0_HTTP_Handler(srv))
@@ -142,4 +161,5 @@ func RegisterAdminServiceHTTPServer(route gin.IRouter, srv AdminServiceHTTPServe
 	r.POST("/api/admin/update/:id", _AdminService_AdminUpdate0_HTTP_Handler(srv))
 	r.GET("/api/admin/detail/:id", _AdminService_AdminDetail0_HTTP_Handler(srv))
 	r.DELETE("/api/admin/delete/:id", _AdminService_AdminDelete0_HTTP_Handler(srv))
+	r.GET("/api/admin/role/list", _AdminService_AdminRoleList0_HTTP_Handler(srv))
 }

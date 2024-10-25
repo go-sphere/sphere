@@ -39,11 +39,6 @@ func (w *Web) Identifier() string {
 	return "dash"
 }
 
-const (
-	WebPermissionAll   = "all"
-	WebPermissionAdmin = "admin"
-)
-
 func (w *Web) Run() error {
 	jwtAuthorizer := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.AuthJWT)
 	jwtRefresher := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.RefreshJWT)
@@ -51,7 +46,7 @@ func (w *Web) Run() error {
 	zapLogger := log.ZapLogger().With(logfields.String("module", "dash"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
-	authMiddleware := auth.NewAuthMiddleware(jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, false)
+	authMiddleware := auth.NewAuthMiddleware(jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, true)
 	rateLimiter := ratelimiter.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
 	w.engine.Use(loggerMiddleware, recoveryMiddleware)
@@ -87,7 +82,7 @@ func (w *Web) Run() error {
 	authRoute := api.Group("/", rateLimiter)
 	dashv1.RegisterAuthServiceHTTPServer(authRoute, w.service)
 
-	adminRoute := needAuthRoute.Group("/", w.NewPermissionMiddleware(WebPermissionAdmin))
+	adminRoute := needAuthRoute.Group("/", w.withPermission(dash.PermissionAdmin))
 	dashv1.RegisterAdminServiceHTTPServer(adminRoute, w.service)
 
 	systemRoute := needAuthRoute.Group("/")
@@ -96,16 +91,16 @@ func (w *Web) Run() error {
 	return w.engine.Run(w.config.HTTP.Address)
 }
 
-func (w *Web) NewPermissionMiddleware(resource string) gin.HandlerFunc {
+func (w *Web) withPermission(resource string) gin.HandlerFunc {
 	return auth.NewPermissionMiddleware(resource, w.service.ACL)
 }
 
 func initDefaultRolesACL(acl *acl.ACL) {
 	roles := []string{
-		WebPermissionAdmin,
+		dash.PermissionAdmin,
 	}
 	for _, r := range roles {
-		acl.Allow(WebPermissionAll, r)
+		acl.Allow(dash.PermissionAll, r)
 		acl.Allow(r, r)
 	}
 }
