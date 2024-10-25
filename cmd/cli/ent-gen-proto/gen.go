@@ -17,13 +17,13 @@ type FieldDesc struct {
 
 type SchemaDesc struct {
 	Name   string
-	Fields []FieldDesc
+	Fields []*FieldDesc
 }
 
 type FileDesc struct {
 	Package string
 	Imports []string
-	Schemas []SchemaDesc
+	Schemas []*SchemaDesc
 }
 
 func genProtoType(goType string) string {
@@ -47,7 +47,7 @@ func genFileDesc(protoPackage *string, spec *load.SchemaSpec) FileDesc {
 	imports := map[string]struct{}{}
 	for _, s := range spec.Schemas {
 		schemaDesc := genSchemaDesc(s)
-		fileDesc.Schemas = append(fileDesc.Schemas, schemaDesc)
+		fileDesc.Schemas = append(fileDesc.Schemas, &schemaDesc)
 	}
 	for _, s := range fileDesc.Schemas {
 		for _, f := range s.Fields {
@@ -60,6 +60,7 @@ func genFileDesc(protoPackage *string, spec *load.SchemaSpec) FileDesc {
 		}
 	}
 	fileDesc.Imports = maps.Keys(imports)
+
 	return fileDesc
 }
 
@@ -80,11 +81,11 @@ func genSchemaDesc(s *load.Schema) SchemaDesc {
 	}
 	for i, f := range fields {
 		f.Index = i + 1
-		schemaDesc.Fields = append(schemaDesc.Fields, f)
+		schemaDesc.Fields = append(schemaDesc.Fields, &f)
 	}
 	for i, f := range mixFields {
 		f.Index = i + len(fields) + 1
-		schemaDesc.Fields = append(schemaDesc.Fields, f)
+		schemaDesc.Fields = append(schemaDesc.Fields, &f)
 	}
 	return schemaDesc
 }
@@ -103,12 +104,16 @@ func genFieldDesc(f *load.Field) FieldDesc {
 			protoType = "google.protobuf.Any"
 		}
 	}
+	optional := false
+	if strings.HasPrefix(protoType, "google.protobuf.") {
+		optional = f.Optional
+	}
 	fieldDesc := FieldDesc{
 		ProtoType: protoType,
 		Name:      f.Name,
 		Index:     0,
 		Comment:   f.Comment,
-		Optional:  f.Optional,
+		Optional:  optional,
 	}
 	return fieldDesc
 }

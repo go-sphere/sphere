@@ -463,29 +463,6 @@ const docTemplateDash = `{
         }
     },
     "definitions": {
-        "dashv1.Admin": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "roles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
         "dashv1.AdminCreateRequest": {
             "type": "object",
             "properties": {
@@ -498,7 +475,7 @@ const docTemplateDash = `{
             "type": "object",
             "properties": {
                 "admin": {
-                    "$ref": "#/definitions/dashv1.Admin"
+                    "$ref": "#/definitions/datav1.Admin"
                 }
             }
         },
@@ -509,7 +486,7 @@ const docTemplateDash = `{
             "type": "object",
             "properties": {
                 "admin": {
-                    "$ref": "#/definitions/dashv1.Admin"
+                    "$ref": "#/definitions/datav1.Admin"
                 }
             }
         },
@@ -542,7 +519,7 @@ const docTemplateDash = `{
                 "admins": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/dashv1.Admin"
+                        "$ref": "#/definitions/datav1.Admin"
                     }
                 }
             }
@@ -570,7 +547,7 @@ const docTemplateDash = `{
             "type": "object",
             "properties": {
                 "admin": {
-                    "$ref": "#/definitions/dashv1.Admin"
+                    "$ref": "#/definitions/datav1.Admin"
                 }
             }
         },
@@ -641,6 +618,46 @@ const docTemplateDash = `{
         },
         "dashv1.CacheResetResponse": {
             "type": "object"
+        },
+        "datav1.Admin": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "description": "头像",
+                    "type": "string"
+                },
+                "created_at": {
+                    "description": "创建时间",
+                    "type": "integer"
+                },
+                "id": {
+                    "description": "用户ID",
+                    "type": "integer"
+                },
+                "nickname": {
+                    "description": "昵称",
+                    "type": "string"
+                },
+                "password": {
+                    "description": "密码",
+                    "type": "string"
+                },
+                "roles": {
+                    "description": "权限",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "description": "更新时间",
+                    "type": "integer"
+                },
+                "username": {
+                    "description": "用户名",
+                    "type": "string"
+                }
+            }
         },
         "ginx.DataResponse-dashv1_AdminCreateResponse": {
             "type": "object",

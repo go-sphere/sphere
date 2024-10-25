@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/samber/lo"
 	dashv1 "github.com/tbxark/sphere/api/dash/v1"
+	datav1 "github.com/tbxark/sphere/api/data/v1"
 	"github.com/tbxark/sphere/internal/pkg/database/ent"
 	"github.com/tbxark/sphere/pkg/server/statuserr"
 	"github.com/tbxark/sphere/pkg/utils/secure"
@@ -28,7 +29,7 @@ func (s *Service) AdminCreate(ctx context.Context, req *dashv1.AdminCreateReques
 		return nil, err
 	}
 	return &dashv1.AdminCreateResponse{
-		Admin: s.Render.AdminWithRoles(u),
+		Admin: s.Render.AdminFull(u),
 	}, nil
 }
 
@@ -57,7 +58,7 @@ func (s *Service) AdminDetail(ctx context.Context, req *dashv1.AdminDetailReques
 		return nil, err
 	}
 	return &dashv1.AdminDetailResponse{
-		Admin: s.Render.AdminWithRoles(adm),
+		Admin: s.Render.AdminFull(adm),
 	}, nil
 }
 
@@ -67,8 +68,8 @@ func (s *Service) AdminList(ctx context.Context, req *dashv1.AdminListRequest) (
 		return nil, err
 	}
 	return &dashv1.AdminListResponse{
-		Admins: lo.Map(all, func(admin *ent.Admin, i int) *dashv1.Admin {
-			return s.Render.AdminWithRoles(admin)
+		Admins: lo.Map(all, func(admin *ent.Admin, i int) *datav1.Admin {
+			return s.Render.AdminFull(admin)
 		}),
 	}, nil
 }
@@ -88,7 +89,7 @@ func (s *Service) AdminUpdate(ctx context.Context, req *dashv1.AdminUpdateReques
 		return nil, err
 	}
 	return &dashv1.AdminUpdateResponse{
-		Admin: s.Render.AdminWithRoles(u),
+		Admin: s.Render.AdminFull(u),
 	}, nil
 }
 

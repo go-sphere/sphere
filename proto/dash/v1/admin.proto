@@ -3,6 +3,7 @@ syntax = "proto3";
 package dash.v1;
 
 import "google/api/annotations.proto";
+import "data/v1/model.proto";
 
 
 service AdminService {
@@ -41,14 +42,6 @@ service AdminService {
   }
 }
 
-message Admin {
-  int64 id = 1;
-  string avatar = 2;
-  string username = 3;
-  string nickname = 4;
-  repeated string roles = 5;
-}
-
 message AdminEdit {
   string avatar = 1;
   string username = 2;
@@ -61,7 +54,7 @@ message AdminListRequest {
 }
 
 message AdminListResponse {
-  repeated Admin admins = 1;
+  repeated data.v1.Admin admins = 1;
 }
 
 message AdminCreateRequest {
@@ -69,7 +62,7 @@ message AdminCreateRequest {
 }
 
 message AdminCreateResponse {
-  Admin admin = 1;
+  data.v1.Admin admin = 1;
 }
 
 message AdminUpdateRequest {
@@ -78,7 +71,7 @@ message AdminUpdateRequest {
 }
 
 message AdminUpdateResponse {
-  Admin admin = 1;
+  data.v1.Admin admin = 1;
 }
 
 message AdminDetailRequest {
@@ -86,7 +79,7 @@ message AdminDetailRequest {
 }
 
 message AdminDetailResponse {
-  Admin admin = 1;
+  data.v1.Admin admin = 1;
 }
 
 message AdminDeleteRequest {
