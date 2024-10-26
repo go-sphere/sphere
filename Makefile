@@ -54,14 +54,14 @@ gen-ent:
 gen-wire:
 	go generate ./cmd/...
 
+.PHONY: gen-conf
+gen-conf:
+	go run ./cmd/cli/config gen
+
 .PHONY: generate
 generate:
 	go generate ./...
 	$(MAKE) gen-docs
-
-.PHONY: config
-config:
-	go run ./cmd/cli/config gen
 
 .PHONY: dash
 dash:
@@ -111,8 +111,8 @@ help:
 	@echo "  gen-ts              Generate typescript client"
 	@echo "  gen-ent             Generate ent code"
 	@echo "  gen-wire            Generate wire code"
+	@echo "  gen-conf            Generate config"
 	@echo "  generate            Generate code"
-	@echo "  config              Generate config"
 	@echo "  dash                Build dash"
 	@echo "  build               Build binary"
 	@echo "  build-linux-amd     Build linux amd64 binary"

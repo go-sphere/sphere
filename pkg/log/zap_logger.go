@@ -145,6 +145,6 @@ func (l *zapLogger) WithFields(fields map[string]interface{}) Logger {
 	for k, v := range fields {
 		f = append(f, zap.Any(k, v))
 	}
-	logger := l.sugarLogger.With()
+	logger := l.sugarLogger.With(f)
 	return &zapLogger{logger}
 }

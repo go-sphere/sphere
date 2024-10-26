@@ -19,8 +19,10 @@ Targets:
   gen-proto           Generate proto files
   gen-docs            Generate swagger docs
   gen-ts              Generate typescript client
+  gen-ent             Generate ent code
+  gen-wire            Generate wire code
+  gen-conf            Generate config
   generate            Generate code
-  config              Generate config
   dash                Build dash
   build               Build binary
   build-linux-amd     Build linux amd64 binary
