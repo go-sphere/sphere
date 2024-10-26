@@ -33,6 +33,7 @@ install:
 
 .PHONY: gen-proto
 gen-proto:
+	ent-gen-proto
 	buf generate
 	protoc-go-inject-tag -input="./api/*/*/*.pb.go" -remove_tag_comment
 
@@ -49,7 +50,6 @@ gen-ts: gen-docs
 .PHONY: gen-ent
 gen-ent:
 	go generate ./internal/pkg/database/ent
-	ent-gen-proto
 
 .PHONY: gen-wire
 gen-wire:
