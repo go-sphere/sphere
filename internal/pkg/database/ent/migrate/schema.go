@@ -46,7 +46,7 @@ var (
 		{Name: "updated_at", Type: field.TypeInt64, Nullable: true},
 		{Name: "username", Type: field.TypeString},
 		{Name: "remark", Type: field.TypeString, Nullable: true, Size: 30, Default: ""},
-		{Name: "avatar", Type: field.TypeString},
+		{Name: "avatar", Type: field.TypeString, Default: ""},
 		{Name: "phone", Type: field.TypeString, Nullable: true, Size: 20, Default: ""},
 		{Name: "flags", Type: field.TypeUint64, Default: 0},
 	}

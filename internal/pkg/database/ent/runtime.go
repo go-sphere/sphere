@@ -89,6 +89,10 @@ func init() {
 	user.DefaultRemark = userDescRemark.Default.(string)
 	// user.RemarkValidator is a validator for the "remark" field. It is called by the builders before save.
 	user.RemarkValidator = userDescRemark.Validators[0].(func(string) error)
+	// userDescAvatar is the schema descriptor for avatar field.
+	userDescAvatar := userFields[3].Descriptor()
+	// user.DefaultAvatar holds the default value on creation for the avatar field.
+	user.DefaultAvatar = userDescAvatar.Default.(string)
 	// userDescPhone is the schema descriptor for phone field.
 	userDescPhone := userFields[4].Descriptor()
 	// user.DefaultPhone holds the default value on creation for the phone field.

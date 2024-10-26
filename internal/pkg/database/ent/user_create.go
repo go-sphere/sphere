@@ -75,6 +75,14 @@ func (uc *UserCreate) SetAvatar(s string) *UserCreate {
 	return uc
 }
 
+// SetNillableAvatar sets the "avatar" field if the given value is not nil.
+func (uc *UserCreate) SetNillableAvatar(s *string) *UserCreate {
+	if s != nil {
+		uc.SetAvatar(*s)
+	}
+	return uc
+}
+
 // SetPhone sets the "phone" field.
 func (uc *UserCreate) SetPhone(s string) *UserCreate {
 	uc.mutation.SetPhone(s)
@@ -163,6 +171,10 @@ func (uc *UserCreate) defaults() {
 	if _, ok := uc.mutation.Remark(); !ok {
 		v := user.DefaultRemark
 		uc.mutation.SetRemark(v)
+	}
+	if _, ok := uc.mutation.Avatar(); !ok {
+		v := user.DefaultAvatar
+		uc.mutation.SetAvatar(v)
 	}
 	if _, ok := uc.mutation.Phone(); !ok {
 		v := user.DefaultPhone

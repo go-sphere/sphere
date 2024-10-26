@@ -14,16 +14,22 @@ GO_BUILD := CGO_ENABLED=0 go build -ldflags $(LD_FLAGS)
 
 .PHONY: init
 init:
+	go mod download
+	go get ./...
 	go get entgo.io/ent/cmd/ent@latest
 	go get github.com/google/wire/cmd/wire@latest
 	go install github.com/swaggo/swag/cmd/swag@latest
 	go install github.com/bufbuild/buf/cmd/buf@latest
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	go install github.com/tbxark/sphere/cmd/cli/protoc-gen-sphere@latest
 	go install github.com/favadi/protoc-go-inject-tag@latest
-	go mod download
-	buf dep update
+	$(MAKE) install
 	$(MAKE) generate
+	buf dep update
+
+.PHONY: install
+install:
+	go install ./cmd/cli/protoc-gen-sphere
+	go install ./cmd/cli/ent-gen-proto
 
 .PHONY: gen-proto
 gen-proto:

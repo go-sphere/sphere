@@ -64,6 +64,8 @@ var (
 	DefaultRemark string
 	// RemarkValidator is a validator for the "remark" field. It is called by the builders before save.
 	RemarkValidator func(string) error
+	// DefaultAvatar holds the default value on creation for the "avatar" field.
+	DefaultAvatar string
 	// DefaultPhone holds the default value on creation for the "phone" field.
 	DefaultPhone string
 	// PhoneValidator is a validator for the "phone" field. It is called by the builders before save.
