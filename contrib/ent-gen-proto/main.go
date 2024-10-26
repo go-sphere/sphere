@@ -18,17 +18,21 @@ func main() {
 		autoAddAnnotation = flag.Bool("auto-annotation", true, "auto add annotation to the schema")
 	)
 	flag.Parse()
-	abs, err := filepath.Abs(*schemaPath)
+	RunProtoGen(*schemaPath, *protoDir, *ignoreOptional, *autoAddAnnotation)
+}
+
+func RunProtoGen(schemaPath string, protoDir string, ignoreOptional bool, autoAddAnnotation bool) {
+	abs, err := filepath.Abs(schemaPath)
 	if err != nil {
 		log.Fatalf("entproto: failed getting absolute path: %v", err)
 	}
-	graph, err := entc.LoadGraph(*schemaPath, &gen.Config{
+	graph, err := entc.LoadGraph(schemaPath, &gen.Config{
 		Target: filepath.Dir(abs),
 	})
 	if err != nil {
 		log.Fatalf("entproto: failed loading ent graph: %v", err)
 	}
-	if *autoAddAnnotation {
+	if autoAddAnnotation {
 		for i := 0; i < len(graph.Nodes); i++ {
 			node := graph.Nodes[i]
 			if node.Annotations == nil {
@@ -57,7 +61,7 @@ func main() {
 					}
 					fieldID++
 					field.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
-					if field.Optional && *ignoreOptional {
+					if field.Optional && ignoreOptional {
 						field.Optional = false
 					}
 				}
@@ -66,7 +70,7 @@ func main() {
 	}
 	extension, err := entproto.NewExtension(
 		entproto.EnableOptional(),
-		entproto.WithProtoDir(*protoDir),
+		entproto.WithProtoDir(protoDir),
 		entproto.SkipGenFile(),
 	)
 	if err != nil {

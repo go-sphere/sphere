@@ -15,7 +15,6 @@ GO_BUILD := CGO_ENABLED=0 go build -ldflags $(LD_FLAGS)
 .PHONY: init
 init:
 	go mod download
-	go get ./...
 	go get entgo.io/ent/cmd/ent@latest
 	go get github.com/google/wire/cmd/wire@latest
 	go install github.com/swaggo/swag/cmd/swag@latest
