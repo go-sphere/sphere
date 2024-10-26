@@ -28,8 +28,8 @@ init:
 
 .PHONY: install
 install:
-	go install ./cmd/cli/protoc-gen-sphere
-	go install ./cmd/cli/ent-gen-proto
+	cd contrib/protoc-gen-sphere &&  go get ./... && go install .
+	cd contrib/ent-gen-proto &&  go get ./... && go install .
 
 .PHONY: gen-proto
 gen-proto:
@@ -49,7 +49,7 @@ gen-ts: gen-docs
 .PHONY: gen-ent
 gen-ent:
 	go generate ./internal/pkg/database/ent
-	go run ./cmd/cli/ent-gen-proto
+	ent-gen-proto
 
 .PHONY: gen-wire
 gen-wire:

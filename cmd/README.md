@@ -10,13 +10,11 @@ This directory contains the main entry of the application. There are some execut
 | `app`      | Start the multi server, api, dashboard and bot |
 
 
-## Cli tools
+## cli tools
 
 | Executable          | Description                          |
 |---------------------|--------------------------------------|
 | `config`            | Configuration cli tool               |
 | `storage`           | Storage cli tool                     |
-| `ent-gen-proto`     | Generate proto files by ent schema   |
-| `protoc-gen-sphere` | Generate http server by proto files  |
 
 
