@@ -16,8 +16,13 @@ func main() {
 		protoDir          = flag.String("proto", "./proto", "path to proto directory")
 		ignoreOptional    = flag.Bool("ignore-optional", true, "ignore optional keyword")
 		autoAddAnnotation = flag.Bool("auto-annotation", true, "auto add annotation to the schema")
+		help              = flag.Bool("help", false, "show help")
 	)
 	flag.Parse()
+	if *help {
+		flag.PrintDefaults()
+		return
+	}
 	RunProtoGen(*schemaPath, *protoDir, *ignoreOptional, *autoAddAnnotation)
 }
 
