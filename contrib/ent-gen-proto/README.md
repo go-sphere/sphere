@@ -7,7 +7,7 @@ Different from the [entproto](https://github.com/ent/contrib/tree/master/entprot
 ## Installation
 
 ```shell
-go get ./..
+go mod download
 go install .
 ```
 

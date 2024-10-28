@@ -27,8 +27,8 @@ init:
 
 .PHONY: install
 install:
-	cd contrib/protoc-gen-sphere &&  go get ./... && go install .
-	cd contrib/ent-gen-proto &&  go get ./... && go install .
+	cd contrib/protoc-gen-sphere &&  go mod download && go install .
+	cd contrib/ent-gen-proto &&  go mod download && go install .
 
 .PHONY: gen-proto
 gen-proto:
