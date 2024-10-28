@@ -4,7 +4,7 @@ package cmd
 
 import (
 	"context"
-	"github.com/tbxark/sphere/config"
+	"github.com/tbxark/sphere/internal/config"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/storage"
 	"github.com/tbxark/sphere/pkg/storage/qiniu"

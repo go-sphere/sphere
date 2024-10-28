@@ -7,8 +7,8 @@
 package main
 
 import (
-	"github.com/tbxark/sphere/config"
 	"github.com/tbxark/sphere/internal/biz/task"
+	"github.com/tbxark/sphere/internal/config"
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/database/client"
 	api2 "github.com/tbxark/sphere/internal/server/api"

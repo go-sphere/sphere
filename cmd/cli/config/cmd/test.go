@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/cobra"
-	"github.com/tbxark/sphere/config"
+	"github.com/tbxark/sphere/internal/config"
 	"github.com/tbxark/sphere/pkg/log"
 )
 

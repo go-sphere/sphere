@@ -2,7 +2,7 @@ package app
 
 import (
 	"fmt"
-	"github.com/tbxark/sphere/config"
+	"github.com/tbxark/sphere/internal/config"
 	"github.com/tbxark/sphere/pkg/utils/boot"
 	"os"
 )

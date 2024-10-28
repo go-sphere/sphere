@@ -7,7 +7,7 @@
 package main
 
 import (
-	"github.com/tbxark/sphere/config"
+	"github.com/tbxark/sphere/internal/config"
 	"github.com/tbxark/sphere/internal/server/bot"
 	"github.com/tbxark/sphere/pkg/utils/boot"
 )

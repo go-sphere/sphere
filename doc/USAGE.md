@@ -41,10 +41,10 @@ Targets:
 ├── api                         # generated proto files
 ├── assets                      # embed assets
 ├── cmd                         # main entry
-├── config                      # configuration
 ├── devops                      # devops configuration
 ├── internal                    # internal packages
 │   ├── biz                     # business logic
+│   ├── config                  # configuration
 │   ├── pkg                     # internal common packages
 │   └── server                  # server
 ├── pkg                         # common packages
