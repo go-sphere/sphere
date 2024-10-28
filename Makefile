@@ -43,8 +43,8 @@ gen-docs: gen-proto
 
 .PHONY: gen-ts
 gen-ts: gen-docs
-	npx swagger-typescript-api -p ./swagger/api/API_swagger.json   -o ./swagger/api/typescript  --modular
-	npx swagger-typescript-api -p ./swagger/dash/Dash_swagger.json -o ./swagger/dash/typescript --modular
+	npx swagger-typescript-api -p ./swagger/api/API_swagger.json   -o ./swagger/api/typescript  --modular --responses --extract-response-body --extract-response-error
+	npx swagger-typescript-api -p ./swagger/dash/Dash_swagger.json -o ./swagger/dash/typescript --modular --responses --extract-response-body --extract-response-error
 
 .PHONY: gen-ent
 gen-ent:

@@ -56,6 +56,30 @@ const docTemplateDash = `{
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-dashv1_AdminCreateResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -92,6 +116,30 @@ const docTemplateDash = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-dashv1_AdminDeleteResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
                         }
                     }
                 }
@@ -130,6 +178,30 @@ const docTemplateDash = `{
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-dashv1_AdminDetailResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -160,6 +232,30 @@ const docTemplateDash = `{
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-dashv1_AdminListResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -189,6 +285,30 @@ const docTemplateDash = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-dashv1_AdminRoleListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
                         }
                     }
                 }
@@ -236,6 +356,30 @@ const docTemplateDash = `{
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-dashv1_AdminUpdateResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -274,6 +418,30 @@ const docTemplateDash = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-dashv1_AuthLoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
                         }
                     }
                 }
@@ -314,6 +482,30 @@ const docTemplateDash = `{
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-dashv1_AuthRefreshResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -352,6 +544,30 @@ const docTemplateDash = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-dashv1_CacheResetResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
                         }
                     }
                 }
@@ -418,6 +634,30 @@ const docTemplateDash = `{
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-sharedv1_RunTestResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -456,6 +696,30 @@ const docTemplateDash = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-sharedv1_UploadTokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
                         }
                     }
                 }
@@ -657,11 +921,9 @@ const docTemplateDash = `{
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminCreateResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -671,11 +933,9 @@ const docTemplateDash = `{
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminDeleteResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -685,11 +945,9 @@ const docTemplateDash = `{
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminDetailResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -699,11 +957,9 @@ const docTemplateDash = `{
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminListResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -713,11 +969,9 @@ const docTemplateDash = `{
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminRoleListResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -727,11 +981,9 @@ const docTemplateDash = `{
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminUpdateResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -741,11 +993,9 @@ const docTemplateDash = `{
                 "data": {
                     "$ref": "#/definitions/dashv1.AuthLoginResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -755,11 +1005,9 @@ const docTemplateDash = `{
                 "data": {
                     "$ref": "#/definitions/dashv1.AuthRefreshResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -769,11 +1017,9 @@ const docTemplateDash = `{
                 "data": {
                     "$ref": "#/definitions/dashv1.CacheResetResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -783,11 +1029,9 @@ const docTemplateDash = `{
                 "data": {
                     "$ref": "#/definitions/sharedv1.RunTestResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -797,11 +1041,21 @@ const docTemplateDash = `{
                 "data": {
                     "$ref": "#/definitions/sharedv1.UploadTokenResponse"
                 },
+                "success": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "ginx.ErrorResponse": {
+            "type": "object",
+            "properties": {
                 "message": {
                     "type": "string"
                 },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": false
                 }
             }
         },

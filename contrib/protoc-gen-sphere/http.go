@@ -421,6 +421,10 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path, desc string, path
 	}
 
 	builder.WriteString("// @Success 200 {object} ginx.DataResponse[" + m.Output.GoIdent.GoName + "]\n")
+	builder.WriteString("// @Success 400 {object} ginx.ErrorResponse\n")
+	builder.WriteString("// @Success 401 {object} ginx.ErrorResponse\n")
+	builder.WriteString("// @Success 403 {object} ginx.ErrorResponse\n")
+	builder.WriteString("// @Success 500 {object} ginx.ErrorResponse\n")
 	builder.WriteString("// @Router " + path + " [" + strings.ToLower(method) + "]\n")
 	return builder.String()
 }

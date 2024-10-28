@@ -27,6 +27,10 @@ type SystemServiceHTTPServer interface {
 // @Produce json
 // @Param Authorization header string false "Bearer token"
 // @Success 200 {object} ginx.DataResponse[StatusResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/status [get]
 func _SystemService_Status0_HTTP_Handler(srv SystemServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*StatusResponse, error) {

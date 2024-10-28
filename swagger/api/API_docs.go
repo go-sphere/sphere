@@ -47,6 +47,30 @@ const docTemplateAPI = `{
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-apiv1_StatusResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -112,6 +136,30 @@ const docTemplateAPI = `{
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-sharedv1_RunTestResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -150,6 +198,30 @@ const docTemplateAPI = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-sharedv1_UploadTokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
                         }
                     }
                 }
@@ -190,6 +262,30 @@ const docTemplateAPI = `{
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-apiv1_BindPhoneWxMiniResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -219,6 +315,30 @@ const docTemplateAPI = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-apiv1_MeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
                         }
                     }
                 }
@@ -259,6 +379,30 @@ const docTemplateAPI = `{
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-apiv1_UpdateResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -298,6 +442,30 @@ const docTemplateAPI = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-apiv1_AuthWxMiniResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
                         }
                     }
                 }
@@ -374,11 +542,9 @@ const docTemplateAPI = `{
                 "data": {
                     "$ref": "#/definitions/apiv1.AuthWxMiniResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -388,11 +554,9 @@ const docTemplateAPI = `{
                 "data": {
                     "$ref": "#/definitions/apiv1.BindPhoneWxMiniResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -402,11 +566,9 @@ const docTemplateAPI = `{
                 "data": {
                     "$ref": "#/definitions/apiv1.MeResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -416,11 +578,9 @@ const docTemplateAPI = `{
                 "data": {
                     "$ref": "#/definitions/apiv1.StatusResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -430,11 +590,9 @@ const docTemplateAPI = `{
                 "data": {
                     "$ref": "#/definitions/apiv1.UpdateResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -444,11 +602,9 @@ const docTemplateAPI = `{
                 "data": {
                     "$ref": "#/definitions/sharedv1.RunTestResponse"
                 },
-                "message": {
-                    "type": "string"
-                },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -458,11 +614,21 @@ const docTemplateAPI = `{
                 "data": {
                     "$ref": "#/definitions/sharedv1.UploadTokenResponse"
                 },
+                "success": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "ginx.ErrorResponse": {
+            "type": "object",
+            "properties": {
                 "message": {
                     "type": "string"
                 },
                 "success": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "default": false
                 }
             }
         },

@@ -8,6 +8,8 @@ import (
 	"net/http"
 )
 
+var internalServerError = errors.New("internal server error")
+
 type statusError interface {
 	error
 	Status() int
@@ -26,79 +28,64 @@ func Value[T any](key string, ctx *gin.Context) (*T, bool) {
 	return nil, false
 }
 
-func abortWithJsonError(ctx *gin.Context, err error) {
+func AbortWithJsonError(ctx *gin.Context, code int, err error) {
 	var hErr statusError
 	if errors.As(err, &hErr) {
-		ctx.AbortWithStatusJSON(hErr.Status(), gin.H{
-			"message": hErr.Error(),
+		ctx.AbortWithStatusJSON(hErr.Status(), ErrorResponse{
+			Success: false,
+			Message: hErr.Error(),
 		})
 	} else {
-		ctx.AbortWithStatusJSON(400, gin.H{
-			"message": err.Error(),
+		ctx.AbortWithStatusJSON(code, ErrorResponse{
+			Success: false,
+			Message: err.Error(),
 		})
+	}
+}
+
+func WithRecover(message string, handler func(ctx *gin.Context)) func(ctx *gin.Context) {
+	return func(ctx *gin.Context) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Warnw(
+					message,
+					logfields.Any("error", err),
+				)
+				AbortWithJsonError(ctx, http.StatusInternalServerError, internalServerError)
+			}
+		}()
+		handler(ctx)
 	}
 }
 
 func WithJson[T any](handler func(ctx *gin.Context) (T, error)) func(ctx *gin.Context) {
-	return func(ctx *gin.Context) {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Warnw(
-					"WithJson panic",
-					logfields.Any("error", err),
-				)
-				ctx.AbortWithStatusJSON(500, gin.H{
-					"message": "internal server error",
-				})
-			}
-		}()
+	return WithRecover("WithJson panic", func(ctx *gin.Context) {
 		data, err := handler(ctx)
 		if err != nil {
-			abortWithJsonError(ctx, err)
+			AbortWithJsonError(ctx, http.StatusBadRequest, err)
 		} else {
-			ctx.JSON(200, gin.H{
-				"success": true,
-				"data":    data,
+			ctx.JSON(200, DataResponse[T]{
+				Success: true,
+				Data:    data,
 			})
 		}
-	}
+	})
 }
 
 func WithText(handler func(ctx *gin.Context) (string, error)) func(ctx *gin.Context) {
-	return func(ctx *gin.Context) {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Warnw(
-					"WithText panic",
-					logfields.Any("error", err),
-				)
-				ctx.AbortWithStatusJSON(500, gin.H{
-					"message": "internal server error",
-				})
-			}
-		}()
+	return WithRecover("WithText panic", func(ctx *gin.Context) {
 		data, err := handler(ctx)
 		if err != nil {
-			abortWithJsonError(ctx, err)
+			AbortWithJsonError(ctx, http.StatusBadRequest, err)
 		} else {
 			ctx.String(200, data)
 		}
-	}
+	})
+
 }
 
 func WithHandler(h http.Handler) func(ctx *gin.Context) {
-	return func(ctx *gin.Context) {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Warnw(
-					"WithHandler panic",
-					logfields.Any("error", err),
-				)
-				ctx.AbortWithStatusJSON(500, gin.H{
-					"message": "internal server error",
-				})
-			}
-		}()
+	return WithRecover("WithHandler panic", func(ctx *gin.Context) {
 		h.ServeHTTP(ctx.Writer, ctx.Request)
-	}
+	})
 }

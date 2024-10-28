@@ -29,6 +29,10 @@ type UserServiceHTTPServer interface {
 // @Produce json
 // @Param Authorization header string false "Bearer token"
 // @Success 200 {object} ginx.DataResponse[MeResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/user/me [get]
 func _UserService_Me0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*MeResponse, error) {
@@ -48,6 +52,10 @@ func _UserService_Me0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.Cont
 // @Param Authorization header string false "Bearer token"
 // @Param request body UpdateRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[UpdateResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/user/update [post]
 func _UserService_Update0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*UpdateResponse, error) {
@@ -70,6 +78,10 @@ func _UserService_Update0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.
 // @Param Authorization header string false "Bearer token"
 // @Param request body BindPhoneWxMiniRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[BindPhoneWxMiniResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/user/bind/phone/wxmini [post]
 func _UserService_BindPhoneWxMini0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*BindPhoneWxMiniResponse, error) {

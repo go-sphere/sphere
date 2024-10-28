@@ -32,6 +32,10 @@ type TestServiceHTTPServer interface {
 // @Param query_test2 query integer false "query_test2"
 // @Param request body RunTestRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[RunTestResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/test/{path_test1}/second/{path_test2} [post]
 func _TestService_RunTest0_HTTP_Handler(srv TestServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*RunTestResponse, error) {

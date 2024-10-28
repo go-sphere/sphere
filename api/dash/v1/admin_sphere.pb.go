@@ -32,6 +32,10 @@ type AdminServiceHTTPServer interface {
 // @Produce json
 // @Param Authorization header string false "Bearer token"
 // @Success 200 {object} ginx.DataResponse[AdminListResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/admin/list [get]
 func _AdminService_AdminList0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AdminListResponse, error) {
@@ -51,6 +55,10 @@ func _AdminService_AdminList0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx 
 // @Param Authorization header string false "Bearer token"
 // @Param request body AdminCreateRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[AdminCreateResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/admin/create [post]
 func _AdminService_AdminCreate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AdminCreateResponse, error) {
@@ -74,6 +82,10 @@ func _AdminService_AdminCreate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 // @Param id path integer true "id"
 // @Param request body AdminUpdateRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[AdminUpdateResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/admin/update/{id} [post]
 func _AdminService_AdminUpdate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AdminUpdateResponse, error) {
@@ -99,6 +111,10 @@ func _AdminService_AdminUpdate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 // @Param Authorization header string false "Bearer token"
 // @Param id path integer true "id"
 // @Success 200 {object} ginx.DataResponse[AdminDetailResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/admin/detail/{id} [get]
 func _AdminService_AdminDetail0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AdminDetailResponse, error) {
@@ -121,6 +137,10 @@ func _AdminService_AdminDetail0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 // @Param Authorization header string false "Bearer token"
 // @Param id path integer true "id"
 // @Success 200 {object} ginx.DataResponse[AdminDeleteResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/admin/delete/{id} [delete]
 func _AdminService_AdminDelete0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AdminDeleteResponse, error) {
@@ -142,6 +162,10 @@ func _AdminService_AdminDelete0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 // @Produce json
 // @Param Authorization header string false "Bearer token"
 // @Success 200 {object} ginx.DataResponse[AdminRoleListResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/admin/role/list [get]
 func _AdminService_AdminRoleList0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AdminRoleListResponse, error) {

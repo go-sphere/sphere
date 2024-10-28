@@ -28,6 +28,10 @@ type SystemServiceHTTPServer interface {
 // @Param Authorization header string false "Bearer token"
 // @Param request body CacheResetRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[CacheResetResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/cache/reset [post]
 func _SystemService_CacheReset0_HTTP_Handler(srv SystemServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*CacheResetResponse, error) {

@@ -29,6 +29,10 @@ type AuthServiceHTTPServer interface {
 // @Param Authorization header string false "Bearer token"
 // @Param request body AuthLoginRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[AuthLoginResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/auth/login [post]
 func _AuthService_AuthLogin0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AuthLoginResponse, error) {
@@ -54,6 +58,10 @@ func _AuthService_AuthLogin0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *g
 // @Param Authorization header string false "Bearer token"
 // @Param request body AuthRefreshRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[AuthRefreshResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
 // @Router /api/auth/refresh [post]
 func _AuthService_AuthRefresh0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AuthRefreshResponse, error) {
