@@ -54,7 +54,7 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	}
 	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
 	g.P("var _ = new(", ginPackage.Ident("Context"), ")")
-	g.P("var _ = new(", ginxPackage.Ident("DataResponse[string]"), ")")
+	g.P("var _ = new(", ginxPackage.Ident("ErrorResponse"), ")")
 	g.P("var _ = new(", validatePackage.Ident("Validator"), ")")
 	g.P()
 
@@ -401,7 +401,10 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path, desc string, path
 	builder.WriteString("// @Tags " + string(m.Parent.Desc.ParentFile().Package()) + "\n")
 	builder.WriteString("// @Accept json\n")
 	builder.WriteString("// @Produce json\n")
-	builder.WriteString(swaggerAuth + "\n")
+
+	if swaggerAuth != "" {
+		builder.WriteString(swaggerAuth + "\n")
+	}
 
 	// Add path parameters
 	for _, param := range pathVars {

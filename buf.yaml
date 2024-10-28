@@ -8,6 +8,8 @@ deps:
 lint:
   use:
     - STANDARD
+  ignore:
+    - proto/entpb
   rpc_allow_same_request_response: true
 breaking:
   use:

@@ -14,7 +14,7 @@ import (
 
 var _ = new(context.Context)
 var _ = new(gin.Context)
-var _ = new(ginx.DataResponse[string])
+var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
 type AuthServiceHTTPServer interface {
@@ -26,7 +26,7 @@ type AuthServiceHTTPServer interface {
 // @Tags dash.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Param request body AuthLoginRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[AuthLoginResponse]
 // @Success 400 {object} ginx.ErrorResponse
@@ -55,7 +55,7 @@ func _AuthService_AuthLogin0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *g
 // @Tags dash.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Param request body AuthRefreshRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[AuthRefreshResponse]
 // @Success 400 {object} ginx.ErrorResponse

@@ -197,3 +197,22 @@ func ShouldBindQuery(c *gin.Context, obj interface{}) error {
 func ShouldBindJSON(c *gin.Context, obj interface{}) error {
 	return c.ShouldBindJSON(obj)
 }
+
+func ShouldBind(ctx *gin.Context, obj interface{}, uri, query, body bool) error {
+	if body {
+		if err := ShouldBindJSON(ctx, obj); err != nil {
+			return err
+		}
+	}
+	if query {
+		if err := ShouldBindQuery(ctx, obj); err != nil {
+			return err
+		}
+	}
+	if uri {
+		if err := ShouldBindUri(ctx, obj); err != nil {
+			return err
+		}
+	}
+	return nil
+}

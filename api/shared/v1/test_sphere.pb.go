@@ -14,7 +14,7 @@ import (
 
 var _ = new(context.Context)
 var _ = new(gin.Context)
-var _ = new(ginx.DataResponse[string])
+var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
 type TestServiceHTTPServer interface {
@@ -25,7 +25,7 @@ type TestServiceHTTPServer interface {
 // @Tags shared.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Param path_test1 path string true "path_test1"
 // @Param path_test2 path integer true "path_test2"
 // @Param query_test1 query string false "query_test1"

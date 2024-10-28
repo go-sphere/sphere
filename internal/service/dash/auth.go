@@ -20,6 +20,10 @@ const (
 	AuthExpiresTimeFormat     = "2006/01/02 15:04:05"
 )
 
+var (
+	ErrPasswordNotMatch = statuserr.NewError(400, "password not match")
+)
+
 type AdminToken struct {
 	Admin        *ent.Admin
 	AccessToken  string
@@ -55,10 +59,10 @@ func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
 func (s *Service) AuthLogin(ctx context.Context, req *dashv1.AuthLoginRequest) (*dashv1.AuthLoginResponse, error) {
 	u, err := s.DB.Admin.Query().Where(admin.UsernameEQ(req.Username)).Only(ctx)
 	if err != nil {
-		return nil, err
+		return nil, ErrPasswordNotMatch // 隐藏错误信息
 	}
 	if !secure.IsPasswordMatch(req.Password, u.Password) {
-		return nil, statuserr.NewError(400, "password not match")
+		return nil, ErrPasswordNotMatch
 	}
 	token, err := s.createToken(u)
 	if err != nil {

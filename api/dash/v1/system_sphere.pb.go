@@ -14,7 +14,7 @@ import (
 
 var _ = new(context.Context)
 var _ = new(gin.Context)
-var _ = new(ginx.DataResponse[string])
+var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
 type SystemServiceHTTPServer interface {
@@ -25,7 +25,7 @@ type SystemServiceHTTPServer interface {
 // @Tags dash.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Param request body CacheResetRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[CacheResetResponse]
 // @Success 400 {object} ginx.ErrorResponse

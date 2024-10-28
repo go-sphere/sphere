@@ -23,6 +23,11 @@ const docTemplateAPI = `{
     "paths": {
         "/api/status": {
             "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -33,14 +38,6 @@ const docTemplateAPI = `{
                     "api.v1"
                 ],
                 "summary": "Status",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -77,6 +74,11 @@ const docTemplateAPI = `{
         },
         "/api/test/{path_test1}/second/{path_test2}": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -88,12 +90,6 @@ const docTemplateAPI = `{
                 ],
                 "summary": "RunTest",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "path_test1",
@@ -166,6 +162,11 @@ const docTemplateAPI = `{
         },
         "/api/upload/token": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -177,12 +178,6 @@ const docTemplateAPI = `{
                 ],
                 "summary": "UploadToken",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "description": "Request body",
                         "name": "request",
@@ -229,6 +224,11 @@ const docTemplateAPI = `{
         },
         "/api/user/bind/phone/wxmini": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -240,12 +240,6 @@ const docTemplateAPI = `{
                 ],
                 "summary": "BindPhoneWxMini",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "description": "Request body",
                         "name": "request",
@@ -292,6 +286,11 @@ const docTemplateAPI = `{
         },
         "/api/user/me": {
             "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -302,14 +301,6 @@ const docTemplateAPI = `{
                     "api.v1"
                 ],
                 "summary": "Me",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -346,6 +337,11 @@ const docTemplateAPI = `{
         },
         "/api/user/update": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -357,12 +353,6 @@ const docTemplateAPI = `{
                 ],
                 "summary": "Update",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "description": "Request body",
                         "name": "request",
@@ -409,6 +399,11 @@ const docTemplateAPI = `{
         },
         "/v1/auth/wxmini": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "description": "请求小程序",
                 "consumes": [
                     "application/json"
@@ -421,12 +416,6 @@ const docTemplateAPI = `{
                 ],
                 "summary": "AuthWxMini",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "description": "Request body",
                         "name": "request",

@@ -14,7 +14,7 @@ import (
 
 var _ = new(context.Context)
 var _ = new(gin.Context)
-var _ = new(ginx.DataResponse[string])
+var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
 type UserServiceHTTPServer interface {
@@ -27,7 +27,7 @@ type UserServiceHTTPServer interface {
 // @Tags api.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Success 200 {object} ginx.DataResponse[MeResponse]
 // @Success 400 {object} ginx.ErrorResponse
 // @Success 401 {object} ginx.ErrorResponse
@@ -49,7 +49,7 @@ func _UserService_Me0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.Cont
 // @Tags api.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Param request body UpdateRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[UpdateResponse]
 // @Success 400 {object} ginx.ErrorResponse
@@ -75,7 +75,7 @@ func _UserService_Update0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.
 // @Tags api.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Param request body BindPhoneWxMiniRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[BindPhoneWxMiniResponse]
 // @Success 400 {object} ginx.ErrorResponse

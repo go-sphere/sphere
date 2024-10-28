@@ -23,6 +23,11 @@ const docTemplateDash = `{
     "paths": {
         "/api/admin/create": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -34,12 +39,6 @@ const docTemplateDash = `{
                 ],
                 "summary": "AdminCreate",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "description": "Request body",
                         "name": "request",
@@ -86,6 +85,11 @@ const docTemplateDash = `{
         },
         "/api/admin/delete/{id}": {
             "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -97,12 +101,6 @@ const docTemplateDash = `{
                 ],
                 "summary": "AdminDelete",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "integer",
                         "description": "id",
@@ -147,6 +145,11 @@ const docTemplateDash = `{
         },
         "/api/admin/detail/{id}": {
             "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -158,12 +161,6 @@ const docTemplateDash = `{
                 ],
                 "summary": "AdminDetail",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "integer",
                         "description": "id",
@@ -208,6 +205,11 @@ const docTemplateDash = `{
         },
         "/api/admin/list": {
             "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -218,14 +220,6 @@ const docTemplateDash = `{
                     "dash.v1"
                 ],
                 "summary": "AdminList",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -262,6 +256,11 @@ const docTemplateDash = `{
         },
         "/api/admin/role/list": {
             "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -272,14 +271,6 @@ const docTemplateDash = `{
                     "dash.v1"
                 ],
                 "summary": "AdminRoleList",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -316,6 +307,11 @@ const docTemplateDash = `{
         },
         "/api/admin/update/{id}": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -327,12 +323,6 @@ const docTemplateDash = `{
                 ],
                 "summary": "AdminUpdate",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "integer",
                         "description": "id",
@@ -386,6 +376,11 @@ const docTemplateDash = `{
         },
         "/api/auth/login": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -397,12 +392,6 @@ const docTemplateDash = `{
                 ],
                 "summary": "AuthLogin",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "description": "Request body",
                         "name": "request",
@@ -449,6 +438,11 @@ const docTemplateDash = `{
         },
         "/api/auth/refresh": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -460,12 +454,6 @@ const docTemplateDash = `{
                 ],
                 "summary": "AuthRefresh",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "description": "Request body",
                         "name": "request",
@@ -512,6 +500,11 @@ const docTemplateDash = `{
         },
         "/api/cache/reset": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -523,12 +516,6 @@ const docTemplateDash = `{
                 ],
                 "summary": "CacheReset",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "description": "Request body",
                         "name": "request",
@@ -575,6 +562,11 @@ const docTemplateDash = `{
         },
         "/api/test/{path_test1}/second/{path_test2}": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -586,12 +578,6 @@ const docTemplateDash = `{
                 ],
                 "summary": "RunTest",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "description": "path_test1",
@@ -664,6 +650,11 @@ const docTemplateDash = `{
         },
         "/api/upload/token": {
             "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -675,12 +666,6 @@ const docTemplateDash = `{
                 ],
                 "summary": "UploadToken",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header"
-                    },
                     {
                         "description": "Request body",
                         "name": "request",

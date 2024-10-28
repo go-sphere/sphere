@@ -14,7 +14,7 @@ import (
 
 var _ = new(context.Context)
 var _ = new(gin.Context)
-var _ = new(ginx.DataResponse[string])
+var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
 type AdminServiceHTTPServer interface {
@@ -30,7 +30,7 @@ type AdminServiceHTTPServer interface {
 // @Tags dash.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Success 200 {object} ginx.DataResponse[AdminListResponse]
 // @Success 400 {object} ginx.ErrorResponse
 // @Success 401 {object} ginx.ErrorResponse
@@ -52,7 +52,7 @@ func _AdminService_AdminList0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx 
 // @Tags dash.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Param request body AdminCreateRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[AdminCreateResponse]
 // @Success 400 {object} ginx.ErrorResponse
@@ -78,7 +78,7 @@ func _AdminService_AdminCreate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 // @Tags dash.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Param id path integer true "id"
 // @Param request body AdminUpdateRequest true "Request body"
 // @Success 200 {object} ginx.DataResponse[AdminUpdateResponse]
@@ -108,7 +108,7 @@ func _AdminService_AdminUpdate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 // @Tags dash.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Param id path integer true "id"
 // @Success 200 {object} ginx.DataResponse[AdminDetailResponse]
 // @Success 400 {object} ginx.ErrorResponse
@@ -134,7 +134,7 @@ func _AdminService_AdminDetail0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 // @Tags dash.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Param id path integer true "id"
 // @Success 200 {object} ginx.DataResponse[AdminDeleteResponse]
 // @Success 400 {object} ginx.ErrorResponse
@@ -160,7 +160,7 @@ func _AdminService_AdminDelete0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 // @Tags dash.v1
 // @Accept json
 // @Produce json
-// @Param Authorization header string false "Bearer token"
+// @Security ApiKeyAuth
 // @Success 200 {object} ginx.DataResponse[AdminRoleListResponse]
 // @Success 400 {object} ginx.ErrorResponse
 // @Success 401 {object} ginx.ErrorResponse
