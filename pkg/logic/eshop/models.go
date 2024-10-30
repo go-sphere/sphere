@@ -89,17 +89,33 @@ type InventoryRecord struct {
 }
 
 var (
-	// 库存状态转换: action -> [from, to]
+	// OrderStatusInventoryActionMap 订单状态转换会触发对应的库存操作
+	OrderStatusInventoryActionMap = map[OrderStatus]InventoryAction{
+		// 下单，未创建支付前锁定库存
+		OrderStatusPending: InventoryActionReserve,
+		// 支付成功，售出库存
+		OrderStatusSuccess: InventoryActionSell,
+		// 支付失败，释放库存
+		OrderStatusFailed: InventoryActionRelease,
+		// 取消订单，释放库存
+		OrderStatusCanceled: InventoryActionRelease,
+		// 退款，作废库存
+		OrderStatusRefunded: InventoryActionRefund,
+	}
+)
+
+var (
+	// InventoryActionTransition 库存状态转换: action -> [from, to]
 	InventoryActionTransition = map[InventoryAction][]SKUStatus{
-		// 预留: 下单前锁定库存
+		// 锁定库存, 将库存状态从可用变为预留
 		InventoryActionReserve: {SKUStatusAvailable, SKUStatusReserved},
-		// 释放预留: 支付失败或者取消订单释放库存
+		// 释放预留, 将库存状态从预留变为可用
 		InventoryActionRelease: {SKUStatusReserved, SKUStatusAvailable},
-		// 售出: 支付成功,修改库存状态为已售
+		// 售出, 将库存状态从预留变为已售
 		InventoryActionSell: {SKUStatusReserved, SKUStatusSold},
 		// 退款: 退款后修改库存状态为作废
 		InventoryActionRefund: {SKUStatusSold, SKUStatusInvalid},
-		// 作废: 后台作废
+		// 作废: 将库存状态从可用变为无效
 		InventoryActionInvalid: {SKUStatusAvailable, SKUStatusInvalid},
 	}
 )
