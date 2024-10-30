@@ -27,6 +27,7 @@
 ```sql
 CREATE TABLE payments (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    order_id BIGINT NOT NULL,                      -- 关联订单ID
     transaction_id VARCHAR(64) UNIQUE NOT NULL,    -- 外部交易ID
     amount DECIMAL(20,2) NOT NULL,                 -- 支付金额
     currency VARCHAR(10) NOT NULL,                 -- 货币类型
@@ -37,6 +38,7 @@ CREATE TABLE payments (
     payment_url VARCHAR(255),                      -- 支付URL
     error_message TEXT,                            -- 错误信息
     metadata JSON,                                 -- 元数据
+    response_metadata JSON,                        -- 响应元数据
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
