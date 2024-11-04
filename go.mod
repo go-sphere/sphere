@@ -46,6 +46,7 @@ require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/alex-ant/gomath v0.0.0-20160516115720-89013a210a82 // indirect
+	github.com/alitto/pond/v2 v2.0.4 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/bmatcuk/doublestar v1.3.4 // indirect

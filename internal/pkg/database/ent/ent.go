@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/keyvaluestore"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/task"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
 )
@@ -78,6 +79,7 @@ func checkColumn(table, column string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			admin.Table:         admin.ValidColumn,
 			keyvaluestore.Table: keyvaluestore.ValidColumn,
+			task.Table:          task.ValidColumn,
 			user.Table:          user.ValidColumn,
 			userplatform.Table:  userplatform.ValidColumn,
 		})

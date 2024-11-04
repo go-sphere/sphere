@@ -1,6 +1,7 @@
 package dash
 
 import (
+	"github.com/alitto/pond/v2"
 	"github.com/tbxark/sphere/internal/pkg/dao"
 	"github.com/tbxark/sphere/internal/pkg/render"
 	"github.com/tbxark/sphere/pkg/cache"
@@ -24,6 +25,7 @@ type Service struct {
 	Cache   cache.ByteCache
 	WeChat  *wechat.Wechat
 	Render  *render.Render
+	Tasks   pond.ResultPool[string]
 
 	Authorizer    TokenAuthorizer
 	AuthRefresher TokenAuthorizer
@@ -36,6 +38,7 @@ func NewService(db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cac
 		Storage: store,
 		Cache:   cache,
 		WeChat:  wx,
+		Tasks:   pond.NewResultPool[string](16),
 		Render:  render.NewRender(store, db, true),
 		ACL:     acl.NewACL(),
 	}

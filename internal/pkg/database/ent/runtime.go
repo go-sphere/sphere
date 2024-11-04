@@ -6,6 +6,7 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/keyvaluestore"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/schema"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/task"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
 )
@@ -64,6 +65,37 @@ func init() {
 	keyvaluestore.DefaultUpdatedAt = keyvaluestoreDescUpdatedAt.Default.(func() int64)
 	// keyvaluestore.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	keyvaluestore.UpdateDefaultUpdatedAt = keyvaluestoreDescUpdatedAt.UpdateDefault.(func() int64)
+	taskMixin := schema.Task{}.Mixin()
+	taskMixinFields0 := taskMixin[0].Fields()
+	_ = taskMixinFields0
+	taskFields := schema.Task{}.Fields()
+	_ = taskFields
+	// taskDescCreatedAt is the schema descriptor for created_at field.
+	taskDescCreatedAt := taskMixinFields0[0].Descriptor()
+	// task.DefaultCreatedAt holds the default value on creation for the created_at field.
+	task.DefaultCreatedAt = taskDescCreatedAt.Default.(func() int64)
+	// taskDescUpdatedAt is the schema descriptor for updated_at field.
+	taskDescUpdatedAt := taskMixinFields0[1].Descriptor()
+	// task.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	task.DefaultUpdatedAt = taskDescUpdatedAt.Default.(func() int64)
+	// task.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	task.UpdateDefaultUpdatedAt = taskDescUpdatedAt.UpdateDefault.(func() int64)
+	// taskDescName is the schema descriptor for name field.
+	taskDescName := taskFields[1].Descriptor()
+	// task.DefaultName holds the default value on creation for the name field.
+	task.DefaultName = taskDescName.Default.(string)
+	// taskDescResult is the schema descriptor for result field.
+	taskDescResult := taskFields[3].Descriptor()
+	// task.DefaultResult holds the default value on creation for the result field.
+	task.DefaultResult = taskDescResult.Default.(string)
+	// task.ResultValidator is a validator for the "result" field. It is called by the builders before save.
+	task.ResultValidator = taskDescResult.Validators[0].(func(string) error)
+	// taskDescError is the schema descriptor for error field.
+	taskDescError := taskFields[4].Descriptor()
+	// task.DefaultError holds the default value on creation for the error field.
+	task.DefaultError = taskDescError.Default.(string)
+	// task.ErrorValidator is a validator for the "error" field. It is called by the builders before save.
+	task.ErrorValidator = taskDescError.Validators[0].(func(string) error)
 	userMixin := schema.User{}.Mixin()
 	userMixinFields0 := userMixin[0].Fields()
 	_ = userMixinFields0

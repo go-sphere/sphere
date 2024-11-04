@@ -17,6 +17,8 @@ github.com/agext/levenshtein v1.2.3 h1:YB2fHEn0UJagG8T1rrWknE3ZQzWM06O8AMAatNn7l
 github.com/agext/levenshtein v1.2.3/go.mod h1:JEDfjyjHDjOF/1e4FlBE/PkbqA9OfWu2ki2W0IB5558=
 github.com/alex-ant/gomath v0.0.0-20160516115720-89013a210a82 h1:7dONQ3WNZ1zy960TmkxJPuwoolZwL7xKtpcM04MBnt4=
 github.com/alex-ant/gomath v0.0.0-20160516115720-89013a210a82/go.mod h1:nLnM0KdK1CmygvjpDUO6m1TjSsiQtL61juhNsvV/JVI=
+github.com/alitto/pond/v2 v2.0.4 h1:dhRvqjSm1g9Y3uNo2FTOEEEeqYBFZnyQD1uUxWSOWnQ=
+github.com/alitto/pond/v2 v2.0.4/go.mod h1:xkjYEgQ05RSpWdfSd1nM3OVv7TBhLdy7rMp3+2Nq+yE=
 github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8TVTI=
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
 github.com/apparentlymart/go-textseg/v15 v15.0.0 h1:uYvfpb3DyLSCGWnctWKGj857c6ew1u1fNQOlOtuGxQY=

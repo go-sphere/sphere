@@ -4,9 +4,11 @@ import (
 	"entgo.io/contrib/entproto"
 	"entgo.io/ent/entc"
 	"entgo.io/ent/entc/gen"
+	"entgo.io/ent/schema/field"
 	"flag"
 	"log"
 	"path/filepath"
+	"reflect"
 	"sort"
 )
 
@@ -16,6 +18,7 @@ func main() {
 		protoDir          = flag.String("proto", "./proto", "path to proto directory")
 		ignoreOptional    = flag.Bool("ignore-optional", true, "ignore optional keyword")
 		autoAddAnnotation = flag.Bool("auto-annotation", true, "auto add annotation to the schema")
+		enumUseRawType    = flag.Bool("enum-raw-type", true, "use string for enum")
 		help              = flag.Bool("help", false, "show help")
 	)
 	flag.Parse()
@@ -23,10 +26,10 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	RunProtoGen(*schemaPath, *protoDir, *ignoreOptional, *autoAddAnnotation)
+	RunProtoGen(*schemaPath, *protoDir, *ignoreOptional, *autoAddAnnotation, *enumUseRawType)
 }
 
-func RunProtoGen(schemaPath string, protoDir string, ignoreOptional bool, autoAddAnnotation bool) {
+func RunProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnnotation, enumUseString bool) {
 	abs, err := filepath.Abs(schemaPath)
 	if err != nil {
 		log.Fatalf("entproto: failed getting absolute path: %v", err)
@@ -60,14 +63,29 @@ func RunProtoGen(schemaPath string, protoDir string, ignoreOptional bool, autoAd
 				})
 
 				for j := 0; j < len(node.Fields); j++ {
-					field := node.Fields[j]
-					if field.Annotations == nil {
-						field.Annotations = make(map[string]interface{}, 1)
+					fd := node.Fields[j]
+					if fd.Annotations == nil {
+						fd.Annotations = make(map[string]interface{}, 1)
 					}
 					fieldID++
-					field.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
-					if field.Optional && ignoreOptional {
-						field.Optional = false
+					fd.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
+					if fd.IsEnum() {
+						if enumUseString {
+							if fd.HasGoType() && fd.Type.RType != nil {
+								fd.Type.Type = reflectKind2FieldType(fd.Type.RType.Kind)
+							} else {
+								fd.Type.Type = field.TypeString
+							}
+						} else {
+							enums := make(map[string]int32, len(fd.Enums))
+							for index, enum := range fd.Enums {
+								enums[enum.Value] = int32(index)
+							}
+							fd.Annotations[entproto.EnumAnnotation] = entproto.Enum(enums)
+						}
+					}
+					if fd.Optional && ignoreOptional {
+						fd.Optional = false
 					}
 				}
 			}
@@ -84,5 +102,44 @@ func RunProtoGen(schemaPath string, protoDir string, ignoreOptional bool, autoAd
 	err = extension.Generate(graph)
 	if err != nil {
 		log.Fatalf("entproto: failed generating protos: %s", err)
+	}
+}
+
+func reflectKind2FieldType(kind reflect.Kind) field.Type {
+	switch kind {
+	case reflect.Bool:
+		return field.TypeBool
+	case reflect.Int:
+		return field.TypeInt
+	case reflect.Int8:
+		return field.TypeInt8
+	case reflect.Int16:
+		return field.TypeInt16
+	case reflect.Int32:
+		return field.TypeInt32
+	case reflect.Int64:
+		return field.TypeInt64
+	case reflect.Uint:
+		return field.TypeUint
+	case reflect.Uint8:
+		return field.TypeUint8
+	case reflect.Uint16:
+		return field.TypeUint16
+	case reflect.Uint32:
+		return field.TypeUint32
+	case reflect.Uint64:
+		return field.TypeUint64
+	case reflect.Float32:
+		return field.TypeFloat32
+	case reflect.Float64:
+		return field.TypeFloat64
+	case reflect.String:
+		return field.TypeString
+	case reflect.Slice:
+		return field.TypeBytes
+	case reflect.Struct:
+		return field.TypeJSON
+	default:
+		return field.TypeOther
 	}
 }

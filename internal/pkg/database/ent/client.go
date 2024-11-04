@@ -16,6 +16,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/keyvaluestore"
+	"github.com/tbxark/sphere/internal/pkg/database/ent/task"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
 	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
 
@@ -31,6 +32,8 @@ type Client struct {
 	Admin *AdminClient
 	// KeyValueStore is the client for interacting with the KeyValueStore builders.
 	KeyValueStore *KeyValueStoreClient
+	// Task is the client for interacting with the Task builders.
+	Task *TaskClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 	// UserPlatform is the client for interacting with the UserPlatform builders.
@@ -48,6 +51,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Admin = NewAdminClient(c.config)
 	c.KeyValueStore = NewKeyValueStoreClient(c.config)
+	c.Task = NewTaskClient(c.config)
 	c.User = NewUserClient(c.config)
 	c.UserPlatform = NewUserPlatformClient(c.config)
 }
@@ -144,6 +148,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:        cfg,
 		Admin:         NewAdminClient(cfg),
 		KeyValueStore: NewKeyValueStoreClient(cfg),
+		Task:          NewTaskClient(cfg),
 		User:          NewUserClient(cfg),
 		UserPlatform:  NewUserPlatformClient(cfg),
 	}, nil
@@ -167,6 +172,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:        cfg,
 		Admin:         NewAdminClient(cfg),
 		KeyValueStore: NewKeyValueStoreClient(cfg),
+		Task:          NewTaskClient(cfg),
 		User:          NewUserClient(cfg),
 		UserPlatform:  NewUserPlatformClient(cfg),
 	}, nil
@@ -199,6 +205,7 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	c.Admin.Use(hooks...)
 	c.KeyValueStore.Use(hooks...)
+	c.Task.Use(hooks...)
 	c.User.Use(hooks...)
 	c.UserPlatform.Use(hooks...)
 }
@@ -208,6 +215,7 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.Admin.Intercept(interceptors...)
 	c.KeyValueStore.Intercept(interceptors...)
+	c.Task.Intercept(interceptors...)
 	c.User.Intercept(interceptors...)
 	c.UserPlatform.Intercept(interceptors...)
 }
@@ -219,6 +227,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Admin.mutate(ctx, m)
 	case *KeyValueStoreMutation:
 		return c.KeyValueStore.mutate(ctx, m)
+	case *TaskMutation:
+		return c.Task.mutate(ctx, m)
 	case *UserMutation:
 		return c.User.mutate(ctx, m)
 	case *UserPlatformMutation:
@@ -494,6 +504,139 @@ func (c *KeyValueStoreClient) mutate(ctx context.Context, m *KeyValueStoreMutati
 	}
 }
 
+// TaskClient is a client for the Task schema.
+type TaskClient struct {
+	config
+}
+
+// NewTaskClient returns a client for the Task from the given config.
+func NewTaskClient(c config) *TaskClient {
+	return &TaskClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `task.Hooks(f(g(h())))`.
+func (c *TaskClient) Use(hooks ...Hook) {
+	c.hooks.Task = append(c.hooks.Task, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `task.Intercept(f(g(h())))`.
+func (c *TaskClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Task = append(c.inters.Task, interceptors...)
+}
+
+// Create returns a builder for creating a Task entity.
+func (c *TaskClient) Create() *TaskCreate {
+	mutation := newTaskMutation(c.config, OpCreate)
+	return &TaskCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Task entities.
+func (c *TaskClient) CreateBulk(builders ...*TaskCreate) *TaskCreateBulk {
+	return &TaskCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TaskClient) MapCreateBulk(slice any, setFunc func(*TaskCreate, int)) *TaskCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TaskCreateBulk{err: fmt.Errorf("calling to TaskClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TaskCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TaskCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Task.
+func (c *TaskClient) Update() *TaskUpdate {
+	mutation := newTaskMutation(c.config, OpUpdate)
+	return &TaskUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TaskClient) UpdateOne(t *Task) *TaskUpdateOne {
+	mutation := newTaskMutation(c.config, OpUpdateOne, withTask(t))
+	return &TaskUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TaskClient) UpdateOneID(id int) *TaskUpdateOne {
+	mutation := newTaskMutation(c.config, OpUpdateOne, withTaskID(id))
+	return &TaskUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Task.
+func (c *TaskClient) Delete() *TaskDelete {
+	mutation := newTaskMutation(c.config, OpDelete)
+	return &TaskDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TaskClient) DeleteOne(t *Task) *TaskDeleteOne {
+	return c.DeleteOneID(t.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TaskClient) DeleteOneID(id int) *TaskDeleteOne {
+	builder := c.Delete().Where(task.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TaskDeleteOne{builder}
+}
+
+// Query returns a query builder for Task.
+func (c *TaskClient) Query() *TaskQuery {
+	return &TaskQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTask},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Task entity by its id.
+func (c *TaskClient) Get(ctx context.Context, id int) (*Task, error) {
+	return c.Query().Where(task.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TaskClient) GetX(ctx context.Context, id int) *Task {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TaskClient) Hooks() []Hook {
+	return c.hooks.Task
+}
+
+// Interceptors returns the client interceptors.
+func (c *TaskClient) Interceptors() []Interceptor {
+	return c.inters.Task
+}
+
+func (c *TaskClient) mutate(ctx context.Context, m *TaskMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TaskCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TaskUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TaskUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TaskDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Task mutation op: %q", m.Op())
+	}
+}
+
 // UserClient is a client for the User schema.
 type UserClient struct {
 	config
@@ -763,10 +906,10 @@ func (c *UserPlatformClient) mutate(ctx context.Context, m *UserPlatformMutation
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Admin, KeyValueStore, User, UserPlatform []ent.Hook
+		Admin, KeyValueStore, Task, User, UserPlatform []ent.Hook
 	}
 	inters struct {
-		Admin, KeyValueStore, User, UserPlatform []ent.Interceptor
+		Admin, KeyValueStore, Task, User, UserPlatform []ent.Interceptor
 	}
 )
 

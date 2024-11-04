@@ -39,6 +39,23 @@ var (
 		Columns:    KeyValueStoresColumns,
 		PrimaryKey: []*schema.Column{KeyValueStoresColumns[0]},
 	}
+	// TasksColumns holds the columns for the "tasks" table.
+	TasksColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "created_at", Type: field.TypeInt64, Nullable: true},
+		{Name: "updated_at", Type: field.TypeInt64, Nullable: true},
+		{Name: "job_id", Type: field.TypeUUID, Unique: true},
+		{Name: "name", Type: field.TypeString, Default: ""},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending", "running", "success", "failed"}, Default: "pending"},
+		{Name: "result", Type: field.TypeString, Nullable: true, Size: 1024, Default: ""},
+		{Name: "error", Type: field.TypeString, Nullable: true, Size: 1024, Default: ""},
+	}
+	// TasksTable holds the schema information for the "tasks" table.
+	TasksTable = &schema.Table{
+		Name:       "tasks",
+		Columns:    TasksColumns,
+		PrimaryKey: []*schema.Column{TasksColumns[0]},
+	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -83,6 +100,7 @@ var (
 	Tables = []*schema.Table{
 		AdminsTable,
 		KeyValueStoresTable,
+		TasksTable,
 		UsersTable,
 		UserPlatformsTable,
 	}

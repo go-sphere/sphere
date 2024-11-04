@@ -18,6 +18,8 @@ type Tx struct {
 	Admin *AdminClient
 	// KeyValueStore is the client for interacting with the KeyValueStore builders.
 	KeyValueStore *KeyValueStoreClient
+	// Task is the client for interacting with the Task builders.
+	Task *TaskClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 	// UserPlatform is the client for interacting with the UserPlatform builders.
@@ -155,6 +157,7 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.Admin = NewAdminClient(tx.config)
 	tx.KeyValueStore = NewKeyValueStoreClient(tx.config)
+	tx.Task = NewTaskClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 	tx.UserPlatform = NewUserPlatformClient(tx.config)
 }

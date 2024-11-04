@@ -12,6 +12,9 @@ type Admin func(*sql.Selector)
 // KeyValueStore is the predicate function for keyvaluestore builders.
 type KeyValueStore func(*sql.Selector)
 
+// Task is the predicate function for task builders.
+type Task func(*sql.Selector)
+
 // User is the predicate function for user builders.
 type User func(*sql.Selector)
 
