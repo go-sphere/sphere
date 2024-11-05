@@ -60,11 +60,13 @@ func _TestService_RunTest0_HTTP_Handler(srv TestServiceHTTPServer) func(ctx *gin
 	})
 }
 
-func RegisterTestServiceHTTPServer(route gin.IRouter, srv TestServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
+func RegisterTestServiceHTTPServer(route gin.IRouter, srv TestServiceHTTPServer) {
 	r := route.Group("/")
-	r.POST(
-		"/api/test/:path_test1/second/:path_test2",
-		ginx.MatchOperationMiddlewares(middlewares, OperationTestServiceRunTest),
-		_TestService_RunTest0_HTTP_Handler(srv),
-	)
+	r.POST("/api/test/:path_test1/second/:path_test2", _TestService_RunTest0_HTTP_Handler(srv))
+}
+
+func CreateTestServiceOperationRoute(base string) map[string][]string {
+	return map[string][]string{
+		OperationTestServiceRunTest: {"POST", ginx.JoinPaths(base, "/api/test/:path_test1/second/:path_test2")},
+	}
 }

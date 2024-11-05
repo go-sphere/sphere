@@ -50,11 +50,13 @@ func _SystemService_CacheReset0_HTTP_Handler(srv SystemServiceHTTPServer) func(c
 	})
 }
 
-func RegisterSystemServiceHTTPServer(route gin.IRouter, srv SystemServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
+func RegisterSystemServiceHTTPServer(route gin.IRouter, srv SystemServiceHTTPServer) {
 	r := route.Group("/")
-	r.POST(
-		"/api/cache/reset",
-		ginx.MatchOperationMiddlewares(middlewares, OperationSystemServiceCacheReset),
-		_SystemService_CacheReset0_HTTP_Handler(srv),
-	)
+	r.POST("/api/cache/reset", _SystemService_CacheReset0_HTTP_Handler(srv))
+}
+
+func CreateSystemServiceOperationRoute(base string) map[string][]string {
+	return map[string][]string{
+		OperationSystemServiceCacheReset: {"POST", ginx.JoinPaths(base, "/api/cache/reset")},
+	}
 }

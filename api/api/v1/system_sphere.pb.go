@@ -46,11 +46,13 @@ func _SystemService_Status0_HTTP_Handler(srv SystemServiceHTTPServer) func(ctx *
 	})
 }
 
-func RegisterSystemServiceHTTPServer(route gin.IRouter, srv SystemServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
+func RegisterSystemServiceHTTPServer(route gin.IRouter, srv SystemServiceHTTPServer) {
 	r := route.Group("/")
-	r.GET(
-		"/api/status",
-		ginx.MatchOperationMiddlewares(middlewares, OperationSystemServiceStatus),
-		_SystemService_Status0_HTTP_Handler(srv),
-	)
+	r.GET("/api/status", _SystemService_Status0_HTTP_Handler(srv))
+}
+
+func CreateSystemServiceOperationRoute(base string) map[string][]string {
+	return map[string][]string{
+		OperationSystemServiceStatus: {"GET", ginx.JoinPaths(base, "/api/status")},
+	}
 }

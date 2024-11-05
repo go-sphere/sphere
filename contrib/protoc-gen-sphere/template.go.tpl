@@ -51,13 +51,17 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) fu
 }
 {{end}}
 
-func Register{{.ServiceType}}HTTPServer(route gin.IRouter, srv {{.ServiceType}}HTTPServer, middlewares ...ginx.OperationMiddlewares) {
+func Register{{.ServiceType}}HTTPServer(route gin.IRouter, srv {{.ServiceType}}HTTPServer) {
 	r := route.Group("/")
 	{{- range .Methods}}
-	r.{{.Method}}(
-	    "{{.GinPath}}",
-	    ginx.MatchOperationMiddlewares(middlewares, Operation{{$svrType}}{{.OriginalName}}),
-	    _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv),
-	    )
+	r.{{.Method}}("{{.GinPath}}", _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv))
 	{{- end}}
+}
+
+func Create{{.ServiceType}}OperationRoute(base string) map[string][]string {
+	return map[string][]string{
+		{{- range .Methods}}
+		Operation{{$svrType}}{{.OriginalName}}: {"{{.Method}}", ginx.JoinPaths(base, "{{.GinPath}}")},
+        {{- end}}
+	}
 }

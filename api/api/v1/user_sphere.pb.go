@@ -104,21 +104,17 @@ func _UserService_BindPhoneWxMini0_HTTP_Handler(srv UserServiceHTTPServer) func(
 	})
 }
 
-func RegisterUserServiceHTTPServer(route gin.IRouter, srv UserServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
+func RegisterUserServiceHTTPServer(route gin.IRouter, srv UserServiceHTTPServer) {
 	r := route.Group("/")
-	r.GET(
-		"/api/user/me",
-		ginx.MatchOperationMiddlewares(middlewares, OperationUserServiceMe),
-		_UserService_Me0_HTTP_Handler(srv),
-	)
-	r.POST(
-		"/api/user/update",
-		ginx.MatchOperationMiddlewares(middlewares, OperationUserServiceUpdate),
-		_UserService_Update0_HTTP_Handler(srv),
-	)
-	r.POST(
-		"/api/user/bind/phone/wxmini",
-		ginx.MatchOperationMiddlewares(middlewares, OperationUserServiceBindPhoneWxMini),
-		_UserService_BindPhoneWxMini0_HTTP_Handler(srv),
-	)
+	r.GET("/api/user/me", _UserService_Me0_HTTP_Handler(srv))
+	r.POST("/api/user/update", _UserService_Update0_HTTP_Handler(srv))
+	r.POST("/api/user/bind/phone/wxmini", _UserService_BindPhoneWxMini0_HTTP_Handler(srv))
+}
+
+func CreateUserServiceOperationRoute(base string) map[string][]string {
+	return map[string][]string{
+		OperationUserServiceMe:              {"GET", ginx.JoinPaths(base, "/api/user/me")},
+		OperationUserServiceUpdate:          {"POST", ginx.JoinPaths(base, "/api/user/update")},
+		OperationUserServiceBindPhoneWxMini: {"POST", ginx.JoinPaths(base, "/api/user/bind/phone/wxmini")},
+	}
 }

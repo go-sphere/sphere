@@ -52,11 +52,13 @@ func _AuthService_AuthWxMini0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *
 	})
 }
 
-func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
+func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer) {
 	r := route.Group("/")
-	r.POST(
-		"/v1/auth/wxmini",
-		ginx.MatchOperationMiddlewares(middlewares, OperationAuthServiceAuthWxMini),
-		_AuthService_AuthWxMini0_HTTP_Handler(srv),
-	)
+	r.POST("/v1/auth/wxmini", _AuthService_AuthWxMini0_HTTP_Handler(srv))
+}
+
+func CreateAuthServiceOperationRoute(base string) map[string][]string {
+	return map[string][]string{
+		OperationAuthServiceAuthWxMini: {"POST", ginx.JoinPaths(base, "/v1/auth/wxmini")},
+	}
 }

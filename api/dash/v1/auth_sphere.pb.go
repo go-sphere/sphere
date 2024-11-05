@@ -82,16 +82,15 @@ func _AuthService_AuthRefresh0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx 
 	})
 }
 
-func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
+func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer) {
 	r := route.Group("/")
-	r.POST(
-		"/api/auth/login",
-		ginx.MatchOperationMiddlewares(middlewares, OperationAuthServiceAuthLogin),
-		_AuthService_AuthLogin0_HTTP_Handler(srv),
-	)
-	r.POST(
-		"/api/auth/refresh",
-		ginx.MatchOperationMiddlewares(middlewares, OperationAuthServiceAuthRefresh),
-		_AuthService_AuthRefresh0_HTTP_Handler(srv),
-	)
+	r.POST("/api/auth/login", _AuthService_AuthLogin0_HTTP_Handler(srv))
+	r.POST("/api/auth/refresh", _AuthService_AuthRefresh0_HTTP_Handler(srv))
+}
+
+func CreateAuthServiceOperationRoute(base string) map[string][]string {
+	return map[string][]string{
+		OperationAuthServiceAuthLogin:   {"POST", ginx.JoinPaths(base, "/api/auth/login")},
+		OperationAuthServiceAuthRefresh: {"POST", ginx.JoinPaths(base, "/api/auth/refresh")},
+	}
 }

@@ -191,36 +191,23 @@ func _AdminService_AdminRoleList0_HTTP_Handler(srv AdminServiceHTTPServer) func(
 	})
 }
 
-func RegisterAdminServiceHTTPServer(route gin.IRouter, srv AdminServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
+func RegisterAdminServiceHTTPServer(route gin.IRouter, srv AdminServiceHTTPServer) {
 	r := route.Group("/")
-	r.GET(
-		"/api/admin/list",
-		ginx.MatchOperationMiddlewares(middlewares, OperationAdminServiceAdminList),
-		_AdminService_AdminList0_HTTP_Handler(srv),
-	)
-	r.POST(
-		"/api/admin/create",
-		ginx.MatchOperationMiddlewares(middlewares, OperationAdminServiceAdminCreate),
-		_AdminService_AdminCreate0_HTTP_Handler(srv),
-	)
-	r.POST(
-		"/api/admin/update/:id",
-		ginx.MatchOperationMiddlewares(middlewares, OperationAdminServiceAdminUpdate),
-		_AdminService_AdminUpdate0_HTTP_Handler(srv),
-	)
-	r.GET(
-		"/api/admin/detail/:id",
-		ginx.MatchOperationMiddlewares(middlewares, OperationAdminServiceAdminDetail),
-		_AdminService_AdminDetail0_HTTP_Handler(srv),
-	)
-	r.DELETE(
-		"/api/admin/delete/:id",
-		ginx.MatchOperationMiddlewares(middlewares, OperationAdminServiceAdminDelete),
-		_AdminService_AdminDelete0_HTTP_Handler(srv),
-	)
-	r.GET(
-		"/api/admin/role/list",
-		ginx.MatchOperationMiddlewares(middlewares, OperationAdminServiceAdminRoleList),
-		_AdminService_AdminRoleList0_HTTP_Handler(srv),
-	)
+	r.GET("/api/admin/list", _AdminService_AdminList0_HTTP_Handler(srv))
+	r.POST("/api/admin/create", _AdminService_AdminCreate0_HTTP_Handler(srv))
+	r.POST("/api/admin/update/:id", _AdminService_AdminUpdate0_HTTP_Handler(srv))
+	r.GET("/api/admin/detail/:id", _AdminService_AdminDetail0_HTTP_Handler(srv))
+	r.DELETE("/api/admin/delete/:id", _AdminService_AdminDelete0_HTTP_Handler(srv))
+	r.GET("/api/admin/role/list", _AdminService_AdminRoleList0_HTTP_Handler(srv))
+}
+
+func CreateAdminServiceOperationRoute(base string) map[string][]string {
+	return map[string][]string{
+		OperationAdminServiceAdminList:     {"GET", ginx.JoinPaths(base, "/api/admin/list")},
+		OperationAdminServiceAdminCreate:   {"POST", ginx.JoinPaths(base, "/api/admin/create")},
+		OperationAdminServiceAdminUpdate:   {"POST", ginx.JoinPaths(base, "/api/admin/update/:id")},
+		OperationAdminServiceAdminDetail:   {"GET", ginx.JoinPaths(base, "/api/admin/detail/:id")},
+		OperationAdminServiceAdminDelete:   {"DELETE", ginx.JoinPaths(base, "/api/admin/delete/:id")},
+		OperationAdminServiceAdminRoleList: {"GET", ginx.JoinPaths(base, "/api/admin/role/list")},
+	}
 }

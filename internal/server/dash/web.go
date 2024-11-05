@@ -16,6 +16,7 @@ import (
 	"github.com/tbxark/sphere/pkg/server/middleware/auth"
 	"github.com/tbxark/sphere/pkg/server/middleware/logger"
 	"github.com/tbxark/sphere/pkg/server/middleware/ratelimiter"
+	"github.com/tbxark/sphere/pkg/server/middleware/selector"
 	"github.com/tbxark/sphere/pkg/server/route/cors"
 	"github.com/tbxark/sphere/pkg/server/route/pprof"
 	"time"
@@ -79,11 +80,12 @@ func (w *Web) Run() error {
 	sharedv1.RegisterStorageServiceHTTPServer(needAuthRoute, sharedSrc)
 	sharedv1.RegisterTestServiceHTTPServer(api, sharedSrc)
 
-	authRoute := api.Group("/")
-	dashv1.RegisterAuthServiceHTTPServer(authRoute, w.service, ginx.NewOperationMiddlewares(
-		dashv1.OperationAuthServiceAuthLogin,
+	// 由于operation设置的延后性，所以需要使用OperationRouteGroup提前设置operation
+	authRoute := ginx.OperationRouteGroup(api, "/",
+		dashv1.CreateAuthServiceOperationRoute,
 		rateLimiter,
-	))
+	)
+	dashv1.RegisterAuthServiceHTTPServer(authRoute, w.service)
 
 	adminRoute := needAuthRoute.Group("/", w.withPermission(dash.PermissionAdmin))
 	dashv1.RegisterAdminServiceHTTPServer(adminRoute, w.service)
@@ -106,4 +108,11 @@ func initDefaultRolesACL(acl *acl.ACL) {
 		acl.Allow(dash.PermissionAll, r)
 		acl.Allow(r, r)
 	}
+}
+
+func MiddlewaresForOperation(operation string, middlewares ...gin.HandlerFunc) gin.HandlerFunc {
+	return selector.NewSelectorMiddleware(
+		selector.NewContextMatcher("operation", operation),
+		middlewares...,
+	)
 }

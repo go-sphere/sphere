@@ -80,16 +80,15 @@ func _TaskService_TaskDetail0_HTTP_Handler(srv TaskServiceHTTPServer) func(ctx *
 	})
 }
 
-func RegisterTaskServiceHTTPServer(route gin.IRouter, srv TaskServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
+func RegisterTaskServiceHTTPServer(route gin.IRouter, srv TaskServiceHTTPServer) {
 	r := route.Group("/")
-	r.GET(
-		"/api/task/list",
-		ginx.MatchOperationMiddlewares(middlewares, OperationTaskServiceTaskList),
-		_TaskService_TaskList0_HTTP_Handler(srv),
-	)
-	r.GET(
-		"/api/task/detail/:id",
-		ginx.MatchOperationMiddlewares(middlewares, OperationTaskServiceTaskDetail),
-		_TaskService_TaskDetail0_HTTP_Handler(srv),
-	)
+	r.GET("/api/task/list", _TaskService_TaskList0_HTTP_Handler(srv))
+	r.GET("/api/task/detail/:id", _TaskService_TaskDetail0_HTTP_Handler(srv))
+}
+
+func CreateTaskServiceOperationRoute(base string) map[string][]string {
+	return map[string][]string{
+		OperationTaskServiceTaskList:   {"GET", ginx.JoinPaths(base, "/api/task/list")},
+		OperationTaskServiceTaskDetail: {"GET", ginx.JoinPaths(base, "/api/task/detail/:id")},
+	}
 }

@@ -50,11 +50,13 @@ func _StorageService_UploadToken0_HTTP_Handler(srv StorageServiceHTTPServer) fun
 	})
 }
 
-func RegisterStorageServiceHTTPServer(route gin.IRouter, srv StorageServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
+func RegisterStorageServiceHTTPServer(route gin.IRouter, srv StorageServiceHTTPServer) {
 	r := route.Group("/")
-	r.POST(
-		"/api/upload/token",
-		ginx.MatchOperationMiddlewares(middlewares, OperationStorageServiceUploadToken),
-		_StorageService_UploadToken0_HTTP_Handler(srv),
-	)
+	r.POST("/api/upload/token", _StorageService_UploadToken0_HTTP_Handler(srv))
+}
+
+func CreateStorageServiceOperationRoute(base string) map[string][]string {
+	return map[string][]string{
+		OperationStorageServiceUploadToken: {"POST", ginx.JoinPaths(base, "/api/upload/token")},
+	}
 }
