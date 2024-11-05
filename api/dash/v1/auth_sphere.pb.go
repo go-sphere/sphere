@@ -20,7 +20,7 @@ var _ = new(protovalidate_go.Validator)
 const OperationAuthServiceAuthLogin = "/dash.v1.AuthService/AuthLogin"
 const OperationAuthServiceAuthRefresh = "/dash.v1.AuthService/AuthRefresh"
 
-var AuthServiceOperationRoutes = [...][3]string{
+var MetadataAuthService = [...][3]string{
 	{OperationAuthServiceAuthLogin, "POST", "/api/auth/login"},
 	{OperationAuthServiceAuthRefresh, "POST", "/api/auth/refresh"},
 }

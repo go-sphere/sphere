@@ -19,7 +19,7 @@ var _ = new(protovalidate_go.Validator)
 
 const OperationAuthServiceAuthWxMini = "/api.v1.AuthService/AuthWxMini"
 
-var AuthServiceOperationRoutes = [...][3]string{
+var MetadataAuthService = [...][3]string{
 	{OperationAuthServiceAuthWxMini, "POST", "/v1/auth/wxmini"},
 }
 

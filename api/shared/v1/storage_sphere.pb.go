@@ -19,7 +19,7 @@ var _ = new(protovalidate_go.Validator)
 
 const OperationStorageServiceUploadToken = "/shared.v1.StorageService/UploadToken"
 
-var StorageServiceOperationRoutes = [...][3]string{
+var MetadataStorageService = [...][3]string{
 	{OperationStorageServiceUploadToken, "POST", "/api/upload/token"},
 }
 

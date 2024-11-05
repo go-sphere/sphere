@@ -19,7 +19,7 @@ var _ = new(protovalidate_go.Validator)
 
 const OperationSystemServiceStatus = "/api.v1.SystemService/Status"
 
-var SystemServiceOperationRoutes = [...][3]string{
+var MetadataSystemService = [...][3]string{
 	{OperationSystemServiceStatus, "GET", "/api/status"},
 }
 
