@@ -19,6 +19,10 @@ var _ = new(protovalidate_go.Validator)
 
 const OperationTestServiceRunTest = "/shared.v1.TestService/RunTest"
 
+var TestServiceOperationRoutes = [...][3]string{
+	{OperationTestServiceRunTest, "POST", "/api/test/:path_test1/second/:path_test2"},
+}
+
 type TestServiceHTTPServer interface {
 	RunTest(context.Context, *RunTestRequest) (*RunTestResponse, error)
 }
@@ -62,8 +66,4 @@ func _TestService_RunTest0_HTTP_Handler(srv TestServiceHTTPServer) func(ctx *gin
 func RegisterTestServiceHTTPServer(route gin.IRouter, srv TestServiceHTTPServer) {
 	r := route.Group("/")
 	r.POST("/api/test/:path_test1/second/:path_test2", _TestService_RunTest0_HTTP_Handler(srv))
-}
-
-var TestServiceOperationRoutes = [...][3]string{
-	{OperationTestServiceRunTest, "POST", "/api/test/:path_test1/second/:path_test2"},
 }

@@ -20,6 +20,11 @@ var _ = new(protovalidate_go.Validator)
 const OperationAuthServiceAuthLogin = "/dash.v1.AuthService/AuthLogin"
 const OperationAuthServiceAuthRefresh = "/dash.v1.AuthService/AuthRefresh"
 
+var AuthServiceOperationRoutes = [...][3]string{
+	{OperationAuthServiceAuthLogin, "POST", "/api/auth/login"},
+	{OperationAuthServiceAuthRefresh, "POST", "/api/auth/refresh"},
+}
+
 type AuthServiceHTTPServer interface {
 	AuthLogin(context.Context, *AuthLoginRequest) (*AuthLoginResponse, error)
 	AuthRefresh(context.Context, *AuthRefreshRequest) (*AuthRefreshResponse, error)
@@ -84,9 +89,4 @@ func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer)
 	r := route.Group("/")
 	r.POST("/api/auth/login", _AuthService_AuthLogin0_HTTP_Handler(srv))
 	r.POST("/api/auth/refresh", _AuthService_AuthRefresh0_HTTP_Handler(srv))
-}
-
-var AuthServiceOperationRoutes = [...][3]string{
-	{OperationAuthServiceAuthLogin, "POST", "/api/auth/login"},
-	{OperationAuthServiceAuthRefresh, "POST", "/api/auth/refresh"},
 }

@@ -80,11 +80,9 @@ func (w *Web) Run() error {
 	sharedv1.RegisterStorageServiceHTTPServer(needAuthRoute, sharedSrc)
 	sharedv1.RegisterTestServiceHTTPServer(api, sharedSrc)
 
-	// 由于operation设置的延后性，所以需要使用OperationRouteGroup提前设置operation
-	authRoute := ginx.OperationRouteGroup(api,
-		dashv1.AuthServiceOperationRoutes[:],
-		MiddlewaresForOperation(dashv1.OperationAuthServiceAuthLogin, rateLimiter),
-	)
+	authRoute := api.Group("/")
+	// 根据元数据限定中间件作用范围
+	authRoute.Use(MiddlewaresForOperation(authRoute, dashv1.OperationAuthServiceAuthLogin, dashv1.AuthServiceOperationRoutes[:], rateLimiter))
 	dashv1.RegisterAuthServiceHTTPServer(authRoute, w.service)
 
 	adminRoute := needAuthRoute.Group("/", w.withPermission(dash.PermissionAdmin))
@@ -110,9 +108,9 @@ func initDefaultRolesACL(acl *acl.ACL) {
 	}
 }
 
-func MiddlewaresForOperation(operation string, middlewares ...gin.HandlerFunc) gin.HandlerFunc {
+func MiddlewaresForOperation(route gin.IRouter, operation string, routes [][3]string, middlewares ...gin.HandlerFunc) gin.HandlerFunc {
 	return selector.NewSelectorMiddleware(
-		selector.NewContextMatcher("operation", operation),
+		selector.MatchFunc(ginx.MatchOperation(route, operation, routes)),
 		middlewares...,
 	)
 }

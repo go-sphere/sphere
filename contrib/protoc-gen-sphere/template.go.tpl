@@ -5,6 +5,12 @@
 const Operation{{$svrType}}{{.OriginalName}} = "/{{$svrName}}/{{.OriginalName}}"
 {{- end}}
 
+var {{.ServiceType}}OperationRoutes = [...][3]string{
+	{{- range .Methods}}
+	{Operation{{$svrType}}{{.OriginalName}}, "{{.Method}}", "{{.GinPath}}" },
+	{{- end}}
+}
+
 type {{.ServiceType}}HTTPServer interface {
 {{- range .MethodSets}}
 	{{- if ne .Comment ""}}
@@ -54,11 +60,5 @@ func Register{{.ServiceType}}HTTPServer(route gin.IRouter, srv {{.ServiceType}}H
 	r := route.Group("/")
 	{{- range .Methods}}
 	r.{{.Method}}("{{.GinPath}}", _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv))
-	{{- end}}
-}
-
-var {{.ServiceType}}OperationRoutes = [...][3]string{
-	{{- range .Methods}}
-	{Operation{{$svrType}}{{.OriginalName}}, "{{.Method}}", "{{.GinPath}}" },
 	{{- end}}
 }

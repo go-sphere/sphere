@@ -19,6 +19,10 @@ var _ = new(protovalidate_go.Validator)
 
 const OperationSystemServiceCacheReset = "/dash.v1.SystemService/CacheReset"
 
+var SystemServiceOperationRoutes = [...][3]string{
+	{OperationSystemServiceCacheReset, "POST", "/api/cache/reset"},
+}
+
 type SystemServiceHTTPServer interface {
 	CacheReset(context.Context, *CacheResetRequest) (*CacheResetResponse, error)
 }
@@ -52,8 +56,4 @@ func _SystemService_CacheReset0_HTTP_Handler(srv SystemServiceHTTPServer) func(c
 func RegisterSystemServiceHTTPServer(route gin.IRouter, srv SystemServiceHTTPServer) {
 	r := route.Group("/")
 	r.POST("/api/cache/reset", _SystemService_CacheReset0_HTTP_Handler(srv))
-}
-
-var SystemServiceOperationRoutes = [...][3]string{
-	{OperationSystemServiceCacheReset, "POST", "/api/cache/reset"},
 }

@@ -20,6 +20,11 @@ var _ = new(protovalidate_go.Validator)
 const OperationTaskServiceTaskDetail = "/dash.v1.TaskService/TaskDetail"
 const OperationTaskServiceTaskList = "/dash.v1.TaskService/TaskList"
 
+var TaskServiceOperationRoutes = [...][3]string{
+	{OperationTaskServiceTaskList, "GET", "/api/task/list"},
+	{OperationTaskServiceTaskDetail, "GET", "/api/task/detail/:id"},
+}
+
 type TaskServiceHTTPServer interface {
 	TaskDetail(context.Context, *TaskDetailRequest) (*TaskDetailResponse, error)
 	TaskList(context.Context, *TaskListRequest) (*TaskListResponse, error)
@@ -82,9 +87,4 @@ func RegisterTaskServiceHTTPServer(route gin.IRouter, srv TaskServiceHTTPServer)
 	r := route.Group("/")
 	r.GET("/api/task/list", _TaskService_TaskList0_HTTP_Handler(srv))
 	r.GET("/api/task/detail/:id", _TaskService_TaskDetail0_HTTP_Handler(srv))
-}
-
-var TaskServiceOperationRoutes = [...][3]string{
-	{OperationTaskServiceTaskList, "GET", "/api/task/list"},
-	{OperationTaskServiceTaskDetail, "GET", "/api/task/detail/:id"},
 }

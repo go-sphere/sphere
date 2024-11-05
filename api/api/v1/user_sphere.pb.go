@@ -21,6 +21,12 @@ const OperationUserServiceBindPhoneWxMini = "/api.v1.UserService/BindPhoneWxMini
 const OperationUserServiceMe = "/api.v1.UserService/Me"
 const OperationUserServiceUpdate = "/api.v1.UserService/Update"
 
+var UserServiceOperationRoutes = [...][3]string{
+	{OperationUserServiceMe, "GET", "/api/user/me"},
+	{OperationUserServiceUpdate, "POST", "/api/user/update"},
+	{OperationUserServiceBindPhoneWxMini, "POST", "/api/user/bind/phone/wxmini"},
+}
+
 type UserServiceHTTPServer interface {
 	BindPhoneWxMini(context.Context, *BindPhoneWxMiniRequest) (*BindPhoneWxMiniResponse, error)
 	Me(context.Context, *MeRequest) (*MeResponse, error)
@@ -106,10 +112,4 @@ func RegisterUserServiceHTTPServer(route gin.IRouter, srv UserServiceHTTPServer)
 	r.GET("/api/user/me", _UserService_Me0_HTTP_Handler(srv))
 	r.POST("/api/user/update", _UserService_Update0_HTTP_Handler(srv))
 	r.POST("/api/user/bind/phone/wxmini", _UserService_BindPhoneWxMini0_HTTP_Handler(srv))
-}
-
-var UserServiceOperationRoutes = [...][3]string{
-	{OperationUserServiceMe, "GET", "/api/user/me"},
-	{OperationUserServiceUpdate, "POST", "/api/user/update"},
-	{OperationUserServiceBindPhoneWxMini, "POST", "/api/user/bind/phone/wxmini"},
 }

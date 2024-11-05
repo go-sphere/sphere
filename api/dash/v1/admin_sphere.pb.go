@@ -24,6 +24,15 @@ const OperationAdminServiceAdminList = "/dash.v1.AdminService/AdminList"
 const OperationAdminServiceAdminRoleList = "/dash.v1.AdminService/AdminRoleList"
 const OperationAdminServiceAdminUpdate = "/dash.v1.AdminService/AdminUpdate"
 
+var AdminServiceOperationRoutes = [...][3]string{
+	{OperationAdminServiceAdminList, "GET", "/api/admin/list"},
+	{OperationAdminServiceAdminCreate, "POST", "/api/admin/create"},
+	{OperationAdminServiceAdminUpdate, "POST", "/api/admin/update/:id"},
+	{OperationAdminServiceAdminDetail, "GET", "/api/admin/detail/:id"},
+	{OperationAdminServiceAdminDelete, "DELETE", "/api/admin/delete/:id"},
+	{OperationAdminServiceAdminRoleList, "GET", "/api/admin/role/list"},
+}
+
 type AdminServiceHTTPServer interface {
 	AdminCreate(context.Context, *AdminCreateRequest) (*AdminCreateResponse, error)
 	AdminDelete(context.Context, *AdminDeleteRequest) (*AdminDeleteResponse, error)
@@ -193,13 +202,4 @@ func RegisterAdminServiceHTTPServer(route gin.IRouter, srv AdminServiceHTTPServe
 	r.GET("/api/admin/detail/:id", _AdminService_AdminDetail0_HTTP_Handler(srv))
 	r.DELETE("/api/admin/delete/:id", _AdminService_AdminDelete0_HTTP_Handler(srv))
 	r.GET("/api/admin/role/list", _AdminService_AdminRoleList0_HTTP_Handler(srv))
-}
-
-var AdminServiceOperationRoutes = [...][3]string{
-	{OperationAdminServiceAdminList, "GET", "/api/admin/list"},
-	{OperationAdminServiceAdminCreate, "POST", "/api/admin/create"},
-	{OperationAdminServiceAdminUpdate, "POST", "/api/admin/update/:id"},
-	{OperationAdminServiceAdminDetail, "GET", "/api/admin/detail/:id"},
-	{OperationAdminServiceAdminDelete, "DELETE", "/api/admin/delete/:id"},
-	{OperationAdminServiceAdminRoleList, "GET", "/api/admin/role/list"},
 }

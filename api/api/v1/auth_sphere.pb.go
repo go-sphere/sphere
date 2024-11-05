@@ -19,6 +19,10 @@ var _ = new(protovalidate_go.Validator)
 
 const OperationAuthServiceAuthWxMini = "/api.v1.AuthService/AuthWxMini"
 
+var AuthServiceOperationRoutes = [...][3]string{
+	{OperationAuthServiceAuthWxMini, "POST", "/v1/auth/wxmini"},
+}
+
 type AuthServiceHTTPServer interface {
 	// AuthWxMini 请求小程序
 	AuthWxMini(context.Context, *AuthWxMiniRequest) (*AuthWxMiniResponse, error)
@@ -54,8 +58,4 @@ func _AuthService_AuthWxMini0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *
 func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer) {
 	r := route.Group("/")
 	r.POST("/v1/auth/wxmini", _AuthService_AuthWxMini0_HTTP_Handler(srv))
-}
-
-var AuthServiceOperationRoutes = [...][3]string{
-	{OperationAuthServiceAuthWxMini, "POST", "/v1/auth/wxmini"},
 }

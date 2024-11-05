@@ -19,6 +19,10 @@ var _ = new(protovalidate_go.Validator)
 
 const OperationStorageServiceUploadToken = "/shared.v1.StorageService/UploadToken"
 
+var StorageServiceOperationRoutes = [...][3]string{
+	{OperationStorageServiceUploadToken, "POST", "/api/upload/token"},
+}
+
 type StorageServiceHTTPServer interface {
 	UploadToken(context.Context, *UploadTokenRequest) (*UploadTokenResponse, error)
 }
@@ -52,8 +56,4 @@ func _StorageService_UploadToken0_HTTP_Handler(srv StorageServiceHTTPServer) fun
 func RegisterStorageServiceHTTPServer(route gin.IRouter, srv StorageServiceHTTPServer) {
 	r := route.Group("/")
 	r.POST("/api/upload/token", _StorageService_UploadToken0_HTTP_Handler(srv))
-}
-
-var StorageServiceOperationRoutes = [...][3]string{
-	{OperationStorageServiceUploadToken, "POST", "/api/upload/token"},
 }

@@ -19,6 +19,10 @@ var _ = new(protovalidate_go.Validator)
 
 const OperationSystemServiceStatus = "/api.v1.SystemService/Status"
 
+var SystemServiceOperationRoutes = [...][3]string{
+	{OperationSystemServiceStatus, "GET", "/api/status"},
+}
+
 type SystemServiceHTTPServer interface {
 	Status(context.Context, *StatusRequest) (*StatusResponse, error)
 }
@@ -48,8 +52,4 @@ func _SystemService_Status0_HTTP_Handler(srv SystemServiceHTTPServer) func(ctx *
 func RegisterSystemServiceHTTPServer(route gin.IRouter, srv SystemServiceHTTPServer) {
 	r := route.Group("/")
 	r.GET("/api/status", _SystemService_Status0_HTTP_Handler(srv))
-}
-
-var SystemServiceOperationRoutes = [...][3]string{
-	{OperationSystemServiceStatus, "GET", "/api/status"},
 }
