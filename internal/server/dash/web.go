@@ -82,7 +82,18 @@ func (w *Web) Run() error {
 
 	authRoute := api.Group("/")
 	// 根据元数据限定中间件作用范围
-	authRoute.Use(MiddlewaresForOperation(authRoute, dashv1.OperationAuthServiceAuthLogin, dashv1.AuthServiceOperationRoutes[:], rateLimiter))
+	authRoute.Use(
+		selector.NewSelectorMiddleware(
+			selector.MatchFunc(
+				ginx.MatchOperation(
+					authRoute,
+					dashv1.AuthServiceOperationRoutes[:],
+					dashv1.OperationAuthServiceAuthLogin,
+				),
+			),
+			rateLimiter,
+		),
+	)
 	dashv1.RegisterAuthServiceHTTPServer(authRoute, w.service)
 
 	adminRoute := needAuthRoute.Group("/", w.withPermission(dash.PermissionAdmin))
@@ -106,11 +117,4 @@ func initDefaultRolesACL(acl *acl.ACL) {
 		acl.Allow(dash.PermissionAll, r)
 		acl.Allow(r, r)
 	}
-}
-
-func MiddlewaresForOperation(route gin.IRouter, operation string, routes [][3]string, middlewares ...gin.HandlerFunc) gin.HandlerFunc {
-	return selector.NewSelectorMiddleware(
-		selector.MatchFunc(ginx.MatchOperation(route, operation, routes)),
-		middlewares...,
-	)
 }

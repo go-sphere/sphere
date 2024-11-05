@@ -15,12 +15,18 @@ func RoutesToMatches(base string, routes ...[][3]string) map[string]map[string]s
 	return matches
 }
 
-func MatchOperation(route gin.IRouter, operation string, routes [][3]string) func(ctx *gin.Context) bool {
+func MatchOperation(route gin.IRouter, routes [][3]string, operations ...string) func(ctx *gin.Context) bool {
 	matches := RoutesToMatches(route.Group("").BasePath(), routes)
+	opts := make(map[string]struct{}, len(operations))
+	for _, opt := range operations {
+		opts[opt] = struct{}{}
+	}
 	return func(ctx *gin.Context) bool {
 		if method, ok := matches[ctx.Request.Method]; ok {
 			if opt, exist := method[ctx.FullPath()]; exist {
-				return opt == operation
+				if _, match := opts[opt]; match {
+					return true
+				}
 			}
 		}
 		return false
