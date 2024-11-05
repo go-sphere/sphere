@@ -89,3 +89,21 @@ func WithHandler(h http.Handler) func(ctx *gin.Context) {
 		h.ServeHTTP(ctx.Writer, ctx.Request)
 	})
 }
+
+func SetContextValue(key string, value interface{}) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		ctx.Set(key, value)
+	}
+}
+
+func MiddlewaresGroup(middlewares ...gin.HandlerFunc) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		for _, m := range middlewares {
+			m(ctx)
+			if ctx.IsAborted() {
+				return
+			}
+		}
+		ctx.Next()
+	}
+}

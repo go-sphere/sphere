@@ -17,6 +17,8 @@ var _ = new(gin.Context)
 var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
+const OperationAuthServiceAuthWxMini = "/api.v1.AuthService/AuthWxMini"
+
 type AuthServiceHTTPServer interface {
 	// AuthWxMini 请求小程序
 	AuthWxMini(context.Context, *AuthWxMiniRequest) (*AuthWxMiniResponse, error)
@@ -41,6 +43,7 @@ func _AuthService_AuthWxMini0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationAuthServiceAuthWxMini)
 		out, err := srv.AuthWxMini(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -49,7 +52,11 @@ func _AuthService_AuthWxMini0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *
 	})
 }
 
-func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer) {
+func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
 	r := route.Group("/")
-	r.POST("/v1/auth/wxmini", _AuthService_AuthWxMini0_HTTP_Handler(srv))
+	r.POST(
+		"/v1/auth/wxmini",
+		ginx.MatchOperationMiddlewares(middlewares, OperationAuthServiceAuthWxMini),
+		_AuthService_AuthWxMini0_HTTP_Handler(srv),
+	)
 }

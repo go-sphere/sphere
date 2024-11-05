@@ -17,6 +17,8 @@ var _ = new(gin.Context)
 var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
+const OperationSystemServiceCacheReset = "/dash.v1.SystemService/CacheReset"
+
 type SystemServiceHTTPServer interface {
 	CacheReset(context.Context, *CacheResetRequest) (*CacheResetResponse, error)
 }
@@ -39,6 +41,7 @@ func _SystemService_CacheReset0_HTTP_Handler(srv SystemServiceHTTPServer) func(c
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationSystemServiceCacheReset)
 		out, err := srv.CacheReset(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -47,7 +50,11 @@ func _SystemService_CacheReset0_HTTP_Handler(srv SystemServiceHTTPServer) func(c
 	})
 }
 
-func RegisterSystemServiceHTTPServer(route gin.IRouter, srv SystemServiceHTTPServer) {
+func RegisterSystemServiceHTTPServer(route gin.IRouter, srv SystemServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
 	r := route.Group("/")
-	r.POST("/api/cache/reset", _SystemService_CacheReset0_HTTP_Handler(srv))
+	r.POST(
+		"/api/cache/reset",
+		ginx.MatchOperationMiddlewares(middlewares, OperationSystemServiceCacheReset),
+		_SystemService_CacheReset0_HTTP_Handler(srv),
+	)
 }

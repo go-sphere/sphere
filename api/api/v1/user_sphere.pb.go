@@ -17,6 +17,10 @@ var _ = new(gin.Context)
 var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
+const OperationUserServiceBindPhoneWxMini = "/api.v1.UserService/BindPhoneWxMini"
+const OperationUserServiceMe = "/api.v1.UserService/Me"
+const OperationUserServiceUpdate = "/api.v1.UserService/Update"
+
 type UserServiceHTTPServer interface {
 	BindPhoneWxMini(context.Context, *BindPhoneWxMiniRequest) (*BindPhoneWxMiniResponse, error)
 	Me(context.Context, *MeRequest) (*MeResponse, error)
@@ -37,6 +41,7 @@ type UserServiceHTTPServer interface {
 func _UserService_Me0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*MeResponse, error) {
 		var in MeRequest
+		ctx.Set("operation", OperationUserServiceMe)
 		out, err := srv.Me(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -63,6 +68,7 @@ func _UserService_Update0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationUserServiceUpdate)
 		out, err := srv.Update(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -89,6 +95,7 @@ func _UserService_BindPhoneWxMini0_HTTP_Handler(srv UserServiceHTTPServer) func(
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationUserServiceBindPhoneWxMini)
 		out, err := srv.BindPhoneWxMini(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -97,9 +104,21 @@ func _UserService_BindPhoneWxMini0_HTTP_Handler(srv UserServiceHTTPServer) func(
 	})
 }
 
-func RegisterUserServiceHTTPServer(route gin.IRouter, srv UserServiceHTTPServer) {
+func RegisterUserServiceHTTPServer(route gin.IRouter, srv UserServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
 	r := route.Group("/")
-	r.GET("/api/user/me", _UserService_Me0_HTTP_Handler(srv))
-	r.POST("/api/user/update", _UserService_Update0_HTTP_Handler(srv))
-	r.POST("/api/user/bind/phone/wxmini", _UserService_BindPhoneWxMini0_HTTP_Handler(srv))
+	r.GET(
+		"/api/user/me",
+		ginx.MatchOperationMiddlewares(middlewares, OperationUserServiceMe),
+		_UserService_Me0_HTTP_Handler(srv),
+	)
+	r.POST(
+		"/api/user/update",
+		ginx.MatchOperationMiddlewares(middlewares, OperationUserServiceUpdate),
+		_UserService_Update0_HTTP_Handler(srv),
+	)
+	r.POST(
+		"/api/user/bind/phone/wxmini",
+		ginx.MatchOperationMiddlewares(middlewares, OperationUserServiceBindPhoneWxMini),
+		_UserService_BindPhoneWxMini0_HTTP_Handler(srv),
+	)
 }

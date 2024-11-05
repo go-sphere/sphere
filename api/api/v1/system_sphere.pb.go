@@ -17,6 +17,8 @@ var _ = new(gin.Context)
 var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
+const OperationSystemServiceStatus = "/api.v1.SystemService/Status"
+
 type SystemServiceHTTPServer interface {
 	Status(context.Context, *StatusRequest) (*StatusResponse, error)
 }
@@ -35,6 +37,7 @@ type SystemServiceHTTPServer interface {
 func _SystemService_Status0_HTTP_Handler(srv SystemServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*StatusResponse, error) {
 		var in StatusRequest
+		ctx.Set("operation", OperationSystemServiceStatus)
 		out, err := srv.Status(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -43,7 +46,11 @@ func _SystemService_Status0_HTTP_Handler(srv SystemServiceHTTPServer) func(ctx *
 	})
 }
 
-func RegisterSystemServiceHTTPServer(route gin.IRouter, srv SystemServiceHTTPServer) {
+func RegisterSystemServiceHTTPServer(route gin.IRouter, srv SystemServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
 	r := route.Group("/")
-	r.GET("/api/status", _SystemService_Status0_HTTP_Handler(srv))
+	r.GET(
+		"/api/status",
+		ginx.MatchOperationMiddlewares(middlewares, OperationSystemServiceStatus),
+		_SystemService_Status0_HTTP_Handler(srv),
+	)
 }

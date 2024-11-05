@@ -17,6 +17,9 @@ var _ = new(gin.Context)
 var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
+const OperationAuthServiceAuthLogin = "/dash.v1.AuthService/AuthLogin"
+const OperationAuthServiceAuthRefresh = "/dash.v1.AuthService/AuthRefresh"
+
 type AuthServiceHTTPServer interface {
 	AuthLogin(context.Context, *AuthLoginRequest) (*AuthLoginResponse, error)
 	AuthRefresh(context.Context, *AuthRefreshRequest) (*AuthRefreshResponse, error)
@@ -43,6 +46,7 @@ func _AuthService_AuthLogin0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *g
 		if err := protovalidate_go.Validate(&in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationAuthServiceAuthLogin)
 		out, err := srv.AuthLogin(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -69,6 +73,7 @@ func _AuthService_AuthRefresh0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx 
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationAuthServiceAuthRefresh)
 		out, err := srv.AuthRefresh(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -77,8 +82,16 @@ func _AuthService_AuthRefresh0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx 
 	})
 }
 
-func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer) {
+func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
 	r := route.Group("/")
-	r.POST("/api/auth/login", _AuthService_AuthLogin0_HTTP_Handler(srv))
-	r.POST("/api/auth/refresh", _AuthService_AuthRefresh0_HTTP_Handler(srv))
+	r.POST(
+		"/api/auth/login",
+		ginx.MatchOperationMiddlewares(middlewares, OperationAuthServiceAuthLogin),
+		_AuthService_AuthLogin0_HTTP_Handler(srv),
+	)
+	r.POST(
+		"/api/auth/refresh",
+		ginx.MatchOperationMiddlewares(middlewares, OperationAuthServiceAuthRefresh),
+		_AuthService_AuthRefresh0_HTTP_Handler(srv),
+	)
 }

@@ -79,8 +79,11 @@ func (w *Web) Run() error {
 	sharedv1.RegisterStorageServiceHTTPServer(needAuthRoute, sharedSrc)
 	sharedv1.RegisterTestServiceHTTPServer(api, sharedSrc)
 
-	authRoute := api.Group("/", rateLimiter)
-	dashv1.RegisterAuthServiceHTTPServer(authRoute, w.service)
+	authRoute := api.Group("/")
+	dashv1.RegisterAuthServiceHTTPServer(authRoute, w.service, ginx.NewOperationMiddlewares(
+		dashv1.OperationAuthServiceAuthLogin,
+		rateLimiter,
+	))
 
 	adminRoute := needAuthRoute.Group("/", w.withPermission(dash.PermissionAdmin))
 	dashv1.RegisterAdminServiceHTTPServer(adminRoute, w.service)

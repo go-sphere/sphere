@@ -17,6 +17,9 @@ var _ = new(gin.Context)
 var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
+const OperationTaskServiceTaskDetail = "/dash.v1.TaskService/TaskDetail"
+const OperationTaskServiceTaskList = "/dash.v1.TaskService/TaskList"
+
 type TaskServiceHTTPServer interface {
 	TaskDetail(context.Context, *TaskDetailRequest) (*TaskDetailResponse, error)
 	TaskList(context.Context, *TaskListRequest) (*TaskListResponse, error)
@@ -41,6 +44,7 @@ func _TaskService_TaskList0_HTTP_Handler(srv TaskServiceHTTPServer) func(ctx *gi
 		if err := ginx.ShouldBindQuery(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationTaskServiceTaskList)
 		out, err := srv.TaskList(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -67,6 +71,7 @@ func _TaskService_TaskDetail0_HTTP_Handler(srv TaskServiceHTTPServer) func(ctx *
 		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationTaskServiceTaskDetail)
 		out, err := srv.TaskDetail(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -75,8 +80,16 @@ func _TaskService_TaskDetail0_HTTP_Handler(srv TaskServiceHTTPServer) func(ctx *
 	})
 }
 
-func RegisterTaskServiceHTTPServer(route gin.IRouter, srv TaskServiceHTTPServer) {
+func RegisterTaskServiceHTTPServer(route gin.IRouter, srv TaskServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
 	r := route.Group("/")
-	r.GET("/api/task/list", _TaskService_TaskList0_HTTP_Handler(srv))
-	r.GET("/api/task/detail/:id", _TaskService_TaskDetail0_HTTP_Handler(srv))
+	r.GET(
+		"/api/task/list",
+		ginx.MatchOperationMiddlewares(middlewares, OperationTaskServiceTaskList),
+		_TaskService_TaskList0_HTTP_Handler(srv),
+	)
+	r.GET(
+		"/api/task/detail/:id",
+		ginx.MatchOperationMiddlewares(middlewares, OperationTaskServiceTaskDetail),
+		_TaskService_TaskDetail0_HTTP_Handler(srv),
+	)
 }

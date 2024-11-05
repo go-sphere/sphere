@@ -1,6 +1,9 @@
 {{$svrType := .ServiceType}}
 {{$svrName := .ServiceName}}
 
+{{- range .MethodSets}}
+const Operation{{$svrType}}{{.OriginalName}} = "/{{$svrName}}/{{.OriginalName}}"
+{{- end}}
 
 type {{.ServiceType}}HTTPServer interface {
 {{- range .MethodSets}}
@@ -10,8 +13,6 @@ type {{.ServiceType}}HTTPServer interface {
 	{{.Name}}(context.Context, *{{.Request}}) (*{{.Reply}}, error)
 {{- end}}
 }
-
-
 
 {{range .Methods}}
 	{{- if ne .Swagger ""}}
@@ -40,6 +41,7 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) fu
             return nil, err
         }
         {{- end}}
+        ctx.Set("operation", Operation{{$svrType}}{{.OriginalName}})
 		out, err := srv.{{.Name}}(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -49,9 +51,13 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) fu
 }
 {{end}}
 
-func Register{{.ServiceType}}HTTPServer(route gin.IRouter, srv {{.ServiceType}}HTTPServer) {
+func Register{{.ServiceType}}HTTPServer(route gin.IRouter, srv {{.ServiceType}}HTTPServer, middlewares ...ginx.OperationMiddlewares) {
 	r := route.Group("/")
 	{{- range .Methods}}
-	r.{{.Method}}("{{.GinPath}}", _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv))
+	r.{{.Method}}(
+	    "{{.GinPath}}",
+	    ginx.MatchOperationMiddlewares(middlewares, Operation{{$svrType}}{{.OriginalName}}),
+	    _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv),
+	    )
 	{{- end}}
 }

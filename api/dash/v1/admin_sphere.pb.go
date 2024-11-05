@@ -17,6 +17,13 @@ var _ = new(gin.Context)
 var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
+const OperationAdminServiceAdminCreate = "/dash.v1.AdminService/AdminCreate"
+const OperationAdminServiceAdminDelete = "/dash.v1.AdminService/AdminDelete"
+const OperationAdminServiceAdminDetail = "/dash.v1.AdminService/AdminDetail"
+const OperationAdminServiceAdminList = "/dash.v1.AdminService/AdminList"
+const OperationAdminServiceAdminRoleList = "/dash.v1.AdminService/AdminRoleList"
+const OperationAdminServiceAdminUpdate = "/dash.v1.AdminService/AdminUpdate"
+
 type AdminServiceHTTPServer interface {
 	AdminCreate(context.Context, *AdminCreateRequest) (*AdminCreateResponse, error)
 	AdminDelete(context.Context, *AdminDeleteRequest) (*AdminDeleteResponse, error)
@@ -40,6 +47,7 @@ type AdminServiceHTTPServer interface {
 func _AdminService_AdminList0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AdminListResponse, error) {
 		var in AdminListRequest
+		ctx.Set("operation", OperationAdminServiceAdminList)
 		out, err := srv.AdminList(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -66,6 +74,7 @@ func _AdminService_AdminCreate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationAdminServiceAdminCreate)
 		out, err := srv.AdminCreate(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -96,6 +105,7 @@ func _AdminService_AdminUpdate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationAdminServiceAdminUpdate)
 		out, err := srv.AdminUpdate(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -122,6 +132,7 @@ func _AdminService_AdminDetail0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationAdminServiceAdminDetail)
 		out, err := srv.AdminDetail(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -148,6 +159,7 @@ func _AdminService_AdminDelete0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationAdminServiceAdminDelete)
 		out, err := srv.AdminDelete(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -170,6 +182,7 @@ func _AdminService_AdminDelete0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 func _AdminService_AdminRoleList0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AdminRoleListResponse, error) {
 		var in AdminRoleListRequest
+		ctx.Set("operation", OperationAdminServiceAdminRoleList)
 		out, err := srv.AdminRoleList(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -178,12 +191,36 @@ func _AdminService_AdminRoleList0_HTTP_Handler(srv AdminServiceHTTPServer) func(
 	})
 }
 
-func RegisterAdminServiceHTTPServer(route gin.IRouter, srv AdminServiceHTTPServer) {
+func RegisterAdminServiceHTTPServer(route gin.IRouter, srv AdminServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
 	r := route.Group("/")
-	r.GET("/api/admin/list", _AdminService_AdminList0_HTTP_Handler(srv))
-	r.POST("/api/admin/create", _AdminService_AdminCreate0_HTTP_Handler(srv))
-	r.POST("/api/admin/update/:id", _AdminService_AdminUpdate0_HTTP_Handler(srv))
-	r.GET("/api/admin/detail/:id", _AdminService_AdminDetail0_HTTP_Handler(srv))
-	r.DELETE("/api/admin/delete/:id", _AdminService_AdminDelete0_HTTP_Handler(srv))
-	r.GET("/api/admin/role/list", _AdminService_AdminRoleList0_HTTP_Handler(srv))
+	r.GET(
+		"/api/admin/list",
+		ginx.MatchOperationMiddlewares(middlewares, OperationAdminServiceAdminList),
+		_AdminService_AdminList0_HTTP_Handler(srv),
+	)
+	r.POST(
+		"/api/admin/create",
+		ginx.MatchOperationMiddlewares(middlewares, OperationAdminServiceAdminCreate),
+		_AdminService_AdminCreate0_HTTP_Handler(srv),
+	)
+	r.POST(
+		"/api/admin/update/:id",
+		ginx.MatchOperationMiddlewares(middlewares, OperationAdminServiceAdminUpdate),
+		_AdminService_AdminUpdate0_HTTP_Handler(srv),
+	)
+	r.GET(
+		"/api/admin/detail/:id",
+		ginx.MatchOperationMiddlewares(middlewares, OperationAdminServiceAdminDetail),
+		_AdminService_AdminDetail0_HTTP_Handler(srv),
+	)
+	r.DELETE(
+		"/api/admin/delete/:id",
+		ginx.MatchOperationMiddlewares(middlewares, OperationAdminServiceAdminDelete),
+		_AdminService_AdminDelete0_HTTP_Handler(srv),
+	)
+	r.GET(
+		"/api/admin/role/list",
+		ginx.MatchOperationMiddlewares(middlewares, OperationAdminServiceAdminRoleList),
+		_AdminService_AdminRoleList0_HTTP_Handler(srv),
+	)
 }

@@ -17,6 +17,8 @@ var _ = new(gin.Context)
 var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
+const OperationTestServiceRunTest = "/shared.v1.TestService/RunTest"
+
 type TestServiceHTTPServer interface {
 	RunTest(context.Context, *RunTestRequest) (*RunTestResponse, error)
 }
@@ -49,6 +51,7 @@ func _TestService_RunTest0_HTTP_Handler(srv TestServiceHTTPServer) func(ctx *gin
 		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationTestServiceRunTest)
 		out, err := srv.RunTest(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -57,7 +60,11 @@ func _TestService_RunTest0_HTTP_Handler(srv TestServiceHTTPServer) func(ctx *gin
 	})
 }
 
-func RegisterTestServiceHTTPServer(route gin.IRouter, srv TestServiceHTTPServer) {
+func RegisterTestServiceHTTPServer(route gin.IRouter, srv TestServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
 	r := route.Group("/")
-	r.POST("/api/test/:path_test1/second/:path_test2", _TestService_RunTest0_HTTP_Handler(srv))
+	r.POST(
+		"/api/test/:path_test1/second/:path_test2",
+		ginx.MatchOperationMiddlewares(middlewares, OperationTestServiceRunTest),
+		_TestService_RunTest0_HTTP_Handler(srv),
+	)
 }

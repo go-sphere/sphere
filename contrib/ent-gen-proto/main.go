@@ -29,7 +29,7 @@ func main() {
 	RunProtoGen(*schemaPath, *protoDir, *ignoreOptional, *autoAddAnnotation, *enumUseRawType)
 }
 
-func RunProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnnotation, enumUseString bool) {
+func RunProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnnotation, enumUseRawType bool) {
 	abs, err := filepath.Abs(schemaPath)
 	if err != nil {
 		log.Fatalf("entproto: failed getting absolute path: %v", err)
@@ -68,10 +68,9 @@ func RunProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnno
 						fd.Annotations = make(map[string]interface{}, 1)
 					}
 					fieldID++
-					fd.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
 					if fd.IsEnum() {
-						if enumUseString {
-							if fd.HasGoType() && fd.Type.RType != nil {
+						if enumUseRawType {
+							if fd.HasGoType() {
 								fd.Type.Type = reflectKind2FieldType(fd.Type.RType.Kind)
 							} else {
 								fd.Type.Type = field.TypeString
@@ -79,11 +78,12 @@ func RunProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnno
 						} else {
 							enums := make(map[string]int32, len(fd.Enums))
 							for index, enum := range fd.Enums {
-								enums[enum.Value] = int32(index)
+								enums[enum.Value] = int32(index) + 1
 							}
-							fd.Annotations[entproto.EnumAnnotation] = entproto.Enum(enums)
+							fd.Annotations[entproto.EnumAnnotation] = entproto.Enum(enums, entproto.OmitFieldPrefix())
 						}
 					}
+					fd.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
 					if fd.Optional && ignoreOptional {
 						fd.Optional = false
 					}

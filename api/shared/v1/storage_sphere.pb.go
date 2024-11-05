@@ -17,6 +17,8 @@ var _ = new(gin.Context)
 var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
+const OperationStorageServiceUploadToken = "/shared.v1.StorageService/UploadToken"
+
 type StorageServiceHTTPServer interface {
 	UploadToken(context.Context, *UploadTokenRequest) (*UploadTokenResponse, error)
 }
@@ -39,6 +41,7 @@ func _StorageService_UploadToken0_HTTP_Handler(srv StorageServiceHTTPServer) fun
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
+		ctx.Set("operation", OperationStorageServiceUploadToken)
 		out, err := srv.UploadToken(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -47,7 +50,11 @@ func _StorageService_UploadToken0_HTTP_Handler(srv StorageServiceHTTPServer) fun
 	})
 }
 
-func RegisterStorageServiceHTTPServer(route gin.IRouter, srv StorageServiceHTTPServer) {
+func RegisterStorageServiceHTTPServer(route gin.IRouter, srv StorageServiceHTTPServer, middlewares ...ginx.OperationMiddlewares) {
 	r := route.Group("/")
-	r.POST("/api/upload/token", _StorageService_UploadToken0_HTTP_Handler(srv))
+	r.POST(
+		"/api/upload/token",
+		ginx.MatchOperationMiddlewares(middlewares, OperationStorageServiceUploadToken),
+		_StorageService_UploadToken0_HTTP_Handler(srv),
+	)
 }
