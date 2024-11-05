@@ -26,15 +26,31 @@ func NewContextMatcher[T comparable](key string, value T) Matcher {
 	})
 }
 
-func NewPathMatcher(path string) Matcher {
-	return MatchFunc(func(ctx *gin.Context) bool {
-		return ctx.FullPath() == path
-	})
-}
-
 func NewLogicalNotMatcher(matcher Matcher) Matcher {
 	return MatchFunc(func(ctx *gin.Context) bool {
 		return !matcher.Match(ctx)
+	})
+}
+
+func NewLogicalOrMatcher(matchers ...Matcher) Matcher {
+	return MatchFunc(func(ctx *gin.Context) bool {
+		for _, m := range matchers {
+			if m.Match(ctx) {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+func NewLogicalAndMatcher(matchers ...Matcher) Matcher {
+	return MatchFunc(func(ctx *gin.Context) bool {
+		for _, m := range matchers {
+			if !m.Match(ctx) {
+				return false
+			}
+		}
+		return true
 	})
 }
 

@@ -15,8 +15,8 @@ func metadataToMatches(base string, metadata ...[][3]string) map[string]map[stri
 	return matches
 }
 
-func MatchOperation(route gin.IRouter, metadata [][3]string, operations ...string) func(ctx *gin.Context) bool {
-	matches := metadataToMatches(route.Group("").BasePath(), metadata)
+func MatchOperation(base string, metadata [][3]string, operations ...string) func(ctx *gin.Context) bool {
+	matches := metadataToMatches(base, metadata)
 	opts := make(map[string]struct{}, len(operations))
 	for _, opt := range operations {
 		opts[opt] = struct{}{}
