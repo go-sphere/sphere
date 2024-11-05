@@ -41,7 +41,6 @@ func _StorageService_UploadToken0_HTTP_Handler(srv StorageServiceHTTPServer) fun
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationStorageServiceUploadToken)
 		out, err := srv.UploadToken(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -55,8 +54,6 @@ func RegisterStorageServiceHTTPServer(route gin.IRouter, srv StorageServiceHTTPS
 	r.POST("/api/upload/token", _StorageService_UploadToken0_HTTP_Handler(srv))
 }
 
-func CreateStorageServiceOperationRoute(base string) map[string][]string {
-	return map[string][]string{
-		OperationStorageServiceUploadToken: {"POST", ginx.JoinPaths(base, "/api/upload/token")},
-	}
+var StorageServiceOperationRoutes = [...][3]string{
+	{OperationStorageServiceUploadToken, "POST", "/api/upload/token"},
 }

@@ -41,7 +41,6 @@ func _SystemService_CacheReset0_HTTP_Handler(srv SystemServiceHTTPServer) func(c
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationSystemServiceCacheReset)
 		out, err := srv.CacheReset(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -55,8 +54,6 @@ func RegisterSystemServiceHTTPServer(route gin.IRouter, srv SystemServiceHTTPSer
 	r.POST("/api/cache/reset", _SystemService_CacheReset0_HTTP_Handler(srv))
 }
 
-func CreateSystemServiceOperationRoute(base string) map[string][]string {
-	return map[string][]string{
-		OperationSystemServiceCacheReset: {"POST", ginx.JoinPaths(base, "/api/cache/reset")},
-	}
+var SystemServiceOperationRoutes = [...][3]string{
+	{OperationSystemServiceCacheReset, "POST", "/api/cache/reset"},
 }

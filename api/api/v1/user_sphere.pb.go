@@ -41,7 +41,6 @@ type UserServiceHTTPServer interface {
 func _UserService_Me0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*MeResponse, error) {
 		var in MeRequest
-		ctx.Set("operation", OperationUserServiceMe)
 		out, err := srv.Me(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -68,7 +67,6 @@ func _UserService_Update0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx *gin.
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationUserServiceUpdate)
 		out, err := srv.Update(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -95,7 +93,6 @@ func _UserService_BindPhoneWxMini0_HTTP_Handler(srv UserServiceHTTPServer) func(
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationUserServiceBindPhoneWxMini)
 		out, err := srv.BindPhoneWxMini(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -111,10 +108,8 @@ func RegisterUserServiceHTTPServer(route gin.IRouter, srv UserServiceHTTPServer)
 	r.POST("/api/user/bind/phone/wxmini", _UserService_BindPhoneWxMini0_HTTP_Handler(srv))
 }
 
-func CreateUserServiceOperationRoute(base string) map[string][]string {
-	return map[string][]string{
-		OperationUserServiceMe:              {"GET", ginx.JoinPaths(base, "/api/user/me")},
-		OperationUserServiceUpdate:          {"POST", ginx.JoinPaths(base, "/api/user/update")},
-		OperationUserServiceBindPhoneWxMini: {"POST", ginx.JoinPaths(base, "/api/user/bind/phone/wxmini")},
-	}
+var UserServiceOperationRoutes = [...][3]string{
+	{OperationUserServiceMe, "GET", "/api/user/me"},
+	{OperationUserServiceUpdate, "POST", "/api/user/update"},
+	{OperationUserServiceBindPhoneWxMini, "POST", "/api/user/bind/phone/wxmini"},
 }

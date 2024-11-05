@@ -37,7 +37,6 @@ type SystemServiceHTTPServer interface {
 func _SystemService_Status0_HTTP_Handler(srv SystemServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*StatusResponse, error) {
 		var in StatusRequest
-		ctx.Set("operation", OperationSystemServiceStatus)
 		out, err := srv.Status(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -51,8 +50,6 @@ func RegisterSystemServiceHTTPServer(route gin.IRouter, srv SystemServiceHTTPSer
 	r.GET("/api/status", _SystemService_Status0_HTTP_Handler(srv))
 }
 
-func CreateSystemServiceOperationRoute(base string) map[string][]string {
-	return map[string][]string{
-		OperationSystemServiceStatus: {"GET", ginx.JoinPaths(base, "/api/status")},
-	}
+var SystemServiceOperationRoutes = [...][3]string{
+	{OperationSystemServiceStatus, "GET", "/api/status"},
 }

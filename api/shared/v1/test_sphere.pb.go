@@ -51,7 +51,6 @@ func _TestService_RunTest0_HTTP_Handler(srv TestServiceHTTPServer) func(ctx *gin
 		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationTestServiceRunTest)
 		out, err := srv.RunTest(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -65,8 +64,6 @@ func RegisterTestServiceHTTPServer(route gin.IRouter, srv TestServiceHTTPServer)
 	r.POST("/api/test/:path_test1/second/:path_test2", _TestService_RunTest0_HTTP_Handler(srv))
 }
 
-func CreateTestServiceOperationRoute(base string) map[string][]string {
-	return map[string][]string{
-		OperationTestServiceRunTest: {"POST", ginx.JoinPaths(base, "/api/test/:path_test1/second/:path_test2")},
-	}
+var TestServiceOperationRoutes = [...][3]string{
+	{OperationTestServiceRunTest, "POST", "/api/test/:path_test1/second/:path_test2"},
 }

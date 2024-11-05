@@ -44,7 +44,6 @@ func _TaskService_TaskList0_HTTP_Handler(srv TaskServiceHTTPServer) func(ctx *gi
 		if err := ginx.ShouldBindQuery(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationTaskServiceTaskList)
 		out, err := srv.TaskList(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -71,7 +70,6 @@ func _TaskService_TaskDetail0_HTTP_Handler(srv TaskServiceHTTPServer) func(ctx *
 		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationTaskServiceTaskDetail)
 		out, err := srv.TaskDetail(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -86,9 +84,7 @@ func RegisterTaskServiceHTTPServer(route gin.IRouter, srv TaskServiceHTTPServer)
 	r.GET("/api/task/detail/:id", _TaskService_TaskDetail0_HTTP_Handler(srv))
 }
 
-func CreateTaskServiceOperationRoute(base string) map[string][]string {
-	return map[string][]string{
-		OperationTaskServiceTaskList:   {"GET", ginx.JoinPaths(base, "/api/task/list")},
-		OperationTaskServiceTaskDetail: {"GET", ginx.JoinPaths(base, "/api/task/detail/:id")},
-	}
+var TaskServiceOperationRoutes = [...][3]string{
+	{OperationTaskServiceTaskList, "GET", "/api/task/list"},
+	{OperationTaskServiceTaskDetail, "GET", "/api/task/detail/:id"},
 }

@@ -46,7 +46,6 @@ func _AuthService_AuthLogin0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *g
 		if err := protovalidate_go.Validate(&in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationAuthServiceAuthLogin)
 		out, err := srv.AuthLogin(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -73,7 +72,6 @@ func _AuthService_AuthRefresh0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx 
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationAuthServiceAuthRefresh)
 		out, err := srv.AuthRefresh(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -88,9 +86,7 @@ func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer)
 	r.POST("/api/auth/refresh", _AuthService_AuthRefresh0_HTTP_Handler(srv))
 }
 
-func CreateAuthServiceOperationRoute(base string) map[string][]string {
-	return map[string][]string{
-		OperationAuthServiceAuthLogin:   {"POST", ginx.JoinPaths(base, "/api/auth/login")},
-		OperationAuthServiceAuthRefresh: {"POST", ginx.JoinPaths(base, "/api/auth/refresh")},
-	}
+var AuthServiceOperationRoutes = [...][3]string{
+	{OperationAuthServiceAuthLogin, "POST", "/api/auth/login"},
+	{OperationAuthServiceAuthRefresh, "POST", "/api/auth/refresh"},
 }

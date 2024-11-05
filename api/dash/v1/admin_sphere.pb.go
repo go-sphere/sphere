@@ -47,7 +47,6 @@ type AdminServiceHTTPServer interface {
 func _AdminService_AdminList0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AdminListResponse, error) {
 		var in AdminListRequest
-		ctx.Set("operation", OperationAdminServiceAdminList)
 		out, err := srv.AdminList(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -74,7 +73,6 @@ func _AdminService_AdminCreate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationAdminServiceAdminCreate)
 		out, err := srv.AdminCreate(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -105,7 +103,6 @@ func _AdminService_AdminUpdate0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationAdminServiceAdminUpdate)
 		out, err := srv.AdminUpdate(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -132,7 +129,6 @@ func _AdminService_AdminDetail0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationAdminServiceAdminDetail)
 		out, err := srv.AdminDetail(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -159,7 +155,6 @@ func _AdminService_AdminDelete0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationAdminServiceAdminDelete)
 		out, err := srv.AdminDelete(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -182,7 +177,6 @@ func _AdminService_AdminDelete0_HTTP_Handler(srv AdminServiceHTTPServer) func(ct
 func _AdminService_AdminRoleList0_HTTP_Handler(srv AdminServiceHTTPServer) func(ctx *gin.Context) {
 	return ginx.WithJson(func(ctx *gin.Context) (*AdminRoleListResponse, error) {
 		var in AdminRoleListRequest
-		ctx.Set("operation", OperationAdminServiceAdminRoleList)
 		out, err := srv.AdminRoleList(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -201,13 +195,11 @@ func RegisterAdminServiceHTTPServer(route gin.IRouter, srv AdminServiceHTTPServe
 	r.GET("/api/admin/role/list", _AdminService_AdminRoleList0_HTTP_Handler(srv))
 }
 
-func CreateAdminServiceOperationRoute(base string) map[string][]string {
-	return map[string][]string{
-		OperationAdminServiceAdminList:     {"GET", ginx.JoinPaths(base, "/api/admin/list")},
-		OperationAdminServiceAdminCreate:   {"POST", ginx.JoinPaths(base, "/api/admin/create")},
-		OperationAdminServiceAdminUpdate:   {"POST", ginx.JoinPaths(base, "/api/admin/update/:id")},
-		OperationAdminServiceAdminDetail:   {"GET", ginx.JoinPaths(base, "/api/admin/detail/:id")},
-		OperationAdminServiceAdminDelete:   {"DELETE", ginx.JoinPaths(base, "/api/admin/delete/:id")},
-		OperationAdminServiceAdminRoleList: {"GET", ginx.JoinPaths(base, "/api/admin/role/list")},
-	}
+var AdminServiceOperationRoutes = [...][3]string{
+	{OperationAdminServiceAdminList, "GET", "/api/admin/list"},
+	{OperationAdminServiceAdminCreate, "POST", "/api/admin/create"},
+	{OperationAdminServiceAdminUpdate, "POST", "/api/admin/update/:id"},
+	{OperationAdminServiceAdminDetail, "GET", "/api/admin/detail/:id"},
+	{OperationAdminServiceAdminDelete, "DELETE", "/api/admin/delete/:id"},
+	{OperationAdminServiceAdminRoleList, "GET", "/api/admin/role/list"},
 }

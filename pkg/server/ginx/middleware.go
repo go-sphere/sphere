@@ -20,14 +20,16 @@ func MiddlewaresGroup(middlewares ...gin.HandlerFunc) gin.HandlerFunc {
 	}
 }
 
-func SetOperationMiddleware(operations ...map[string][]string) gin.HandlerFunc {
+// SetOperationMiddleware set the operation name to the context
+// operations is a list of [[operation, method, path]]
+func SetOperationMiddleware(base string, operations ...[][3]string) gin.HandlerFunc {
 	routes := make(map[string]map[string]string)
 	for _, list := range operations {
-		for operation, route := range list {
-			if _, ok := routes[route[0]]; !ok {
-				routes[route[0]] = make(map[string]string)
+		for _, route := range list {
+			if _, ok := routes[route[1]]; !ok {
+				routes[route[1]] = make(map[string]string)
 			}
-			routes[route[0]][route[1]] = operation
+			routes[route[1]][JoinPaths(base, route[2])] = route[0]
 		}
 	}
 	return func(ctx *gin.Context) {
@@ -40,9 +42,9 @@ func SetOperationMiddleware(operations ...map[string][]string) gin.HandlerFunc {
 	}
 }
 
-func OperationRouteGroup(route gin.IRouter, operationRouteBuilder func(string) map[string][]string, middlewares ...gin.HandlerFunc) gin.IRouter {
+func OperationRouteGroup(route gin.IRouter, operations [][3]string, middlewares ...gin.HandlerFunc) gin.IRouter {
 	r := route.Group("/")
-	r.Use(SetOperationMiddleware(operationRouteBuilder(r.BasePath())))
+	r.Use(SetOperationMiddleware(r.BasePath(), operations))
 	r.Use(middlewares...)
 	return r
 }

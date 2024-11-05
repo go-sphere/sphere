@@ -41,7 +41,6 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) fu
             return nil, err
         }
         {{- end}}
-        ctx.Set("operation", Operation{{$svrType}}{{.OriginalName}})
 		out, err := srv.{{.Name}}(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -58,10 +57,8 @@ func Register{{.ServiceType}}HTTPServer(route gin.IRouter, srv {{.ServiceType}}H
 	{{- end}}
 }
 
-func Create{{.ServiceType}}OperationRoute(base string) map[string][]string {
-	return map[string][]string{
-		{{- range .Methods}}
-		Operation{{$svrType}}{{.OriginalName}}: {"{{.Method}}", ginx.JoinPaths(base, "{{.GinPath}}")},
-        {{- end}}
-	}
+var {{.ServiceType}}OperationRoutes = [...][3]string{
+	{{- range .Methods}}
+	{Operation{{$svrType}}{{.OriginalName}}, "{{.Method}}", "{{.GinPath}}" },
+	{{- end}}
 }

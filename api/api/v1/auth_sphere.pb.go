@@ -43,7 +43,6 @@ func _AuthService_AuthWxMini0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *
 		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
 			return nil, err
 		}
-		ctx.Set("operation", OperationAuthServiceAuthWxMini)
 		out, err := srv.AuthWxMini(ctx, &in)
 		if err != nil {
 			return nil, err
@@ -57,8 +56,6 @@ func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer)
 	r.POST("/v1/auth/wxmini", _AuthService_AuthWxMini0_HTTP_Handler(srv))
 }
 
-func CreateAuthServiceOperationRoute(base string) map[string][]string {
-	return map[string][]string{
-		OperationAuthServiceAuthWxMini: {"POST", ginx.JoinPaths(base, "/v1/auth/wxmini")},
-	}
+var AuthServiceOperationRoutes = [...][3]string{
+	{OperationAuthServiceAuthWxMini, "POST", "/v1/auth/wxmini"},
 }
