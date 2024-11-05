@@ -32,7 +32,7 @@ func SetOperationMiddleware(operations ...map[string][]string) gin.HandlerFunc {
 	}
 	return func(ctx *gin.Context) {
 		if list, ok := routes[ctx.Request.Method]; ok {
-			if op, exist := list[ctx.Request.URL.Path]; exist {
+			if op, exist := list[ctx.FullPath()]; exist {
 				ctx.Set("operation", op)
 			}
 		}
@@ -40,8 +40,8 @@ func SetOperationMiddleware(operations ...map[string][]string) gin.HandlerFunc {
 	}
 }
 
-func OperationRouteGroup(route gin.IRouter, group string, operationRouteBuilder func(string) map[string][]string, middlewares ...gin.HandlerFunc) gin.IRouter {
-	r := route.Group(group)
+func OperationRouteGroup(route gin.IRouter, operationRouteBuilder func(string) map[string][]string, middlewares ...gin.HandlerFunc) gin.IRouter {
+	r := route.Group("/")
 	r.Use(SetOperationMiddleware(operationRouteBuilder(r.BasePath())))
 	r.Use(middlewares...)
 	return r

@@ -81,9 +81,9 @@ func (w *Web) Run() error {
 	sharedv1.RegisterTestServiceHTTPServer(api, sharedSrc)
 
 	// 由于operation设置的延后性，所以需要使用OperationRouteGroup提前设置operation
-	authRoute := ginx.OperationRouteGroup(api, "/",
+	authRoute := ginx.OperationRouteGroup(api,
 		dashv1.CreateAuthServiceOperationRoute,
-		rateLimiter,
+		MiddlewaresForOperation(dashv1.OperationAuthServiceAuthLogin, rateLimiter),
 	)
 	dashv1.RegisterAuthServiceHTTPServer(authRoute, w.service)
 
