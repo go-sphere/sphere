@@ -34,8 +34,7 @@ func (i *DashInitialize) Identifier() string {
 	return "initialize"
 }
 
-func (i *DashInitialize) Run() error {
-	ctx := context.Background()
+func (i *DashInitialize) Run(ctx context.Context) error {
 	key := "did_init"
 	return dao.WithTxEx(ctx, i.db.Client, func(ctx context.Context, client *ent.Client) error {
 		exist, err := client.KeyValueStore.Query().Where(keyvaluestore.KeyEQ(key)).Exist(ctx)

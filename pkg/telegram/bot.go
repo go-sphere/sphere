@@ -5,8 +5,6 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/tbxark/sphere/pkg/log"
-	"os"
-	"os/signal"
 )
 
 type Config struct {
@@ -25,10 +23,7 @@ func NewApp(config *Config) *Bot {
 	}
 }
 
-func (b *Bot) Run(options ...func(*bot.Bot) error) error {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
-
+func (b *Bot) Run(ctx context.Context, options ...func(*bot.Bot) error) error {
 	opts := []bot.Option{
 		bot.WithSkipGetMe(),
 		bot.WithErrorsHandler(func(err error) {
@@ -77,14 +72,12 @@ func (b *Bot) Run(options ...func(*bot.Bot) error) error {
 }
 
 func (b *Bot) Close(ctx context.Context) error {
-	if b.bot != nil {
-		_, err := b.bot.Close(ctx)
-		if err != nil {
-			return err
-		}
-		b.bot = nil
+	if b.bot == nil {
+		return nil
 	}
-	return nil
+	_, err := b.bot.Close(ctx)
+	b.bot = nil
+	return err
 }
 
 func (b *Bot) BindCommand(command string, handlerFunc HandlerFunc, middleware ...bot.Middleware) {

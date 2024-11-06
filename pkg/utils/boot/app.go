@@ -9,7 +9,7 @@ import (
 
 type Runnable interface {
 	Identifier() string
-	Run() error
+	Run(ctx context.Context) error
 }
 
 type Closeable interface {
@@ -30,34 +30,21 @@ func NewApplication(tasks []Runnable, cleaners []Closeable) *Application {
 }
 
 func (a *Application) Run(ctx context.Context) error {
-	wg, errCtx := errgroup.WithContext(ctx)
+	wg, ctx := errgroup.WithContext(ctx)
 	for _, item := range a.runner {
 		log.Infof("runner %s start", item.Identifier())
 		runner := item
 		wg.Go(func() error {
-			done := make(chan struct{})
-			defer close(done)
-			go func() {
-				select {
-				case <-errCtx.Done():
-					log.Infof("runner %s stopping due to context cancellation", runner.Identifier())
-					if stoppable, ok := runner.(Closeable); ok {
-						_ = stoppable.Close(context.Background())
-					}
-				case <-done:
-					// runner finished and closed this goroutine
-					return
-				}
-			}()
 			defer func() {
 				if r := recover(); r != nil {
 					log.Errorw(
 						"runner panic",
 						logfields.String("runner", runner.Identifier()),
+						logfields.Any("recover", r),
 					)
 				}
 			}()
-			if err := runner.Run(); err != nil {
+			if err := runner.Run(ctx); err != nil {
 				log.Errorw(
 					"runner error",
 					logfields.String("runner", runner.Identifier()),
@@ -74,7 +61,7 @@ func (a *Application) Run(ctx context.Context) error {
 func (a *Application) Close(ctx context.Context) error {
 	wg := errgroup.Group{}
 	for _, item := range a.closer {
-		log.Infof("closer %s start", item)
+		log.Infof("closer %s start", item.Identifier())
 		closer := item
 		wg.Go(func() error {
 			defer func() {
@@ -82,6 +69,7 @@ func (a *Application) Close(ctx context.Context) error {
 					log.Errorw(
 						"closer panic",
 						logfields.String("closer", closer.Identifier()),
+						logfields.Any("recover", r),
 					)
 				}
 			}()

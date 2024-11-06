@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/swaggo/swag"
+	"github.com/tbxark/sphere/pkg/server/ginx"
 	"github.com/tbxark/sphere/pkg/server/route/cors"
 	"github.com/tbxark/sphere/pkg/server/route/docs"
 	"html/template"
@@ -12,6 +13,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type Target struct {
@@ -39,7 +41,7 @@ func (w *Web) Identifier() string {
 	return "docs"
 }
 
-func (w *Web) Run() error {
+func (w *Web) Run(ctx context.Context) error {
 	engine := gin.Default()
 	cors.Setup(engine, []string{"*"})
 
@@ -57,18 +59,11 @@ func (w *Web) Run() error {
 		Addr:    w.config.Address,
 		Handler: engine.Handler(),
 	}
-	return w.server.ListenAndServe()
+	return ginx.Start(ctx, w.server, 30*time.Second)
 }
 
 func (w *Web) Close(ctx context.Context) error {
-	if w.server != nil {
-		err := w.server.Close()
-		if err != nil {
-			return err
-		}
-		w.server = nil
-	}
-	return nil
+	return ginx.Close(ctx, w.server)
 }
 
 func setup(spec *swag.Spec, router gin.IRouter, target string) error {

@@ -28,8 +28,8 @@ func (b *Bot) Identifier() string {
 	return "bot"
 }
 
-func (b *Bot) Run() error {
-	return b.Bot.Run(func(bot *bot.Bot) error {
+func (b *Bot) Run(ctx context.Context) error {
+	return b.Bot.Run(ctx, func(bot *bot.Bot) error {
 
 		sfMid := telegram.NewSingleFlightMiddleware()
 

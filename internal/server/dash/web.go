@@ -41,7 +41,7 @@ func (w *Web) Identifier() string {
 	return "dash"
 }
 
-func (w *Web) Run() error {
+func (w *Web) Run(ctx context.Context) error {
 
 	jwtAuthorizer := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.AuthJWT)
 	jwtRefresher := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.RefreshJWT)
@@ -109,18 +109,11 @@ func (w *Web) Run() error {
 		Addr:    w.config.HTTP.Address,
 		Handler: engine.Handler(),
 	}
-	return w.server.ListenAndServe()
+	return ginx.Start(ctx, w.server, 30*time.Second)
 }
 
 func (w *Web) Close(ctx context.Context) error {
-	if w.server != nil {
-		err := w.server.Close()
-		if err != nil {
-			return err
-		}
-		w.server = nil
-	}
-	return nil
+	return ginx.Close(ctx, w.server)
 }
 
 func (w *Web) withPermission(resource string) gin.HandlerFunc {

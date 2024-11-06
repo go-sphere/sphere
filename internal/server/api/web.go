@@ -11,10 +11,12 @@ import (
 	"github.com/tbxark/sphere/pkg/log/logfields"
 	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
 	"github.com/tbxark/sphere/pkg/server/auth/jwtauth"
+	"github.com/tbxark/sphere/pkg/server/ginx"
 	"github.com/tbxark/sphere/pkg/server/middleware/auth"
 	"github.com/tbxark/sphere/pkg/server/middleware/logger"
 	"github.com/tbxark/sphere/pkg/server/route/cors"
 	"net/http"
+	"time"
 )
 
 type Web struct {
@@ -34,7 +36,7 @@ func (w *Web) Identifier() string {
 	return "api"
 }
 
-func (w *Web) Run() error {
+func (w *Web) Run(ctx context.Context) error {
 	jwtAuthorizer := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.JWT)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "api"))
@@ -65,16 +67,9 @@ func (w *Web) Run() error {
 		Addr:    w.config.HTTP.Address,
 		Handler: engine.Handler(),
 	}
-	return w.server.ListenAndServe()
+	return ginx.Start(ctx, w.server, 30*time.Second)
 }
 
 func (w *Web) Close(ctx context.Context) error {
-	if w.server != nil {
-		err := w.server.Close()
-		if err != nil {
-			return err
-		}
-		w.server = nil
-	}
-	return nil
+	return ginx.Close(ctx, w.server)
 }
