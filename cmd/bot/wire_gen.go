@@ -8,7 +8,8 @@ package main
 
 import (
 	"github.com/tbxark/sphere/internal/config"
-	"github.com/tbxark/sphere/internal/server/bot"
+	bot2 "github.com/tbxark/sphere/internal/server/bot"
+	"github.com/tbxark/sphere/internal/service/bot"
 	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
@@ -16,7 +17,8 @@ import (
 
 func NewBotApplication(conf *config.Config) (*boot.Application, error) {
 	botConfig := conf.Bot
-	botBot := bot.NewApp(botConfig)
+	service := bot.NewService()
+	botBot := bot2.NewApp(botConfig, service)
 	application := newApplication(botBot)
 	return application, nil
 }

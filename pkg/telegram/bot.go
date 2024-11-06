@@ -14,8 +14,10 @@ type Config struct {
 }
 
 type Bot struct {
-	config *Config
-	bot    *bot.Bot
+	config       *Config
+	bot          *bot.Bot
+	close        func() error
+	ErrorHandler ErrorHandlerFunc
 }
 
 func NewApp(config *Config) *Bot {
@@ -49,6 +51,21 @@ func (b *Bot) Run(options ...func(*bot.Bot) error) error {
 	}
 	_, _ = client.DeleteWebhook(context.Background(), &bot.DeleteWebhookParams{})
 
+	b.ErrorHandler = func(ctx context.Context, b *bot.Bot, update *models.Update, err error) {
+		if update.Message != nil {
+			_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   err.Error(),
+			})
+		}
+		if update.CallbackQuery != nil {
+			_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            err.Error(),
+			})
+		}
+	}
+
 	b.bot = client
 
 	for _, opt := range options {
@@ -56,38 +73,48 @@ func (b *Bot) Run(options ...func(*bot.Bot) error) error {
 			return e
 		}
 	}
-
+	b.close = func() error {
+		_, e := client.Close(ctx)
+		return e
+	}
 	b.bot.Start(ctx)
 	return nil
 }
 
-func (b *Bot) BindCommand(command string, handlerFunc HandlerFunc, middleware ...HandlerMiddleware) {
-	fn := handlerFunc.WithMiddleware(middleware...)
-	b.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypePrefix, func(ctx context.Context, bot *bot.Bot, update *models.Update) {
-		if e := fn(ctx, update); e != nil {
-			log.Errorf("command %s error: %v", command, e)
-		}
+func (b *Bot) Clean() error {
+	if b.close != nil {
+		return b.close()
+	}
+	return nil
+}
+
+func (b *Bot) BindCommand(command string, handlerFunc HandlerFunc, middleware ...bot.Middleware) {
+	fn := WithMiddleware(handlerFunc, b.ErrorHandler, middleware...)
+	b.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypePrefix, func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		fn(ctx, b, update)
 	})
 }
 
-func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middleware ...HandlerMiddleware) {
-	fn := handlerFunc.WithMiddleware(middleware...)
-	b.bot.RegisterHandler(bot.HandlerTypeCallbackQueryData, route+":", bot.MatchTypePrefix, func(ctx context.Context, bot *bot.Bot, update *models.Update) {
-		if e := fn(ctx, update); e != nil {
-			log.Errorf("callback %s error: %v", route, e)
-		}
+func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middleware ...bot.Middleware) {
+	fn := WithMiddleware(handlerFunc, b.ErrorHandler, middleware...)
+	b.bot.RegisterHandler(bot.HandlerTypeCallbackQueryData, route+":", bot.MatchTypePrefix, func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		fn(ctx, b, update)
 	})
 }
 
 func (b *Bot) SendMessage(ctx context.Context, update *models.Update, m *Message) error {
+	return SendMessage(ctx, b.bot, update, m)
+}
+
+func SendMessage(ctx context.Context, b *bot.Bot, update *models.Update, m *Message) error {
 	if update.CallbackQuery != nil {
 		origin := update.CallbackQuery.Message.Message
 		param := m.toEditMessageTextParams(origin.Chat.ID, origin.ID)
-		_, err := b.bot.EditMessageText(ctx, param)
+		_, err := b.EditMessageText(ctx, param)
 		return err
 	} else if update.Message != nil {
 		param := m.toSendMessageParams(update.Message.Chat.ID)
-		_, err := b.bot.SendMessage(ctx, param)
+		_, err := b.SendMessage(ctx, param)
 		return err
 	}
 	return nil

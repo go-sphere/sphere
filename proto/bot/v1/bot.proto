@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package bot.v1;
+
+// @bot
+service BotService {
+  rpc Start(StartRequest) returns (StartResponse);
+  rpc Counter(CounterRequest) returns (CounterResponse);
+}
+
+message StartRequest {
+  string name = 1;
+}
+
+message StartResponse {
+  string message = 1;
+}
+
+message CounterRequest {
+  int32 count = 1;
+  int32 step = 2;
+}
+
+message CounterResponse {
+  int32 count = 1;
+}

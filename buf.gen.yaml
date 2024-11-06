@@ -13,6 +13,9 @@ plugins:
   - local: protoc-gen-go
     out: api
     opt: paths=source_relative
+  - local: protoc-gen-bot
+    out: api
+    opt: paths=source_relative
   - local: protoc-gen-sphere
     out: api
     opt:
