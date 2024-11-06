@@ -11,6 +11,6 @@ import (
 )
 
 func NewBotApplication(conf *config.Config) (*boot.Application, error) {
-	wire.Build(config.ProviderSet, internal.ProviderSet, wire.NewSet(newApplication))
+	wire.Build(internal.ProviderSet, wire.NewSet(newApplication))
 	return &boot.Application{}, nil
 }
