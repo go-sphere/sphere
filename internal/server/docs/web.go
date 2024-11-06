@@ -25,8 +25,8 @@ func NewWebServer(config *Config) *Web {
 		Web: docs.NewWebServer(&docs.Config{
 			Address: config.Address,
 			Targets: []docs.Target{
-				{config.Targets.API, api.SwaggerInfoAPI},
-				{config.Targets.Dash, dash.SwaggerInfoDash},
+				{Address: config.Targets.API, Spec: api.SwaggerInfoAPI},
+				{Address: config.Targets.Dash, Spec: dash.SwaggerInfoDash},
 			},
 		}),
 	}

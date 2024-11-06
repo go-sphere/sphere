@@ -9,7 +9,7 @@ import (
 	"math/rand"
 )
 
-var _ botv1.BotServiceCodec[models.Update, telegram.Message] = &Bot{}
+var _ botv1.CounterServiceCodec[models.Update, telegram.Message] = &CounterServiceCodec{}
 
 const (
 	CommandStart   = "/start"
@@ -20,14 +20,16 @@ const (
 	QueryCounter = "counter"
 )
 
-func (b *Bot) DecodeCounterRequest(ctx context.Context, update *models.Update) (*botv1.CounterRequest, error) {
+type CounterServiceCodec struct{}
+
+func (b *CounterServiceCodec) DecodeCounterRequest(ctx context.Context, update *models.Update) (*botv1.CounterRequest, error) {
 	value := UnmarshalUpdateDataWithDefault(update, 0)
 	return &botv1.CounterRequest{
 		Count: int32(value),
 	}, nil
 }
 
-func (b *Bot) EncodeCounterResponse(ctx context.Context, reply *botv1.CounterResponse) (*telegram.Message, error) {
+func (b *CounterServiceCodec) EncodeCounterResponse(ctx context.Context, reply *botv1.CounterResponse) (*telegram.Message, error) {
 	return &telegram.Message{
 		Text: fmt.Sprintf("Counter: %d", reply.Count),
 		Button: [][]telegram.Button{
@@ -43,14 +45,14 @@ func (b *Bot) EncodeCounterResponse(ctx context.Context, reply *botv1.CounterRes
 	}, nil
 }
 
-func (b *Bot) DecodeStartRequest(ctx context.Context, update *models.Update) (*botv1.StartRequest, error) {
+func (b *CounterServiceCodec) DecodeStartRequest(ctx context.Context, update *models.Update) (*botv1.StartRequest, error) {
 	return &botv1.StartRequest{
 		Name: update.Message.From.FirstName,
 	}, nil
 }
 
-func (b *Bot) EncodeStartResponse(ctx context.Context, reply *botv1.StartResponse) (*telegram.Message, error) {
+func (b *CounterServiceCodec) EncodeStartResponse(ctx context.Context, reply *botv1.StartResponse) (*telegram.Message, error) {
 	return &telegram.Message{
-		Text: fmt.Sprintf("Hello %s", reply.Message),
+		Text: reply.Message,
 	}, nil
 }

@@ -1,7 +1,6 @@
 package authorizer
 
 import (
-	"errors"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/exp/constraints"
 	"time"
@@ -10,10 +9,6 @@ import (
 type UID interface {
 	constraints.Integer | string
 }
-
-var (
-	ErrorExpiredToken = errors.New("expired token")
-)
 
 const (
 	ContextKeyUID     = "uid"

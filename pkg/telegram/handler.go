@@ -14,6 +14,7 @@ import (
 type HandlerFunc = func(ctx context.Context, bot *bot.Bot, update *models.Update) error
 type MiddlewareFunc = func(next HandlerFunc) HandlerFunc
 type ErrorHandlerFunc = func(ctx context.Context, bot *bot.Bot, update *models.Update, err error)
+type AuthExtractorFunc = func(ctx context.Context, update *models.Update) (map[string]any, error)
 
 func WithMiddleware(h HandlerFunc, e ErrorHandlerFunc, middleware ...bot.Middleware) bot.HandlerFunc {
 	handler := func(ctx context.Context, bot *bot.Bot, update *models.Update) {
