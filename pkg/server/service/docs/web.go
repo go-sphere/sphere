@@ -76,7 +76,9 @@ func setup(spec *swag.Spec, router gin.IRouter, target string) error {
 
 	spec.Host = ""
 	spec.BasePath = fmt.Sprintf("/%s/api", route.BasePath())
-	spec.Description = spec.Description + fmt.Sprintf(" | proxy for %s", target)
+	if spec.Description == "" {
+		spec.Description = fmt.Sprintf(" | proxy for %s", target)
+	}
 
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	docs.Setup(route.Group("/doc"), spec)
@@ -92,15 +94,52 @@ func createIndex(targets []Target) string {
 	const indexHTML = `<!DOCTYPE html>
 <html>
 <head>
-	  <title>API Docs</title>
-	  <meta charset="utf-8">
-	  <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>API Documentation</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://unpkg.com/purecss@3.0.0/build/pure-min.css">
+    <style>
+        .header {
+            text-align: center;
+            padding: 2em 0;
+        }
+        .content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .api-card {
+            border: 1px solid #e1e1e1;
+            padding: 1em;
+            margin-bottom: 1em;
+            border-radius: 4px;
+        }
+        .api-card h2 {
+            margin-top: 0;
+        }
+        .api-card p {
+            margin-bottom: 0.5em;
+        }
+        .footer {
+            text-align: center;
+            padding: 2em 0;
+            color: #888;
+        }
+    </style>
 </head>
 <body>
-{{range .}}
-	<h1><a href="/{{.Spec.InstanceName | lower}}/doc/swagger/index.html"> {{.Spec.InstanceName}} </a></h1>
-	<p>{{.Spec.Description}}</p>
-{{end}}
+    <div class="header">
+        <h1>API Documentation Index</h1>
+    </div>
+    <div class="content">
+        {{range .}}
+        <div class="api-card pure-u-1 pure-u-md-1-2">
+            <h2><a href="/{{.Spec.InstanceName | lower}}/doc/swagger/index.html">{{.Spec.InstanceName}}</a></h2>
+            <p><strong>Description:</strong> {{.Spec.Description}}</p>
+            <p><strong>Version:</strong> {{.Spec.Version}}</p>
+			<p><strong>Proxy:</strong> {{.Address}}</p>
+        </div>
+        {{end}}
+    </div>
 </body>
 </html>
 `
