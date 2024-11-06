@@ -45,6 +45,10 @@ func (b *Bot) Close(ctx context.Context) error {
 	return b.Bot.Close(ctx)
 }
 
+func NewButton[T any](text, query string, data T) telegram.Button {
+	return telegram.NewButton(text, query, data)
+}
+
 func UnmarshalUpdateDataWithDefault[T any](update *models.Update, defaultValue T) T {
 	if update != nil && update.CallbackQuery != nil {
 		_, data, err := telegram.UnmarshalData[T](update.CallbackQuery.Data)

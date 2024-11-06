@@ -32,12 +32,12 @@ func (b *Bot) EncodeCounterResponse(ctx context.Context, reply *botv1.CounterRes
 		Text: fmt.Sprintf("Counter: %d", reply.Count),
 		Button: [][]telegram.Button{
 			{
-				telegram.Button{Text: "+", Type: QueryCounter, Data: reply.Count + 1},
-				telegram.Button{Text: "-", Type: QueryCounter, Data: reply.Count - 1},
+				NewButton("Increment", QueryCounter, reply.Count+1),
+				NewButton("Decrement", QueryCounter, reply.Count-1),
 			},
 			{
-				telegram.Button{Text: "Reset", Type: QueryCounter, Data: 0},
-				telegram.Button{Text: "Random", Type: QueryCounter, Data: rand.Int() % 100},
+				NewButton("Reset", QueryCounter, 0),
+				NewButton("Random", QueryCounter, rand.Int()%100),
 			},
 		},
 	}, nil

@@ -6,9 +6,17 @@ import (
 )
 
 type Button struct {
-	Text string
-	Type string
-	Data any
+	Text         string
+	Type         string
+	CallbackData string
+}
+
+func NewButton[T any](text, dType string, data T) Button {
+	return Button{
+		Text:         text,
+		Type:         dType,
+		CallbackData: MarshalData(dType, data),
+	}
 }
 
 type Message struct {
@@ -24,7 +32,7 @@ func (m *Message) toInlineKeyboardMarkup() *models.InlineKeyboardMarkup {
 		for _, btn := range row {
 			buttons = append(buttons, models.InlineKeyboardButton{
 				Text:         btn.Text,
-				CallbackData: MarshalData(btn.Type, btn.Data),
+				CallbackData: btn.CallbackData,
 			})
 		}
 		keyboard = append(keyboard, buttons)
