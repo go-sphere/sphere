@@ -6,9 +6,15 @@ package botv1
 
 import (
 	context "context"
+	bot "github.com/go-telegram/bot"
+	models "github.com/go-telegram/bot/models"
+	telegram "github.com/tbxark/sphere/pkg/telegram"
 )
 
 var _ = new(context.Context)
+var _ = new(bot.Bot)
+var _ = new(models.Update)
+var _ = new(telegram.Message)
 
 const BotHandlerCounterServiceCounter = "/bot.v1.CounterService/Counter"
 const BotHandlerCounterServiceStart = "/bot.v1.CounterService/Start"
@@ -18,19 +24,19 @@ type CounterServiceServer interface {
 	Start(context.Context, *StartRequest) (*StartResponse, error)
 }
 
-type CounterServiceCodec[Update any, Message any] interface {
-	DecodeCounterRequest(ctx context.Context, update *Update) (*CounterRequest, error)
-	EncodeCounterResponse(ctx context.Context, reply *CounterResponse) (*Message, error)
-	DecodeStartRequest(ctx context.Context, update *Update) (*StartRequest, error)
-	EncodeStartResponse(ctx context.Context, reply *StartResponse) (*Message, error)
+type CounterServiceCodec interface {
+	DecodeCounterRequest(ctx context.Context, update *models.Update) (*CounterRequest, error)
+	EncodeCounterResponse(ctx context.Context, reply *CounterResponse) (*telegram.Message, error)
+	DecodeStartRequest(ctx context.Context, update *models.Update) (*StartRequest, error)
+	EncodeStartResponse(ctx context.Context, reply *StartResponse) (*telegram.Message, error)
 }
 
-type CounterServiceMessageSender[Bot any, Update any, Message any] func(ctx context.Context, bot *Bot, update *Update, msg *Message) error
+type CounterServiceHandler func(ctx context.Context, client *bot.Bot, update *models.Update) error
 
-type CounterServiceHandler[Bot any, Update any, Message any] func(ctx context.Context, bot *Bot, update *Update) error
+type CounterServiceMessageSender func(ctx context.Context, client *bot.Bot, update *models.Update, msg *telegram.Message) error
 
-func _CounterService_Start0_Bot_Handler[Bot any, Update any, Message any](srv CounterServiceServer, codec CounterServiceCodec[Update, Message], sender CounterServiceMessageSender[Bot, Update, Message]) CounterServiceHandler[Bot, Update, Message] {
-	return func(ctx context.Context, bot *Bot, update *Update) error {
+func _CounterService_Start0_Bot_Handler(srv CounterServiceServer, codec CounterServiceCodec, sender CounterServiceMessageSender) CounterServiceHandler {
+	return func(ctx context.Context, client *bot.Bot, update *models.Update) error {
 		req, err := codec.DecodeStartRequest(ctx, update)
 		if err != nil {
 			return err
@@ -43,12 +49,12 @@ func _CounterService_Start0_Bot_Handler[Bot any, Update any, Message any](srv Co
 		if err != nil {
 			return err
 		}
-		return sender(ctx, bot, update, msg)
+		return sender(ctx, client, update, msg)
 	}
 }
 
-func _CounterService_Counter0_Bot_Handler[Bot any, Update any, Message any](srv CounterServiceServer, codec CounterServiceCodec[Update, Message], sender CounterServiceMessageSender[Bot, Update, Message]) CounterServiceHandler[Bot, Update, Message] {
-	return func(ctx context.Context, bot *Bot, update *Update) error {
+func _CounterService_Counter0_Bot_Handler(srv CounterServiceServer, codec CounterServiceCodec, sender CounterServiceMessageSender) CounterServiceHandler {
+	return func(ctx context.Context, client *bot.Bot, update *models.Update) error {
 		req, err := codec.DecodeCounterRequest(ctx, update)
 		if err != nil {
 			return err
@@ -61,12 +67,12 @@ func _CounterService_Counter0_Bot_Handler[Bot any, Update any, Message any](srv 
 		if err != nil {
 			return err
 		}
-		return sender(ctx, bot, update, msg)
+		return sender(ctx, client, update, msg)
 	}
 }
 
-func RegisterCounterServiceBotServer[Bot any, Update any, Message any](srv CounterServiceServer, codec CounterServiceCodec[Update, Message], sender CounterServiceMessageSender[Bot, Update, Message]) map[string]CounterServiceHandler[Bot, Update, Message] {
-	handlers := make(map[string]CounterServiceHandler[Bot, Update, Message])
+func RegisterCounterServiceBotServer(srv CounterServiceServer, codec CounterServiceCodec, sender CounterServiceMessageSender) map[string]CounterServiceHandler {
+	handlers := make(map[string]CounterServiceHandler)
 	handlers[BotHandlerCounterServiceStart] = _CounterService_Start0_Bot_Handler(srv, codec, sender)
 	handlers[BotHandlerCounterServiceCounter] = _CounterService_Counter0_Bot_Handler(srv, codec, sender)
 	return handlers

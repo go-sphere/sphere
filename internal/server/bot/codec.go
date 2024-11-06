@@ -9,7 +9,7 @@ import (
 	"math/rand"
 )
 
-var _ botv1.CounterServiceCodec[models.Update, telegram.Message] = &CounterServiceCodec{}
+var _ botv1.CounterServiceCodec = &CounterServiceCodec{}
 
 const (
 	CommandStart   = "/start"

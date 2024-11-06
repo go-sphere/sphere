@@ -15,7 +15,7 @@ const (
 
 var methodSets = make(map[string]int)
 
-func generateFile(gen *protogen.Plugin, file *protogen.File) *protogen.GeneratedFile {
+func generateFile(gen *protogen.Plugin, file *protogen.File, conf *Config) *protogen.GeneratedFile {
 	if len(file.Services) == 0 || (!hasBotRule(file.Services)) {
 		return nil
 	}
@@ -31,23 +31,25 @@ func generateFile(gen *protogen.Plugin, file *protogen.File) *protogen.Generated
 	g.P()
 	g.P("package ", file.GoPackageName)
 	g.P()
-	generateFileContent(gen, file, g)
+	generateFileContent(gen, file, g, conf)
 	return g
 }
 
-func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile) {
+func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, conf *Config) {
 	if len(file.Services) == 0 {
 		return
 	}
 	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
+	g.P("var _ = new(", conf.client.pkg.Ident(conf.client.model), ")")
+	g.P("var _ = new(", conf.update.pkg.Ident(conf.update.model), ")")
+	g.P("var _ = new(", conf.message.pkg.Ident(conf.message.model), ")")
 	g.P()
-
 	for _, service := range file.Services {
-		genService(gen, file, g, service)
+		genService(gen, file, g, service, conf)
 	}
 }
 
-func genService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, service *protogen.Service) {
+func genService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, service *protogen.Service, conf *Config) {
 	if service.Desc.Options().(*descriptorpb.ServiceOptions).GetDeprecated() {
 		g.P("//")
 		g.P(deprecationComment)
@@ -57,6 +59,10 @@ func genService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFi
 		ServiceType: service.GoName,
 		ServiceName: string(service.Desc.FullName()),
 		Metadata:    file.Desc.Path(),
+
+		ClientType:  g.QualifiedGoIdent(conf.client.pkg.Ident(conf.client.model)),
+		UpdateType:  g.QualifiedGoIdent(conf.update.pkg.Ident(conf.update.model)),
+		MessageType: g.QualifiedGoIdent(conf.message.pkg.Ident(conf.message.model)),
 	}
 	for _, method := range service.Methods {
 		sd.Methods = append(sd.Methods, &methodDesc{

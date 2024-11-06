@@ -16,6 +16,10 @@ type serviceDesc struct {
 	Metadata    string // api/helloworld/helloworld.proto
 	Methods     []*methodDesc
 	MethodSets  map[string]*methodDesc
+
+	ClientType  string
+	UpdateType  string
+	MessageType string
 }
 
 type methodDesc struct {
