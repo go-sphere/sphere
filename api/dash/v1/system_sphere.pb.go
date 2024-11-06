@@ -19,7 +19,7 @@ var _ = new(protovalidate_go.Validator)
 
 const OperationSystemServiceCacheReset = "/dash.v1.SystemService/CacheReset"
 
-var MetadataSystemService = [...][3]string{
+var EndpointsSystemService = [...][3]string{
 	{OperationSystemServiceCacheReset, "POST", "/api/cache/reset"},
 }
 

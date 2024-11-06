@@ -20,7 +20,7 @@ var _ = new(protovalidate_go.Validator)
 const OperationTaskServiceTaskDetail = "/dash.v1.TaskService/TaskDetail"
 const OperationTaskServiceTaskList = "/dash.v1.TaskService/TaskList"
 
-var MetadataTaskService = [...][3]string{
+var EndpointsTaskService = [...][3]string{
 	{OperationTaskServiceTaskList, "GET", "/api/task/list"},
 	{OperationTaskServiceTaskDetail, "GET", "/api/task/detail/:id"},
 }

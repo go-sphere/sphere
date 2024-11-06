@@ -21,7 +21,7 @@ const OperationUserServiceBindPhoneWxMini = "/api.v1.UserService/BindPhoneWxMini
 const OperationUserServiceMe = "/api.v1.UserService/Me"
 const OperationUserServiceUpdate = "/api.v1.UserService/Update"
 
-var MetadataUserService = [...][3]string{
+var EndpointsUserService = [...][3]string{
 	{OperationUserServiceMe, "GET", "/api/user/me"},
 	{OperationUserServiceUpdate, "POST", "/api/user/update"},
 	{OperationUserServiceBindPhoneWxMini, "POST", "/api/user/bind/phone/wxmini"},

@@ -24,7 +24,7 @@ const OperationAdminServiceAdminList = "/dash.v1.AdminService/AdminList"
 const OperationAdminServiceAdminRoleList = "/dash.v1.AdminService/AdminRoleList"
 const OperationAdminServiceAdminUpdate = "/dash.v1.AdminService/AdminUpdate"
 
-var MetadataAdminService = [...][3]string{
+var EndpointsAdminService = [...][3]string{
 	{OperationAdminServiceAdminList, "GET", "/api/admin/list"},
 	{OperationAdminServiceAdminCreate, "POST", "/api/admin/create"},
 	{OperationAdminServiceAdminUpdate, "POST", "/api/admin/update/:id"},

@@ -19,7 +19,7 @@ var _ = new(protovalidate_go.Validator)
 
 const OperationTestServiceRunTest = "/shared.v1.TestService/RunTest"
 
-var MetadataTestService = [...][3]string{
+var EndpointsTestService = [...][3]string{
 	{OperationTestServiceRunTest, "POST", "/api/test/:path_test1/second/:path_test2"},
 }
 

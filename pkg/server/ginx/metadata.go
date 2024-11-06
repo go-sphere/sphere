@@ -2,9 +2,9 @@ package ginx
 
 import "github.com/gin-gonic/gin"
 
-func metadataToMatches(base string, metadata ...[][3]string) map[string]map[string]string {
+func EndpointsToMatches(base string, endpoints ...[][3]string) map[string]map[string]string {
 	matches := make(map[string]map[string]string)
-	for _, list := range metadata {
+	for _, list := range endpoints {
 		for _, route := range list {
 			if _, ok := matches[route[1]]; !ok {
 				matches[route[1]] = make(map[string]string)
@@ -15,8 +15,8 @@ func metadataToMatches(base string, metadata ...[][3]string) map[string]map[stri
 	return matches
 }
 
-func MatchOperation(base string, metadata [][3]string, operations ...string) func(ctx *gin.Context) bool {
-	matches := metadataToMatches(base, metadata)
+func MatchOperation(base string, endpoints [][3]string, operations ...string) func(ctx *gin.Context) bool {
+	matches := EndpointsToMatches(base, endpoints)
 	opts := make(map[string]struct{}, len(operations))
 	for _, opt := range operations {
 		opts[opt] = struct{}{}

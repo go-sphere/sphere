@@ -5,7 +5,7 @@
 const Operation{{$svrType}}{{.OriginalName}} = "/{{$svrName}}/{{.OriginalName}}"
 {{- end}}
 
-var Metadata{{.ServiceType}} = [...][3]string{
+var Endpoints{{.ServiceType}} = [...][3]string{
 	{{- range .Methods}}
 	{Operation{{$svrType}}{{.OriginalName}}, "{{.Method}}", "{{.GinPath}}" },
 	{{- end}}

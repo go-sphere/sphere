@@ -87,7 +87,7 @@ func (w *Web) Run() error {
 			selector.MatchFunc(
 				ginx.MatchOperation(
 					authRoute.BasePath(),
-					dashv1.MetadataAuthService[:],
+					dashv1.EndpointsAuthService[:],
 					dashv1.OperationAuthServiceAuthLogin,
 				),
 			),
