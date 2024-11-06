@@ -29,11 +29,11 @@ func (b *Bot) Identifier() string {
 }
 
 func (b *Bot) Run(ctx context.Context) error {
-	return b.Bot.Run(ctx, func(bot *bot.Bot) error {
+	return b.Bot.Run(ctx, func(rb *bot.Bot) error {
 
 		sfMid := telegram.NewSingleFlightMiddleware()
 
-		route := botv1.RegisterBotServiceBotServer(b.botSrv, b)
+		route := botv1.RegisterBotServiceBotServer(b.botSrv, b, telegram.SendMessage)
 		b.BindCommand(CommandStart, route[botv1.BotHandlerBotServiceStart])
 		b.BindCommand(CommandCounter, route[botv1.BotHandlerBotServiceCounter], sfMid)
 		b.BindCallback(QueryCounter, route[botv1.BotHandlerBotServiceCounter], sfMid)

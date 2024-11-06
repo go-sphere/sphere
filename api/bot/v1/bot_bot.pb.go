@@ -6,15 +6,9 @@ package botv1
 
 import (
 	context "context"
-	bot "github.com/go-telegram/bot"
-	models "github.com/go-telegram/bot/models"
-	telegram "github.com/tbxark/sphere/pkg/telegram"
 )
 
 var _ = new(context.Context)
-var _ = new(telegram.Message)
-var _ = new(bot.Bot)
-var _ = new(models.Update)
 
 const BotHandlerBotServiceCounter = "/bot.v1.BotService/Counter"
 const BotHandlerBotServiceStart = "/bot.v1.BotService/Start"
@@ -24,15 +18,19 @@ type BotServiceServer interface {
 	Start(context.Context, *StartRequest) (*StartResponse, error)
 }
 
-type BotServiceCodec interface {
-	DecodeCounterRequest(ctx context.Context, update *models.Update) (*CounterRequest, error)
-	EncodeCounterResponse(ctx context.Context, reply *CounterResponse) (*telegram.Message, error)
-	DecodeStartRequest(ctx context.Context, update *models.Update) (*StartRequest, error)
-	EncodeStartResponse(ctx context.Context, reply *StartResponse) (*telegram.Message, error)
+type BotServiceCodec[Update any, Message any] interface {
+	DecodeCounterRequest(ctx context.Context, update *Update) (*CounterRequest, error)
+	EncodeCounterResponse(ctx context.Context, reply *CounterResponse) (*Message, error)
+	DecodeStartRequest(ctx context.Context, update *Update) (*StartRequest, error)
+	EncodeStartResponse(ctx context.Context, reply *StartResponse) (*Message, error)
 }
 
-func _BotService_Start0_Bot_Handler(srv BotServiceServer, codec BotServiceCodec) telegram.HandlerFunc {
-	return func(ctx context.Context, b *bot.Bot, update *models.Update) error {
+type BotServiceMessageSender[Bot any, Update any, Message any] func(ctx context.Context, bot *Bot, update *Update, msg *Message) error
+
+type BotServiceHandler[Bot any, Update any, Message any] func(ctx context.Context, bot *Bot, update *Update) error
+
+func _BotService_Start0_Bot_Handler[Bot any, Update any, Message any](srv BotServiceServer, codec BotServiceCodec[Update, Message], sender BotServiceMessageSender[Bot, Update, Message]) BotServiceHandler[Bot, Update, Message] {
+	return func(ctx context.Context, bot *Bot, update *Update) error {
 		req, err := codec.DecodeStartRequest(ctx, update)
 		if err != nil {
 			return err
@@ -45,12 +43,12 @@ func _BotService_Start0_Bot_Handler(srv BotServiceServer, codec BotServiceCodec)
 		if err != nil {
 			return err
 		}
-		return telegram.SendMessage(ctx, b, update, msg)
+		return sender(ctx, bot, update, msg)
 	}
 }
 
-func _BotService_Counter0_Bot_Handler(srv BotServiceServer, codec BotServiceCodec) telegram.HandlerFunc {
-	return func(ctx context.Context, b *bot.Bot, update *models.Update) error {
+func _BotService_Counter0_Bot_Handler[Bot any, Update any, Message any](srv BotServiceServer, codec BotServiceCodec[Update, Message], sender BotServiceMessageSender[Bot, Update, Message]) BotServiceHandler[Bot, Update, Message] {
+	return func(ctx context.Context, bot *Bot, update *Update) error {
 		req, err := codec.DecodeCounterRequest(ctx, update)
 		if err != nil {
 			return err
@@ -63,13 +61,13 @@ func _BotService_Counter0_Bot_Handler(srv BotServiceServer, codec BotServiceCode
 		if err != nil {
 			return err
 		}
-		return telegram.SendMessage(ctx, b, update, msg)
+		return sender(ctx, bot, update, msg)
 	}
 }
 
-func RegisterBotServiceBotServer(srv BotServiceServer, codec BotServiceCodec) map[string]telegram.HandlerFunc {
-	handlers := make(map[string]telegram.HandlerFunc)
-	handlers[BotHandlerBotServiceStart] = _BotService_Start0_Bot_Handler(srv, codec)
-	handlers[BotHandlerBotServiceCounter] = _BotService_Counter0_Bot_Handler(srv, codec)
+func RegisterBotServiceBotServer[Bot any, Update any, Message any](srv BotServiceServer, codec BotServiceCodec[Update, Message], sender BotServiceMessageSender[Bot, Update, Message]) map[string]BotServiceHandler[Bot, Update, Message] {
+	handlers := make(map[string]BotServiceHandler[Bot, Update, Message])
+	handlers[BotHandlerBotServiceStart] = _BotService_Start0_Bot_Handler(srv, codec, sender)
+	handlers[BotHandlerBotServiceCounter] = _BotService_Counter0_Bot_Handler(srv, codec, sender)
 	return handlers
 }

@@ -15,17 +15,20 @@ type {{.ServiceType}}Server interface {
 {{- end}}
 }
 
-type {{.ServiceType}}Codec interface {
+type {{.ServiceType}}Codec[Update any, Message any] interface {
 {{- range .MethodSets}}
-    Decode{{.Name}}Request(ctx context.Context, update *models.Update) (*{{.Request}}, error)
-    Encode{{.Name}}Response(ctx context.Context, reply *{{.Reply}}) (*telegram.Message, error)
+    Decode{{.Name}}Request(ctx context.Context, update *Update) (*{{.Request}}, error)
+    Encode{{.Name}}Response(ctx context.Context, reply *{{.Reply}}) (*Message, error)
 {{- end}}
 }
 
+type {{.ServiceType}}MessageSender[Bot any, Update any, Message any] func(ctx context.Context, bot *Bot, update *Update, msg *Message) error
+
+type {{.ServiceType}}Handler[Bot any, Update any, Message any] func(ctx context.Context, bot *Bot, update *Update) error
 
 {{range .Methods}}
-func _{{$svrType}}_{{.Name}}{{.Num}}_Bot_Handler(srv {{$svrType}}Server, codec {{$svrType}}Codec) telegram.HandlerFunc {
-	return func(ctx context.Context, b *bot.Bot, update *models.Update) error {
+func _{{$svrType}}_{{.Name}}{{.Num}}_Bot_Handler[Bot any, Update any, Message any](srv {{$svrType}}Server, codec {{$svrType}}Codec[Update, Message], sender {{$svrType}}MessageSender[Bot, Update, Message]) {{$svrType}}Handler[Bot, Update, Message] {
+    return func(ctx context.Context, bot *Bot, update *Update) error {
     		req, err := codec.Decode{{.Name}}Request(ctx, update)
     		if err != nil {
     			return err
@@ -38,15 +41,15 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_Bot_Handler(srv {{$svrType}}Server, codec {
     		if err != nil {
     			return err
     		}
-    		return telegram.SendMessage(ctx, b, update, msg)
+    		return sender(ctx, bot, update, msg)
     }
 }
 {{end}}
 
-func Register{{.ServiceType}}BotServer(srv {{$svrType}}Server, codec {{.ServiceType}}Codec) map[string]telegram.HandlerFunc {
-	handlers := make(map[string]telegram.HandlerFunc)
+func Register{{.ServiceType}}BotServer[Bot any, Update any, Message any](srv {{.ServiceType}}Server, codec {{.ServiceType}}Codec[Update, Message], sender {{.ServiceType}}MessageSender[Bot, Update, Message]) map[string]{{.ServiceType}}Handler[Bot, Update, Message]{
+	handlers := make(map[string]{{.ServiceType}}Handler[Bot, Update, Message])
 {{- range .Methods}}
-    handlers[BotHandler{{$svrType}}{{.OriginalName}}] = _{{$svrType}}_{{.Name}}{{.Num}}_Bot_Handler(srv, codec)
+    handlers[BotHandler{{$svrType}}{{.OriginalName}}] = _{{$svrType}}_{{.Name}}{{.Num}}_Bot_Handler(srv, codec, sender)
 {{- end}}
     return handlers
 }

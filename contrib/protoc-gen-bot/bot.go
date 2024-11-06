@@ -10,10 +10,7 @@ import (
 const deprecationComment = "// Deprecated: Do not use."
 
 const (
-	contextPackage  = protogen.GoImportPath("context")
-	telegramPackage = protogen.GoImportPath("github.com/tbxark/sphere/pkg/telegram")
-	botPackage      = protogen.GoImportPath("github.com/go-telegram/bot")
-	updatePackage   = protogen.GoImportPath("github.com/go-telegram/bot/models")
+	contextPackage = protogen.GoImportPath("context")
 )
 
 var methodSets = make(map[string]int)
@@ -43,9 +40,6 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 		return
 	}
 	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
-	g.P("var _ = new(", telegramPackage.Ident("Message"), ")")
-	g.P("var _ = new(", botPackage.Ident("Bot"), ")")
-	g.P("var _ = new(", updatePackage.Ident("Update"), ")")
 	g.P()
 
 	for _, service := range file.Services {
