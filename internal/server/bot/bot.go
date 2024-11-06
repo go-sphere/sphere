@@ -37,7 +37,6 @@ func (b *Bot) Run(ctx context.Context) error {
 		b.BindCommand(CommandStart, route[botv1.BotHandlerBotServiceStart])
 		b.BindCommand(CommandCounter, route[botv1.BotHandlerBotServiceCounter], sfMid)
 		b.BindCallback(QueryCounter, route[botv1.BotHandlerBotServiceCounter], sfMid)
-
 		return nil
 	})
 }

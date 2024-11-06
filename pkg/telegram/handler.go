@@ -12,18 +12,35 @@ import (
 )
 
 type HandlerFunc = func(ctx context.Context, bot *bot.Bot, update *models.Update) error
+type MiddlewareFunc = func(next HandlerFunc) HandlerFunc
 type ErrorHandlerFunc = func(ctx context.Context, bot *bot.Bot, update *models.Update, err error)
 
 func WithMiddleware(h HandlerFunc, e ErrorHandlerFunc, middleware ...bot.Middleware) bot.HandlerFunc {
 	handler := func(ctx context.Context, bot *bot.Bot, update *models.Update) {
 		if err := h(ctx, bot, update); err != nil {
-			e(ctx, bot, update, err)
+			if e != nil {
+				e(ctx, bot, update, err)
+			}
 		}
 	}
 	for i := len(middleware) - 1; i >= 0; i-- {
 		handler = middleware[i](handler)
 	}
 	return handler
+}
+
+func WithMiddlewareFunc(h HandlerFunc, e ErrorHandlerFunc, middleware ...MiddlewareFunc) bot.HandlerFunc {
+	handler := h
+	for i := len(middleware) - 1; i >= 0; i-- {
+		handler = middleware[i](handler)
+	}
+	return func(ctx context.Context, bot *bot.Bot, update *models.Update) {
+		if err := handler(ctx, bot, update); err != nil {
+			if e != nil {
+				e(ctx, bot, update, err)
+			}
+		}
+	}
 }
 
 func NewSingleFlightMiddleware() bot.Middleware {
