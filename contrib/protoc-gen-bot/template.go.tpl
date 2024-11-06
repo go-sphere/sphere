@@ -11,9 +11,6 @@ const BotHandler{{$svrType}}{{.OriginalName}} = "/{{$svrName}}/{{.OriginalName}}
 
 type {{.ServiceType}}Server interface {
 {{- range .MethodSets}}
-	{{- if ne .Comment ""}}
-	{{.Comment}}
-	{{- end}}
 	{{.Name}}(context.Context, *{{.Request}}) (*{{.Reply}}, error)
 {{- end}}
 }

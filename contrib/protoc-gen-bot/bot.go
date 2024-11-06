@@ -64,7 +64,12 @@ func genService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFi
 		UpdateType:  g.QualifiedGoIdent(conf.update.pkg.Ident(conf.update.model)),
 		MessageType: g.QualifiedGoIdent(conf.message.pkg.Ident(conf.message.model)),
 	}
+	allEnable := isBotEnable(service.Comments.Leading.String())
 	for _, method := range service.Methods {
+		enable := allEnable || isBotEnable(method.Comments.Leading.String())
+		if !enable {
+			continue
+		}
 		sd.Methods = append(sd.Methods, &methodDesc{
 			Name:         method.GoName,
 			OriginalName: string(method.Desc.Name()),
@@ -84,10 +89,22 @@ var botTagsMatchRegexp = regexp.MustCompile(` *//+ *@bot`)
 
 func hasBotRule(services []*protogen.Service) bool {
 	for _, service := range services {
-		for _, line := range strings.Split(service.Comments.Leading.String(), "\n") {
-			if botTagsMatchRegexp.MatchString(line) {
+		if isBotEnable(service.Comments.Leading.String()) {
+			return true
+		}
+		for _, method := range service.Methods {
+			if isBotEnable(method.Comments.Leading.String()) {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func isBotEnable(comment string) bool {
+	for _, line := range strings.Split(comment, "\n") {
+		if botTagsMatchRegexp.MatchString(line) {
+			return true
 		}
 	}
 	return false
