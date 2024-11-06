@@ -9,7 +9,7 @@ import (
 	"math/rand"
 )
 
-var _ botv1.BotServiceCodec = &Bot{}
+var _ botv1.BotServiceCodec[models.Update, telegram.Message] = &Bot{}
 
 const (
 	CommandStart   = "/start"
