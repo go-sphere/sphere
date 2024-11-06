@@ -13,18 +13,18 @@ import (
 	"github.com/tbxark/sphere/pkg/server/middleware/auth"
 	"github.com/tbxark/sphere/pkg/server/middleware/logger"
 	"github.com/tbxark/sphere/pkg/server/route/cors"
+	"net/http"
 )
 
 type Web struct {
 	config  *Config
-	engine  *gin.Engine
+	server  *http.Server
 	service *api.Service
 }
 
 func NewWebServer(conf *Config, service *api.Service) *Web {
 	return &Web{
 		config:  conf,
-		engine:  gin.New(),
 		service: service,
 	}
 }
@@ -34,7 +34,6 @@ func (w *Web) Identifier() string {
 }
 
 func (w *Web) Run() error {
-
 	jwtAuthorizer := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.JWT)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "api"))
@@ -43,15 +42,16 @@ func (w *Web) Run() error {
 	authMiddleware := auth.NewAuthMiddleware(jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, false)
 	//rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
-	w.engine.Use(loggerMiddleware, recoveryMiddleware)
+	engine := gin.New()
+	engine.Use(loggerMiddleware, recoveryMiddleware)
 
 	if len(w.config.HTTP.Cors) > 0 {
-		cors.Setup(w.engine, w.config.HTTP.Cors)
+		cors.Setup(engine, w.config.HTTP.Cors)
 	}
 
 	w.service.Init(jwtAuthorizer)
 
-	route := w.engine.Group("/", authMiddleware)
+	route := engine.Group("/", authMiddleware)
 
 	sharedSrc := shared.NewService(w.service.Storage, "user")
 
@@ -60,5 +60,16 @@ func (w *Web) Run() error {
 	apiv1.RegisterSystemServiceHTTPServer(route, w.service)
 	apiv1.RegisterUserServiceHTTPServer(route, w.service)
 
-	return w.engine.Run(w.config.HTTP.Address)
+	w.server = &http.Server{
+		Addr:    w.config.HTTP.Address,
+		Handler: engine.Handler(),
+	}
+	return w.server.ListenAndServe()
+}
+
+func (w *Web) Clean() error {
+	if w.server != nil {
+		return w.server.Close()
+	}
+	return nil
 }

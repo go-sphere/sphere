@@ -19,19 +19,19 @@ import (
 	"github.com/tbxark/sphere/pkg/server/middleware/selector"
 	"github.com/tbxark/sphere/pkg/server/route/cors"
 	"github.com/tbxark/sphere/pkg/server/route/pprof"
+	"net/http"
 	"time"
 )
 
 type Web struct {
 	config  *Config
-	engine  *gin.Engine
+	server  *http.Server
 	service *dash.Service
 }
 
 func NewWebServer(config *Config, service *dash.Service) *Web {
 	return &Web{
 		config:  config,
-		engine:  gin.New(),
 		service: service,
 	}
 }
@@ -41,6 +41,7 @@ func (w *Web) Identifier() string {
 }
 
 func (w *Web) Run() error {
+
 	jwtAuthorizer := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.AuthJWT)
 	jwtRefresher := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.RefreshJWT)
 
@@ -50,23 +51,24 @@ func (w *Web) Run() error {
 	authMiddleware := auth.NewAuthMiddleware(jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, true)
 	rateLimiter := ratelimiter.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
-	w.engine.Use(loggerMiddleware, recoveryMiddleware)
+	engine := gin.New()
+	engine.Use(loggerMiddleware, recoveryMiddleware)
 
 	// 1. 使用go直接反代
 	// ignore embed: web.Fs(w.config.DashStatic, nil, "")
 	// 2. 使用embed集成
 	// with embed: web.Fs("", &dash.Assets, dash.AssetsPath)
 	if dashFs, err := ginx.Fs(w.config.HTTP.Static, nil, ""); err == nil && dashFs != nil {
-		d := w.engine.Group("/dash", gzip.Gzip(gzip.DefaultCompression))
+		d := engine.Group("/dash", gzip.Gzip(gzip.DefaultCompression))
 		d.StaticFS("/", dashFs)
 	}
 	// 3. 使用其他服务反代但是允许其跨域访问
 	// 其中w.config.DashCors是一个配置项，用于配置允许跨域访问的域名,例如：https://dash.example.com
 	if len(w.config.HTTP.Cors) > 0 {
-		cors.Setup(w.engine, w.config.HTTP.Cors)
+		cors.Setup(engine, w.config.HTTP.Cors)
 	}
 
-	api := w.engine.Group("/")
+	api := engine.Group("/")
 	needAuthRoute := api.Group("/", authMiddleware)
 
 	w.service.Init(jwtAuthorizer, jwtRefresher)
@@ -102,7 +104,18 @@ func (w *Web) Run() error {
 	systemRoute := needAuthRoute.Group("/")
 	dashv1.RegisterSystemServiceHTTPServer(systemRoute, w.service)
 
-	return w.engine.Run(w.config.HTTP.Address)
+	w.server = &http.Server{
+		Addr:    w.config.HTTP.Address,
+		Handler: engine.Handler(),
+	}
+	return w.server.ListenAndServe()
+}
+
+func (w *Web) Clean() error {
+	if w.server != nil {
+		return w.server.Close()
+	}
+	return nil
 }
 
 func (w *Web) withPermission(resource string) gin.HandlerFunc {

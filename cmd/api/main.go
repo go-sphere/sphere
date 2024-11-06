@@ -18,6 +18,7 @@ func newApplication(dash *api.Web, initialize *task.DashInitialize, cleaner *tas
 			initialize,
 		},
 		[]boot.Cleaner{
+			dash,
 			cleaner,
 		})
 }
