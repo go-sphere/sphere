@@ -8,8 +8,12 @@ import (
 	"github.com/tbxark/sphere/pkg/server/route/docs"
 	"github.com/tbxark/sphere/swagger/api"
 	"github.com/tbxark/sphere/swagger/dash"
+	"golang.org/x/exp/maps"
+	"html/template"
+	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 )
 
 type Targets struct {
@@ -24,13 +28,12 @@ type Config struct {
 
 type Web struct {
 	config *Config
-	engine *gin.Engine
+	server *http.Server
 }
 
 func NewWebServer(conf *Config) *Web {
 	return &Web{
 		config: conf,
-		engine: gin.Default(),
 	}
 }
 
@@ -39,33 +42,81 @@ func (w *Web) Identifier() string {
 }
 
 func (w *Web) Run() error {
-	cors.Setup(w.engine, []string{"*"})
-	err := setup(api.SwaggerInfoAPI, w.engine, "api", w.config.Targets.API)
-	if err != nil {
-		return err
+	engine := gin.Default()
+	cors.Setup(engine, []string{"*"})
+
+	targets := map[string]*swag.Spec{
+		w.config.Targets.API:  api.SwaggerInfoAPI,
+		w.config.Targets.Dash: dash.SwaggerInfoDash,
 	}
-	err = setup(dash.SwaggerInfoDash, w.engine, "dash", w.config.Targets.Dash)
-	if err != nil {
-		return err
+	for target, spec := range targets {
+		if err := setup(spec, engine, target); err != nil {
+			return err
+		}
 	}
-	return w.engine.Run(w.config.Address)
+	indexHTML := []byte(createIndex(maps.Values(targets)))
+	engine.GET("/", func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/html", indexHTML)
+	})
+
+	w.server = &http.Server{
+		Addr:    w.config.Address,
+		Handler: engine.Handler(),
+	}
+	return w.server.ListenAndServe()
 }
 
-func setup(spec *swag.Spec, engine *gin.Engine, group, target string) error {
+func (w *Web) Clean() error {
+	if w.server != nil {
+		return w.server.Close()
+	}
+	return nil
+}
 
-	spec.Host = ""
-	spec.BasePath = fmt.Sprintf("/%s/api", group)
-	spec.Description = fmt.Sprintf("Proxy for %s", target)
-	route := engine.Group("/" + group)
-	docs.Setup(route.Group("/doc"), spec)
+func setup(spec *swag.Spec, router gin.IRouter, target string) error {
 	targetURL, err := url.Parse(target)
 	if err != nil {
 		return fmt.Errorf("invalid target URL: %v", err)
 	}
+
+	route := router.Group("/" + strings.ToLower(spec.InstanceName()))
+
+	spec.Host = ""
+	spec.BasePath = fmt.Sprintf("/%s/api", route.BasePath())
+	spec.Description = fmt.Sprintf("Proxy for %s", target)
+
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	docs.Setup(route.Group("/doc"), spec)
 	route.Any("/api/*path", func(c *gin.Context) {
 		c.Request.URL.Path = c.Param("path")
 		proxy.ServeHTTP(c.Writer, c.Request)
 	})
+
 	return nil
+}
+
+func createIndex(targets []*swag.Spec) string {
+	const indexHTML = `<!DOCTYPE html>
+<html>
+<head>
+	  <title>API Docs</title>
+	  <meta charset="utf-8">
+	  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+{{range .}}
+	<h1><a href="/{{.InstanceName | lower}}/doc/swagger/index.html"> {{.InstanceName}} </a></h1>
+	<p>{{.Description}}</p>
+{{end}}
+</body>
+</html>
+`
+	tmpl := template.New("index")
+	tmpl.Funcs(template.FuncMap{
+		"lower": strings.ToLower,
+	})
+	tmpl, _ = tmpl.Parse(indexHTML)
+	var sb strings.Builder
+	_ = tmpl.Execute(&sb, targets)
+	return sb.String()
 }
