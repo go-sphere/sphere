@@ -1,63 +1,100 @@
 package boot
 
 import (
+	"context"
 	"github.com/tbxark/sphere/pkg/log"
 	"github.com/tbxark/sphere/pkg/log/logfields"
-	"sync"
+	"golang.org/x/sync/errgroup"
 )
 
-type Task interface {
+type Runnable interface {
 	Identifier() string
 	Run() error
 }
 
-type Cleaner interface {
-	Clean() error
+type Closeable interface {
+	Identifier() string
+	Close(ctx context.Context) error
 }
 
 type Application struct {
-	task    []Task
-	cleaner []Cleaner
+	runner []Runnable
+	closer []Closeable
 }
 
-func NewApplication(tasks []Task, cleaners []Cleaner) *Application {
+func NewApplication(tasks []Runnable, cleaners []Closeable) *Application {
 	return &Application{
-		task:    tasks,
-		cleaner: cleaners,
+		runner: tasks,
+		closer: cleaners,
 	}
 }
 
-func (a *Application) Run() {
-	wg := sync.WaitGroup{}
-	for _, t := range a.task {
-		wg.Add(1)
-
-		log.Infof("task %s start", t.Identifier())
-		go func(t Task) {
+func (a *Application) Run(ctx context.Context) error {
+	wg, errCtx := errgroup.WithContext(ctx)
+	for _, item := range a.runner {
+		log.Infof("runner %s start", item.Identifier())
+		runner := item
+		wg.Go(func() error {
+			done := make(chan struct{})
+			defer close(done)
+			go func() {
+				select {
+				case <-errCtx.Done():
+					log.Infof("runner %s stopping due to context cancellation", runner.Identifier())
+					if stoppable, ok := runner.(Closeable); ok {
+						_ = stoppable.Close(context.Background())
+					}
+				case <-done:
+					// runner finished and closed this goroutine
+					return
+				}
+			}()
 			defer func() {
 				if r := recover(); r != nil {
 					log.Errorw(
-						"task panic",
-						logfields.String("task", t.Identifier()),
+						"runner panic",
+						logfields.String("runner", runner.Identifier()),
 					)
-					wg.Done()
 				}
 			}()
-			defer wg.Done()
-			if err := t.Run(); err != nil {
+			if err := runner.Run(); err != nil {
 				log.Errorw(
-					"task error",
-					logfields.String("task", t.Identifier()),
+					"runner error",
+					logfields.String("runner", runner.Identifier()),
 					logfields.Error(err),
 				)
+				return err
 			}
-		}(t)
+			return nil
+		})
 	}
-	wg.Wait()
+	return wg.Wait()
 }
 
-func (a *Application) Clean() {
-	for _, c := range a.cleaner {
-		_ = c.Clean()
+func (a *Application) Close(ctx context.Context) error {
+	wg := errgroup.Group{}
+	for _, item := range a.closer {
+		log.Infof("closer %s start", item)
+		closer := item
+		wg.Go(func() error {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Errorw(
+						"closer panic",
+						logfields.String("closer", closer.Identifier()),
+					)
+				}
+			}()
+			if err := closer.Close(ctx); err != nil {
+				log.Errorw(
+					"closer error",
+					logfields.String("closer", closer.Identifier()),
+					logfields.Error(err),
+				)
+				return err
+			}
+			return nil
+		})
 	}
+	return wg.Wait()
 }

@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	botv1 "github.com/tbxark/sphere/api/bot/v1"
@@ -41,8 +42,8 @@ func (b *Bot) Run() error {
 	})
 }
 
-func (b *Bot) Clean() error {
-	return b.Bot.Clean()
+func (b *Bot) Close(ctx context.Context) error {
+	return b.Bot.Close(ctx)
 }
 
 func UnmarshalUpdateDataWithDefault[T any](update *models.Update, defaultValue T) T {

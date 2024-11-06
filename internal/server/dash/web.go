@@ -1,6 +1,7 @@
 package dash
 
 import (
+	"context"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	dashv1 "github.com/tbxark/sphere/api/dash/v1"
@@ -111,9 +112,13 @@ func (w *Web) Run() error {
 	return w.server.ListenAndServe()
 }
 
-func (w *Web) Clean() error {
+func (w *Web) Close(ctx context.Context) error {
 	if w.server != nil {
-		return w.server.Close()
+		err := w.server.Close()
+		if err != nil {
+			return err
+		}
+		w.server = nil
 	}
 	return nil
 }

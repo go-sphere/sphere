@@ -12,8 +12,10 @@ func main() {
 
 func newApplication(app *bot.Bot) *boot.Application {
 	return boot.NewApplication(
-		[]boot.Task{
+		[]boot.Runnable{
 			app,
 		},
-		[]boot.Cleaner{})
+		[]boot.Closeable{
+			app,
+		})
 }

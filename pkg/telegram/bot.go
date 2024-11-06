@@ -16,7 +16,6 @@ type Config struct {
 type Bot struct {
 	config       *Config
 	bot          *bot.Bot
-	close        func() error
 	ErrorHandler ErrorHandlerFunc
 }
 
@@ -73,17 +72,17 @@ func (b *Bot) Run(options ...func(*bot.Bot) error) error {
 			return e
 		}
 	}
-	b.close = func() error {
-		_, e := client.Close(ctx)
-		return e
-	}
 	b.bot.Start(ctx)
 	return nil
 }
 
-func (b *Bot) Clean() error {
-	if b.close != nil {
-		return b.close()
+func (b *Bot) Close(ctx context.Context) error {
+	if b.bot != nil {
+		_, err := b.bot.Close(ctx)
+		if err != nil {
+			return err
+		}
+		b.bot = nil
 	}
 	return nil
 }

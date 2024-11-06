@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/swaggo/swag"
@@ -59,9 +60,13 @@ func (w *Web) Run() error {
 	return w.server.ListenAndServe()
 }
 
-func (w *Web) Clean() error {
+func (w *Web) Close(ctx context.Context) error {
 	if w.server != nil {
-		return w.server.Close()
+		err := w.server.Close()
+		if err != nil {
+			return err
+		}
+		w.server = nil
 	}
 	return nil
 }

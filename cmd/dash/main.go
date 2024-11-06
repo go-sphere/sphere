@@ -13,11 +13,11 @@ func main() {
 
 func newApplication(dash *dash.Web, cleaner *task.ConnectCleaner, initDash *task.DashInitialize) *boot.Application {
 	return boot.NewApplication(
-		[]boot.Task{
+		[]boot.Runnable{
 			initDash,
 			dash,
 		},
-		[]boot.Cleaner{
+		[]boot.Closeable{
 			cleaner,
 		})
 }
