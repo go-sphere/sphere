@@ -19,7 +19,6 @@ rm -rf ./pkg
 rm -rf ./contrib
 
 echo "Renaming module from ${OLD_MODULE} to ${NEW_MODULE}"
-find . -type f -name "*.go" -exec sed -i '' "s,${OLD_MODULE},${NEW_MODULE},g" {} \;
 find . -type f -name "*.go" -exec sed -i '' "s,${OLD_MODULE}/cmd,${NEW_MODULE}/cmd,g" {} \;
 find . -type f -name "*.go" -exec sed -i '' "s,${OLD_MODULE}/internal,${NEW_MODULE}/internal,g" {} \;
 go mod edit -module "${NEW_MODULE}"
@@ -27,4 +26,8 @@ go mod edit -module "${NEW_MODULE}"
 echo "Update buf.gen.yaml"
 sed -i '' "s,${OLD_MODULE},${NEW_MODULE},g" buf.gen.yaml
 
+go get github.com/tbxark/sphere@latest
+go mod tidy
+
+make build
 make generate
