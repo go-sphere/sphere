@@ -23,6 +23,8 @@ const (
 	validatePackage = protogen.GoImportPath("github.com/bufbuild/protovalidate-go")
 )
 
+const deprecationComment = "// Deprecated: Do not use."
+
 var methodSets = make(map[string]int)
 
 // generateFile generates a _http.pb.go file containing sphere errors definitions.
@@ -109,6 +111,11 @@ func hasHTTPRule(services []*protogen.Service) bool {
 	return false
 }
 
+func hasValidateOptions(field *protogen.Field) bool {
+	opts := field.Desc.Options().(*descriptorpb.FieldOptions)
+	return proto.HasExtension(opts, validatepb.E_Field)
+}
+
 func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *protogen.Method, rule *annotations.HttpRule, omitemptyPrefix string, swaggerAuth string) *methodDesc {
 	var (
 		path         string
@@ -193,13 +200,13 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 			}
 			fd := fields.ByName(protoreflect.Name(field))
 			if fd == nil {
-				fmt.Fprintf(os.Stderr, "\u001B[31mERROR\u001B[m: The corresponding field '%s' declaration in message could not be found in '%s'\n", v, path)
+				_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mERROR\u001B[m: The corresponding field '%s' declaration in message could not be found in '%s'\n", v, path)
 				os.Exit(2)
 			}
 			if fd.IsMap() {
-				fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a map.\n", v)
+				_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a map.\n", v)
 			} else if fd.IsList() {
-				fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a list.\n", v)
+				_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a list.\n", v)
 			} else if fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.GroupKind {
 				fields = fd.Message().Fields()
 			}
@@ -229,7 +236,7 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 		Method:       method,
 		HasVars:      len(vars) > 0,
 		HasQuery:     len(query) > 0,
-		GinPath:      convertProtoPathToGinPath(path),
+		GinPath:      buildGinRoutePath(path),
 		Swagger:      buildSwaggerAnnotations(m, method, path, m.Comments.Leading.String(), paths, query, swaggerAuth),
 		NeedValidate: needValidate,
 	}
@@ -237,7 +244,7 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 
 func buildPathVars(path string) (map[string]*string, []string) {
 	if strings.HasSuffix(path, "/") {
-		fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: Path %s should not end with \"/\" \n", path)
+		_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: Path %s should not end with \"/\" \n", path)
 	}
 	pattern := regexp.MustCompile(`(?i){([a-z.0-9_\s]*)=?([^{}]*)}`)
 	matches := pattern.FindAllStringSubmatch(path, -1)
@@ -253,20 +260,6 @@ func buildPathVars(path string) (map[string]*string, []string) {
 		vars = append(vars, name)
 	}
 	return res, vars
-}
-
-func replacePath(name string, value string, path string) string {
-	pattern := regexp.MustCompile(fmt.Sprintf(`(?i){([\s]*%s\b[\s]*)=?([^{}]*)}`, name))
-	idx := pattern.FindStringIndex(path)
-	if len(idx) > 0 {
-		path = fmt.Sprintf("%s{%s:%s}%s",
-			path[:idx[0]], // The start of the match
-			name,
-			strings.ReplaceAll(value, "*", ".*"),
-			path[idx[1]:],
-		)
-	}
-	return path
 }
 
 func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*string) (res []string) {
@@ -306,86 +299,6 @@ func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*st
 	return
 }
 
-func camelCaseVars(s string) string {
-	subs := strings.Split(s, ".")
-	vars := make([]string, 0, len(subs))
-	for _, sub := range subs {
-		vars = append(vars, camelCase(sub))
-	}
-	return strings.Join(vars, ".")
-}
-
-// camelCase returns the CamelCased name.
-// If there is an interior underscore followed by a lower case letter,
-// drop the underscore and convert the letter to upper case.
-// There is a remote possibility of this rewrite causing a name collision,
-// but it's so remote we're prepared to pretend it's nonexistent - since the
-// C++ generator lowercase names, it's extremely unlikely to have two fields
-// with different capitalization.
-// In short, _my_field_name_2 becomes XMyFieldName_2.
-func camelCase(s string) string {
-	if s == "" {
-		return ""
-	}
-	t := make([]byte, 0, 32)
-	i := 0
-	if s[0] == '_' {
-		// Need a capital letter; drop the '_'.
-		t = append(t, 'X')
-		i++
-	}
-	// Invariant: if the next letter is lower case, it must be converted
-	// to upper case.
-	// That is, we process a word at a time, where words are marked by _ or
-	// upper case letter. Digits are treated as words.
-	for ; i < len(s); i++ {
-		c := s[i]
-		if c == '_' && i+1 < len(s) && isASCIILower(s[i+1]) {
-			continue // Skip the underscore in s.
-		}
-		if isASCIIDigit(c) {
-			t = append(t, c)
-			continue
-		}
-		// Assume we have a letter now - if not, it's a bogus identifier.
-		// The next word is a sequence of characters that must start upper case.
-		if isASCIILower(c) {
-			c ^= ' ' // Make it a capital letter.
-		}
-		t = append(t, c) // Guaranteed not lower case.
-		// Accept lower case sequence that follows.
-		for i+1 < len(s) && isASCIILower(s[i+1]) {
-			i++
-			t = append(t, s[i])
-		}
-	}
-	return string(t)
-}
-
-// Is c an ASCII lower-case letter?
-func isASCIILower(c byte) bool {
-	return 'a' <= c && c <= 'z'
-}
-
-// Is c an ASCII digit?
-func isASCIIDigit(c byte) bool {
-	return '0' <= c && c <= '9'
-}
-
-func protocVersion(gen *protogen.Plugin) string {
-	v := gen.Request.GetCompilerVersion()
-	if v == nil {
-		return "(unknown)"
-	}
-	var suffix string
-	if s := v.GetSuffix(); s != "" {
-		suffix = "-" + s
-	}
-	return fmt.Sprintf("v%d.%d.%d%s", v.GetMajor(), v.GetMinor(), v.GetPatch(), suffix)
-}
-
-const deprecationComment = "// Deprecated: Do not use."
-
 func buildSwaggerAnnotations(m *protogen.Method, method, path, desc string, pathVars []string, queryParams []string, swaggerAuth string) string {
 	var builder strings.Builder
 
@@ -408,13 +321,13 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path, desc string, path
 
 	// Add path parameters
 	for _, param := range pathVars {
-		paramType := getFieldType(m.Input.Desc, param)
+		paramType := buildSwaggerParamType(m.Input.Desc, param)
 		builder.WriteString(fmt.Sprintf("// @Param %s path %s true \"%s\"\n", param, paramType, param))
 	}
 
 	// Add query parameters
 	for _, param := range queryParams {
-		paramType := getFieldType(m.Input.Desc, param)
+		paramType := buildSwaggerParamType(m.Input.Desc, param)
 		builder.WriteString(fmt.Sprintf("// @Param %s query %s false \"%s\"\n", param, paramType, param))
 	}
 
@@ -432,7 +345,7 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path, desc string, path
 	return builder.String()
 }
 
-func getFieldType(messageDesc protoreflect.MessageDescriptor, fieldName string) string {
+func buildSwaggerParamType(messageDesc protoreflect.MessageDescriptor, fieldName string) string {
 	field := messageDesc.Fields().ByName(protoreflect.Name(fieldName))
 	if field == nil {
 		return "string" // Default to string if field not found
@@ -456,20 +369,29 @@ func getFieldType(messageDesc protoreflect.MessageDescriptor, fieldName string) 
 	case protoreflect.MessageKind:
 		return "object"
 	default:
-		return "string" // Default to string for unknown types
+		return "any"
 	}
 }
 
-var ginRe = regexp.MustCompile(`\{([^}]+)\}`)
-
-func convertProtoPathToGinPath(protoPath string) string {
+func buildGinRoutePath(protoPath string) string {
 	if idx := strings.Index(protoPath, "?"); idx > 0 {
 		protoPath = protoPath[:idx]
 	}
-	return ginRe.ReplaceAllString(protoPath, ":$1")
+	re := regexp.MustCompile(`\{([^}]+)\}`)
+	return re.ReplaceAllString(protoPath, ":$1")
 }
 
-func hasValidateOptions(field *protogen.Field) bool {
-	opts := field.Desc.Options().(*descriptorpb.FieldOptions)
-	return proto.HasExtension(opts, validatepb.E_Field)
+// replacePath {paramName=value} => {paramName:newValue}
+func replacePath(name string, value string, path string) string {
+	pattern := regexp.MustCompile(fmt.Sprintf(`(?i){([\s]*%s\b[\s]*)=?([^{}]*)}`, name))
+	idx := pattern.FindStringIndex(path)
+	if len(idx) > 0 {
+		path = fmt.Sprintf("%s{%s:%s}%s",
+			path[:idx[0]], // The start of the match
+			name,
+			strings.ReplaceAll(value, "*", ".*"),
+			path[idx[1]:],
+		)
+	}
+	return path
 }

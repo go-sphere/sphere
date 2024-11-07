@@ -10,29 +10,28 @@ import (
 var (
 	showVersion = flag.Bool("version", false, "print the version and exit")
 
+	clientPackage = flag.String("bot_package", "github.com/go-telegram/bot", "bot package")
+	clientModel   = flag.String("bot_model", "Bot", "bot model")
+
 	updatePackage = flag.String("update_package", "github.com/go-telegram/bot/models", "update package")
 	updateModel   = flag.String("update_model", "Update", "update model")
 
 	messagePackage = flag.String("message_package", "github.com/tbxark/sphere/pkg/telegram", "message package")
 	messageModel   = flag.String("message_model", "Message", "message model")
 
-	clientPackage = flag.String("bot_package", "github.com/go-telegram/bot", "bot package")
-	clientModel   = flag.String("bot_model", "Bot", "bot model")
-
 	extraDataPackage = flag.String("extra_data_package", "github.com/tbxark/sphere/pkg/telegram", "extra data package")
 	extraDataModel   = flag.String("extra_data_model", "MethodExtraData", "extra data model")
 )
 
 type Package struct {
-	pkg      protogen.GoImportPath
-	model    string
-	typeName string
+	pkg   protogen.GoImportPath
+	model string
 }
 
 type Config struct {
+	client  Package
 	update  Package
 	message Package
-	client  Package
 	extra   Package
 }
 

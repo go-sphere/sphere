@@ -30,6 +30,7 @@ service CounterService {
         }
       ]
     };
+
   }
   rpc Unknown(UnknownRequest) returns (UnknownResponse);
 }
