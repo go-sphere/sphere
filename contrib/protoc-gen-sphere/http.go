@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	contextPackage  = protogen.GoImportPath("context")
+	ctxPackage      = protogen.GoImportPath("context")
 	ginPackage      = protogen.GoImportPath("github.com/gin-gonic/gin")
 	ginxPackage     = protogen.GoImportPath("github.com/tbxark/sphere/pkg/server/ginx")
 	validatePackage = protogen.GoImportPath("github.com/bufbuild/protovalidate-go")
@@ -53,7 +53,7 @@ func generateFile(gen *protogen.Plugin, file *protogen.File, omitempty bool, omi
 	g.P("package ", file.GoPackageName)
 	g.P()
 
-	_ = g.QualifiedGoIdent(contextPackage.Ident("Context")) // Trigger import
+	_ = g.QualifiedGoIdent(ctxPackage.Ident("Context")) // Trigger import
 	pkgDesc := &packageDesc{
 		RouterType:               g.QualifiedGoIdent(ginPackage.Ident("IRouter")),
 		ContextType:              g.QualifiedGoIdent(ginPackage.Ident("Context")),
@@ -82,7 +82,7 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	if len(file.Services) == 0 {
 		return
 	}
-	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
+	g.P("var _ = new(", ctxPackage.Ident("Context"), ")")
 	g.P("var _ = new(", ginPackage.Ident("Context"), ")")
 	g.P("var _ = new(", ginxPackage.Ident("ErrorResponse"), ")")
 	g.P("var _ = new(", validatePackage.Ident("Validator"), ")")

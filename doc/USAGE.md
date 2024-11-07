@@ -38,7 +38,7 @@ Targets:
 ## Project Structure
 
 ```
-├── api                         # generated proto files
+├── api                         # generated go files by protoc
 ├── assets                      # embed assets
 ├── cmd                         # main entry
 ├── devops                      # devops configuration
@@ -60,6 +60,7 @@ Targets:
 ```bash
 git clone git@github.com:TBXark/sphere.git
 make init
+./scripts/rename.sh # rename the project and delete pkg and contrib folder
 ```
 
 
@@ -81,7 +82,7 @@ You can define the http server interface in the `/proto` directory. For details,
 When you have finished defining the http server interface, you can run the following command to generate the http server code and swagger docs.
 
 ```bash
-gen-docs
+make gen-docs
 ```
 
 There are some rules for defining the http server interface:
