@@ -11,11 +11,5 @@ func main() {
 }
 
 func newApplication(app *bot.Bot) *boot.Application {
-	return boot.NewApplication(
-		[]boot.Runnable{
-			app,
-		},
-		[]boot.Closeable{
-			app,
-		})
+	return boot.NewApplication(app)
 }

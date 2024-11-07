@@ -18,7 +18,11 @@ func (c *ConnectCleaner) Identifier() string {
 	return "connect_cleaner"
 }
 
-func (c *ConnectCleaner) Close(ctx context.Context) error {
+func (c *ConnectCleaner) Start(ctx context.Context) error {
+	return nil
+}
+
+func (c *ConnectCleaner) Stop(ctx context.Context) error {
 	group := errgroup.Group{}
 	group.Go(c.db.Close)
 	return group.Wait()

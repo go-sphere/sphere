@@ -37,11 +37,11 @@ func (b *Bot) initBot(t *bot.Bot) error {
 	return nil
 }
 
-func (b *Bot) Run(ctx context.Context) error {
+func (b *Bot) Start(ctx context.Context) error {
 	return b.Bot.Run(ctx, b.initBot)
 }
 
-func (b *Bot) Close(ctx context.Context) error {
+func (b *Bot) Stop(ctx context.Context) error {
 	return b.Bot.Close(ctx)
 }
 

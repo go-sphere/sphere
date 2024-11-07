@@ -34,7 +34,7 @@ func (i *DashInitialize) Identifier() string {
 	return "initialize"
 }
 
-func (i *DashInitialize) Run(ctx context.Context) error {
+func (i *DashInitialize) Start(ctx context.Context) error {
 	key := "did_init"
 	return dao.WithTxEx(ctx, i.db.Client, func(ctx context.Context, client *ent.Client) error {
 		exist, err := client.KeyValueStore.Query().Where(keyvaluestore.KeyEQ(key)).Exist(ctx)
@@ -54,4 +54,8 @@ func (i *DashInitialize) Run(ctx context.Context) error {
 		_ = initAdminIfNeed(ctx, client)
 		return nil
 	})
+}
+
+func (i *DashInitialize) Stop(ctx context.Context) error {
+	return nil
 }

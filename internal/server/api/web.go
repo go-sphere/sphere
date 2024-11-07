@@ -36,7 +36,7 @@ func (w *Web) Identifier() string {
 	return "api"
 }
 
-func (w *Web) Run(ctx context.Context) error {
+func (w *Web) Start(ctx context.Context) error {
 	jwtAuthorizer := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.JWT)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "api"))
@@ -70,6 +70,6 @@ func (w *Web) Run(ctx context.Context) error {
 	return ginx.Start(ctx, w.server, 30*time.Second)
 }
 
-func (w *Web) Close(ctx context.Context) error {
+func (w *Web) Stop(ctx context.Context) error {
 	return ginx.Close(ctx, w.server)
 }

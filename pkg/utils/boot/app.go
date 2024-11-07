@@ -7,33 +7,27 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type Runnable interface {
+type Task interface {
 	Identifier() string
-	Run(ctx context.Context) error
-}
-
-type Closeable interface {
-	Identifier() string
-	Close(ctx context.Context) error
+	Start(ctx context.Context) error
+	Stop(ctx context.Context) error
 }
 
 type Application struct {
-	runner []Runnable
-	closer []Closeable
+	tasks []Task
 }
 
-func NewApplication(tasks []Runnable, cleaners []Closeable) *Application {
+func NewApplication(tasks ...Task) *Application {
 	return &Application{
-		runner: tasks,
-		closer: cleaners,
+		tasks: tasks,
 	}
 }
 
 func (a *Application) Run(ctx context.Context) error {
 	wg, ctx := errgroup.WithContext(ctx)
-	for _, item := range a.runner {
-		log.Infof("runner %s start", item.Identifier())
-		runner := item
+	for _, task := range a.tasks {
+		log.Infof("runner %s start", task.Identifier())
+		runner := task
 		wg.Go(func() error {
 			defer func() {
 				if r := recover(); r != nil {
@@ -44,7 +38,7 @@ func (a *Application) Run(ctx context.Context) error {
 					)
 				}
 			}()
-			if err := runner.Run(ctx); err != nil {
+			if err := runner.Start(ctx); err != nil {
 				log.Errorw(
 					"runner error",
 					logfields.String("runner", runner.Identifier()),
@@ -60,9 +54,9 @@ func (a *Application) Run(ctx context.Context) error {
 
 func (a *Application) Close(ctx context.Context) error {
 	wg := errgroup.Group{}
-	for _, item := range a.closer {
-		log.Infof("closer %s start", item.Identifier())
-		closer := item
+	for _, task := range a.tasks {
+		log.Infof("closer %s start", task.Identifier())
+		closer := task
 		wg.Go(func() error {
 			defer func() {
 				if r := recover(); r != nil {
@@ -73,7 +67,7 @@ func (a *Application) Close(ctx context.Context) error {
 					)
 				}
 			}()
-			if err := closer.Close(ctx); err != nil {
+			if err := closer.Stop(ctx); err != nil {
 				log.Errorw(
 					"closer error",
 					logfields.String("closer", closer.Identifier()),
