@@ -59,7 +59,7 @@ func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Ap
 	log.Info("Start application", logfields.String("version", ver))
 	defer func() {
 		if e := log.Sync(); e != nil {
-			log.Error("Failed to sync logger", logfields.Error(e))
+			fmt.Println("Failed to sync log", e)
 		}
 	}()
 
@@ -77,20 +77,20 @@ func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Ap
 	// Catch application error
 	errChan := make(chan error, 1)
 	go func() {
-		if e := app.Start(context.Background()); e != nil {
-			errChan <- e
-		}
+		errChan <- app.Start(context.Background())
 	}()
 
-	var errs []error
+	errs := make([]error, 0, 2)
 
 	// Wait for shutdown signal or application error
 	select {
 	case <-quit:
 		log.Debug("Received shutdown signal")
 	case e := <-errChan:
-		log.Error("Application error", logfields.Error(e))
-		errs = append(errs, e)
+		if e != nil {
+			log.Error("Application error", logfields.Error(e))
+			errs = append(errs, e)
+		}
 	}
 
 	// Close application
