@@ -5,6 +5,7 @@ modules:
 deps:
     - buf.build/googleapis/googleapis
     - buf.build/bufbuild/protovalidate
+    - buf.build/tbxark/options
 lint:
   use:
     - STANDARD

@@ -17,9 +17,10 @@ type serviceDesc struct {
 	Methods     []*methodDesc
 	MethodSets  map[string]*methodDesc
 
-	ClientType  string
-	UpdateType  string
-	MessageType string
+	ClientType       string
+	UpdateType       string
+	MessageType      string
+	NewExtraDataFunc string
 }
 
 type methodDesc struct {
@@ -30,6 +31,9 @@ type methodDesc struct {
 	Request      string
 	Reply        string
 	Comment      string
+
+	// bot_rule
+	Extra map[string]string
 }
 
 func (s *serviceDesc) execute() string {

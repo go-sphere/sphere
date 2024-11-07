@@ -10,17 +10,33 @@ go install github.com/tbxark/sphere/contrib/protoc-gen-bot@latest
 
 ## Usage
 
-Add `// @bot` to the comment of the service, and the bot will generate the code.
+Add `tbxark.options.options` to the rpc method, and set the key to `bot`, You can also add extra options to the method.
 
 ```proto
-syntax = "proto3";
 
-package helloworld;
-
-// @bot
-service Greeter {
-  rpc SayHello (HelloRequest) returns (HelloReply) {}
+service CounterService {
+  rpc Start(StartRequest) returns (StartResponse) {
+    option (tbxark.options.options) = {
+      key: "bot"
+    };
+  }
+  rpc Counter(CounterRequest) returns (CounterResponse) {
+    option (tbxark.options.options) = {
+      key: "bot",
+      extra: [
+        {
+          key: "command",
+          value: "count",
+        },
+        {
+          key: "callback_query",
+          value: "count",
+        }
+      ]
+    };
+  }
+  rpc Unknown(UnknownRequest) returns (UnknownResponse);
 }
-
 ...
 ```
+

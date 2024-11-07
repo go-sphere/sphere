@@ -5,6 +5,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/tbxark/sphere/pkg/log"
+	"strings"
 )
 
 type Config struct {
@@ -73,6 +74,7 @@ func (b *Bot) ExtractorAuth(ctx context.Context, tBot *bot.Bot, update *models.U
 
 func (b *Bot) BindCommand(command string, handlerFunc HandlerFunc, middleware ...bot.Middleware) {
 	fn := WithMiddleware(handlerFunc, b.ErrorHandler, middleware...)
+	command = "/" + strings.TrimPrefix(command, "/")
 	b.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypePrefix, func(ctx context.Context, tBot *bot.Bot, update *models.Update) {
 		ctx, done := b.ExtractorAuth(ctx, tBot, update)
 		if done {

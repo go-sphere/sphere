@@ -3,11 +3,21 @@
 {{$clientType := .ClientType}}
 {{$updateType := .UpdateType}}
 {{$messageType := .MessageType}}
+{{$newExtraDataFunc := .NewExtraDataFunc}}
 
 {{- range .MethodSets}}
 const BotHandler{{$svrType}}{{.OriginalName}} = "/{{$svrName}}/{{.OriginalName}}"
 {{- end}}
 
+{{- range .MethodSets}}
+    {{- if .Extra}}
+var ExtraData{{$svrType}}{{.Name}} = {{$newExtraDataFunc}}(map[string]string{
+    {{- range $key, $value := .Extra}}
+    "{{$key}}": "{{$value}}",
+    {{- end}}
+})
+    {{- end}}
+{{- end}}
 
 type {{.ServiceType}}Server interface {
 {{- range .MethodSets}}

@@ -15,9 +15,18 @@ var _ = new(context.Context)
 var _ = new(bot.Bot)
 var _ = new(models.Update)
 var _ = new(telegram.Message)
+var _ = new(telegram.MethodExtraData)
 
 const BotHandlerCounterServiceCounter = "/bot.v1.CounterService/Counter"
 const BotHandlerCounterServiceStart = "/bot.v1.CounterService/Start"
+
+var ExtraDataCounterServiceCounter = telegram.NewMethodExtraData(map[string]string{
+	"callback_query": "count",
+	"command":        "count",
+})
+var ExtraDataCounterServiceStart = telegram.NewMethodExtraData(map[string]string{
+	"command": "start",
+})
 
 type CounterServiceServer interface {
 	Counter(context.Context, *CounterRequest) (*CounterResponse, error)

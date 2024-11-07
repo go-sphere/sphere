@@ -8,13 +8,19 @@ import (
 )
 
 var (
-	showVersion    = flag.Bool("version", false, "print the version and exit")
-	updatePackage  = flag.String("update_package", "github.com/go-telegram/bot/models", "update package")
-	updateModel    = flag.String("update_model", "Update", "update model")
+	showVersion = flag.Bool("version", false, "print the version and exit")
+
+	updatePackage = flag.String("update_package", "github.com/go-telegram/bot/models", "update package")
+	updateModel   = flag.String("update_model", "Update", "update model")
+
 	messagePackage = flag.String("message_package", "github.com/tbxark/sphere/pkg/telegram", "message package")
 	messageModel   = flag.String("message_model", "Message", "message model")
-	clientPackage  = flag.String("bot_package", "github.com/go-telegram/bot", "bot package")
-	clientModel    = flag.String("bot_model", "Bot", "bot model")
+
+	clientPackage = flag.String("bot_package", "github.com/go-telegram/bot", "bot package")
+	clientModel   = flag.String("bot_model", "Bot", "bot model")
+
+	extraDataPackage = flag.String("extra_data_package", "github.com/tbxark/sphere/pkg/telegram", "extra data package")
+	extraDataModel   = flag.String("extra_data_model", "MethodExtraData", "extra data model")
 )
 
 type Package struct {
@@ -27,6 +33,7 @@ type Config struct {
 	update  Package
 	message Package
 	client  Package
+	extra   Package
 }
 
 func main() {
@@ -47,6 +54,10 @@ func main() {
 		client: Package{
 			pkg:   protogen.GoImportPath(*clientPackage),
 			model: *clientModel,
+		},
+		extra: Package{
+			pkg:   protogen.GoImportPath(*extraDataPackage),
+			model: *extraDataModel,
 		},
 	}
 	protogen.Options{

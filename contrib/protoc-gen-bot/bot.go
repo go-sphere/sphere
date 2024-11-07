@@ -1,13 +1,15 @@
 package main
 
 import (
+	"buf.build/gen/go/tbxark/options/protocolbuffers/go/tbxark/options"
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
-	"regexp"
-	"strings"
 )
 
 const deprecationComment = "// Deprecated: Do not use."
+
+const botAnnotationKey = "bot"
 
 const (
 	contextPackage = protogen.GoImportPath("context")
@@ -43,6 +45,7 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	g.P("var _ = new(", conf.client.pkg.Ident(conf.client.model), ")")
 	g.P("var _ = new(", conf.update.pkg.Ident(conf.update.model), ")")
 	g.P("var _ = new(", conf.message.pkg.Ident(conf.message.model), ")")
+	g.P("var _ = new(", conf.extra.pkg.Ident(conf.extra.model), ")")
 	g.P()
 	for _, service := range file.Services {
 		genService(gen, file, g, service, conf)
@@ -60,14 +63,14 @@ func genService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFi
 		ServiceName: string(service.Desc.FullName()),
 		Metadata:    file.Desc.Path(),
 
-		ClientType:  g.QualifiedGoIdent(conf.client.pkg.Ident(conf.client.model)),
-		UpdateType:  g.QualifiedGoIdent(conf.update.pkg.Ident(conf.update.model)),
-		MessageType: g.QualifiedGoIdent(conf.message.pkg.Ident(conf.message.model)),
+		ClientType:       g.QualifiedGoIdent(conf.client.pkg.Ident(conf.client.model)),
+		UpdateType:       g.QualifiedGoIdent(conf.update.pkg.Ident(conf.update.model)),
+		MessageType:      g.QualifiedGoIdent(conf.message.pkg.Ident(conf.message.model)),
+		NewExtraDataFunc: g.QualifiedGoIdent(conf.extra.pkg.Ident("New" + conf.extra.model)),
 	}
-	allEnable := isBotEnable(service.Comments.Leading.String())
 	for _, method := range service.Methods {
-		enable := allEnable || isBotEnable(method.Comments.Leading.String())
-		if !enable {
+		rule := extractBotRule(method)
+		if rule == nil {
 			continue
 		}
 		sd.Methods = append(sd.Methods, &methodDesc{
@@ -77,6 +80,7 @@ func genService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFi
 			Request:      method.Input.GoIdent.GoName,
 			Reply:        method.Output.GoIdent.GoName,
 			Comment:      method.Comments.Leading.String(),
+			Extra:        rule.Extra,
 		})
 		methodSets[method.GoName] += 1
 	}
@@ -85,15 +89,10 @@ func genService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFi
 	}
 }
 
-var botTagsMatchRegexp = regexp.MustCompile(` *//+ *@bot`)
-
 func hasBotRule(services []*protogen.Service) bool {
 	for _, service := range services {
-		if isBotEnable(service.Comments.Leading.String()) {
-			return true
-		}
 		for _, method := range service.Methods {
-			if isBotEnable(method.Comments.Leading.String()) {
+			if extractBotRule(method) != nil {
 				return true
 			}
 		}
@@ -101,11 +100,18 @@ func hasBotRule(services []*protogen.Service) bool {
 	return false
 }
 
-func isBotEnable(comment string) bool {
-	for _, line := range strings.Split(comment, "\n") {
-		if botTagsMatchRegexp.MatchString(line) {
-			return true
+func extractBotRule(method *protogen.Method) *options.KeyValuePair {
+	if method.Desc.IsStreamingClient() || method.Desc.IsStreamingServer() {
+		return nil
+	}
+	rules, ok := proto.GetExtension(method.Desc.Options(), options.E_Options).([]*options.KeyValuePair)
+	if rules == nil || !ok {
+		return nil
+	}
+	for _, rule := range rules {
+		if rule.GetKey() == botAnnotationKey {
+			return rule
 		}
 	}
-	return false
+	return nil
 }

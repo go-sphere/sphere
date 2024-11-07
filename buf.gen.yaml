@@ -6,6 +6,8 @@ managed:
       module: buf.build/googleapis/googleapis
     - file_option: go_package_prefix
       module: buf.build/bufbuild/protovalidate
+    - file_option: go_package_prefix
+      module: buf.build/tbxark/options
   override:
     - file_option: go_package_prefix
       value: github.com/tbxark/sphere/api

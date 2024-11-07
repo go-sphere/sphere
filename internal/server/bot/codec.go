@@ -11,15 +11,6 @@ import (
 
 var _ botv1.CounterServiceCodec = &CounterServiceCodec{}
 
-const (
-	CommandStart   = "/start"
-	CommandCounter = "/counter"
-)
-
-const (
-	QueryCounter = "counter"
-)
-
 type CounterServiceCodec struct{}
 
 func (b *CounterServiceCodec) DecodeCounterRequest(ctx context.Context, update *models.Update) (*botv1.CounterRequest, error) {
@@ -30,16 +21,17 @@ func (b *CounterServiceCodec) DecodeCounterRequest(ctx context.Context, update *
 }
 
 func (b *CounterServiceCodec) EncodeCounterResponse(ctx context.Context, reply *botv1.CounterResponse) (*telegram.Message, error) {
+	act := botv1.ExtraDataCounterServiceCounter.CallbackQuery
 	return &telegram.Message{
 		Text: fmt.Sprintf("Counter: %d", reply.Count),
 		Button: [][]telegram.Button{
 			{
-				NewButton("Increment", QueryCounter, reply.Count+1),
-				NewButton("Decrement", QueryCounter, reply.Count-1),
+				NewButton("Increment", act, reply.Count+1),
+				NewButton("Decrement", act, reply.Count-1),
 			},
 			{
-				NewButton("Reset", QueryCounter, 0),
-				NewButton("Random", QueryCounter, rand.Int()%100),
+				NewButton("Reset", act, 0),
+				NewButton("Random", act, rand.Int()%100),
 			},
 		},
 	}, nil

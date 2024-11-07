@@ -4,6 +4,7 @@ go 1.23.0
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.35.1-20240920164238-5a7b106cbb87.1
+	buf.build/gen/go/tbxark/options/protocolbuffers/go v1.35.1-20241107024543-7afe4060470a.1
 	entgo.io/ent v0.14.1
 	github.com/alitto/pond/v2 v2.0.4
 	github.com/bufbuild/protovalidate-go v0.7.2
