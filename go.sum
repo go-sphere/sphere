@@ -2,8 +2,6 @@ ariga.io/atlas v0.28.1 h1:cNE0FYmoYs1u4KF+FGnp2on1srhM6FDpjaCgL7Rd8/c=
 ariga.io/atlas v0.28.1/go.mod h1:LOOp18LCL9r+VifvVlJqgYJwYl271rrXD9/wIyzJ8sw=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.35.1-20240920164238-5a7b106cbb87.1 h1:9wP6ZZYWnF2Z0TxmII7m3XNykxnP4/w8oXeth6ekcRI=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.35.1-20240920164238-5a7b106cbb87.1/go.mod h1:Duw/9JoXkXIydyASnLYIiufkzySThoqavOsF+IihqvM=
-buf.build/gen/go/tbxark/options/protocolbuffers/go v1.35.1-20241107024543-7afe4060470a.1 h1:34ZELl67BIA/McOR+Cm0dD0K8DpCOBYD3qRxAcf4WHY=
-buf.build/gen/go/tbxark/options/protocolbuffers/go v1.35.1-20241107024543-7afe4060470a.1/go.mod h1:c2hH3HNH5YrpugKZYpI7gS+wpeDYBBi6Ex66Q+XOyEg=
 entgo.io/ent v0.14.1 h1:fUERL506Pqr92EPHJqr8EYxbPioflJo6PudkrEA8a/s=
 entgo.io/ent v0.14.1/go.mod h1:MH6XLG0KXpkcDQhKiHfANZSzR55TJyPL5IGNpI8wpco=
 filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
@@ -243,6 +241,8 @@ github.com/swaggo/gin-swagger v1.6.0 h1:y8sxvQ3E20/RCyrXeFfg60r6H0Z+SwpTjMYsMm+z
 github.com/swaggo/gin-swagger v1.6.0/go.mod h1:BG00cCEy294xtVpyIAHG6+e2Qzj/xKlRdOqDkvq0uzo=
 github.com/swaggo/swag v1.16.4 h1:clWJtd9LStiG3VeijiCfOVODP6VpHtKdQy9ELFG3s1A=
 github.com/swaggo/swag v1.16.4/go.mod h1:VBsHJRsDvfYvqoiMKnsdwhNV9LEMHgEDZcyVYX0sxPg=
+github.com/tbxark/options-proto/go v0.0.0-20241107032539-db368fc82115 h1:R8Q2nKRW9BTaRyXuWOaFNIRc7ZjEOovNeJaIu/GF8Rw=
+github.com/tbxark/options-proto/go v0.0.0-20241107032539-db368fc82115/go.mod h1:MKIinEKfhcwhPlG5Cuk3uaenUyel2VrhxhHAMsG2McE=
 github.com/telegram-mini-apps/init-data-golang v1.1.5 h1:R51eoGSKBQwHoAo8r/n/E0RZ2owF3kmEpdzn7oV7lgI=
 github.com/telegram-mini-apps/init-data-golang v1.1.5/go.mod h1:GG4HnRx9ocjD4MjjzOw7gf9Ptm0NvFbDr5xqnfFOYuY=
 github.com/twitchyliquid64/golang-asm v0.15.1 h1:SU5vSMR7hnwNxj24w34ZyCi/FmDZTkS4MhqMhdFk5YI=

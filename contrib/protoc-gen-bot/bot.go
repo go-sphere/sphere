@@ -1,7 +1,7 @@
 package main
 
 import (
-	"buf.build/gen/go/tbxark/options/protocolbuffers/go/tbxark/options"
+	"github.com/tbxark/options-proto/go/tbxark/options"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"

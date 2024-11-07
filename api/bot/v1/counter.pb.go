@@ -7,7 +7,7 @@
 package botv1
 
 import (
-	_ "buf.build/gen/go/tbxark/options/protocolbuffers/go/tbxark/options"
+	_ "github.com/tbxark/options-proto/go/tbxark/options"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"

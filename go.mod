@@ -1,10 +1,9 @@
 module github.com/tbxark/sphere
 
-go 1.23.0
+go 1.23.2
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.35.1-20240920164238-5a7b106cbb87.1
-	buf.build/gen/go/tbxark/options/protocolbuffers/go v1.35.1-20241107024543-7afe4060470a.1
 	entgo.io/ent v0.14.1
 	github.com/alitto/pond/v2 v2.0.4
 	github.com/bufbuild/protovalidate-go v0.7.2
@@ -28,6 +27,7 @@ require (
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
 	github.com/swaggo/swag v1.16.4
+	github.com/tbxark/options-proto/go v0.0.0-20241107032539-db368fc82115
 	github.com/telegram-mini-apps/init-data-golang v1.1.5
 	github.com/yitter/idgenerator-go v1.3.3
 	go.uber.org/zap v1.27.0
