@@ -76,7 +76,7 @@ func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Ap
 	// Catch application error
 	errChan := make(chan error, 1)
 	go func() {
-		if e := app.Run(context.Background()); e != nil {
+		if e := app.Start(context.Background()); e != nil {
 			errChan <- e
 		}
 	}()
@@ -94,7 +94,7 @@ func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Ap
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if e := app.Close(ctx); e != nil {
+	if e := app.Stop(ctx); e != nil {
 		return fmt.Errorf("failed to close application: %w", e)
 	}
 

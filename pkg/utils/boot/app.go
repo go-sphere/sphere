@@ -68,14 +68,18 @@ func (a *Application) executeTasks(ctx context.Context, action string, stopOnErr
 	return wg.Wait()
 }
 
-func (a *Application) Run(ctx context.Context) error {
+func (a *Application) Identifier() string {
+	return "application"
+}
+
+func (a *Application) Start(ctx context.Context) error {
 	// run 操作会因为一个任务失败而中断
 	return a.executeTasks(ctx, "start", true, func(t Task, ctx context.Context) error {
 		return t.Start(ctx)
 	})
 }
 
-func (a *Application) Close(ctx context.Context) error {
+func (a *Application) Stop(ctx context.Context) error {
 	// close 操作不会因为一个任务失败而中断
 	return a.executeTasks(ctx, "stop", false, func(t Task, ctx context.Context) error {
 		return t.Stop(ctx)
