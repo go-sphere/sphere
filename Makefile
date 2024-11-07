@@ -39,8 +39,8 @@ gen-proto:
 
 .PHONY: gen-docs
 gen-docs: gen-proto
-	swag init --output ./swagger/api  --tags api.v1,shared.v1   --instanceName API  -g docs.go
-	swag init --output ./swagger/dash --tags dash.v1,shared.v1  --instanceName Dash -g docs.go
+	swag init --output ./swagger/api  --tags api.v1,shared.v1   --instanceName API  -g docs.go --parseDependency
+	swag init --output ./swagger/dash --tags dash.v1,shared.v1  --instanceName Dash -g docs.go --parseDependency
 
 .PHONY: gen-ts
 gen-ts: gen-docs

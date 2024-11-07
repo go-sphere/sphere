@@ -1,5 +1,6 @@
 {{$svrType := .ServiceType}}
 {{$svrName := .ServiceName}}
+{{$packageDesc := .Package}}
 
 {{- range .MethodSets}}
 const Operation{{$svrType}}{{.OriginalName}} = "/{{$svrName}}/{{.OriginalName}}"
@@ -24,26 +25,26 @@ type {{.ServiceType}}HTTPServer interface {
 	{{- if ne .Swagger ""}}
 	{{.Swagger}}
 	{{- end -}}
-func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) func(ctx *gin.Context)  {
-	return ginx.WithJson(func(ctx *gin.Context) (*{{.Reply}}, error) {
+func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) func(ctx *{{$packageDesc.ContextType}})  {
+	return {{$packageDesc.ServerHandlerWrapperFunc}}(func(ctx *{{$packageDesc.ContextType}}) (*{{.Reply}}, error) {
 		var in {{.Request}}
 		{{- if .HasBody}}
-		if err := ginx.ShouldBindJSON(ctx, &in{{.Body}}); err != nil {
+		if err := {{$packageDesc.ParseJsonFunc}}(ctx, &in{{.Body}}); err != nil {
 			return nil, err
 		}
 		{{- end}}
 		{{- if .HasQuery}}
-		if err := ginx.ShouldBindQuery(ctx, &in); err != nil {
+		if err := {{$packageDesc.ParseFormFunc}}(ctx, &in); err != nil {
 			return nil, err
 		}
 		{{- end}}
 		{{- if .HasVars}}
-		if err := ginx.ShouldBindUri(ctx, &in); err != nil {
+		if err := {{$packageDesc.ParseUriFunc}}(ctx, &in); err != nil {
 			return nil, err
 		}
 		{{- end}}
 		{{- if .NeedValidate}}
-		if err := protovalidate_go.Validate(&in); err != nil {
+		if err := {{$packageDesc.ValidateFunc}}(&in); err != nil {
             return nil, err
         }
         {{- end}}
@@ -56,7 +57,7 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) fu
 }
 {{end}}
 
-func Register{{.ServiceType}}HTTPServer(route gin.IRouter, srv {{.ServiceType}}HTTPServer) {
+func Register{{.ServiceType}}HTTPServer(route {{.Package.RouterType}}, srv {{.ServiceType}}HTTPServer) {
 	r := route.Group("/")
 	{{- range .Methods}}
 	r.{{.Method}}("{{.GinPath}}", _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv))

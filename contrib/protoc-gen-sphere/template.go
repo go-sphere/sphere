@@ -16,6 +16,7 @@ type serviceDesc struct {
 	Metadata    string // api/helloworld/helloworld.proto
 	Methods     []*methodDesc
 	MethodSets  map[string]*methodDesc
+	Package     *packageDesc
 }
 
 type methodDesc struct {
@@ -38,6 +39,22 @@ type methodDesc struct {
 	Swagger      string
 	GinPath      string
 	NeedValidate bool
+}
+
+type packageDesc struct {
+	RouterType  string
+	ContextType string
+
+	DataResponseType  string
+	ErrorResponseType string
+
+	ServerHandlerWrapperFunc string
+
+	ParseJsonFunc string
+	ParseUriFunc  string
+	ParseFormFunc string
+
+	ValidateFunc string
 }
 
 func (s *serviceDesc) execute() string {
