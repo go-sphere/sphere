@@ -2,6 +2,7 @@ package boot
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/tbxark/sphere/pkg/log"
@@ -81,13 +82,15 @@ func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Ap
 		}
 	}()
 
+	var errs []error
+
 	// Wait for shutdown signal or application error
 	select {
 	case <-quit:
 		log.Debug("Received shutdown signal")
 	case e := <-errChan:
 		log.Error("Application error", logfields.Error(e))
-		return fmt.Errorf("application error: %w", e)
+		errs = append(errs, e)
 	}
 
 	// Close application
@@ -95,8 +98,8 @@ func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Ap
 	defer cancel()
 
 	if e := app.Stop(ctx); e != nil {
-		return fmt.Errorf("failed to close application: %w", e)
+		errs = append(errs, e)
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
