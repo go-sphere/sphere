@@ -15,9 +15,17 @@ plugins:
   - local: protoc-gen-go
     out: api
     opt: paths=source_relative
-  - local: protoc-gen-bot
+  - local: protoc-gen-route
     out: api
-    opt: paths=source_relative
+    opt:
+      - paths=source_relative
+      - options_key=bot
+      - gen_file_suffix=_bot.pb.go
+      - route_package=github.com/tbxark/sphere/pkg/telegram
+      - request_model=Update
+      - response_model=Message
+      - extra_data_model=MethodExtraData
+      - extra_data_constructor=NewMethodExtraData
   - local: protoc-gen-sphere
     out: api
     opt:

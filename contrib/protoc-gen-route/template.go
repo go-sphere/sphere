@@ -8,7 +8,7 @@ import (
 )
 
 //go:embed template.go.tpl
-var botTemplate string
+var routeTemplate string
 
 type serviceDesc struct {
 	ServiceType string // Greeter
@@ -17,6 +17,7 @@ type serviceDesc struct {
 	Methods     []*methodDesc
 	MethodSets  map[string]*methodDesc
 
+	OptionsKey       string
 	RequestType      string
 	ResponseType     string
 	ExtraDataType    string
@@ -42,7 +43,7 @@ func (s *serviceDesc) execute() string {
 		s.MethodSets[m.Name] = m
 	}
 	buf := new(bytes.Buffer)
-	tmpl, err := template.New("bot").Parse(strings.TrimSpace(botTemplate))
+	tmpl, err := template.New("route").Parse(strings.TrimSpace(routeTemplate))
 	if err != nil {
 		panic(err)
 	}

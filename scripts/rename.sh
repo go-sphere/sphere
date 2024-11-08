@@ -24,7 +24,7 @@ find . -type f -name "*.go" -exec sed -i '' "s,${OLD_MODULE}/internal,${NEW_MODU
 go mod edit -module "${NEW_MODULE}"
 
 echo "Update buf.gen.yaml"
-sed -i '' "s,${OLD_MODULE},${NEW_MODULE},g" buf.gen.yaml
+sed -i '' "s,${OLD_MODULE}/api,${NEW_MODULE}/api,g" buf.gen.yaml
 
 go get github.com/tbxark/sphere@latest
 go mod tidy

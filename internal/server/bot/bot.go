@@ -30,9 +30,9 @@ func (b *Bot) Identifier() string {
 func (b *Bot) initBot(t *bot.Bot) error {
 	sfMid := telegram.NewSingleFlightMiddleware()
 	route := botv1.RegisterCounterServiceBotServer(b.service, &CounterServiceCodec{}, b.SendMessage)
-	b.BindCommand(botv1.ExtraDataCounterServiceStart.Command, route[botv1.OperationBotCounterServiceStart])
-	b.BindCommand(botv1.ExtraDataCounterServiceCounter.Command, route[botv1.OperationBotCounterServiceCounter], sfMid)
-	b.BindCallback(botv1.ExtraDataCounterServiceCounter.CallbackQuery, route[botv1.OperationBotCounterServiceCounter], sfMid)
+	b.BindCommand(botv1.ExtraBotDataCounterServiceStart.Command, route[botv1.OperationBotCounterServiceStart])
+	b.BindCommand(botv1.ExtraBotDataCounterServiceCounter.Command, route[botv1.OperationBotCounterServiceCounter], sfMid)
+	b.BindCallback(botv1.ExtraBotDataCounterServiceCounter.CallbackQuery, route[botv1.OperationBotCounterServiceCounter], sfMid)
 	return nil
 }
 
@@ -42,10 +42,6 @@ func (b *Bot) Start(ctx context.Context) error {
 
 func (b *Bot) Stop(ctx context.Context) error {
 	return b.Bot.Close(ctx)
-}
-
-func (b *Bot) bindCommand(operation string, extra *telegram.MethodExtraData, route map[string]telegram.HandlerFunc, middlewares ...telegram.MiddlewareFunc) {
-	b.Bot.BindCommand(operation, route[extra.Command], middlewares...)
 }
 
 func NewButton[T any](text, query string, data T) telegram.Button {
