@@ -5,6 +5,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/tbxark/sphere/pkg/log"
+	"github.com/tbxark/sphere/pkg/log/logfields"
 	"strings"
 )
 
@@ -54,7 +55,7 @@ func (b *Bot) Close(ctx context.Context) error {
 	return err
 }
 
-func (b *Bot) ExtractorAuth(ctx context.Context, tBot *bot.Bot, update *models.Update) (context.Context, bool) {
+func (b *Bot) ExtractorAuth(ctx context.Context, tBot *bot.Bot, update *Update) (context.Context, bool) {
 	if b.AuthExtractor != nil {
 		info, err := b.AuthExtractor(ctx, update)
 		if err != nil {
@@ -72,11 +73,11 @@ func (b *Bot) ExtractorAuth(ctx context.Context, tBot *bot.Bot, update *models.U
 	return ctx, false
 }
 
-func (b *Bot) BindCommand(command string, handlerFunc HandlerFunc, middleware ...bot.Middleware) {
-	fn := WithMiddleware(handlerFunc, b.ErrorHandler, middleware...)
+func (b *Bot) BindCommand(command string, handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
+	fn := WithMiddleware(handlerFunc, b.ErrorHandler, middlewares...)
 	command = "/" + strings.TrimPrefix(command, "/")
 	b.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypePrefix, func(ctx context.Context, tBot *bot.Bot, update *models.Update) {
-		ctx, done := b.ExtractorAuth(ctx, tBot, update)
+		ctx, done := b.ExtractorAuth(ctx, tBot, (*Update)(update))
 		if done {
 			return
 		}
@@ -84,10 +85,10 @@ func (b *Bot) BindCommand(command string, handlerFunc HandlerFunc, middleware ..
 	})
 }
 
-func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middleware ...bot.Middleware) {
-	fn := WithMiddleware(handlerFunc, b.ErrorHandler, middleware...)
+func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
+	fn := WithMiddleware(handlerFunc, b.ErrorHandler, middlewares...)
 	b.bot.RegisterHandler(bot.HandlerTypeCallbackQueryData, route+":", bot.MatchTypePrefix, func(ctx context.Context, tBot *bot.Bot, update *models.Update) {
-		ctx, done := b.ExtractorAuth(ctx, tBot, update)
+		ctx, done := b.ExtractorAuth(ctx, tBot, (*Update)(update))
 		if done {
 			return
 		}
@@ -95,11 +96,11 @@ func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middleware ...
 	})
 }
 
-func (b *Bot) SendMessage(ctx context.Context, update *models.Update, m *Message) error {
+func (b *Bot) SendMessage(ctx context.Context, update *Update, m *Message) error {
 	return SendMessage(ctx, b.bot, update, m)
 }
 
-func SendMessage(ctx context.Context, b *bot.Bot, update *models.Update, m *Message) error {
+func SendMessage(ctx context.Context, b *bot.Bot, update *Update, m *Message) error {
 	if update.CallbackQuery != nil {
 		origin := update.CallbackQuery.Message.Message
 		param := m.toEditMessageTextParams(origin.Chat.ID, origin.ID)
@@ -131,7 +132,11 @@ func DefaultBotOptions() []bot.Option {
 	}
 }
 
-func DefaultErrorHandler(ctx context.Context, b *bot.Bot, update *models.Update, err error) {
+func DefaultErrorHandler(ctx context.Context, b *bot.Bot, update *Update, err error) {
+	log.Warnw("bot error", logfields.Error(err))
+}
+
+func SendErrorMessageHandler(ctx context.Context, b *bot.Bot, update *Update, err error) {
 	if err == nil {
 		return
 	}
@@ -149,7 +154,7 @@ func DefaultErrorHandler(ctx context.Context, b *bot.Bot, update *models.Update,
 	}
 }
 
-func DefaultAuthExtractor(ctx context.Context, update *models.Update) (map[string]any, error) {
+func DefaultAuthExtractor(ctx context.Context, update *Update) (map[string]any, error) {
 	var user *models.User
 	if update.Message != nil {
 		user = update.Message.From

@@ -59,7 +59,7 @@ func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Ap
 	log.Info("Start application", logfields.String("version", ver))
 	defer func() {
 		if e := log.Sync(); e != nil {
-			fmt.Println("Failed to sync log", e)
+			log.Warnf("Failed to sync log: %v", e)
 		}
 	}()
 

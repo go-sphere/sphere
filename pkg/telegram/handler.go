@@ -11,52 +11,38 @@ import (
 	"time"
 )
 
-type HandlerFunc = func(ctx context.Context, bot *bot.Bot, update *models.Update) error
+type HandlerFunc = func(ctx context.Context, update *Update) error
 type MiddlewareFunc = func(next HandlerFunc) HandlerFunc
-type ErrorHandlerFunc = func(ctx context.Context, bot *bot.Bot, update *models.Update, err error)
-type AuthExtractorFunc = func(ctx context.Context, update *models.Update) (map[string]any, error)
+type ErrorHandlerFunc = func(ctx context.Context, bot *bot.Bot, update *Update, err error)
+type AuthExtractorFunc = func(ctx context.Context, update *Update) (map[string]any, error)
 
-func WithMiddleware(h HandlerFunc, e ErrorHandlerFunc, middleware ...bot.Middleware) bot.HandlerFunc {
-	handler := func(ctx context.Context, bot *bot.Bot, update *models.Update) {
-		if err := h(ctx, bot, update); err != nil {
-			if e != nil {
-				e(ctx, bot, update, err)
-			}
-		}
-	}
-	for i := len(middleware) - 1; i >= 0; i-- {
-		handler = middleware[i](handler)
-	}
-	return handler
-}
-
-func WithMiddlewareFunc(h HandlerFunc, e ErrorHandlerFunc, middleware ...MiddlewareFunc) bot.HandlerFunc {
+func WithMiddleware(h HandlerFunc, e ErrorHandlerFunc, middleware ...MiddlewareFunc) bot.HandlerFunc {
 	handler := h
 	for i := len(middleware) - 1; i >= 0; i-- {
 		handler = middleware[i](handler)
 	}
 	return func(ctx context.Context, bot *bot.Bot, update *models.Update) {
-		if err := handler(ctx, bot, update); err != nil {
+		u := (*Update)(update)
+		if err := handler(ctx, u); err != nil {
 			if e != nil {
-				e(ctx, bot, update, err)
+				e(ctx, bot, u, err)
 			}
 		}
 	}
 }
 
-func NewSingleFlightMiddleware() bot.Middleware {
+func NewSingleFlightMiddleware() MiddlewareFunc {
 	sf := &singleflight.Group{}
-	return func(next bot.HandlerFunc) bot.HandlerFunc {
-		return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+	return func(next HandlerFunc) HandlerFunc {
+		return func(ctx context.Context, update *Update) error {
 			if update.CallbackQuery == nil {
-				next(ctx, b, update)
-				return
+				return next(ctx, update)
 			}
 			key := strconv.Itoa(update.CallbackQuery.Message.Message.ID)
-			_, _, _ = sf.Do(key, func() (interface{}, error) {
-				next(ctx, b, update)
-				return nil, nil
+			_, err, _ := sf.Do(key, func() (interface{}, error) {
+				return nil, next(ctx, update)
 			})
+			return err
 		}
 	}
 }
@@ -74,7 +60,7 @@ func NewRecoveryMiddleware() bot.Middleware {
 	}
 }
 
-func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration) bot.Middleware {
+func NewGroupMessageFilterMiddleware(b *bot.Bot, trimMention bool, infoExpire time.Duration) MiddlewareFunc {
 
 	var (
 		ts   time.Time
@@ -86,7 +72,7 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 		return t == models.ChatTypeGroup || t == models.ChatTypeSupergroup || t == models.ChatTypeChannel
 	}
 
-	getBotInfo := func(ctx context.Context, b *bot.Bot, sf *singleflight.Group) (int64, string, error) {
+	getBotInfo := func(ctx context.Context, sf *singleflight.Group) (int64, string, error) {
 		v, err, _ := sf.Do("getMe", func() (interface{}, error) {
 			// 判断缓存存在且未过期，则直接使用
 			if user != nil && time.Since(ts) < infoExpire {
@@ -141,25 +127,23 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 		return text, isMention
 	}
 
-	return func(next bot.HandlerFunc) bot.HandlerFunc {
-		return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+	return func(next HandlerFunc) HandlerFunc {
+		return func(ctx context.Context, update *Update) error {
 			// 判断是不是群消息，则直接处理
 			if update.Message == nil || !isGroupChatType(update.Message.Chat.Type) {
-				next(ctx, b, update)
-				return
+				return next(ctx, update)
 			}
 
-			id, username, err := getBotInfo(ctx, b, &sf)
+			id, username, err := getBotInfo(ctx, &sf)
 			if err != nil {
 				// 获取bot信息失败，放弃处理
 				log.Errorf("get bot info error: %v", err)
-				return
+				return err
 			}
 
 			// 判断是不是回复消息，判断回复的消息是否是指定的bot，是则处理
 			if update.Message.ReplyToMessage != nil && update.Message.ReplyToMessage.From.ID == id {
-				next(ctx, b, update)
-				return
+				return next(ctx, update)
 			}
 
 			isMention := false
@@ -180,9 +164,9 @@ func NewGroupMessageFilterMiddleware(trimMention bool, infoExpire time.Duration)
 
 			// 判断是不是提及了bot，是则处理
 			if isMention {
-				next(ctx, b, update)
-				return
+				return next(ctx, update)
 			}
+			return nil
 		}
 	}
 }

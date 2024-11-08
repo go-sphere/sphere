@@ -1,8 +1,7 @@
 {{$svrType := .ServiceType}}
 {{$svrName := .ServiceName}}
-{{$clientType := .ClientType}}
-{{$updateType := .UpdateType}}
-{{$messageType := .MessageType}}
+{{$requestType := .RequestType}}
+{{$responseType := .ResponseType}}
 {{$extraDataType := .ExtraDataType}}
 {{$newExtraDataFunc := .NewExtraDataFunc}}
 
@@ -41,19 +40,19 @@ type {{.ServiceType}}BotServer interface {
 
 type {{.ServiceType}}BotCodec interface {
 {{- range .MethodSets}}
-    Decode{{.Name}}Request(ctx context.Context, update *{{$updateType}}) (*{{.Request}}, error)
-    Encode{{.Name}}Response(ctx context.Context, reply *{{.Reply}}) (*{{$messageType}}, error)
+    Decode{{.Name}}Request(ctx context.Context, update *{{$requestType}}) (*{{.Request}}, error)
+    Encode{{.Name}}Response(ctx context.Context, reply *{{.Reply}}) (*{{$responseType}}, error)
 {{- end}}
 }
 
-type {{.ServiceType}}BotHandler func(ctx context.Context,  client *{{.ClientType}}, update *{{.UpdateType}}) error
+type {{.ServiceType}}BotHandler func(ctx context.Context, request *{{.RequestType}}) error
 
-type {{.ServiceType}}BotSender func(ctx context.Context, client *{{.ClientType}}, update *{{.UpdateType}}, msg *{{.MessageType}}) error
+type {{.ServiceType}}BotSender func(ctx context.Context, request *{{.RequestType}}, msg *{{.ResponseType}}) error
 
 {{range .Methods}}
 func _{{$svrType}}_{{.Name}}{{.Num}}_Bot_Handler(srv {{$svrType}}BotServer, codec {{$svrType}}BotCodec, sender {{$svrType}}BotSender) {{$svrType}}BotHandler {
-    return func(ctx context.Context, client *{{$clientType}}, update *{{$updateType}}) error {
-    		req, err := codec.Decode{{.Name}}Request(ctx, update)
+    return func(ctx context.Context, request *{{$requestType}}) error {
+    		req, err := codec.Decode{{.Name}}Request(ctx, request)
     		if err != nil {
     			return err
     		}
@@ -65,7 +64,7 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_Bot_Handler(srv {{$svrType}}BotServer, code
     		if err != nil {
     			return err
     		}
-    		return sender(ctx, client, update, msg)
+    		return sender(ctx, request, msg)
     }
 }
 {{end}}

@@ -6,16 +6,11 @@ package botv1
 
 import (
 	context "context"
-	bot "github.com/go-telegram/bot"
-	models "github.com/go-telegram/bot/models"
 	telegram "github.com/tbxark/sphere/pkg/telegram"
 )
 
 var _ = new(context.Context)
-var _ = new(bot.Bot)
-var _ = new(models.Update)
-var _ = new(telegram.Message)
-var _ = new(telegram.MethodExtraData)
+var _ = new(telegram.Update)
 
 const OperationBotCounterServiceCounter = "/bot.v1.CounterService/Counter"
 const OperationBotCounterServiceStart = "/bot.v1.CounterService/Start"
@@ -45,19 +40,19 @@ type CounterServiceBotServer interface {
 }
 
 type CounterServiceBotCodec interface {
-	DecodeCounterRequest(ctx context.Context, update *models.Update) (*CounterRequest, error)
+	DecodeCounterRequest(ctx context.Context, update *telegram.Update) (*CounterRequest, error)
 	EncodeCounterResponse(ctx context.Context, reply *CounterResponse) (*telegram.Message, error)
-	DecodeStartRequest(ctx context.Context, update *models.Update) (*StartRequest, error)
+	DecodeStartRequest(ctx context.Context, update *telegram.Update) (*StartRequest, error)
 	EncodeStartResponse(ctx context.Context, reply *StartResponse) (*telegram.Message, error)
 }
 
-type CounterServiceBotHandler func(ctx context.Context, client *bot.Bot, update *models.Update) error
+type CounterServiceBotHandler func(ctx context.Context, request *telegram.Update) error
 
-type CounterServiceBotSender func(ctx context.Context, client *bot.Bot, update *models.Update, msg *telegram.Message) error
+type CounterServiceBotSender func(ctx context.Context, request *telegram.Update, msg *telegram.Message) error
 
 func _CounterService_Start0_Bot_Handler(srv CounterServiceBotServer, codec CounterServiceBotCodec, sender CounterServiceBotSender) CounterServiceBotHandler {
-	return func(ctx context.Context, client *bot.Bot, update *models.Update) error {
-		req, err := codec.DecodeStartRequest(ctx, update)
+	return func(ctx context.Context, request *telegram.Update) error {
+		req, err := codec.DecodeStartRequest(ctx, request)
 		if err != nil {
 			return err
 		}
@@ -69,13 +64,13 @@ func _CounterService_Start0_Bot_Handler(srv CounterServiceBotServer, codec Count
 		if err != nil {
 			return err
 		}
-		return sender(ctx, client, update, msg)
+		return sender(ctx, request, msg)
 	}
 }
 
 func _CounterService_Counter0_Bot_Handler(srv CounterServiceBotServer, codec CounterServiceBotCodec, sender CounterServiceBotSender) CounterServiceBotHandler {
-	return func(ctx context.Context, client *bot.Bot, update *models.Update) error {
-		req, err := codec.DecodeCounterRequest(ctx, update)
+	return func(ctx context.Context, request *telegram.Update) error {
+		req, err := codec.DecodeCounterRequest(ctx, request)
 		if err != nil {
 			return err
 		}
@@ -87,7 +82,7 @@ func _CounterService_Counter0_Bot_Handler(srv CounterServiceBotServer, codec Cou
 		if err != nil {
 			return err
 		}
-		return sender(ctx, client, update, msg)
+		return sender(ctx, request, msg)
 	}
 }
 

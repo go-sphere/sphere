@@ -43,10 +43,7 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 		return
 	}
 	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
-	g.P("var _ = new(", conf.client.pkg.Ident(conf.client.ident), ")")
-	g.P("var _ = new(", conf.update.pkg.Ident(conf.update.ident), ")")
-	g.P("var _ = new(", conf.message.pkg.Ident(conf.message.ident), ")")
-	g.P("var _ = new(", conf.extra.pkg.Ident(conf.extra.ident), ")")
+	g.P("var _ = new(", conf.botPackage.Ident(conf.requestType), ")")
 	g.P()
 	for _, service := range file.Services {
 		genService(gen, file, g, service, conf)
@@ -64,11 +61,10 @@ func genService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFi
 		ServiceName: string(service.Desc.FullName()),
 		Metadata:    file.Desc.Path(),
 
-		ClientType:       g.QualifiedGoIdent(conf.client.pkg.Ident(conf.client.ident)),
-		UpdateType:       g.QualifiedGoIdent(conf.update.pkg.Ident(conf.update.ident)),
-		MessageType:      g.QualifiedGoIdent(conf.message.pkg.Ident(conf.message.ident)),
-		ExtraDataType:    g.QualifiedGoIdent(conf.extra.pkg.Ident(conf.extra.ident)),
-		NewExtraDataFunc: g.QualifiedGoIdent(conf.extraConstructor.pkg.Ident(conf.extraConstructor.ident)),
+		RequestType:      g.QualifiedGoIdent(conf.botPackage.Ident(conf.requestType)),
+		ResponseType:     g.QualifiedGoIdent(conf.botPackage.Ident(conf.responseType)),
+		ExtraDataType:    g.QualifiedGoIdent(conf.botPackage.Ident(conf.extraType)),
+		NewExtraDataFunc: g.QualifiedGoIdent(conf.botPackage.Ident(conf.extraConstructor)),
 	}
 	for _, method := range service.Methods {
 		rule := extractBotRule(method)

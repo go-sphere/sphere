@@ -17,9 +17,8 @@ type serviceDesc struct {
 	Methods     []*methodDesc
 	MethodSets  map[string]*methodDesc
 
-	ClientType       string
-	UpdateType       string
-	MessageType      string
+	RequestType      string
+	ResponseType     string
 	ExtraDataType    string
 	NewExtraDataFunc string
 }

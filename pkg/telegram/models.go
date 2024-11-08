@@ -1,5 +1,9 @@
 package telegram
 
+import "github.com/go-telegram/bot/models"
+
+type Update models.Update
+
 type MethodExtraData struct {
 	Command       string
 	CallbackQuery string

@@ -10,31 +10,19 @@ import (
 var (
 	showVersion = flag.Bool("version", false, "print the version and exit")
 
-	clientPackage = flag.String("bot_package", "github.com/go-telegram/bot", "bot package")
-	clientModel   = flag.String("bot_model", "Bot", "bot model")
-
-	updatePackage = flag.String("update_package", "github.com/go-telegram/bot/models", "update package")
-	updateModel   = flag.String("update_model", "Update", "update model")
-
-	messagePackage = flag.String("message_package", "github.com/tbxark/sphere/pkg/telegram", "message package")
-	messageModel   = flag.String("message_model", "Message", "message model")
-
-	extraDataPackage     = flag.String("extra_data_package", "github.com/tbxark/sphere/pkg/telegram", "extra data package")
+	botPackage           = flag.String("bot_package", "github.com/tbxark/sphere/pkg/telegram", "bot package")
+	requestModel         = flag.String("request_model", "Update", "request model")
+	responseModel        = flag.String("response_model", "Message", "response model")
 	extraDataModel       = flag.String("extra_data_model", "MethodExtraData", "extra data model")
 	extraDataConstructor = flag.String("extra_data_constructor", "NewMethodExtraData", "extra data constructor")
 )
 
-type Package struct {
-	pkg   protogen.GoImportPath
-	ident string
-}
-
 type Config struct {
-	client           Package
-	update           Package
-	message          Package
-	extra            Package
-	extraConstructor Package
+	botPackage       protogen.GoImportPath
+	requestType      string
+	responseType     string
+	extraType        string
+	extraConstructor string
 }
 
 func main() {
@@ -44,26 +32,11 @@ func main() {
 		return
 	}
 	cfg := Config{
-		update: Package{
-			pkg:   protogen.GoImportPath(*updatePackage),
-			ident: *updateModel,
-		},
-		message: Package{
-			pkg:   protogen.GoImportPath(*messagePackage),
-			ident: *messageModel,
-		},
-		client: Package{
-			pkg:   protogen.GoImportPath(*clientPackage),
-			ident: *clientModel,
-		},
-		extra: Package{
-			pkg:   protogen.GoImportPath(*extraDataPackage),
-			ident: *extraDataModel,
-		},
-		extraConstructor: Package{
-			pkg:   protogen.GoImportPath(*extraDataPackage),
-			ident: *extraDataConstructor,
-		},
+		botPackage:       protogen.GoImportPath(*botPackage),
+		requestType:      *requestModel,
+		responseType:     *responseModel,
+		extraType:        *extraDataModel,
+		extraConstructor: *extraDataConstructor,
 	}
 	protogen.Options{
 		ParamFunc: flag.CommandLine.Set,
