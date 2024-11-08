@@ -12,27 +12,27 @@ Alternatively, you can import this project in go mod and implement your own busi
 
 ## Usage
 ```
-Usage: make <target>
+Sphere build tool:
 
-Targets:
-  init                Install all dependencies
-  gen-proto           Generate proto files
-  gen-docs            Generate swagger docs
-  gen-ts              Generate typescript client
-  gen-ent             Generate ent code
-  gen-wire            Generate wire code
-  gen-conf            Generate config
-  generate            Generate code
-  dash                Build dash
-  build               Build binary
-  build-linux-amd     Build linux amd64 binary
-  build-linux-arm     Build linux arm64 binary
-  build-all           Build all binary
-  build-docker        Build docker image
-  deploy              Deploy binary
-  lint                Run linter
-  fmt                 Run formatter
-  help                Show this help message
+init              Init all dependencies
+install           Install all dependencies
+gen-proto         Generate proto files and run protoc plugins
+gen-docs          Generate swagger docs
+gen-ts            Generate typescript client
+gen-ent           Generate ent code
+gen-wire          Generate wire code
+gen-conf          Generate example config
+generate          Run all generate command
+dash              Build dash
+build             Build binary
+build-linux-amd   Build linux amd64 binary
+build-linux-arm   Build linux arm64 binary
+build-all         Build all arch binary
+build-docker      Build docker image
+deploy            Deploy binary
+lint              Run linter
+fmt               Run formatter
+help              Show this help message
 ```
 
 ## Project Structure
