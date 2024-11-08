@@ -5,7 +5,7 @@ import (
 	botv1 "github.com/tbxark/sphere/api/bot/v1"
 )
 
-var _ botv1.CounterServiceServer = &Service{}
+var _ botv1.CounterServiceBotServer = &Service{}
 
 type Service struct {
 }

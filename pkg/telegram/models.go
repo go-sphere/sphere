@@ -5,8 +5,8 @@ type MethodExtraData struct {
 	CallbackQuery string
 }
 
-func NewMethodExtraData(raw map[string]string) *MethodExtraData {
-	return &MethodExtraData{
+func NewMethodExtraData(raw map[string]string) MethodExtraData {
+	return MethodExtraData{
 		Command:       raw["command"],
 		CallbackQuery: raw["callback_query"],
 	}

@@ -19,20 +19,22 @@ var (
 	messagePackage = flag.String("message_package", "github.com/tbxark/sphere/pkg/telegram", "message package")
 	messageModel   = flag.String("message_model", "Message", "message model")
 
-	extraDataPackage = flag.String("extra_data_package", "github.com/tbxark/sphere/pkg/telegram", "extra data package")
-	extraDataModel   = flag.String("extra_data_model", "MethodExtraData", "extra data model")
+	extraDataPackage     = flag.String("extra_data_package", "github.com/tbxark/sphere/pkg/telegram", "extra data package")
+	extraDataModel       = flag.String("extra_data_model", "MethodExtraData", "extra data model")
+	extraDataConstructor = flag.String("extra_data_constructor", "NewMethodExtraData", "extra data constructor")
 )
 
 type Package struct {
 	pkg   protogen.GoImportPath
-	model string
+	ident string
 }
 
 type Config struct {
-	client  Package
-	update  Package
-	message Package
-	extra   Package
+	client           Package
+	update           Package
+	message          Package
+	extra            Package
+	extraConstructor Package
 }
 
 func main() {
@@ -44,19 +46,23 @@ func main() {
 	cfg := Config{
 		update: Package{
 			pkg:   protogen.GoImportPath(*updatePackage),
-			model: *updateModel,
+			ident: *updateModel,
 		},
 		message: Package{
 			pkg:   protogen.GoImportPath(*messagePackage),
-			model: *messageModel,
+			ident: *messageModel,
 		},
 		client: Package{
 			pkg:   protogen.GoImportPath(*clientPackage),
-			model: *clientModel,
+			ident: *clientModel,
 		},
 		extra: Package{
 			pkg:   protogen.GoImportPath(*extraDataPackage),
-			model: *extraDataModel,
+			ident: *extraDataModel,
+		},
+		extraConstructor: Package{
+			pkg:   protogen.GoImportPath(*extraDataPackage),
+			ident: *extraDataConstructor,
 		},
 	}
 	protogen.Options{

@@ -9,7 +9,7 @@ import (
 	"math/rand"
 )
 
-var _ botv1.CounterServiceCodec = &CounterServiceCodec{}
+var _ botv1.CounterServiceBotCodec = &CounterServiceCodec{}
 
 type CounterServiceCodec struct{}
 

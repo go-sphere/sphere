@@ -4,7 +4,7 @@ BUILD := $(shell git rev-parse --short HEAD)@$(shell date +%s)
 CURRENT_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 CURRENT_ARCH := $(shell uname -m | tr '[:upper:]' '[:lower:]')
 
-DOCKER_IMAGE := ghcr.io/tbxark/$(MODULE_NAME)
+DOCKER_IMAGE ?= ghcr.io/tbxark/$(MODULE_NAME)
 DOCKER_FILE := cmd/app/Dockerfile
 
 LD_FLAGS := "-X $(MODULE)/config.BuildVersion=$(BUILD)"
@@ -102,5 +102,5 @@ fmt: ## Run formatter
 
 .PHONY: help
 help: ## Show this help message
-	@echo "\nSphere build tool:\n"
-	@grep -h "##" $(MAKEFILE_LIST) | grep -v grep | sed -e 's/\(.*\):.*##\(.*\)/\1:\2/' | column -t -s ':'
+	@echo "\n\033[1mSphere build tool.\033[0m Usage: make [target]\n"
+	@grep -h "##" $(MAKEFILE_LIST) | grep -v grep | sed -e 's/\(.*\):.*##\(.*\)/\1:\2/' | column -t -s ':' |  sed -e 's/^/  /'

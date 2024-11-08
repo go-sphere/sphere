@@ -17,8 +17,8 @@ var _ = new(models.Update)
 var _ = new(telegram.Message)
 var _ = new(telegram.MethodExtraData)
 
-const BotHandlerCounterServiceCounter = "/bot.v1.CounterService/Counter"
-const BotHandlerCounterServiceStart = "/bot.v1.CounterService/Start"
+const OperationBotCounterServiceCounter = "/bot.v1.CounterService/Counter"
+const OperationBotCounterServiceStart = "/bot.v1.CounterService/Start"
 
 var ExtraDataCounterServiceCounter = telegram.NewMethodExtraData(map[string]string{
 	"callback_query": "count",
@@ -28,23 +28,34 @@ var ExtraDataCounterServiceStart = telegram.NewMethodExtraData(map[string]string
 	"command": "start",
 })
 
-type CounterServiceServer interface {
+func GetExtraDataByBotCounterServiceOperation(operation string) *telegram.MethodExtraData {
+	switch operation {
+	case OperationBotCounterServiceCounter:
+		return &ExtraDataCounterServiceCounter
+	case OperationBotCounterServiceStart:
+		return &ExtraDataCounterServiceStart
+	default:
+		return nil
+	}
+}
+
+type CounterServiceBotServer interface {
 	Counter(context.Context, *CounterRequest) (*CounterResponse, error)
 	Start(context.Context, *StartRequest) (*StartResponse, error)
 }
 
-type CounterServiceCodec interface {
+type CounterServiceBotCodec interface {
 	DecodeCounterRequest(ctx context.Context, update *models.Update) (*CounterRequest, error)
 	EncodeCounterResponse(ctx context.Context, reply *CounterResponse) (*telegram.Message, error)
 	DecodeStartRequest(ctx context.Context, update *models.Update) (*StartRequest, error)
 	EncodeStartResponse(ctx context.Context, reply *StartResponse) (*telegram.Message, error)
 }
 
-type CounterServiceHandler func(ctx context.Context, client *bot.Bot, update *models.Update) error
+type CounterServiceBotHandler func(ctx context.Context, client *bot.Bot, update *models.Update) error
 
-type CounterServiceMessageSender func(ctx context.Context, client *bot.Bot, update *models.Update, msg *telegram.Message) error
+type CounterServiceBotSender func(ctx context.Context, client *bot.Bot, update *models.Update, msg *telegram.Message) error
 
-func _CounterService_Start0_Bot_Handler(srv CounterServiceServer, codec CounterServiceCodec, sender CounterServiceMessageSender) CounterServiceHandler {
+func _CounterService_Start0_Bot_Handler(srv CounterServiceBotServer, codec CounterServiceBotCodec, sender CounterServiceBotSender) CounterServiceBotHandler {
 	return func(ctx context.Context, client *bot.Bot, update *models.Update) error {
 		req, err := codec.DecodeStartRequest(ctx, update)
 		if err != nil {
@@ -62,7 +73,7 @@ func _CounterService_Start0_Bot_Handler(srv CounterServiceServer, codec CounterS
 	}
 }
 
-func _CounterService_Counter0_Bot_Handler(srv CounterServiceServer, codec CounterServiceCodec, sender CounterServiceMessageSender) CounterServiceHandler {
+func _CounterService_Counter0_Bot_Handler(srv CounterServiceBotServer, codec CounterServiceBotCodec, sender CounterServiceBotSender) CounterServiceBotHandler {
 	return func(ctx context.Context, client *bot.Bot, update *models.Update) error {
 		req, err := codec.DecodeCounterRequest(ctx, update)
 		if err != nil {
@@ -80,9 +91,9 @@ func _CounterService_Counter0_Bot_Handler(srv CounterServiceServer, codec Counte
 	}
 }
 
-func RegisterCounterServiceBotServer(srv CounterServiceServer, codec CounterServiceCodec, sender CounterServiceMessageSender) map[string]CounterServiceHandler {
-	handlers := make(map[string]CounterServiceHandler)
-	handlers[BotHandlerCounterServiceStart] = _CounterService_Start0_Bot_Handler(srv, codec, sender)
-	handlers[BotHandlerCounterServiceCounter] = _CounterService_Counter0_Bot_Handler(srv, codec, sender)
+func RegisterCounterServiceBotServer(srv CounterServiceBotServer, codec CounterServiceBotCodec, sender CounterServiceBotSender) map[string]CounterServiceBotHandler {
+	handlers := make(map[string]CounterServiceBotHandler)
+	handlers[OperationBotCounterServiceStart] = _CounterService_Start0_Bot_Handler(srv, codec, sender)
+	handlers[OperationBotCounterServiceCounter] = _CounterService_Counter0_Bot_Handler(srv, codec, sender)
 	return handlers
 }

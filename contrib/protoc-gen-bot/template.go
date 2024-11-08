@@ -20,6 +20,7 @@ type serviceDesc struct {
 	ClientType       string
 	UpdateType       string
 	MessageType      string
+	ExtraDataType    string
 	NewExtraDataFunc string
 }
 

@@ -31,9 +31,9 @@ func (b *Bot) Identifier() string {
 func (b *Bot) initBot(t *bot.Bot) error {
 	sfMid := telegram.NewSingleFlightMiddleware()
 	route := botv1.RegisterCounterServiceBotServer(b.service, &CounterServiceCodec{}, telegram.SendMessage)
-	b.BindCommand(botv1.ExtraDataCounterServiceStart.Command, route[botv1.BotHandlerCounterServiceStart])
-	b.BindCommand(botv1.ExtraDataCounterServiceCounter.Command, route[botv1.BotHandlerCounterServiceCounter], sfMid)
-	b.BindCallback(botv1.ExtraDataCounterServiceCounter.CallbackQuery, route[botv1.BotHandlerCounterServiceCounter], sfMid)
+	b.BindCommand(botv1.ExtraDataCounterServiceStart.Command, route[botv1.OperationBotCounterServiceStart])
+	b.BindCommand(botv1.ExtraDataCounterServiceCounter.Command, route[botv1.OperationBotCounterServiceCounter], sfMid)
+	b.BindCallback(botv1.ExtraDataCounterServiceCounter.CallbackQuery, route[botv1.OperationBotCounterServiceCounter], sfMid)
 	return nil
 }
 
