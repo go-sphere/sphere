@@ -11,6 +11,9 @@ import (
 
 var _ = new(context.Context)
 var _ = new(telegram.Update)
+var _ = new(telegram.Message)
+var _ = new(telegram.MethodExtraData)
+var _ = telegram.NewMethodExtraData
 
 const OperationBotCounterServiceCounter = "/bot.v1.CounterService/Counter"
 const OperationBotCounterServiceStart = "/bot.v1.CounterService/Start"

@@ -21,11 +21,10 @@ plugins:
       - paths=source_relative
       - options_key=bot
       - gen_file_suffix=_bot.pb.go
-      - route_package=github.com/tbxark/sphere/pkg/telegram
-      - request_model=Update
-      - response_model=Message
-      - extra_data_model=MethodExtraData
-      - extra_data_constructor=NewMethodExtraData
+      - request_model=github.com/tbxark/sphere/pkg/telegram;Update
+      - response_model=github.com/tbxark/sphere/pkg/telegram;Message
+      - extra_data_model=github.com/tbxark/sphere/pkg/telegram;MethodExtraData
+      - extra_data_constructor=github.com/tbxark/sphere/pkg/telegram;NewMethodExtraData
   - local: protoc-gen-sphere
     out: api
     opt:

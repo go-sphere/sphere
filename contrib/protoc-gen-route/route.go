@@ -53,7 +53,10 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 		return
 	}
 	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
-	g.P("var _ = new(", conf.routePackage.Ident(conf.requestType), ")")
+	g.P("var _ = new(", conf.requestType.GoIdent(), ")")
+	g.P("var _ = new(", conf.responseType.GoIdent(), ")")
+	g.P("var _ = new(", conf.extraType.GoIdent(), ")")
+	g.P("var _ = ", conf.extraConstructor.GoIdent())
 	g.P()
 	for _, service := range file.Services {
 		genService(gen, file, g, service, conf)
@@ -71,12 +74,12 @@ func genService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFi
 		Metadata:    file.Desc.Path(),
 
 		OptionsKey:   pascalCase(conf.optionsKey),
-		RequestType:  g.QualifiedGoIdent(conf.routePackage.Ident(conf.requestType)),
-		ResponseType: g.QualifiedGoIdent(conf.routePackage.Ident(conf.responseType)),
+		RequestType:  g.QualifiedGoIdent(conf.requestType.GoIdent()),
+		ResponseType: g.QualifiedGoIdent(conf.responseType.GoIdent()),
 	}
-	if conf.extraType != "" {
-		sd.ExtraDataType = g.QualifiedGoIdent(conf.routePackage.Ident(conf.extraType))
-		sd.NewExtraDataFunc = g.QualifiedGoIdent(conf.routePackage.Ident(conf.extraConstructor))
+	if conf.extraType != nil {
+		sd.ExtraDataType = g.QualifiedGoIdent(conf.extraType.GoIdent())
+		sd.NewExtraDataFunc = g.QualifiedGoIdent(conf.extraConstructor.GoIdent())
 	}
 
 	for _, method := range service.Methods {
