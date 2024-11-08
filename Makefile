@@ -7,7 +7,7 @@ CURRENT_ARCH := $(shell uname -m | tr '[:upper:]' '[:lower:]')
 DOCKER_IMAGE ?= ghcr.io/tbxark/$(MODULE_NAME)
 DOCKER_FILE := cmd/app/Dockerfile
 
-LD_FLAGS := "-X $(MODULE)/config.BuildVersion=$(BUILD)"
+LD_FLAGS := "-X $(MODULE)/internal/config.BuildVersion=$(BUILD)"
 GO_BUILD := CGO_ENABLED=0 go build -trimpath -ldflags $(LD_FLAGS) -tags=jsoniter
 
 
