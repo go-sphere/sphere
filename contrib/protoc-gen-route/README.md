@@ -1,14 +1,14 @@
-# protoc-gen-bot
+# protoc-gen-route
 
-This is a tool to generate `telegram bot` code from proto files.
+This is a tool to generate common route code from proto files
 
 ## Installation
 
 ```shell
-go install github.com/tbxark/sphere/contrib/protoc-gen-bot@latest
+go install github.com/tbxark/sphere/contrib/protoc-gen-route@latest
 ```
 
-## Usage
+## Example
 
 Add `tbxark.options.options` to the rpc method, and set the key to `bot`, You can also add extra options to the method.
 
@@ -40,3 +40,17 @@ service CounterService {
 ...
 ```
 
+And then run the command, add following to your `buf.gen.yaml` file
+
+```yaml
+  - local: protoc-gen-route
+    out: api
+    opt:
+      - paths=source_relative
+      - options_key=bot # The key of the options
+      - gen_file_suffix=_bot.pb.go # The suffix of the generated file
+      - request_model=github.com/tbxark/sphere/pkg/telegram;Update
+      - response_model=github.com/tbxark/sphere/pkg/telegram;Message
+      - extra_data_model=github.com/tbxark/sphere/pkg/telegram;MethodExtraData
+      - extra_data_constructor=github.com/tbxark/sphere/pkg/telegram;NewMethodExtraData
+```
