@@ -20,9 +20,10 @@ func main() {
 	var (
 		schemaPath        = flag.String("path", "./schema", "path to schema directory")
 		protoDir          = flag.String("proto", "./proto", "path to proto directory")
-		ignoreOptional    = flag.Bool("ignore-optional", true, "ignore optional, use zero value instead")
-		autoAddAnnotation = flag.Bool("auto-annotation", true, "auto add annotation to the schema")
-		enumUseRawType    = flag.Bool("enum-raw-type", true, "use string for enum")
+		ignoreOptional    = flag.Bool("ignore_optional", true, "ignore optional, use zero value instead")
+		autoAddAnnotation = flag.Bool("auto_annotation", true, "auto add annotation to the schema")
+		enumUseRawType    = flag.Bool("enum_raw_type", true, "use string for enum")
+		timeUseProtoType  = flag.String("time_proto_type", "google.protobuf.Timestamp", "use proto type for time.Time, one of int64, string, google.protobuf.Timestamp")
 		help              = flag.Bool("help", false, "show help")
 	)
 	flag.Parse()
@@ -30,10 +31,10 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	runProtoGen(*schemaPath, *protoDir, *ignoreOptional, *autoAddAnnotation, *enumUseRawType)
+	runProtoGen(*schemaPath, *protoDir, *ignoreOptional, *autoAddAnnotation, *enumUseRawType, *timeUseProtoType)
 }
 
-func runProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnnotation, enumUseRawType bool) {
+func runProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnnotation, enumUseRawType bool, timeUseProtoType string) {
 	abs, err := filepath.Abs(schemaPath)
 	if err != nil {
 		log.Fatalf("entproto: failed getting absolute path: %v", err)
@@ -46,7 +47,7 @@ func runProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnno
 	}
 	if autoAddAnnotation {
 		for i := 0; i < len(graph.Nodes); i++ {
-			addAnnotationForNode(graph.Nodes[i], enumUseRawType, ignoreOptional)
+			addAnnotationForNode(graph.Nodes[i], enumUseRawType, ignoreOptional, timeUseProtoType)
 		}
 	}
 	extension, err := entproto.NewExtension(
@@ -62,7 +63,7 @@ func runProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnno
 	}
 }
 
-func addAnnotationForNode(node *gen.Type, enumUseRawType bool, ignoreOptional bool) {
+func addAnnotationForNode(node *gen.Type, enumUseRawType bool, ignoreOptional bool, timeUseProtoType string) {
 	if node.Annotations == nil {
 		node.Annotations = make(map[string]interface{}, 1)
 	}
@@ -89,25 +90,50 @@ func addAnnotationForNode(node *gen.Type, enumUseRawType bool, ignoreOptional bo
 			}
 			fieldID++
 			if fd.IsEnum() {
-				if enumUseRawType {
-					if fd.HasGoType() {
-						fd.Type.Type = reflectKind2FieldType[fd.Type.RType.Kind]
-					} else {
-						fd.Type.Type = field.TypeString
-					}
-				} else {
-					enums := make(map[string]int32, len(fd.Enums))
-					for index, enum := range fd.Enums {
-						enums[enum.Value] = int32(index) + 1
-					}
-					fd.Annotations[entproto.EnumAnnotation] = entproto.Enum(enums, entproto.OmitFieldPrefix())
-				}
+				fixEnumType(fd, enumUseRawType)
 			}
+			fd.Type.Type = fixFieldType(fd.Type.Type, timeUseProtoType)
 			fd.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
 			if fd.Optional && ignoreOptional {
 				fd.Optional = false
 			}
 		}
+	}
+}
+
+func fixEnumType(fd *gen.Field, enumUseRawType bool) {
+	if enumUseRawType {
+		if fd.HasGoType() {
+			fd.Type.Type = reflectKind2FieldType[fd.Type.RType.Kind]
+		} else {
+			fd.Type.Type = field.TypeString
+		}
+	} else {
+		enums := make(map[string]int32, len(fd.Enums))
+		for index, enum := range fd.Enums {
+			enums[enum.Value] = int32(index) + 1
+		}
+		fd.Annotations[entproto.EnumAnnotation] = entproto.Enum(enums, entproto.OmitFieldPrefix())
+	}
+}
+
+func fixFieldType(t field.Type, timeType string) field.Type {
+	switch t {
+	case field.TypeJSON, field.TypeOther, field.TypeInvalid:
+		return field.TypeBytes // JSON and Other types are mapped to bytes.
+	case field.TypeUUID:
+		return field.TypeString
+	case field.TypeTime:
+		switch timeType {
+		case "int64":
+			return field.TypeInt64
+		case "string":
+			return field.TypeString
+		default:
+			return field.TypeTime
+		}
+	default:
+		return t
 	}
 }
 
