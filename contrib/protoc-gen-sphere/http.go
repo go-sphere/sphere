@@ -116,7 +116,7 @@ func genService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFi
 			}
 			sd.Methods = append(sd.Methods, buildHTTPRule(g, service, method, rule, conf))
 		} else if !conf.omitempty {
-			path := fmt.Sprintf("%s/%s/%s", omitemptyPrefix, service.Desc.FullName(), method.Desc.Name())
+			path := fmt.Sprintf("%s/%s/%s", conf.omitemptyPrefix, service.Desc.FullName(), method.Desc.Name())
 			sd.Methods = append(sd.Methods, buildMethodDesc(g, method, http.MethodPost, path, conf))
 		}
 	}
@@ -177,7 +177,7 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 		method = http.MethodPost
 	}
 	if path == "" {
-		path = fmt.Sprintf("%s/%s/%s", omitemptyPrefix, service.Desc.FullName(), m.Desc.Name())
+		path = fmt.Sprintf("%s/%s/%s", conf.omitemptyPrefix, service.Desc.FullName(), m.Desc.Name())
 	}
 	body = rule.Body
 	responseBody = rule.ResponseBody

@@ -27,7 +27,7 @@ func GetExtra{{$optionsKey}}DataBy{{$svrType}}Operation(operation string) *{{.Ex
     {{- range .MethodSets}}
     {{- if .Extra}}
     case Operation{{$optionsKey}}{{$svrType}}{{.OriginalName}}:
-        return &Extra{{$optionsKey}}Data{{$svrType}}{{.Name}}
+        return Extra{{$optionsKey}}Data{{$svrType}}{{.Name}}
     {{- end}}
     {{- end}}
     default:

@@ -33,7 +33,7 @@ type methodDesc struct {
 	Reply        string
 	Comment      string
 
-	// bot_rule
+	// extra data
 	Extra map[string]string
 }
 
@@ -47,7 +47,8 @@ func (s *serviceDesc) execute() string {
 	if err != nil {
 		panic(err)
 	}
-	if err := tmpl.Execute(buf, s); err != nil {
+	err = tmpl.Execute(buf, s)
+	if err != nil {
 		panic(err)
 	}
 	return strings.Trim(buf.String(), "\r\n")

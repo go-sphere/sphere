@@ -16,7 +16,7 @@ var (
 	requestModel         = flag.String("request_model", "", "request model")
 	responseModel        = flag.String("response_model", "", "response model")
 	extraDataModel       = flag.String("extra_data_model", "", "extra data model")
-	extraDataConstructor = flag.String("extra_data_constructor", "", "extra data constructor")
+	extraDataConstructor = flag.String("extra_data_constructor", "", "extra data constructor, and return a pointer of extra data")
 	templateFile         = flag.String("template_file", "", "template file, if not set, use default template")
 )
 

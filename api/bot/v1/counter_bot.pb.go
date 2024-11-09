@@ -29,9 +29,9 @@ var ExtraBotDataCounterServiceStart = telegram.NewMethodExtraData(map[string]str
 func GetExtraBotDataByCounterServiceOperation(operation string) *telegram.MethodExtraData {
 	switch operation {
 	case OperationBotCounterServiceCounter:
-		return &ExtraBotDataCounterServiceCounter
+		return ExtraBotDataCounterServiceCounter
 	case OperationBotCounterServiceStart:
-		return &ExtraBotDataCounterServiceStart
+		return ExtraBotDataCounterServiceStart
 	default:
 		return nil
 	}
