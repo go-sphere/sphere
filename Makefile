@@ -32,7 +32,7 @@ install: ## Install all dependencies
 
 .PHONY: gen-proto
 gen-proto: ## Generate proto files and run protoc plugins
-	ent-gen-proto
+	ent-gen-proto -path=./internal/pkg/database/ent/schema
 	buf generate
 	protoc-go-inject-tag -input="./api/*/*/*.pb.go" -remove_tag_comment
 

@@ -18,9 +18,9 @@ func generate(extension *entproto.Extension, g *gen.Graph) error
 
 func main() {
 	var (
-		schemaPath        = flag.String("path", "./internal/pkg/database/ent/schema", "path to schema directory")
+		schemaPath        = flag.String("path", "./schema", "path to schema directory")
 		protoDir          = flag.String("proto", "./proto", "path to proto directory")
-		ignoreOptional    = flag.Bool("ignore-optional", true, "ignore optional keyword, use zero value instead")
+		ignoreOptional    = flag.Bool("ignore-optional", true, "ignore optional, use zero value instead")
 		autoAddAnnotation = flag.Bool("auto-annotation", true, "auto add annotation to the schema")
 		enumUseRawType    = flag.Bool("enum-raw-type", true, "use string for enum")
 		help              = flag.Bool("help", false, "show help")
@@ -30,10 +30,10 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	RunProtoGen(*schemaPath, *protoDir, *ignoreOptional, *autoAddAnnotation, *enumUseRawType)
+	runProtoGen(*schemaPath, *protoDir, *ignoreOptional, *autoAddAnnotation, *enumUseRawType)
 }
 
-func RunProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnnotation, enumUseRawType bool) {
+func runProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnnotation, enumUseRawType bool) {
 	abs, err := filepath.Abs(schemaPath)
 	if err != nil {
 		log.Fatalf("entproto: failed getting absolute path: %v", err)
@@ -46,53 +46,7 @@ func RunProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnno
 	}
 	if autoAddAnnotation {
 		for i := 0; i < len(graph.Nodes); i++ {
-			node := graph.Nodes[i]
-			if node.Annotations == nil {
-				node.Annotations = make(map[string]interface{}, 1)
-			}
-			if node.Annotations[entproto.MessageAnnotation] == nil {
-				// If the node does not have the message annotation, add it.
-				node.Annotations[entproto.MessageAnnotation] = entproto.Message()
-				fieldID := 1
-				if node.ID.Annotations == nil {
-					node.ID.Annotations = make(map[string]interface{}, 1)
-				}
-				node.ID.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
-				sort.Slice(node.Fields, func(i, j int) bool {
-					if node.Fields[i].Position.MixedIn != node.Fields[j].Position.MixedIn {
-						// MixedIn fields should be at the end of the list.
-						return !node.Fields[i].Position.MixedIn
-					}
-					return node.Fields[i].Position.Index < node.Fields[j].Position.Index
-				})
-
-				for j := 0; j < len(node.Fields); j++ {
-					fd := node.Fields[j]
-					if fd.Annotations == nil {
-						fd.Annotations = make(map[string]interface{}, 1)
-					}
-					fieldID++
-					if fd.IsEnum() {
-						if enumUseRawType {
-							if fd.HasGoType() {
-								fd.Type.Type = reflectKind2FieldType[fd.Type.RType.Kind]
-							} else {
-								fd.Type.Type = field.TypeString
-							}
-						} else {
-							enums := make(map[string]int32, len(fd.Enums))
-							for index, enum := range fd.Enums {
-								enums[enum.Value] = int32(index) + 1
-							}
-							fd.Annotations[entproto.EnumAnnotation] = entproto.Enum(enums, entproto.OmitFieldPrefix())
-						}
-					}
-					fd.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
-					if fd.Optional && ignoreOptional {
-						fd.Optional = false
-					}
-				}
-			}
+			addAnnotationForNode(graph.Nodes[i], enumUseRawType, ignoreOptional)
 		}
 	}
 	extension, err := entproto.NewExtension(
@@ -105,6 +59,55 @@ func RunProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnno
 	err = generate(extension, graph)
 	if err != nil {
 		log.Fatalf("entproto: failed generating protos: %s", err)
+	}
+}
+
+func addAnnotationForNode(node *gen.Type, enumUseRawType bool, ignoreOptional bool) {
+	if node.Annotations == nil {
+		node.Annotations = make(map[string]interface{}, 1)
+	}
+	if node.Annotations[entproto.MessageAnnotation] == nil {
+		// If the node does not have the message annotation, add it.
+		node.Annotations[entproto.MessageAnnotation] = entproto.Message()
+		fieldID := 1
+		if node.ID.Annotations == nil {
+			node.ID.Annotations = make(map[string]interface{}, 1)
+		}
+		node.ID.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
+		sort.Slice(node.Fields, func(i, j int) bool {
+			if node.Fields[i].Position.MixedIn != node.Fields[j].Position.MixedIn {
+				// MixedIn fields should be at the end of the list.
+				return !node.Fields[i].Position.MixedIn
+			}
+			return node.Fields[i].Position.Index < node.Fields[j].Position.Index
+		})
+
+		for j := 0; j < len(node.Fields); j++ {
+			fd := node.Fields[j]
+			if fd.Annotations == nil {
+				fd.Annotations = make(map[string]interface{}, 1)
+			}
+			fieldID++
+			if fd.IsEnum() {
+				if enumUseRawType {
+					if fd.HasGoType() {
+						fd.Type.Type = reflectKind2FieldType[fd.Type.RType.Kind]
+					} else {
+						fd.Type.Type = field.TypeString
+					}
+				} else {
+					enums := make(map[string]int32, len(fd.Enums))
+					for index, enum := range fd.Enums {
+						enums[enum.Value] = int32(index) + 1
+					}
+					fd.Annotations[entproto.EnumAnnotation] = entproto.Enum(enums, entproto.OmitFieldPrefix())
+				}
+			}
+			fd.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
+			if fd.Optional && ignoreOptional {
+				fd.Optional = false
+			}
+		}
 	}
 }
 
