@@ -7,13 +7,11 @@ package apiv1
 
 import (
 	context "context"
-	protovalidate_go "github.com/bufbuild/protovalidate-go"
 	gin "github.com/gin-gonic/gin"
 	ginx "github.com/tbxark/sphere/pkg/server/ginx"
 )
 
 var _ = new(context.Context)
-var _ = new(protovalidate_go.Validator)
 var _ = new(gin.IRouter)
 var _ = new(ginx.ErrorResponse)
 

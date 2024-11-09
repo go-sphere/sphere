@@ -60,36 +60,25 @@ func generateFile(gen *protogen.Plugin, file *protogen.File, conf *Config) *prot
 		}
 		httpTemplate = string(raw)
 	}
-	_ = g.QualifiedGoIdent(ctxPackage.Ident("Context")) // Must import context first
-	pkgDesc := &packageDesc{
-		RouterType:               g.QualifiedGoIdent(conf.routerType.GoIdent()),
-		ContextType:              g.QualifiedGoIdent(conf.contextType.GoIdent()),
-		ErrorResponseType:        g.QualifiedGoIdent(conf.errorRespType.GoIdent()),
-		DataResponseType:         g.QualifiedGoIdent(conf.dataRespType.GoIdent()),
-		ServerHandlerWrapperFunc: g.QualifiedGoIdent(conf.serverHandlerFunc.GoIdent()),
-		ParseJsonFunc:            g.QualifiedGoIdent(conf.parseJsonFunc.GoIdent()),
-		ParseUriFunc:             g.QualifiedGoIdent(conf.parseUriFunc.GoIdent()),
-		ParseFormFunc:            g.QualifiedGoIdent(conf.parseFormFunc.GoIdent()),
-		ValidateFunc:             g.QualifiedGoIdent(validatePackage.Ident("Validate")),
-	}
-	genConf := &genConfig{
-		omitempty:       conf.omitempty,
-		omitemptyPrefix: conf.omitemptyPrefix,
-		swaggerAuth:     conf.swaggerAuth,
-		packageDesc:     pkgDesc,
-	}
-	generateFileContent(gen, file, g, conf, genConf)
+	generateFileContent(gen, file, g, conf)
 	return g
 }
 
 // generateFileContent generates the sphere errors definitions, excluding the package statement.
-func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, conf *Config, genConf *genConfig) {
+func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, conf *Config) {
 	if len(file.Services) == 0 {
 		return
 	}
 	g.P("var _ = new(", ctxPackage.Ident("Context"), ")")
-	g.P("var _ = new(", validatePackage.Ident("Validator"), ")")
+	genConf := newGenConf(g, conf)
+	genGoImport(g, file, conf, genConf)
+	g.P()
+	for _, service := range file.Services {
+		genService(gen, file, g, service, genConf)
+	}
+}
 
+func genGoImport(g *protogen.GeneratedFile, file *protogen.File, conf *Config, genConf *genConfig) {
 	idents := []*GoIdent{
 		conf.routerType,
 		conf.contextType,
@@ -100,6 +89,21 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 		conf.parseUriFunc,
 		conf.parseFormFunc,
 	}
+	genericGen := func(i int) string {
+		if i == 0 {
+			return ""
+		}
+		var sb strings.Builder
+		sb.WriteString("[")
+		for j := 0; j < i; j++ {
+			if j > 0 {
+				sb.WriteString(",")
+			}
+			sb.WriteString("string")
+		}
+		sb.WriteString("]")
+		return sb.String()
+	}
 	imported := make(map[string]struct{}, len(idents))
 	for _, i := range idents {
 		_, exist := imported[string(i.pkg)]
@@ -107,14 +111,22 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 			if i.isFunc {
 				g.P("var _ = ", i.GoIdent())
 			} else {
-				g.P("var _ = new(", i.GoIdent(), ")")
+				g.P("var _ = new(", i.GoIdent(), genericGen(i.genericCount), ")")
 			}
 			imported[string(i.pkg)] = struct{}{}
 		}
 	}
-	g.P()
+
+LOOP:
 	for _, service := range file.Services {
-		genService(gen, file, g, service, genConf)
+		for _, method := range service.Methods {
+			if slices.ContainsFunc(method.Input.Fields, hasValidateOptions) {
+				// import protovalidate package when the service has a validate option
+				g.P("var _ = new(", validatePackage.Ident("Validator"), ")")
+				genConf.packageDesc.ValidateFunc = g.QualifiedGoIdent(validatePackage.Ident("Validate"))
+				break LOOP
+			}
+		}
 	}
 }
 
@@ -479,4 +491,24 @@ func checkPathVarsType(m *protogen.Method, v string, path string) {
 			fields = fd.Message().Fields()
 		}
 	}
+}
+
+func newGenConf(g *protogen.GeneratedFile, conf *Config) *genConfig {
+	pkgDesc := &packageDesc{
+		RouterType:               g.QualifiedGoIdent(conf.routerType.GoIdent()),
+		ContextType:              g.QualifiedGoIdent(conf.contextType.GoIdent()),
+		ErrorResponseType:        g.QualifiedGoIdent(conf.errorRespType.GoIdent()),
+		DataResponseType:         g.QualifiedGoIdent(conf.dataRespType.GoIdent()),
+		ServerHandlerWrapperFunc: g.QualifiedGoIdent(conf.serverHandlerFunc.GoIdent()),
+		ParseJsonFunc:            g.QualifiedGoIdent(conf.parseJsonFunc.GoIdent()),
+		ParseUriFunc:             g.QualifiedGoIdent(conf.parseUriFunc.GoIdent()),
+		ParseFormFunc:            g.QualifiedGoIdent(conf.parseFormFunc.GoIdent()),
+	}
+	genConf := &genConfig{
+		omitempty:       conf.omitempty,
+		omitemptyPrefix: conf.omitemptyPrefix,
+		swaggerAuth:     conf.swaggerAuth,
+		packageDesc:     pkgDesc,
+	}
+	return genConf
 }
