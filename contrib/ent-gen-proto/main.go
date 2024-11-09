@@ -10,13 +10,17 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	_ "unsafe"
 )
+
+//go:linkname generate entgo.io/contrib/entproto.(*Extension).generate
+func generate(extension *entproto.Extension, g *gen.Graph) error
 
 func main() {
 	var (
 		schemaPath        = flag.String("path", "./internal/pkg/database/ent/schema", "path to schema directory")
 		protoDir          = flag.String("proto", "./proto", "path to proto directory")
-		ignoreOptional    = flag.Bool("ignore-optional", true, "ignore optional keyword")
+		ignoreOptional    = flag.Bool("ignore-optional", true, "ignore optional keyword, use zero value instead")
 		autoAddAnnotation = flag.Bool("auto-annotation", true, "auto add annotation to the schema")
 		enumUseRawType    = flag.Bool("enum-raw-type", true, "use string for enum")
 		help              = flag.Bool("help", false, "show help")
@@ -71,7 +75,7 @@ func RunProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnno
 					if fd.IsEnum() {
 						if enumUseRawType {
 							if fd.HasGoType() {
-								fd.Type.Type = reflectKind2FieldType(fd.Type.RType.Kind)
+								fd.Type.Type = reflectKind2FieldType[fd.Type.RType.Kind]
 							} else {
 								fd.Type.Type = field.TypeString
 							}
@@ -92,54 +96,43 @@ func RunProtoGen(schemaPath string, protoDir string, ignoreOptional, autoAddAnno
 		}
 	}
 	extension, err := entproto.NewExtension(
-		entproto.EnableOptional(),
 		entproto.WithProtoDir(protoDir),
 		entproto.SkipGenFile(),
 	)
 	if err != nil {
 		log.Fatalf("entproto: failed creating entproto extension: %v", err)
 	}
-	err = extension.Generate(graph)
+	err = generate(extension, graph)
 	if err != nil {
 		log.Fatalf("entproto: failed generating protos: %s", err)
 	}
 }
 
-func reflectKind2FieldType(kind reflect.Kind) field.Type {
-	switch kind {
-	case reflect.Bool:
-		return field.TypeBool
-	case reflect.Int:
-		return field.TypeInt
-	case reflect.Int8:
-		return field.TypeInt8
-	case reflect.Int16:
-		return field.TypeInt16
-	case reflect.Int32:
-		return field.TypeInt32
-	case reflect.Int64:
-		return field.TypeInt64
-	case reflect.Uint:
-		return field.TypeUint
-	case reflect.Uint8:
-		return field.TypeUint8
-	case reflect.Uint16:
-		return field.TypeUint16
-	case reflect.Uint32:
-		return field.TypeUint32
-	case reflect.Uint64:
-		return field.TypeUint64
-	case reflect.Float32:
-		return field.TypeFloat32
-	case reflect.Float64:
-		return field.TypeFloat64
-	case reflect.String:
-		return field.TypeString
-	case reflect.Slice:
-		return field.TypeBytes
-	case reflect.Struct:
-		return field.TypeJSON
-	default:
-		return field.TypeOther
-	}
+var reflectKind2FieldType = map[reflect.Kind]field.Type{
+	reflect.Bool:          field.TypeBool,
+	reflect.Int:           field.TypeInt,
+	reflect.Int8:          field.TypeInt8,
+	reflect.Int16:         field.TypeInt16,
+	reflect.Int32:         field.TypeInt32,
+	reflect.Int64:         field.TypeInt64,
+	reflect.Uint:          field.TypeUint,
+	reflect.Uint8:         field.TypeUint8,
+	reflect.Uint16:        field.TypeUint16,
+	reflect.Uint32:        field.TypeUint32,
+	reflect.Uint64:        field.TypeUint64,
+	reflect.Uintptr:       field.TypeUint,
+	reflect.Float32:       field.TypeFloat32,
+	reflect.Float64:       field.TypeFloat64,
+	reflect.Complex64:     field.TypeOther,
+	reflect.Complex128:    field.TypeOther,
+	reflect.Array:         field.TypeJSON,
+	reflect.Chan:          field.TypeOther,
+	reflect.Func:          field.TypeOther,
+	reflect.Interface:     field.TypeJSON,
+	reflect.Map:           field.TypeJSON,
+	reflect.Pointer:       field.TypeJSON,
+	reflect.Slice:         field.TypeJSON,
+	reflect.String:        field.TypeString,
+	reflect.Struct:        field.TypeJSON,
+	reflect.UnsafePointer: field.TypeOther,
 }

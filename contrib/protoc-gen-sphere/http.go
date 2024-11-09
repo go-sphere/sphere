@@ -67,14 +67,14 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	}
 	g.P("var _ = new(", ctxPackage.Ident("Context"), ")")
 	genConf := newGenConf(g, conf)
-	genGoImport(g, file, conf, genConf)
+	genGoImport(file, g, conf, genConf)
 	g.P()
 	for _, service := range file.Services {
 		genService(gen, file, g, service, genConf)
 	}
 }
 
-func genGoImport(g *protogen.GeneratedFile, file *protogen.File, conf *Config, genConf *genConfig) {
+func genGoImport(file *protogen.File, g *protogen.GeneratedFile, conf *Config, genConf *genConfig) {
 	idents := []*GoIdent{
 		conf.routerType,
 		conf.contextType,

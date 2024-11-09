@@ -2,7 +2,7 @@
 
 ## About
 
-`Sphere` is a suggested server scaffolding that uses `ent` as the database structure definition and `proto` as the interface definition. It also provides a series of code and document generation tools, including `proto` files, `Swagger` documents, `TypeScript` clients, etc.
+`Sphere` is a server scaffolding that uses `ent` as the database structure definition and `proto` as the interface definition. It also provides a series of code and document generation tools, including `proto` files, `Swagger` documents, `TypeScript` clients, etc.
 
 You can fork this project and modify the code in proto, internal and cmd to implement your own business logic. Please do not modify the code in pkg. If necessary, please raise an issue or PR.
 
