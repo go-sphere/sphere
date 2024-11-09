@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -215,42 +216,14 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 	query := buildQueryParams(m, method, vars)
 
 	for v, s := range vars {
-		fields := m.Input.Desc.Fields()
-
 		if s != nil {
 			path = replacePath(v, *s, path)
 		}
-		for _, field := range strings.Split(v, ".") {
-			if strings.TrimSpace(field) == "" {
-				continue
-			}
-			if strings.Contains(field, ":") {
-				field = strings.Split(field, ":")[0]
-			}
-			fd := fields.ByName(protoreflect.Name(field))
-			if fd == nil {
-				_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mERROR\u001B[m: The corresponding field '%s' declaration in message could not be found in '%s'\n", v, path)
-				os.Exit(2)
-			}
-			if fd.IsMap() {
-				_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a map.\n", v)
-			} else if fd.IsList() {
-				_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a list.\n", v)
-			} else if fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.GroupKind {
-				fields = fd.Message().Fields()
-			}
-		}
+		checkPathVarsType(m, v, path)
 	}
 
-	needValidate := false
-	for _, field := range m.Input.Fields {
-		if hasValidateOptions(field) {
-			needValidate = true
-			break
-		}
-	}
-
-	comment := m.Comments.Leading.String() + m.Comments.Trailing.String()
+	needValidate := slices.ContainsFunc(m.Input.Fields, hasValidateOptions)
+	comment := buildMethodCommend(m)
 	if comment != "" {
 		comment = "// " + m.GoName + strings.TrimPrefix(strings.TrimSuffix(comment, "\n"), "//")
 	}
@@ -266,7 +239,7 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 		HasVars:      len(vars) > 0,
 		HasQuery:     len(query) > 0,
 		GinPath:      buildGinRoutePath(path),
-		Swagger:      buildSwaggerAnnotations(m, method, path, m.Comments.Leading.String(), paths, query, conf),
+		Swagger:      buildSwaggerAnnotations(m, method, path, paths, query, conf),
 		NeedValidate: needValidate,
 	}
 }
@@ -278,7 +251,7 @@ func buildPathVars(path string) (map[string]*string, []string) {
 	pattern := regexp.MustCompile(`(?i){([a-z.0-9_\s]*)=?([^{}]*)}`)
 	matches := pattern.FindAllStringSubmatch(path, -1)
 	res := make(map[string]*string, len(matches))
-	vars := make([]string, 0, len(matches))
+	vars := make([]string, 0, len(matches)) // keep the order of path variables
 	for _, m := range matches {
 		name := strings.TrimSpace(m[1])
 		if len(name) > 1 && len(m[2]) > 0 {
@@ -328,7 +301,7 @@ func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*st
 	return
 }
 
-func buildSwaggerAnnotations(m *protogen.Method, method, path, desc string, pathVars []string, queryParams []string, conf *genConfig) string {
+func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars []string, queryParams []string, conf *genConfig) string {
 	var builder strings.Builder
 
 	if idx := strings.Index(path, "?"); idx > 0 {
@@ -336,6 +309,7 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path, desc string, path
 	}
 
 	builder.WriteString("// @Summary " + string(m.Desc.Name()) + "\n")
+	desc := buildMethodCommend(m)
 	if desc != "" {
 		desc = strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(desc, "\n"), "//"))
 		builder.WriteString("// @Description " + desc + "\n")
@@ -407,8 +381,26 @@ func buildGinRoutePath(protoPath string) string {
 	if idx := strings.Index(protoPath, "?"); idx > 0 {
 		protoPath = protoPath[:idx]
 	}
-	re := regexp.MustCompile(`\{([^}]+)\}`)
-	return re.ReplaceAllString(protoPath, ":$1")
+	// 1. {name:pattern} -> *name
+	// 2. {name} -> :name
+
+	// replace pattern vars
+	colonVarRe := regexp.MustCompile(`{([^:]+):([^}]*)}`)
+	protoPath = colonVarRe.ReplaceAllString(protoPath, "*$1")
+
+	// replace simple vars
+	simpleVarRe := regexp.MustCompile(`{([^}]+)}`)
+	protoPath = simpleVarRe.ReplaceAllString(protoPath, ":$1")
+
+	return protoPath
+}
+
+func buildMethodCommend(m *protogen.Method) string {
+	leading := m.Comments.Leading.String()
+	if leading == "" {
+		return ""
+	}
+	return strings.TrimSpace(strings.ReplaceAll(leading, "\n", " "))
 }
 
 // replacePath {paramName=value} => {paramName:newValue}
@@ -424,4 +416,28 @@ func replacePath(name string, value string, path string) string {
 		)
 	}
 	return path
+}
+
+func checkPathVarsType(m *protogen.Method, v string, path string) {
+	fields := m.Input.Desc.Fields()
+	for _, field := range strings.Split(v, ".") {
+		if strings.TrimSpace(field) == "" {
+			continue
+		}
+		if strings.Contains(field, ":") {
+			field = strings.Split(field, ":")[0]
+		}
+		fd := fields.ByName(protoreflect.Name(field))
+		if fd == nil {
+			_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mERROR\u001B[m: The corresponding field '%s' declaration in message could not be found in '%s'\n", v, path)
+			os.Exit(2)
+		}
+		if fd.IsMap() {
+			_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a map.\n", v)
+		} else if fd.IsList() {
+			_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a list.\n", v)
+		} else if fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.GroupKind {
+			fields = fd.Message().Fields()
+		}
+	}
 }
