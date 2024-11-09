@@ -76,6 +76,7 @@ func (User) Fields() []ent.Field {
 		field.String("avatar").Comment("头像").Default(""),
 		field.String("phone").Optional().Default("").Comment("手机号").MaxLen(20),
 		field.Uint64("flags").Default(0).Comment("标记位"),
+		field.JSON("roles", []string{}).Optional().Comment("角色列表"),
 		field.JSON("extra", Extra{}).Optional().Comment("额外信息"),
 		field.UUID("uuid", uuid.UUID{}).Default(uuid.New).Comment("UUID"),
 		field.Enum("level").GoType(Level(0)),

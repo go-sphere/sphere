@@ -38,7 +38,7 @@ message KeyValueStore {
 message Task {
   int64 id = 1;
 
-  bytes job_id = 2;
+  string job_id = 2;
 
   string name = 3;
 

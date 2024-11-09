@@ -92,7 +92,7 @@ func addAnnotationForNode(node *gen.Type, enumUseRawType bool, ignoreOptional bo
 			if fd.IsEnum() {
 				fixEnumType(fd, enumUseRawType)
 			}
-			fd.Type.Type = fixFieldType(fd.Type.Type, timeUseProtoType)
+			fd.Type.Type = fixFieldType(fd, timeUseProtoType)
 			fd.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
 			if fd.Optional && ignoreOptional {
 				fd.Optional = false
@@ -117,10 +117,20 @@ func fixEnumType(fd *gen.Field, enumUseRawType bool) {
 	}
 }
 
-func fixFieldType(t field.Type, timeType string) field.Type {
-	switch t {
-	case field.TypeJSON, field.TypeOther, field.TypeInvalid:
+func fixFieldType(fd *gen.Field, timeType string) field.Type {
+	switch fd.Type.Type {
+	case field.TypeOther, field.TypeInvalid:
 		return field.TypeBytes // JSON and Other types are mapped to bytes.
+	case field.TypeJSON:
+		if fd.HasGoType() {
+			switch fd.Type.RType.Kind {
+			case reflect.Slice, reflect.Array, reflect.Map:
+				return field.TypeJSON
+			default:
+				return field.TypeBytes
+			}
+		}
+		return field.TypeBytes
 	case field.TypeUUID:
 		return field.TypeString
 	case field.TypeTime:
@@ -133,7 +143,7 @@ func fixFieldType(t field.Type, timeType string) field.Type {
 			return field.TypeTime
 		}
 	default:
-		return t
+		return fd.Type.Type
 	}
 }
 
