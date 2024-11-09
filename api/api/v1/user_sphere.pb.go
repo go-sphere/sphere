@@ -13,9 +13,9 @@ import (
 )
 
 var _ = new(context.Context)
-var _ = new(gin.Context)
-var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
+var _ = new(gin.IRouter)
+var _ = new(ginx.ErrorResponse)
 
 const OperationUserServiceBindPhoneWxMini = "/api.v1.UserService/BindPhoneWxMini"
 const OperationUserServiceMe = "/api.v1.UserService/Me"

@@ -19,8 +19,6 @@ import (
 
 const (
 	ctxPackage      = protogen.GoImportPath("context")
-	ginPackage      = protogen.GoImportPath("github.com/gin-gonic/gin")
-	ginxPackage     = protogen.GoImportPath("github.com/tbxark/sphere/pkg/server/ginx")
 	validatePackage = protogen.GoImportPath("github.com/bufbuild/protovalidate-go")
 )
 
@@ -36,8 +34,8 @@ type genConfig struct {
 }
 
 // generateFile generates a _http.pb.go file containing sphere errors definitions.
-func generateFile(gen *protogen.Plugin, file *protogen.File, omitempty bool, omitemptyPrefix string, swaggerAuth string) *protogen.GeneratedFile {
-	if len(file.Services) == 0 || (omitempty && !hasHTTPRule(file.Services)) {
+func generateFile(gen *protogen.Plugin, file *protogen.File, conf *Config) *protogen.GeneratedFile {
+	if len(file.Services) == 0 || (conf.omitempty && !hasHTTPRule(file.Services)) {
 		return nil
 	}
 	filename := file.GeneratedFilenamePrefix + "_sphere.pb.go"
@@ -54,43 +52,69 @@ func generateFile(gen *protogen.Plugin, file *protogen.File, omitempty bool, omi
 	g.P("package ", file.GoPackageName)
 	g.P()
 
-	_ = g.QualifiedGoIdent(ctxPackage.Ident("Context")) // Trigger import
+	if conf.templateFile != "" {
+		raw, err := os.ReadFile(conf.templateFile)
+		if err != nil {
+			gen.Error(err)
+			return nil
+		}
+		httpTemplate = string(raw)
+	}
+	_ = g.QualifiedGoIdent(ctxPackage.Ident("Context")) // Must import context first
 	pkgDesc := &packageDesc{
-		RouterType:               g.QualifiedGoIdent(ginPackage.Ident("IRouter")),
-		ContextType:              g.QualifiedGoIdent(ginPackage.Ident("Context")),
-		DataResponseType:         g.QualifiedGoIdent(ginxPackage.Ident("DataResponse")),
-		ErrorResponseType:        g.QualifiedGoIdent(ginxPackage.Ident("ErrorResponse")),
-		ServerHandlerWrapperFunc: g.QualifiedGoIdent(ginxPackage.Ident("WithJson")),
-		ParseJsonFunc:            g.QualifiedGoIdent(ginxPackage.Ident("ShouldBindJSON")),
-		ParseUriFunc:             g.QualifiedGoIdent(ginxPackage.Ident("ShouldBindUri")),
-		ParseFormFunc:            g.QualifiedGoIdent(ginxPackage.Ident("ShouldBindQuery")),
+		RouterType:               g.QualifiedGoIdent(conf.routerType.GoIdent()),
+		ContextType:              g.QualifiedGoIdent(conf.contextType.GoIdent()),
+		ErrorResponseType:        g.QualifiedGoIdent(conf.errorRespType.GoIdent()),
+		DataResponseType:         g.QualifiedGoIdent(conf.dataRespType.GoIdent()),
+		ServerHandlerWrapperFunc: g.QualifiedGoIdent(conf.serverHandlerFunc.GoIdent()),
+		ParseJsonFunc:            g.QualifiedGoIdent(conf.parseJsonFunc.GoIdent()),
+		ParseUriFunc:             g.QualifiedGoIdent(conf.parseUriFunc.GoIdent()),
+		ParseFormFunc:            g.QualifiedGoIdent(conf.parseFormFunc.GoIdent()),
 		ValidateFunc:             g.QualifiedGoIdent(validatePackage.Ident("Validate")),
 	}
-
-	conf := &genConfig{
-		omitempty:       omitempty,
-		omitemptyPrefix: omitemptyPrefix,
-		swaggerAuth:     swaggerAuth,
+	genConf := &genConfig{
+		omitempty:       conf.omitempty,
+		omitemptyPrefix: conf.omitemptyPrefix,
+		swaggerAuth:     conf.swaggerAuth,
 		packageDesc:     pkgDesc,
 	}
-
-	generateFileContent(gen, file, g, conf)
+	generateFileContent(gen, file, g, conf, genConf)
 	return g
 }
 
 // generateFileContent generates the sphere errors definitions, excluding the package statement.
-func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, conf *genConfig) {
+func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, conf *Config, genConf *genConfig) {
 	if len(file.Services) == 0 {
 		return
 	}
 	g.P("var _ = new(", ctxPackage.Ident("Context"), ")")
-	g.P("var _ = new(", ginPackage.Ident("Context"), ")")
-	g.P("var _ = new(", ginxPackage.Ident("ErrorResponse"), ")")
 	g.P("var _ = new(", validatePackage.Ident("Validator"), ")")
-	g.P()
 
+	idents := []*GoIdent{
+		conf.routerType,
+		conf.contextType,
+		conf.errorRespType,
+		conf.dataRespType,
+		conf.serverHandlerFunc,
+		conf.parseJsonFunc,
+		conf.parseUriFunc,
+		conf.parseFormFunc,
+	}
+	imported := make(map[string]struct{}, len(idents))
+	for _, i := range idents {
+		_, exist := imported[string(i.pkg)]
+		if !exist {
+			if i.isFunc {
+				g.P("var _ = ", i.GoIdent())
+			} else {
+				g.P("var _ = new(", i.GoIdent(), ")")
+			}
+			imported[string(i.pkg)] = struct{}{}
+		}
+	}
+	g.P()
 	for _, service := range file.Services {
-		genService(gen, file, g, service, conf)
+		genService(gen, file, g, service, genConf)
 	}
 }
 

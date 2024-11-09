@@ -13,9 +13,9 @@ import (
 )
 
 var _ = new(context.Context)
-var _ = new(gin.Context)
-var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
+var _ = new(gin.IRouter)
+var _ = new(ginx.ErrorResponse)
 
 const OperationTaskServiceTaskDetail = "/dash.v1.TaskService/TaskDetail"
 const OperationTaskServiceTaskList = "/dash.v1.TaskService/TaskList"

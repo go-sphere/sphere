@@ -45,8 +45,8 @@ type packageDesc struct {
 	RouterType  string
 	ContextType string
 
-	DataResponseType  string
 	ErrorResponseType string
+	DataResponseType  string
 
 	ServerHandlerWrapperFunc string
 

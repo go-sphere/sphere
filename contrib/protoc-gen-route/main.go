@@ -50,10 +50,10 @@ func genConfig() (*Config, error) {
 		genFileSuffix: *genFileSuffix,
 		templateFile:  *templateFile,
 
-		requestType:      parseGoIdent(*requestModel),
-		responseType:     parseGoIdent(*responseModel),
-		extraType:        parseGoIdent(*extraDataModel),
-		extraConstructor: parseGoIdent(*extraDataConstructor),
+		requestType:      NewGoIdent(*requestModel),
+		responseType:     NewGoIdent(*responseModel),
+		extraType:        NewGoIdent(*extraDataModel),
+		extraConstructor: NewGoIdent(*extraDataConstructor),
 	}
 	if cfg.requestType == nil {
 		return nil, fmt.Errorf("flag request_model must be set")
@@ -87,7 +87,7 @@ type Config struct {
 	extraConstructor *GoIdent
 }
 
-func parseGoIdent(s string) *GoIdent {
+func NewGoIdent(s string) *GoIdent {
 	parts := strings.Split(s, ";")
 	if len(parts) != 2 {
 		return nil
