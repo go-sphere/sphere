@@ -212,8 +212,8 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path string, conf *genConfig) *methodDesc {
 	defer func() { methodSets[m.GoName]++ }()
 
-	vars, paths := buildPathVars(path)
-	query := buildQueryParams(m, method, vars)
+	vars, uris := buildPathVars(path)
+	forms := buildQueryParams(m, method, vars)
 
 	for v, s := range vars {
 		if s != nil {
@@ -222,7 +222,6 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 		checkPathVarsType(m, v, path)
 	}
 
-	needValidate := slices.ContainsFunc(m.Input.Fields, hasValidateOptions)
 	comment := buildMethodCommend(m)
 	if comment != "" {
 		comment = "// " + m.GoName + strings.TrimPrefix(strings.TrimSuffix(comment, "\n"), "//")
@@ -237,10 +236,10 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 		Path:         path,
 		Method:       method,
 		HasVars:      len(vars) > 0,
-		HasQuery:     len(query) > 0,
+		HasQuery:     len(forms) > 0,
 		GinPath:      buildGinRoutePath(path),
-		Swagger:      buildSwaggerAnnotations(m, method, path, paths, query, conf),
-		NeedValidate: needValidate,
+		Swagger:      buildSwaggerAnnotations(m, method, buildSwaggerPath(path), uris, forms, conf),
+		NeedValidate: slices.ContainsFunc(m.Input.Fields, hasValidateOptions),
 	}
 }
 
@@ -301,7 +300,7 @@ func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*st
 	return
 }
 
-func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars []string, queryParams []string, conf *genConfig) string {
+func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars []string, queryVars []string, conf *genConfig) string {
 	var builder strings.Builder
 
 	if idx := strings.Index(path, "?"); idx > 0 {
@@ -329,7 +328,7 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars [
 	}
 
 	// Add query parameters
-	for _, param := range queryParams {
+	for _, param := range queryVars {
 		paramType := buildSwaggerParamType(m.Input.Desc, param)
 		builder.WriteString(fmt.Sprintf("// @Param %s query %s false \"%s\"\n", param, paramType, param))
 	}
@@ -391,6 +390,22 @@ func buildGinRoutePath(protoPath string) string {
 	// replace simple vars
 	simpleVarRe := regexp.MustCompile(`{([^}]+)}`)
 	protoPath = simpleVarRe.ReplaceAllString(protoPath, ":$1")
+
+	return protoPath
+}
+
+func buildSwaggerPath(protoPath string) string {
+	if idx := strings.Index(protoPath, "?"); idx > 0 {
+		protoPath = protoPath[:idx]
+	}
+
+	// replace pattern vars
+	colonVarRe := regexp.MustCompile(`{([^:]+):([^}]*)}`)
+	protoPath = colonVarRe.ReplaceAllString(protoPath, "{$1}")
+
+	// replace simple vars
+	simpleVarRe := regexp.MustCompile(`{([^}]+)}`)
+	protoPath = simpleVarRe.ReplaceAllString(protoPath, "{$1}")
 
 	return protoPath
 }

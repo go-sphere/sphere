@@ -37,6 +37,7 @@ func Test_buildGinRoutePath(t *testing.T) {
 		ginPath := buildGinRoutePath(path)
 		t.Logf("path: %s, vars: %s", path, mapToString(vars))
 		t.Logf("ginPath: %s", ginPath)
+		t.Logf("swaggerPath: %s", buildSwaggerPath(path))
 		if ginPath != expected[i] {
 			t.Errorf("expected: %s, got: %s", expected[i], ginPath)
 		}
