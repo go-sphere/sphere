@@ -53,10 +53,24 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 		return
 	}
 	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
-	g.P("var _ = new(", conf.requestType.GoIdent(), ")")
-	g.P("var _ = new(", conf.responseType.GoIdent(), ")")
-	g.P("var _ = new(", conf.extraType.GoIdent(), ")")
-	g.P("var _ = ", conf.extraConstructor.GoIdent())
+	idents := []*GoIdent{
+		conf.requestType,
+		conf.responseType,
+		conf.extraType,
+		conf.extraConstructor,
+	}
+	imported := make(map[string]struct{}, len(idents))
+	for _, i := range idents {
+		_, exist := imported[string(i.pkg)]
+		if !exist {
+			if i.isFunc {
+				g.P("var _ = ", i.GoIdent())
+			} else {
+				g.P("var _ = new(", i.GoIdent(), ")")
+			}
+			imported[string(i.pkg)] = struct{}{}
+		}
+	}
 	g.P()
 	for _, service := range file.Services {
 		genService(gen, file, g, service, conf)

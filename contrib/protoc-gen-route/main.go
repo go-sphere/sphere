@@ -53,7 +53,7 @@ func genConfig() (*Config, error) {
 		requestType:      NewGoIdent(*requestModel),
 		responseType:     NewGoIdent(*responseModel),
 		extraType:        NewGoIdent(*extraDataModel),
-		extraConstructor: NewGoIdent(*extraDataConstructor),
+		extraConstructor: NewGoIdent(*extraDataConstructor, identIsFunc()),
 	}
 	if cfg.requestType == nil {
 		return nil, fmt.Errorf("flag request_model must be set")
@@ -68,8 +68,9 @@ func genConfig() (*Config, error) {
 }
 
 type GoIdent struct {
-	pkg   protogen.GoImportPath
-	ident string
+	pkg    protogen.GoImportPath
+	ident  string
+	isFunc bool
 }
 
 func (g GoIdent) GoIdent() protogen.GoIdent {
@@ -87,7 +88,7 @@ type Config struct {
 	extraConstructor *GoIdent
 }
 
-func NewGoIdent(s string) *GoIdent {
+func NewGoIdent(s string, options ...func(*GoIdent)) *GoIdent {
 	parts := strings.Split(s, ";")
 	if len(parts) != 2 {
 		return nil
@@ -95,5 +96,11 @@ func NewGoIdent(s string) *GoIdent {
 	return &GoIdent{
 		pkg:   protogen.GoImportPath(parts[0]),
 		ident: parts[1],
+	}
+}
+
+func identIsFunc() func(*GoIdent) {
+	return func(g *GoIdent) {
+		g.isFunc = true
 	}
 }
