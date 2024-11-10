@@ -129,7 +129,7 @@ func fixFieldType(fd *gen.Field, timeType string) field.Type {
 				if _, ok := buildInTypeSlice[fd.Type.RType.Ident]; ok {
 					return field.TypeJSON
 				}
-				return field.TypeJSON
+				return field.TypeBytes
 			default:
 				return field.TypeBytes
 			}
