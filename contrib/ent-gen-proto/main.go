@@ -124,7 +124,11 @@ func fixFieldType(fd *gen.Field, timeType string) field.Type {
 	case field.TypeJSON:
 		if fd.HasGoType() {
 			switch fd.Type.RType.Kind {
-			case reflect.Slice, reflect.Array, reflect.Map:
+			case reflect.Slice:
+				// 只支持基础类型的切片
+				if _, ok := buildInTypeSlice[fd.Type.RType.Ident]; ok {
+					return field.TypeJSON
+				}
 				return field.TypeJSON
 			default:
 				return field.TypeBytes
@@ -174,4 +178,21 @@ var reflectKind2FieldType = map[reflect.Kind]field.Type{
 	reflect.String:        field.TypeString,
 	reflect.Struct:        field.TypeJSON,
 	reflect.UnsafePointer: field.TypeOther,
+}
+
+var buildInTypeSlice = map[string]struct{}{
+	"[]int":     {},
+	"[]int8":    {},
+	"[]int16":   {},
+	"[]int32":   {},
+	"[]int64":   {},
+	"[]uint":    {},
+	"[]uint8":   {},
+	"[]uint16":  {},
+	"[]uint32":  {},
+	"[]uint64":  {},
+	"[]float32": {},
+	"[]float64": {},
+	"[]string":  {},
+	"[]bool":    {},
 }

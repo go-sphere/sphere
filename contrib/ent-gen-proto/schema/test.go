@@ -15,6 +15,8 @@ type Extra struct {
 
 type Level int
 
+type Role string
+
 const (
 	Unknown Level = iota
 	Low
