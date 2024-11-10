@@ -7,6 +7,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"fmt"
 	"github.com/mitchellh/mapstructure"
+	"google.golang.org/protobuf/types/descriptorpb"
 	"log"
 	"path/filepath"
 	"reflect"
@@ -17,18 +18,23 @@ import (
 //go:linkname generate entgo.io/contrib/entproto.(*Extension).generate
 func generate(extension *entproto.Extension, g *gen.Graph) error
 
+//go:linkname wktsPaths entgo.io/contrib/entproto.wktsPaths
+var wktsPaths map[string]string
+
 type Options struct {
-	SchemaPath            string
-	ProtoDir              string
-	IgnoreOptional        bool
-	IgnoreUnsupportedJson bool
-	IgnoreUnsupportedType bool
-	AutoAddAnnotation     bool
-	EnumUseRawType        bool
-	TimeUseProtoType      string
+	SchemaPath             string
+	ProtoDir               string
+	AllFieldsRequired      bool
+	IgnoreUnsupportedJson  bool
+	IgnoreUnsupportedType  bool
+	UsageAnyForUnsupported bool
+	AutoAddAnnotation      bool
+	EnumUseRawType         bool
+	TimeUseProtoType       string
 }
 
 func Generate(options *Options) {
+	injectGoogleProtobufAny()
 	abs, err := filepath.Abs(options.SchemaPath)
 	if err != nil {
 		log.Fatalf("entproto: failed getting absolute path: %v", err)
@@ -121,13 +127,26 @@ func addAnnotationForNode(node *gen.Type, options *Options) {
 			removeFields = append(removeFields, j)
 			continue
 		}
-		newType := fixFieldType(fd, options.TimeUseProtoType)
-		if options.IgnoreOptional && fd.Type.Type == field.TypeJSON && newType == field.TypeBytes {
-			removeFields = append(removeFields, j)
+		newType := fixFieldType(fd, options)
+		if fd.Type.Type == field.TypeJSON && newType == field.TypeBytes {
+			if options.UsageAnyForUnsupported {
+				newType = field.TypeJSON
+			} else if options.IgnoreUnsupportedJson {
+				removeFields = append(removeFields, j)
+			}
 		}
 		fd.Type.Type = newType
-		fd.Annotations[entproto.FieldAnnotation] = entproto.Field(idGenerator.MustNext())
-		if fd.Optional && options.IgnoreOptional {
+		var fieldOptions []entproto.FieldOption
+		if fd.Type.Type == field.TypeJSON || fd.Type.Type == field.TypeOther || fd.Type.Type == field.TypeInvalid {
+			if _, exist := buildInTypeSlice[fd.Type.RType.Ident]; !exist {
+				fieldOptions = append(fieldOptions,
+					entproto.Type(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+					entproto.TypeName("google.protobuf.Any"),
+				)
+			}
+		}
+		fd.Annotations[entproto.FieldAnnotation] = entproto.Field(idGenerator.MustNext(), fieldOptions...)
+		if fd.Optional && options.AllFieldsRequired {
 			fd.Optional = false
 		}
 	}
@@ -152,7 +171,7 @@ func fixEnumType(fd *gen.Field, enumUseRawType bool) {
 	}
 }
 
-func fixFieldType(fd *gen.Field, timeType string) field.Type {
+func fixFieldType(fd *gen.Field, options *Options) field.Type {
 	switch fd.Type.Type {
 	case field.TypeOther, field.TypeInvalid:
 		// unsupported type will be converted to bytes
@@ -174,7 +193,7 @@ func fixFieldType(fd *gen.Field, timeType string) field.Type {
 	case field.TypeUUID:
 		return field.TypeString
 	case field.TypeTime:
-		switch timeType {
+		switch options.TimeUseProtoType {
 		case "int64":
 			return field.TypeInt64
 		case "string":
@@ -259,4 +278,8 @@ func (f *fileIDGenerator) MustNext() int {
 		panic(err)
 	}
 	return num
+}
+
+func injectGoogleProtobufAny() {
+	wktsPaths["google.protobuf.Any"] = "google/protobuf/any.proto"
 }
