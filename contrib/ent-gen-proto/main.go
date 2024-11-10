@@ -6,10 +6,12 @@ import (
 	"entgo.io/ent/entc/gen"
 	"entgo.io/ent/schema/field"
 	"flag"
+	"fmt"
 	"log"
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	_ "unsafe"
 )
 
@@ -67,36 +69,60 @@ func addAnnotationForNode(node *gen.Type, enumUseRawType bool, ignoreOptional bo
 	if node.Annotations == nil {
 		node.Annotations = make(map[string]interface{}, 1)
 	}
-	if node.Annotations[entproto.MessageAnnotation] == nil {
-		// If the node does not have the message annotation, add it.
-		node.Annotations[entproto.MessageAnnotation] = entproto.Message()
-		fieldID := 1
-		if node.ID.Annotations == nil {
-			node.ID.Annotations = make(map[string]interface{}, 1)
-		}
-		node.ID.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
-		sort.Slice(node.Fields, func(i, j int) bool {
-			if node.Fields[i].Position.MixedIn != node.Fields[j].Position.MixedIn {
-				// MixedIn fields should be at the end of the list.
-				return !node.Fields[i].Position.MixedIn
-			}
-			return node.Fields[i].Position.Index < node.Fields[j].Position.Index
-		})
+	if node.Annotations[entproto.MessageAnnotation] != nil {
+		return
+	}
 
-		for j := 0; j < len(node.Fields); j++ {
-			fd := node.Fields[j]
-			if fd.Annotations == nil {
-				fd.Annotations = make(map[string]interface{}, 1)
+	maxExistNum := 0
+	existNums := map[int]struct{}{}
+	for _, fd := range node.Fields {
+		if fd.Annotations != nil {
+			if obj, exist := fd.Annotations[entproto.FieldAnnotation]; exist {
+				if dict, ok := obj.(map[string]interface{}); ok {
+					if num, hasNum := dict["Number"]; hasNum {
+						if numInt, err := convertToInt(num); err == nil {
+							existNums[numInt] = struct{}{}
+							if numInt > maxExistNum {
+								maxExistNum = numInt
+							}
+						}
+					}
+				}
 			}
-			fieldID++
-			if fd.IsEnum() {
-				fixEnumType(fd, enumUseRawType)
-			}
-			fd.Type.Type = fixFieldType(fd, timeUseProtoType)
-			fd.Annotations[entproto.FieldAnnotation] = entproto.Field(fieldID)
-			if fd.Optional && ignoreOptional {
-				fd.Optional = false
-			}
+		}
+	}
+
+	idGenerator := &fileIDGenerator{exist: existNums}
+
+	// If the node does not have the message annotation, add it.
+	node.Annotations[entproto.MessageAnnotation] = entproto.Message()
+	if node.ID.Annotations == nil {
+		node.ID.Annotations = make(map[string]interface{}, 1)
+	}
+	node.ID.Annotations[entproto.FieldAnnotation] = entproto.Field(idGenerator.MustNext())
+	sort.Slice(node.Fields, func(i, j int) bool {
+		if node.Fields[i].Position.MixedIn != node.Fields[j].Position.MixedIn {
+			// MixedIn fields should be at the end of the list.
+			return !node.Fields[i].Position.MixedIn
+		}
+		return node.Fields[i].Position.Index < node.Fields[j].Position.Index
+	})
+
+	for j := 0; j < len(node.Fields); j++ {
+		fd := node.Fields[j]
+		if fd.Annotations == nil {
+			fd.Annotations = make(map[string]interface{}, 1)
+		}
+		if fd.IsEnum() {
+			fixEnumType(fd, enumUseRawType)
+		}
+		if fd.Annotations[entproto.FieldAnnotation] != nil {
+			continue
+		}
+		fd.Type.Type = fixFieldType(fd, timeUseProtoType)
+		fd.Annotations[entproto.FieldAnnotation] = entproto.Field(idGenerator.MustNext())
+		if fd.Optional && ignoreOptional {
+			fd.Optional = false
 		}
 	}
 }
@@ -195,4 +221,47 @@ var buildInTypeSlice = map[string]struct{}{
 	"[]float64": {},
 	"[]string":  {},
 	"[]bool":    {},
+}
+
+type fileIDGenerator struct {
+	current int
+	exist   map[int]struct{}
+}
+
+func (f *fileIDGenerator) Next() (int, error) {
+	f.current++
+	for {
+		if _, ok := f.exist[f.current]; ok {
+			f.current++
+			continue
+		}
+		if f.current > 536870911 {
+			return 0, fmt.Errorf("entproto: field number exceed the maximum value 536870911")
+		}
+		break
+	}
+	return f.current, nil
+}
+
+func (f *fileIDGenerator) MustNext() int {
+	num, err := f.Next()
+	if err != nil {
+		panic(err)
+	}
+	return num
+}
+
+func convertToInt(val any) (int, error) {
+	switch v := val.(type) {
+	case int:
+		return v, nil
+	case float64:
+		return int(v), nil
+	case float32:
+		return int(v), nil
+	case string:
+		return strconv.Atoi(v)
+	default:
+		return 0, fmt.Errorf("entproto: unable to convert %v to int", val)
+	}
 }
