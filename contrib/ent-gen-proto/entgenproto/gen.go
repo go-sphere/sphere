@@ -4,7 +4,6 @@ import (
 	"entgo.io/contrib/entproto"
 	"entgo.io/ent/entc"
 	"entgo.io/ent/entc/gen"
-	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/field"
 	"fmt"
 	"github.com/mitchellh/mapstructure"
@@ -14,19 +13,6 @@ import (
 	"sort"
 	_ "unsafe"
 )
-
-const FieldAnnotationIgnoreProto = "IgnoreProtoField"
-
-type ignoreProtoField struct {
-}
-
-func (ignoreProtoField) Name() string {
-	return FieldAnnotationIgnoreProto
-}
-
-func IgnoreProtoField() schema.Annotation {
-	return ignoreProtoField{}
-}
 
 //go:linkname generate entgo.io/contrib/entproto.(*Extension).generate
 func generate(extension *entproto.Extension, g *gen.Graph) error
@@ -127,7 +113,7 @@ func addAnnotationForNode(node *gen.Type, options *Options) {
 		if fd.Annotations[entproto.FieldAnnotation] != nil {
 			continue
 		}
-		if fd.Annotations[FieldAnnotationIgnoreProto] != nil {
+		if fd.Annotations[entproto.SkipAnnotation] != nil {
 			removeFields = append(removeFields, j)
 			continue
 		}
