@@ -7,11 +7,11 @@ import (
 	"entgo.io/ent/schema/field"
 	"flag"
 	"fmt"
+	"github.com/mitchellh/mapstructure"
 	"log"
 	"path/filepath"
 	"reflect"
 	"sort"
-	"strconv"
 	_ "unsafe"
 )
 
@@ -78,15 +78,16 @@ func addAnnotationForNode(node *gen.Type, enumUseRawType bool, ignoreOptional bo
 	for _, fd := range node.Fields {
 		if fd.Annotations != nil {
 			if obj, exist := fd.Annotations[entproto.FieldAnnotation]; exist {
-				if dict, ok := obj.(map[string]interface{}); ok {
-					if num, hasNum := dict["Number"]; hasNum {
-						if numInt, err := convertToInt(num); err == nil {
-							existNums[numInt] = struct{}{}
-							if numInt > maxExistNum {
-								maxExistNum = numInt
-							}
-						}
-					}
+				pbField := struct {
+					Number int
+				}{}
+				err := mapstructure.Decode(obj, &pbField)
+				if err != nil {
+					log.Fatalf("entproto: failed decoding field annotation: %v", err)
+				}
+				existNums[pbField.Number] = struct{}{}
+				if pbField.Number > maxExistNum {
+					maxExistNum = pbField.Number
 				}
 			}
 		}
@@ -249,19 +250,4 @@ func (f *fileIDGenerator) MustNext() int {
 		panic(err)
 	}
 	return num
-}
-
-func convertToInt(val any) (int, error) {
-	switch v := val.(type) {
-	case int:
-		return v, nil
-	case float64:
-		return int(v), nil
-	case float32:
-		return int(v), nil
-	case string:
-		return strconv.Atoi(v)
-	default:
-		return 0, fmt.Errorf("entproto: unable to convert %v to int", val)
-	}
 }
