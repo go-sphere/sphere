@@ -21,6 +21,7 @@ type Options struct {
 	AllFieldsRequired bool
 	AutoAddAnnotation bool
 	EnumUseRawType    bool
+	SkipUnsupported   bool
 
 	TimeProtoType        string
 	UUIDProtoType        string
@@ -103,14 +104,24 @@ func addAnnotationForField(fd *gen.Field, idGenerator *fieldIDGenerator, options
 		fixEnumType(fd, options.EnumUseRawType)
 	case field.TypeJSON:
 		if _, ok := entprotoSupportJSONType[fd.Type.RType.Ident]; !ok {
-			nt, opts := fixUnsupportedType(fd.Type.Type, options.UnsupportedProtoType)
+			if options.SkipUnsupported {
+				fd.Annotations[entproto.SkipAnnotation] = entproto.Skip()
+				return
+			} else {
+				nt, opts := fixUnsupportedType(options.UnsupportedProtoType)
+				fd.Type.Type = nt
+				fieldOptions = append(fieldOptions, opts...)
+			}
+		}
+	case field.TypeOther:
+		if options.SkipUnsupported {
+			fd.Annotations[entproto.SkipAnnotation] = entproto.Skip()
+			return
+		} else {
+			nt, opts := fixUnsupportedType(options.UnsupportedProtoType)
 			fd.Type.Type = nt
 			fieldOptions = append(fieldOptions, opts...)
 		}
-	case field.TypeOther:
-		nt, opts := fixUnsupportedType(fd.Type.Type, options.UnsupportedProtoType)
-		fd.Type.Type = nt
-		fieldOptions = append(fieldOptions, opts...)
 	case field.TypeTime:
 		switch options.TimeProtoType {
 		case "int64":
@@ -136,24 +147,16 @@ func addAnnotationForField(fd *gen.Field, idGenerator *fieldIDGenerator, options
 	}
 }
 
-func fixUnsupportedType(t field.Type, unsupportedProtoType string) (field.Type, []entproto.FieldOption) {
+func fixUnsupportedType(unsupportedProtoType string) (field.Type, []entproto.FieldOption) {
 	switch unsupportedProtoType {
-	case "google.protobuf.Any":
-		return field.TypeJSON, []entproto.FieldOption{
-			entproto.Type(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
-			entproto.TypeName("google.protobuf.Any"),
-		}
-	case "google.protobuf.Struct":
-		return field.TypeJSON, []entproto.FieldOption{
-			entproto.Type(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
-			entproto.TypeName("google.protobuf.Struct"),
-		}
 	case "bytes":
 		return field.TypeBytes, nil
 	default:
-		break
+		return field.TypeJSON, []entproto.FieldOption{
+			entproto.Type(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+			entproto.TypeName(unsupportedProtoType),
+		}
 	}
-	return t, nil
 }
 
 func fixEnumType(fd *gen.Field, enumUseRawType bool) {
