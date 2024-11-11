@@ -107,7 +107,7 @@ func addAnnotationForField(fd *gen.Field, idGenerator *fieldIDGenerator, options
 			fd.Type.Type = nt
 			fieldOptions = append(fieldOptions, opts...)
 		}
-	case field.TypeInvalid:
+	case field.TypeOther:
 		nt, opts := fixUnsupportedType(fd.Type.Type, options.UnsupportedProtoType)
 		fd.Type.Type = nt
 		fieldOptions = append(fieldOptions, opts...)
@@ -139,12 +139,12 @@ func addAnnotationForField(fd *gen.Field, idGenerator *fieldIDGenerator, options
 func fixUnsupportedType(t field.Type, unsupportedProtoType string) (field.Type, []entproto.FieldOption) {
 	switch unsupportedProtoType {
 	case "google.protobuf.Any":
-		return t, []entproto.FieldOption{
+		return field.TypeJSON, []entproto.FieldOption{
 			entproto.Type(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
 			entproto.TypeName("google.protobuf.Any"),
 		}
 	case "google.protobuf.Struct":
-		return t, []entproto.FieldOption{
+		return field.TypeJSON, []entproto.FieldOption{
 			entproto.Type(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
 			entproto.TypeName("google.protobuf.Struct"),
 		}
