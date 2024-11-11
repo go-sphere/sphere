@@ -9,17 +9,10 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"log"
-	"path/filepath"
 	"reflect"
 	"sort"
 	_ "unsafe"
 )
-
-//go:linkname generate entgo.io/contrib/entproto.(*Extension).generate
-func generate(extension *entproto.Extension, g *gen.Graph) error
-
-//go:linkname wktsPaths entgo.io/contrib/entproto.wktsPaths
-var wktsPaths map[string]string
 
 type Options struct {
 	SchemaPath string
@@ -42,14 +35,13 @@ type ProtoPackage struct {
 	Types []string
 }
 
+//go:linkname generate entgo.io/contrib/entproto.(*Extension).generate
+func generate(extension *entproto.Extension, g *gen.Graph) error
+
 func Generate(options *Options) {
 	injectProtoPackages(options.ProtoPackages)
-	abs, err := filepath.Abs(options.SchemaPath)
-	if err != nil {
-		log.Fatalf("entproto: failed getting absolute path: %v", err)
-	}
 	graph, err := entc.LoadGraph(options.SchemaPath, &gen.Config{
-		Target: filepath.Dir(abs),
+		Target: options.SchemaPath,
 	})
 	if err != nil {
 		log.Fatalf("entproto: failed loading ent graph: %v", err)
@@ -81,7 +73,7 @@ func addAnnotationForNode(node *gen.Type, options *Options) {
 	}
 	// If the node does not have the message annotation, add it.
 	node.Annotations[entproto.MessageAnnotation] = entproto.Message()
-	idGenerator := &fileIDGenerator{exist: extractExistFieldID(node)}
+	idGenerator := &fieldIDGenerator{exist: extractExistFieldID(node)}
 	sort.Slice(node.Fields, func(i, j int) bool {
 		if node.Fields[i].Position.MixedIn != node.Fields[j].Position.MixedIn {
 			// MixedIn fields should be at the end of the list.
@@ -95,7 +87,7 @@ func addAnnotationForNode(node *gen.Type, options *Options) {
 	}
 }
 
-func addAnnotationForField(fd *gen.Field, idGenerator *fileIDGenerator, options *Options) {
+func addAnnotationForField(fd *gen.Field, idGenerator *fieldIDGenerator, options *Options) {
 	if fd.Annotations == nil {
 		fd.Annotations = make(map[string]interface{}, 1)
 	}
@@ -111,12 +103,12 @@ func addAnnotationForField(fd *gen.Field, idGenerator *fileIDGenerator, options 
 		fixEnumType(fd, options.EnumUseRawType)
 	case field.TypeJSON:
 		if _, ok := entprotoSupportJSONType[fd.Type.RType.Ident]; !ok {
-			nt, opts := fixUnsupportedType(fd.Type.Type, options)
+			nt, opts := fixUnsupportedType(fd.Type.Type, options.UnsupportedProtoType)
 			fd.Type.Type = nt
 			fieldOptions = append(fieldOptions, opts...)
 		}
 	case field.TypeInvalid:
-		nt, opts := fixUnsupportedType(fd.Type.Type, options)
+		nt, opts := fixUnsupportedType(fd.Type.Type, options.UnsupportedProtoType)
 		fd.Type.Type = nt
 		fieldOptions = append(fieldOptions, opts...)
 	case field.TypeTime:
@@ -144,8 +136,8 @@ func addAnnotationForField(fd *gen.Field, idGenerator *fileIDGenerator, options 
 	}
 }
 
-func fixUnsupportedType(t field.Type, options *Options) (field.Type, []entproto.FieldOption) {
-	switch options.UnsupportedProtoType {
+func fixUnsupportedType(t field.Type, unsupportedProtoType string) (field.Type, []entproto.FieldOption) {
+	switch unsupportedProtoType {
 	case "google.protobuf.Any":
 		return t, []entproto.FieldOption{
 			entproto.Type(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
@@ -165,6 +157,9 @@ func fixUnsupportedType(t field.Type, options *Options) (field.Type, []entproto.
 }
 
 func fixEnumType(fd *gen.Field, enumUseRawType bool) {
+	if fd.Annotations[entproto.EnumAnnotation] != nil {
+		return
+	}
 	if enumUseRawType {
 		if fd.HasGoType() {
 			fd.Type.Type = reflectKind2FieldType[fd.Type.RType.Kind]
@@ -241,12 +236,12 @@ var entprotoSupportJSONType = map[string]struct{}{
 	"[]string": {},
 }
 
-type fileIDGenerator struct {
+type fieldIDGenerator struct {
 	current int
 	exist   map[int]struct{}
 }
 
-func (f *fileIDGenerator) Next() (int, error) {
+func (f *fieldIDGenerator) Next() (int, error) {
 	f.current++
 	for {
 		if _, ok := f.exist[f.current]; ok {
@@ -261,13 +256,16 @@ func (f *fileIDGenerator) Next() (int, error) {
 	return f.current, nil
 }
 
-func (f *fileIDGenerator) MustNext() int {
+func (f *fieldIDGenerator) MustNext() int {
 	num, err := f.Next()
 	if err != nil {
 		panic(err)
 	}
 	return num
 }
+
+//go:linkname wktsPaths entgo.io/contrib/entproto.wktsPaths
+var wktsPaths map[string]string
 
 func injectProtoPackages(pkg []ProtoPackage) {
 	wktsPaths["google.protobuf.Any"] = "google/protobuf/any.proto"

@@ -19,7 +19,7 @@ func main() {
 		autoAddAnnotation = flag.Bool("auto_annotation", true, "auto add annotation to the schema")
 		enumUseRawType    = flag.Bool("enum_raw_type", true, "use string for enum")
 
-		importProto = flag.String("import_proto", "google/protobuf/any.proto,google.protobuf,Any;", "import proto, format: path,package,type1,type2;")
+		importProto = flag.String("import_proto", "google/protobuf/any.proto,google.protobuf,Any;", "import proto, format: path1,package1,type1,type2;path2,package2,type3,type4;")
 
 		help = flag.Bool("help", false, "show help")
 	)
