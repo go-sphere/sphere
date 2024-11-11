@@ -22,19 +22,28 @@ func generate(extension *entproto.Extension, g *gen.Graph) error
 var wktsPaths map[string]string
 
 type Options struct {
-	SchemaPath             string
-	ProtoDir               string
-	AllFieldsRequired      bool
-	IgnoreUnsupportedJson  bool
-	IgnoreUnsupportedType  bool
-	UsageAnyForUnsupported bool
-	AutoAddAnnotation      bool
-	EnumUseRawType         bool
-	TimeUseProtoType       string
+	SchemaPath string
+	ProtoDir   string
+
+	AllFieldsRequired bool
+	AutoAddAnnotation bool
+	EnumUseRawType    bool
+
+	TimeProtoType        string
+	UUIDProtoType        string
+	UnsupportedProtoType string
+
+	ProtoPackages []ProtoPackage
+}
+
+type ProtoPackage struct {
+	Path  string
+	Pkg   string
+	Types []string
 }
 
 func Generate(options *Options) {
-	injectGoogleProtobufAny()
+	injectProtoPackages(options.ProtoPackages)
 	abs, err := filepath.Abs(options.SchemaPath)
 	if err != nil {
 		log.Fatalf("entproto: failed getting absolute path: %v", err)
@@ -70,7 +79,108 @@ func addAnnotationForNode(node *gen.Type, options *Options) {
 	if node.Annotations[entproto.MessageAnnotation] != nil {
 		return
 	}
+	// If the node does not have the message annotation, add it.
+	node.Annotations[entproto.MessageAnnotation] = entproto.Message()
+	idGenerator := &fileIDGenerator{exist: extractExistFieldID(node)}
+	sort.Slice(node.Fields, func(i, j int) bool {
+		if node.Fields[i].Position.MixedIn != node.Fields[j].Position.MixedIn {
+			// MixedIn fields should be at the end of the list.
+			return !node.Fields[i].Position.MixedIn
+		}
+		return node.Fields[i].Position.Index < node.Fields[j].Position.Index
+	})
+	addAnnotationForField(node.ID, idGenerator, options)
+	for j := 0; j < len(node.Fields); j++ {
+		addAnnotationForField(node.Fields[j], idGenerator, options)
+	}
+}
 
+func addAnnotationForField(fd *gen.Field, idGenerator *fileIDGenerator, options *Options) {
+	if fd.Annotations == nil {
+		fd.Annotations = make(map[string]interface{}, 1)
+	}
+	if fd.Annotations[entproto.FieldAnnotation] != nil {
+		return
+	}
+	if fd.Annotations[entproto.SkipAnnotation] != nil {
+		return
+	}
+	var fieldOptions []entproto.FieldOption
+	switch fd.Type.Type {
+	case field.TypeEnum:
+		fixEnumType(fd, options.EnumUseRawType)
+	case field.TypeJSON:
+		if _, ok := entprotoSupportJSONType[fd.Type.RType.Ident]; !ok {
+			nt, opts := fixUnsupportedType(fd.Type.Type, options)
+			fd.Type.Type = nt
+			fieldOptions = append(fieldOptions, opts...)
+		}
+	case field.TypeInvalid:
+		nt, opts := fixUnsupportedType(fd.Type.Type, options)
+		fd.Type.Type = nt
+		fieldOptions = append(fieldOptions, opts...)
+	case field.TypeTime:
+		switch options.TimeProtoType {
+		case "int64":
+			fd.Type.Type = field.TypeInt64
+		case "string":
+			fd.Type.Type = field.TypeString
+		default:
+			break
+		}
+	case field.TypeUUID:
+		switch options.UUIDProtoType {
+		case "string":
+			fd.Type.Type = field.TypeString
+		default:
+			break
+		}
+	default:
+		break
+	}
+	fd.Annotations[entproto.FieldAnnotation] = entproto.Field(idGenerator.MustNext(), fieldOptions...)
+	if fd.Optional && options.AllFieldsRequired {
+		fd.Optional = false
+	}
+}
+
+func fixUnsupportedType(t field.Type, options *Options) (field.Type, []entproto.FieldOption) {
+	switch options.UnsupportedProtoType {
+	case "google.protobuf.Any":
+		return t, []entproto.FieldOption{
+			entproto.Type(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+			entproto.TypeName("google.protobuf.Any"),
+		}
+	case "google.protobuf.Struct":
+		return t, []entproto.FieldOption{
+			entproto.Type(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+			entproto.TypeName("google.protobuf.Struct"),
+		}
+	case "bytes":
+		return field.TypeBytes, nil
+	default:
+		break
+	}
+	return t, nil
+}
+
+func fixEnumType(fd *gen.Field, enumUseRawType bool) {
+	if enumUseRawType {
+		if fd.HasGoType() {
+			fd.Type.Type = reflectKind2FieldType[fd.Type.RType.Kind]
+		} else {
+			fd.Type.Type = field.TypeString
+		}
+	} else {
+		enums := make(map[string]int32, len(fd.Enums))
+		for index, enum := range fd.Enums {
+			enums[enum.Value] = int32(index) + 1
+		}
+		fd.Annotations[entproto.EnumAnnotation] = entproto.Enum(enums, entproto.OmitFieldPrefix())
+	}
+}
+
+func extractExistFieldID(node *gen.Type) map[int]struct{} {
 	maxExistNum := 0
 	existNums := map[int]struct{}{}
 	for _, fd := range node.Fields {
@@ -90,120 +200,7 @@ func addAnnotationForNode(node *gen.Type, options *Options) {
 			}
 		}
 	}
-
-	idGenerator := &fileIDGenerator{exist: existNums}
-
-	// If the node does not have the message annotation, add it.
-	node.Annotations[entproto.MessageAnnotation] = entproto.Message()
-	if node.ID.Annotations == nil {
-		node.ID.Annotations = make(map[string]interface{}, 1)
-	}
-	node.ID.Annotations[entproto.FieldAnnotation] = entproto.Field(idGenerator.MustNext())
-	sort.Slice(node.Fields, func(i, j int) bool {
-		if node.Fields[i].Position.MixedIn != node.Fields[j].Position.MixedIn {
-			// MixedIn fields should be at the end of the list.
-			return !node.Fields[i].Position.MixedIn
-		}
-		return node.Fields[i].Position.Index < node.Fields[j].Position.Index
-	})
-
-	removeFields := make([]int, 0)
-	for j := 0; j < len(node.Fields); j++ {
-		fd := node.Fields[j]
-		if fd.Annotations == nil {
-			fd.Annotations = make(map[string]interface{}, 1)
-		}
-		if fd.IsEnum() {
-			fixEnumType(fd, options.EnumUseRawType)
-		}
-		if fd.Annotations[entproto.FieldAnnotation] != nil {
-			continue
-		}
-		if fd.Annotations[entproto.SkipAnnotation] != nil {
-			removeFields = append(removeFields, j)
-			continue
-		}
-		if options.IgnoreUnsupportedType && (fd.Type.Type == field.TypeOther || fd.Type.Type == field.TypeInvalid) {
-			removeFields = append(removeFields, j)
-			continue
-		}
-		newType := fixFieldType(fd, options)
-		if fd.Type.Type == field.TypeJSON && newType == field.TypeBytes {
-			if options.UsageAnyForUnsupported {
-				newType = field.TypeJSON
-			} else if options.IgnoreUnsupportedJson {
-				removeFields = append(removeFields, j)
-			}
-		}
-		fd.Type.Type = newType
-		var fieldOptions []entproto.FieldOption
-		if fd.Type.Type == field.TypeJSON || fd.Type.Type == field.TypeOther || fd.Type.Type == field.TypeInvalid {
-			if _, exist := buildInTypeSlice[fd.Type.RType.Ident]; !exist {
-				fieldOptions = append(fieldOptions,
-					entproto.Type(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
-					entproto.TypeName("google.protobuf.Any"),
-				)
-			}
-		}
-		fd.Annotations[entproto.FieldAnnotation] = entproto.Field(idGenerator.MustNext(), fieldOptions...)
-		if fd.Optional && options.AllFieldsRequired {
-			fd.Optional = false
-		}
-	}
-	for i := len(removeFields) - 1; i >= 0; i-- {
-		node.Fields = append(node.Fields[:removeFields[i]], node.Fields[removeFields[i]+1:]...)
-	}
-}
-
-func fixEnumType(fd *gen.Field, enumUseRawType bool) {
-	if enumUseRawType {
-		if fd.HasGoType() {
-			fd.Type.Type = reflectKind2FieldType[fd.Type.RType.Kind]
-		} else {
-			fd.Type.Type = field.TypeString
-		}
-	} else {
-		enums := make(map[string]int32, len(fd.Enums))
-		for index, enum := range fd.Enums {
-			enums[enum.Value] = int32(index) + 1
-		}
-		fd.Annotations[entproto.EnumAnnotation] = entproto.Enum(enums, entproto.OmitFieldPrefix())
-	}
-}
-
-func fixFieldType(fd *gen.Field, options *Options) field.Type {
-	switch fd.Type.Type {
-	case field.TypeOther, field.TypeInvalid:
-		// unsupported type will be converted to bytes
-		return field.TypeBytes
-	case field.TypeJSON:
-		if fd.HasGoType() {
-			switch fd.Type.RType.Kind {
-			case reflect.Slice:
-				// support for built-in types slice only
-				if _, ok := buildInTypeSlice[fd.Type.RType.Ident]; ok {
-					return field.TypeJSON
-				}
-				return field.TypeBytes
-			default:
-				return field.TypeBytes
-			}
-		}
-		return field.TypeBytes
-	case field.TypeUUID:
-		return field.TypeString
-	case field.TypeTime:
-		switch options.TimeUseProtoType {
-		case "int64":
-			return field.TypeInt64
-		case "string":
-			return field.TypeString
-		default:
-			return field.TypeTime
-		}
-	default:
-		return fd.Type.Type
-	}
+	return existNums
 }
 
 var reflectKind2FieldType = map[reflect.Kind]field.Type{
@@ -235,21 +232,13 @@ var reflectKind2FieldType = map[reflect.Kind]field.Type{
 	reflect.UnsafePointer: field.TypeOther,
 }
 
-var buildInTypeSlice = map[string]struct{}{
-	"[]int":     {},
-	"[]int8":    {},
-	"[]int16":   {},
-	"[]int32":   {},
-	"[]int64":   {},
-	"[]uint":    {},
-	"[]uint8":   {},
-	"[]uint16":  {},
-	"[]uint32":  {},
-	"[]uint64":  {},
-	"[]float32": {},
-	"[]float64": {},
-	"[]string":  {},
-	"[]bool":    {},
+// entprotoSupportJSONType entgo.io/contrib/entproto.extractJSONDetails
+var entprotoSupportJSONType = map[string]struct{}{
+	"[]int32":  {},
+	"[]int64":  {},
+	"[]uint32": {},
+	"[]uint64": {},
+	"[]string": {},
 }
 
 type fileIDGenerator struct {
@@ -280,6 +269,12 @@ func (f *fileIDGenerator) MustNext() int {
 	return num
 }
 
-func injectGoogleProtobufAny() {
+func injectProtoPackages(pkg []ProtoPackage) {
 	wktsPaths["google.protobuf.Any"] = "google/protobuf/any.proto"
+	wktsPaths["google.protobuf.Struct"] = "google/protobuf/struct.proto"
+	for _, p := range pkg {
+		for _, t := range p.Types {
+			wktsPaths[p.Pkg+"."+t] = p.Path
+		}
+	}
 }
