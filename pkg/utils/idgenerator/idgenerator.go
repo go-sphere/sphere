@@ -9,7 +9,6 @@ import (
 
 func init() {
 	workerIDRaw := os.Getenv("WORKER_ID")
-	workerIDRaw := os.Getenv("WORKER_ID")
 	workerID, err := strconv.ParseUint(workerIDRaw, 10, 16)
 	if err != nil || workerID == 0 {
 		workerID = 1
