@@ -9,15 +9,21 @@ import (
 	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
 	"github.com/tbxark/sphere/pkg/server/statuserr"
 	"github.com/tbxark/sphere/pkg/storage"
+	"net/url"
 	"strconv"
 	"strings"
 )
 
 var _ apiv1.UserServiceHTTPServer = (*Service)(nil)
 
+var wechatAvatarDomains = map[string]struct{}{
+	"thirdwx.qlogo.cn": {},
+}
+
 const RemoteImageMaxSize = 1024 * 1024 * 2
 
 var ErrImageSizeExceed = fmt.Errorf("image size exceed")
+var ErrImageHostNotAllowed = fmt.Errorf("image host not allowed")
 
 func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMiniRequest) (*apiv1.BindPhoneWxMiniResponse, error) {
 	userId, err := s.GetCurrentID(ctx)
@@ -87,20 +93,31 @@ func (s *Service) Update(ctx context.Context, req *apiv1.UpdateRequest) (*apiv1.
 	}, nil
 }
 
-func (s *Service) uploadRemoteImage(ctx context.Context, url string) (string, error) {
-	key := s.Storage.ExtractKeyFromURL(url)
-	if key == "" {
+func (s *Service) uploadRemoteImage(ctx context.Context, uri string) (string, error) {
+	key, err := s.Storage.ExtractKeyFromURLWithMode(uri, false)
+	if key != "" && err == nil {
 		return key, nil
 	}
-	if !(strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://")) {
-		return key, nil
+	u, err := url.Parse(uri)
+	if err != nil {
+		return "", err
+	}
+	isValidHost := false
+	for domain := range wechatAvatarDomains {
+		if strings.HasSuffix(u.Host, domain) {
+			isValidHost = true
+			break
+		}
+	}
+	if !isValidHost {
+		return "", ErrImageHostNotAllowed
 	}
 	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return "", err
 	}
-	key = storage.DefaultKeyBuilder(strconv.Itoa(int(id)))(url, "user")
-	resp, err := s.httpClient.Get(url)
+	key = storage.DefaultKeyBuilder(strconv.Itoa(int(id)))(uri, "user")
+	resp, err := s.httpClient.Get(uri)
 	if err != nil {
 		return "", err
 	}
