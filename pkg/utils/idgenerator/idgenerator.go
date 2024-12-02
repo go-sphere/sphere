@@ -9,8 +9,9 @@ import (
 
 func init() {
 	workerIDRaw := os.Getenv("WORKER_ID")
-	workerID, _ := strconv.Atoi(workerIDRaw)
-	if workerID == 0 {
+	workerIDRaw := os.Getenv("WORKER_ID")
+	workerID, err := strconv.ParseUint(workerIDRaw, 10, 16)
+	if err != nil || workerID == 0 {
 		workerID = 1
 	}
 	options := idgen.NewIdGeneratorOptions(uint16(workerID))
