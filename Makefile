@@ -23,6 +23,7 @@ init: ## Init all dependencies
 	$(MAKE) install
 	$(MAKE) generate
 	buf dep update
+	go mod tidy
 
 .PHONY: install
 install: ## Install all dependencies
