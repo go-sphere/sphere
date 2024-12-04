@@ -60,7 +60,9 @@ func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, e
 		if err != nil {
 			return nil, err
 		}
-		result[key] = *val
+		if val != nil {
+			result[key] = *val
+		}
 	}
 	return result, nil
 }

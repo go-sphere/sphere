@@ -94,7 +94,7 @@ func (s *Service) Update(ctx context.Context, req *apiv1.UpdateRequest) (*apiv1.
 }
 
 func (s *Service) uploadRemoteImage(ctx context.Context, uri string) (string, error) {
-	key, err := s.Storage.ExtractKeyFromURLWithMode(uri, false)
+	key, err := s.Storage.ExtractKeyFromURLWithMode(uri, true)
 	if key != "" && err == nil {
 		return key, nil
 	}
