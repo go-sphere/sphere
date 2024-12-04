@@ -1,9 +1,10 @@
 package log
 
 import (
+	"sync"
+
 	"github.com/tbxark/sphere/pkg/log/logfields"
 	"go.uber.org/zap"
-	"sync"
 )
 
 // Logger is a contract for the logger
@@ -55,10 +56,14 @@ func Sync() error {
 }
 
 func DisableCaller() Logger {
+	mu.Lock()
+	defer mu.Unlock()
 	return &zapLogger{std.sugarLogger.WithOptions(zap.WithCaller(false))}
 }
 
 func ZapLogger() *zap.Logger {
+	mu.Lock()
+	defer mu.Unlock()
 	return std.sugarLogger.Desugar().WithOptions(zap.WithCaller(false))
 }
 
