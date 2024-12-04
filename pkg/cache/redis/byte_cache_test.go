@@ -100,7 +100,7 @@ func TestByteCache_MultiSet_MultiGet(t *testing.T) {
 	valMap := map[string][]byte{
 		"key1": []byte("value1"),
 		"key2": []byte("value2"),
-		"key3": []byte("value3"),
+		"key3": {0x00, 0x01, 0x02},
 	}
 
 	// Test MultiSet
@@ -121,8 +121,6 @@ func TestByteCache_MultiSet_MultiGet(t *testing.T) {
 			t.Errorf("MultiGet missing key %s", key)
 		} else if !bytes.Equal(got, expected) {
 			t.Errorf("MultiGet wrong value for key %s: got %v want %v", key, got, expected)
-		} else {
-			t.Logf("MultiGet key %s: got %v", key, string(got))
 		}
 	}
 	if _, ok := results["non_existent_key"]; ok {

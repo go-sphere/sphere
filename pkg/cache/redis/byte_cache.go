@@ -2,8 +2,13 @@ package redis
 
 import (
 	"context"
+	"fmt"
 	"github.com/redis/go-redis/v9"
 	"time"
+)
+
+var (
+	ErrorType = fmt.Errorf("type error")
 )
 
 type ByteCache struct {
@@ -48,7 +53,11 @@ func (c *ByteCache) MultiGet(ctx context.Context, keys []string) (map[string][]b
 	result := make(map[string][]byte)
 	for i, key := range keys {
 		if vals[i] != nil {
-			result[key] = []byte(vals[i].(string))
+			raw, ok := vals[i].(string)
+			if !ok {
+				return nil, ErrorType
+			}
+			result[key] = []byte(raw)
 		}
 	}
 	return result, nil
