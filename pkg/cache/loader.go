@@ -3,8 +3,14 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"golang.org/x/sync/singleflight"
 	"time"
+)
+
+var (
+	NotFound = fmt.Errorf("not found")
 )
 
 type Encoder interface {
@@ -31,6 +37,9 @@ func Load[T any, D Decoder](ctx context.Context, c ByteCache, d D, key string) (
 	data, err := c.Get(ctx, key)
 	if err != nil {
 		return nil, err
+	}
+	if data == nil {
+		return nil, NotFound
 	}
 	var value T
 	err = d.Unmarshal(*data, &value)
@@ -60,7 +69,7 @@ func LoadEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, d D, 
 		}
 		nErr = Save[T, E](ctx, c, e, key, nObj, expiration)
 		if nErr != nil {
-			return nil, nErr
+			return nObj, nErr
 		}
 		return nObj, nil
 	})
@@ -80,4 +89,8 @@ func SaveJson[T any](ctx context.Context, c ByteCache, key string, value *T, exp
 
 func LoadJsonEx[T any](ctx context.Context, c ByteCache, sf *singleflight.Group, key string, expiration time.Duration, builder func() (obj *T, err error)) (*T, error) {
 	return LoadEx[T, DecoderFunc, EncoderFunc](ctx, c, json.Unmarshal, json.Marshal, sf, key, expiration, builder)
+}
+
+func IsNotFound(err error) bool {
+	return errors.Is(err, NotFound)
 }
