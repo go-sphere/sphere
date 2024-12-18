@@ -7,7 +7,7 @@
 package dashv1
 
 import (
-	entpb "github.com/tbxark/sphere/api/entpb"
+	entpb "github.com/TBXark/sphere/api/entpb"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -275,7 +275,7 @@ type AdminUpdateRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id    int64      `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`  
+	Id    int64      `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`
 	Admin *AdminEdit `protobuf:"bytes,2,opt,name=admin,proto3" json:"admin,omitempty"`
 }
 
@@ -373,7 +373,7 @@ type AdminDetailRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`  
+	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`
 }
 
 func (x *AdminDetailRequest) Reset() {
@@ -463,7 +463,7 @@ type AdminDeleteRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`  
+	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`
 }
 
 func (x *AdminDeleteRequest) Reset() {

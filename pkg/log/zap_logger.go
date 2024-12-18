@@ -1,7 +1,7 @@
 package log
 
 import (
-	"github.com/tbxark/sphere/pkg/log/logfields"
+	"github.com/TBXark/sphere/pkg/log/logfields"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"

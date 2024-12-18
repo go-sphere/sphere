@@ -1,4 +1,4 @@
-module github.com/tbxark/sphere/contrib/protoc-gen-sphere
+module github.com/TBXark/sphere/contrib/protoc-gen-sphere
 
 go 1.23.2
 

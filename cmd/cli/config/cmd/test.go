@@ -3,9 +3,9 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/TBXark/sphere/internal/config"
+	"github.com/TBXark/sphere/pkg/log"
 	"github.com/spf13/cobra"
-	"github.com/tbxark/sphere/internal/config"
-	"github.com/tbxark/sphere/pkg/log"
 )
 
 // testCmd represents the test command

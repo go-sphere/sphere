@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/tbxark/sphere/internal/pkg/database/ent"
+	"github.com/TBXark/sphere/internal/pkg/database/ent"
 )
 
 // The AdminFunc type is an adapter to allow the use of ordinary

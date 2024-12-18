@@ -3,7 +3,7 @@ package log
 import (
 	"sync"
 
-	"github.com/tbxark/sphere/pkg/log/logfields"
+	"github.com/TBXark/sphere/pkg/log/logfields"
 	"go.uber.org/zap"
 )
 

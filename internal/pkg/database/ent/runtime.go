@@ -3,12 +3,12 @@
 package ent
 
 import (
-	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/keyvaluestore"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/schema"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/task"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/admin"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/keyvaluestore"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/schema"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/task"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/user"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/userplatform"
 )
 
 // The init function reads all schema descriptors with runtime code

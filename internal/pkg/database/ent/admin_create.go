@@ -10,7 +10,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/admin"
 )
 
 // AdminCreate is the builder for creating a Admin entity.

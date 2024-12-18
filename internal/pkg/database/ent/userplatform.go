@@ -8,7 +8,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/userplatform"
 )
 
 // UserPlatform is the model entity for the UserPlatform schema.

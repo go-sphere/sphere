@@ -2,10 +2,10 @@ package telegram
 
 import (
 	"context"
+	"github.com/TBXark/sphere/pkg/log"
+	"github.com/TBXark/sphere/pkg/log/logfields"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/tbxark/sphere/pkg/log"
-	"github.com/tbxark/sphere/pkg/log/logfields"
 	"strings"
 )
 

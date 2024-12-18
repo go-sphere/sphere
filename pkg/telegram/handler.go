@@ -2,9 +2,9 @@ package telegram
 
 import (
 	"context"
+	"github.com/TBXark/sphere/pkg/log"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/tbxark/sphere/pkg/log"
 	"golang.org/x/sync/singleflight"
 	"strconv"
 	"strings"

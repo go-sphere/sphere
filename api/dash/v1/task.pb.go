@@ -7,7 +7,7 @@
 package dashv1
 
 import (
-	entpb "github.com/tbxark/sphere/api/entpb"
+	entpb "github.com/TBXark/sphere/api/entpb"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -125,7 +125,7 @@ type TaskDetailRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`  
+	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"-" uri:"id"`
 }
 
 func (x *TaskDetailRequest) Reset() {

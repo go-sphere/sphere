@@ -1,8 +1,8 @@
 package render
 
 import (
-	"github.com/tbxark/sphere/internal/pkg/dao"
-	"github.com/tbxark/sphere/pkg/storage"
+	"github.com/TBXark/sphere/internal/pkg/dao"
+	"github.com/TBXark/sphere/pkg/storage"
 )
 
 type Render struct {

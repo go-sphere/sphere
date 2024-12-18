@@ -2,9 +2,9 @@ package dao
 
 import (
 	"context"
-	"github.com/tbxark/sphere/internal/pkg/database/ent"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
+	"github.com/TBXark/sphere/internal/pkg/database/ent"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/user"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/userplatform"
 )
 
 func (d *Dao) GetUsers(ctx context.Context, ids []int64) (map[int64]*ent.User, error) {

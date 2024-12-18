@@ -5,5 +5,5 @@ This is a tool to generate http server code from proto files. This code is based
 ## Installation
 
 ```shell
-go install github.com/tbxark/sphere/contrib/protoc-gen-sphere@latest
+go install github.com/TBXark/sphere/contrib/protoc-gen-sphere@latest
 ```

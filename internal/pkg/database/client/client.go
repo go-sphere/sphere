@@ -2,9 +2,9 @@ package client
 
 import (
 	"context"
+	"github.com/TBXark/sphere/internal/pkg/database/ent"
+	_ "github.com/TBXark/sphere/pkg/database/sqlite"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/tbxark/sphere/internal/pkg/database/ent"
-	_ "github.com/tbxark/sphere/pkg/database/sqlite"
 )
 
 type Config struct {

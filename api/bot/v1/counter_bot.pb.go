@@ -6,7 +6,7 @@ package botv1
 
 import (
 	context "context"
-	telegram "github.com/tbxark/sphere/pkg/telegram"
+	telegram "github.com/TBXark/sphere/pkg/telegram"
 )
 
 var _ = new(context.Context)

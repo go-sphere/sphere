@@ -3,8 +3,8 @@ package shared
 import (
 	"context"
 	"fmt"
-	sharedv1 "github.com/tbxark/sphere/api/shared/v1"
-	"github.com/tbxark/sphere/pkg/storage"
+	sharedv1 "github.com/TBXark/sphere/api/shared/v1"
+	"github.com/TBXark/sphere/pkg/storage"
 	"strconv"
 )
 

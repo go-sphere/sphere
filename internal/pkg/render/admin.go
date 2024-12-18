@@ -1,8 +1,8 @@
 package render
 
 import (
-	"github.com/tbxark/sphere/api/entpb"
-	"github.com/tbxark/sphere/internal/pkg/database/ent"
+	"github.com/TBXark/sphere/api/entpb"
+	"github.com/TBXark/sphere/internal/pkg/database/ent"
 )
 
 func (r *Render) AdminBase(a *ent.Admin) *entpb.Admin {

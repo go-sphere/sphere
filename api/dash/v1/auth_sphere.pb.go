@@ -9,7 +9,7 @@ import (
 	context "context"
 	protovalidate_go "github.com/bufbuild/protovalidate-go"
 	gin "github.com/gin-gonic/gin"
-	ginx "github.com/tbxark/sphere/pkg/server/ginx"
+	ginx "github.com/TBXark/sphere/pkg/server/ginx"
 )
 
 var _ = new(context.Context)

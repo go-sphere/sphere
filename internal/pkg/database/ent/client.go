@@ -9,16 +9,16 @@ import (
 	"log"
 	"reflect"
 
-	"github.com/tbxark/sphere/internal/pkg/database/ent/migrate"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/migrate"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/keyvaluestore"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/task"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/admin"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/keyvaluestore"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/task"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/user"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/userplatform"
 
 	stdsql "database/sql"
 )

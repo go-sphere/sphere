@@ -1,8 +1,8 @@
 package safe
 
 import (
-	"github.com/tbxark/sphere/pkg/log"
-	"github.com/tbxark/sphere/pkg/log/logfields"
+	"github.com/TBXark/sphere/pkg/log"
+	"github.com/TBXark/sphere/pkg/log/logfields"
 )
 
 func Go(id string, fn func()) {

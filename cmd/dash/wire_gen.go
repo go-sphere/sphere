@@ -7,16 +7,16 @@
 package main
 
 import (
-	"github.com/tbxark/sphere/internal/biz/task"
-	"github.com/tbxark/sphere/internal/config"
-	"github.com/tbxark/sphere/internal/pkg/dao"
-	"github.com/tbxark/sphere/internal/pkg/database/client"
-	dash2 "github.com/tbxark/sphere/internal/server/dash"
-	"github.com/tbxark/sphere/internal/service/dash"
-	"github.com/tbxark/sphere/pkg/cache/memory"
-	"github.com/tbxark/sphere/pkg/storage/qiniu"
-	"github.com/tbxark/sphere/pkg/utils/boot"
-	"github.com/tbxark/sphere/pkg/wechat"
+	"github.com/TBXark/sphere/internal/biz/task"
+	"github.com/TBXark/sphere/internal/config"
+	"github.com/TBXark/sphere/internal/pkg/dao"
+	"github.com/TBXark/sphere/internal/pkg/database/client"
+	dash2 "github.com/TBXark/sphere/internal/server/dash"
+	"github.com/TBXark/sphere/internal/service/dash"
+	"github.com/TBXark/sphere/pkg/cache/memory"
+	"github.com/TBXark/sphere/pkg/storage/qiniu"
+	"github.com/TBXark/sphere/pkg/utils/boot"
+	"github.com/TBXark/sphere/pkg/wechat"
 )
 
 // Injectors from wire.go:

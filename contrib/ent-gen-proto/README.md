@@ -7,5 +7,5 @@ Different from the [entproto](https://github.com/ent/contrib/tree/master/entprot
 ## Installation
 
 ```shell
-go install github.com/tbxark/sphere/contrib/ent-gen-proto@latest
+go install github.com/TBXark/sphere/contrib/ent-gen-proto@latest
 ```

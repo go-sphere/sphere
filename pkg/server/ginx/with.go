@@ -2,9 +2,9 @@ package ginx
 
 import (
 	"errors"
+	"github.com/TBXark/sphere/pkg/log"
+	"github.com/TBXark/sphere/pkg/log/logfields"
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/sphere/pkg/log"
-	"github.com/tbxark/sphere/pkg/log/logfields"
 	"net/http"
 )
 

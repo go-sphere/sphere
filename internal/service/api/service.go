@@ -1,12 +1,12 @@
 package api
 
 import (
-	"github.com/tbxark/sphere/internal/pkg/dao"
-	"github.com/tbxark/sphere/internal/pkg/render"
-	"github.com/tbxark/sphere/pkg/cache"
-	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
-	"github.com/tbxark/sphere/pkg/storage"
-	"github.com/tbxark/sphere/pkg/wechat"
+	"github.com/TBXark/sphere/internal/pkg/dao"
+	"github.com/TBXark/sphere/internal/pkg/render"
+	"github.com/TBXark/sphere/pkg/cache"
+	"github.com/TBXark/sphere/pkg/server/auth/authorizer"
+	"github.com/TBXark/sphere/pkg/storage"
+	"github.com/TBXark/sphere/pkg/wechat"
 	"net/http"
 	"time"
 )

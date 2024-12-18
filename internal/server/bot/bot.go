@@ -2,10 +2,10 @@ package bot
 
 import (
 	"context"
+	botv1 "github.com/TBXark/sphere/api/bot/v1"
+	service "github.com/TBXark/sphere/internal/service/bot"
+	"github.com/TBXark/sphere/pkg/telegram"
 	"github.com/go-telegram/bot"
-	botv1 "github.com/tbxark/sphere/api/bot/v1"
-	service "github.com/tbxark/sphere/internal/service/bot"
-	"github.com/tbxark/sphere/pkg/telegram"
 )
 
 type Config telegram.Config

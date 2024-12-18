@@ -3,12 +3,12 @@ package api
 import (
 	"context"
 	"fmt"
-	apiv1 "github.com/tbxark/sphere/api/api/v1"
-	"github.com/tbxark/sphere/internal/pkg/consts"
-	"github.com/tbxark/sphere/internal/pkg/dao"
-	"github.com/tbxark/sphere/internal/pkg/database/ent"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/userplatform"
-	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
+	apiv1 "github.com/TBXark/sphere/api/api/v1"
+	"github.com/TBXark/sphere/internal/pkg/consts"
+	"github.com/TBXark/sphere/internal/pkg/dao"
+	"github.com/TBXark/sphere/internal/pkg/database/ent"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/userplatform"
+	"github.com/TBXark/sphere/pkg/server/auth/authorizer"
 	"time"
 )
 

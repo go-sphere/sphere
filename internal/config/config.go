@@ -1,16 +1,16 @@
 package config
 
 import (
-	"github.com/tbxark/sphere/internal/pkg/database/client"
-	"github.com/tbxark/sphere/internal/server/api"
-	"github.com/tbxark/sphere/internal/server/bot"
-	"github.com/tbxark/sphere/internal/server/dash"
-	"github.com/tbxark/sphere/internal/server/docs"
-	"github.com/tbxark/sphere/pkg/log"
-	"github.com/tbxark/sphere/pkg/storage/qiniu"
-	"github.com/tbxark/sphere/pkg/utils/config/parser"
-	"github.com/tbxark/sphere/pkg/utils/secure"
-	"github.com/tbxark/sphere/pkg/wechat"
+	"github.com/TBXark/sphere/internal/pkg/database/client"
+	"github.com/TBXark/sphere/internal/server/api"
+	"github.com/TBXark/sphere/internal/server/bot"
+	"github.com/TBXark/sphere/internal/server/dash"
+	"github.com/TBXark/sphere/internal/server/docs"
+	"github.com/TBXark/sphere/pkg/log"
+	"github.com/TBXark/sphere/pkg/storage/qiniu"
+	"github.com/TBXark/sphere/pkg/utils/config/parser"
+	"github.com/TBXark/sphere/pkg/utils/secure"
+	"github.com/TBXark/sphere/pkg/wechat"
 )
 
 var BuildVersion = "dev"

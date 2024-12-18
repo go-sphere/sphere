@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"github.com/tbxark/sphere/contrib/ent-gen-proto/entgenproto"
+	"github.com/TBXark/sphere/contrib/ent-gen-proto/entgenproto"
 	"strings"
 )
 

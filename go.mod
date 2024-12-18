@@ -1,4 +1,4 @@
-module github.com/tbxark/sphere
+module github.com/TBXark/sphere
 
 go 1.23.2
 

@@ -1,9 +1,9 @@
 package docs
 
 import (
-	"github.com/tbxark/sphere/pkg/server/service/docs"
-	"github.com/tbxark/sphere/swagger/api"
-	"github.com/tbxark/sphere/swagger/dash"
+	"github.com/TBXark/sphere/pkg/server/service/docs"
+	"github.com/TBXark/sphere/swagger/api"
+	"github.com/TBXark/sphere/swagger/dash"
 )
 
 type Targets struct {

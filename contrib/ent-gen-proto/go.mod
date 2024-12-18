@@ -1,4 +1,4 @@
-module github.com/tbxark/sphere/contrib/ent-gen-proto
+module github.com/TBXark/sphere/contrib/ent-gen-proto
 
 go 1.23.2
 

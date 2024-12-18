@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/keyvaluestore"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/predicate"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/keyvaluestore"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/predicate"
 )
 
 // KeyValueStoreQuery is the builder for querying KeyValueStore entities.

@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/tbxark/sphere/internal/biz/task"
-	"github.com/tbxark/sphere/internal/pkg/app"
-	"github.com/tbxark/sphere/internal/server/api"
-	"github.com/tbxark/sphere/internal/server/dash"
-	"github.com/tbxark/sphere/internal/server/docs"
-	"github.com/tbxark/sphere/pkg/utils/boot"
+	"github.com/TBXark/sphere/internal/biz/task"
+	"github.com/TBXark/sphere/internal/pkg/app"
+	"github.com/TBXark/sphere/internal/server/api"
+	"github.com/TBXark/sphere/internal/server/dash"
+	"github.com/TBXark/sphere/internal/server/docs"
+	"github.com/TBXark/sphere/pkg/utils/boot"
 )
 
 func main() {

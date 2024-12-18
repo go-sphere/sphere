@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	apiv1 "github.com/tbxark/sphere/api/api/v1"
+	apiv1 "github.com/TBXark/sphere/api/api/v1"
 )
 
 var _ apiv1.SystemServiceHTTPServer = (*Service)(nil)

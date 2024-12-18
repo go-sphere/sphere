@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"github.com/TBXark/sphere/internal/config"
+	"github.com/TBXark/sphere/pkg/utils/config/parser"
 	"github.com/spf13/cobra"
-	"github.com/tbxark/sphere/internal/config"
-	"github.com/tbxark/sphere/pkg/utils/config/parser"
 	"log"
 	"os"
 )

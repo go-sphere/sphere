@@ -4,10 +4,10 @@ package cmd
 
 import (
 	"context"
-	"github.com/tbxark/sphere/internal/config"
-	"github.com/tbxark/sphere/pkg/log"
-	"github.com/tbxark/sphere/pkg/storage"
-	"github.com/tbxark/sphere/pkg/storage/qiniu"
+	"github.com/TBXark/sphere/internal/config"
+	"github.com/TBXark/sphere/pkg/log"
+	"github.com/TBXark/sphere/pkg/storage"
+	"github.com/TBXark/sphere/pkg/storage/qiniu"
 	"net/http"
 	"net/url"
 	"os"

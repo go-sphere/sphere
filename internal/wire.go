@@ -1,17 +1,17 @@
 package internal
 
 import (
+	"github.com/TBXark/sphere/internal/biz"
+	"github.com/TBXark/sphere/internal/config"
+	"github.com/TBXark/sphere/internal/pkg"
+	"github.com/TBXark/sphere/internal/server"
+	"github.com/TBXark/sphere/internal/service"
+	"github.com/TBXark/sphere/pkg/cache"
+	"github.com/TBXark/sphere/pkg/cache/memory"
+	"github.com/TBXark/sphere/pkg/storage"
+	"github.com/TBXark/sphere/pkg/storage/qiniu"
+	"github.com/TBXark/sphere/pkg/wechat"
 	"github.com/google/wire"
-	"github.com/tbxark/sphere/internal/biz"
-	"github.com/tbxark/sphere/internal/config"
-	"github.com/tbxark/sphere/internal/pkg"
-	"github.com/tbxark/sphere/internal/server"
-	"github.com/tbxark/sphere/internal/service"
-	"github.com/tbxark/sphere/pkg/cache"
-	"github.com/tbxark/sphere/pkg/cache/memory"
-	"github.com/tbxark/sphere/pkg/storage"
-	"github.com/tbxark/sphere/pkg/storage/qiniu"
-	"github.com/tbxark/sphere/pkg/wechat"
 )
 
 var cacheSet = wire.NewSet(

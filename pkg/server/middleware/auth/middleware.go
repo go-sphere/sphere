@@ -1,8 +1,8 @@
 package auth
 
 import (
+	"github.com/TBXark/sphere/pkg/server/auth/authorizer"
 	"github.com/gin-gonic/gin"
-	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
 	"net/http"
 	"strings"
 )

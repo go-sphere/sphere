@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/predicate"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/admin"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/predicate"
 )
 
 // AdminDelete is the builder for deleting a Admin entity.

@@ -2,8 +2,8 @@
 set -e 
 
 OLD_MODULE=$(go list -m)
-if [ "${OLD_MODULE}" != "github.com/tbxark/sphere" ]; then
-  echo "Current module is not github.com/tbxark/sphere, please run this script in the root of Sphere"
+if [ "${OLD_MODULE}" != "github.com/TBXark/sphere" ]; then
+  echo "Current module is not github.com/TBXark/sphere, please run this script in the root of Sphere"
   exit 1
 fi
 
@@ -26,7 +26,7 @@ go mod edit -module "${NEW_MODULE}"
 echo "Update buf.gen.yaml"
 sed -i '' "s,${OLD_MODULE}/api,${NEW_MODULE}/api,g" buf.gen.yaml
 
-go get github.com/tbxark/sphere@latest
+go get github.com/TBXark/sphere@latest
 go mod tidy
 
 make build

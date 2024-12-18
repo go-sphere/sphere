@@ -1,8 +1,8 @@
 package render
 
 import (
-	sharedv1 "github.com/tbxark/sphere/api/shared/v1"
-	"github.com/tbxark/sphere/internal/pkg/database/ent"
+	sharedv1 "github.com/TBXark/sphere/api/shared/v1"
+	"github.com/TBXark/sphere/internal/pkg/database/ent"
 )
 
 func (r *Render) Me(u *ent.User) *sharedv1.User {

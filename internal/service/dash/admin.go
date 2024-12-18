@@ -2,12 +2,12 @@ package dash
 
 import (
 	"context"
+	dashv1 "github.com/TBXark/sphere/api/dash/v1"
+	"github.com/TBXark/sphere/api/entpb"
+	"github.com/TBXark/sphere/internal/pkg/database/ent"
+	"github.com/TBXark/sphere/pkg/server/statuserr"
+	"github.com/TBXark/sphere/pkg/utils/secure"
 	"github.com/samber/lo"
-	dashv1 "github.com/tbxark/sphere/api/dash/v1"
-	"github.com/tbxark/sphere/api/entpb"
-	"github.com/tbxark/sphere/internal/pkg/database/ent"
-	"github.com/tbxark/sphere/pkg/server/statuserr"
-	"github.com/tbxark/sphere/pkg/utils/secure"
 )
 
 var _ dashv1.AdminServiceHTTPServer = (*Service)(nil)

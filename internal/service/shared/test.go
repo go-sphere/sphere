@@ -2,7 +2,7 @@ package shared
 
 import (
 	"context"
-	sharedv1 "github.com/tbxark/sphere/api/shared/v1"
+	sharedv1 "github.com/TBXark/sphere/api/shared/v1"
 )
 
 var _ sharedv1.TestServiceHTTPServer = (*Service)(nil)

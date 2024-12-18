@@ -3,8 +3,8 @@ package bot
 import (
 	"context"
 	"fmt"
-	botv1 "github.com/tbxark/sphere/api/bot/v1"
-	"github.com/tbxark/sphere/pkg/telegram"
+	botv1 "github.com/TBXark/sphere/api/bot/v1"
+	"github.com/TBXark/sphere/pkg/telegram"
 	"math/rand"
 )
 

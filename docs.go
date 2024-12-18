@@ -1,9 +1,9 @@
 package sphere
 
 import (
-	_ "github.com/tbxark/sphere/api/api/v1"
-	_ "github.com/tbxark/sphere/api/dash/v1"
-	_ "github.com/tbxark/sphere/api/shared/v1"
+	_ "github.com/TBXark/sphere/api/api/v1"
+	_ "github.com/TBXark/sphere/api/dash/v1"
+	_ "github.com/TBXark/sphere/api/shared/v1"
 )
 
 // DO NOT DELETE THIS FILE

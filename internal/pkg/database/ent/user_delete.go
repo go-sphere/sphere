@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/predicate"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/user"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/predicate"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/user"
 )
 
 // UserDelete is the builder for deleting a User entity.

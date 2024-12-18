@@ -23,13 +23,13 @@ var (
 
 	routerType    = flag.String("router_type", "github.com/gin-gonic/gin;IRouter", "router type")
 	contextType   = flag.String("context_type", "github.com/gin-gonic/gin;Context", "context type")
-	dataRespType  = flag.String("data_resp_type", "github.com/tbxark/sphere/pkg/server/ginx;DataResponse", "data response type, must support generic")
-	errorRespType = flag.String("error_resp_type", "github.com/tbxark/sphere/pkg/server/ginx;ErrorResponse", "error response type")
+	dataRespType  = flag.String("data_resp_type", "github.com/TBXark/sphere/pkg/server/ginx;DataResponse", "data response type, must support generic")
+	errorRespType = flag.String("error_resp_type", "github.com/TBXark/sphere/pkg/server/ginx;ErrorResponse", "error response type")
 
-	serverHandlerFunc = flag.String("server_handler_func", "github.com/tbxark/sphere/pkg/server/ginx;WithJson", "server handler func")
-	parseJsonFunc     = flag.String("parse_json_func", "github.com/tbxark/sphere/pkg/server/ginx;ShouldBindJSON", "parse json func")
-	parseUriFunc      = flag.String("parse_uri_func", "github.com/tbxark/sphere/pkg/server/ginx;ShouldBindUri", "parse uri func")
-	parseFormFunc     = flag.String("parse_form_func", "github.com/tbxark/sphere/pkg/server/ginx;ShouldBindQuery", "parse form func")
+	serverHandlerFunc = flag.String("server_handler_func", "github.com/TBXark/sphere/pkg/server/ginx;WithJson", "server handler func")
+	parseJsonFunc     = flag.String("parse_json_func", "github.com/TBXark/sphere/pkg/server/ginx;ShouldBindJSON", "parse json func")
+	parseUriFunc      = flag.String("parse_uri_func", "github.com/TBXark/sphere/pkg/server/ginx;ShouldBindUri", "parse uri func")
+	parseFormFunc     = flag.String("parse_form_func", "github.com/TBXark/sphere/pkg/server/ginx;ShouldBindQuery", "parse form func")
 )
 
 func main() {

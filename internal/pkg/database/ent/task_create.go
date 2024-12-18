@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/task"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/task"
 )
 
 // TaskCreate is the builder for creating a Task entity.

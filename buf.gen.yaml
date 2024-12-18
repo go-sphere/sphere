@@ -10,7 +10,7 @@ managed:
       module: buf.build/tbxark/options
   override:
     - file_option: go_package_prefix
-      value: github.com/tbxark/sphere/api
+      value: github.com/TBXark/sphere/api
 plugins:
   - local: protoc-gen-go
     out: api
@@ -21,10 +21,10 @@ plugins:
       - paths=source_relative
       - options_key=bot
       - gen_file_suffix=_bot.pb.go
-      - request_model=github.com/tbxark/sphere/pkg/telegram;Update
-      - response_model=github.com/tbxark/sphere/pkg/telegram;Message
-      - extra_data_model=github.com/tbxark/sphere/pkg/telegram;MethodExtraData
-      - extra_data_constructor=github.com/tbxark/sphere/pkg/telegram;NewMethodExtraData
+      - request_model=github.com/TBXark/sphere/pkg/telegram;Update
+      - response_model=github.com/TBXark/sphere/pkg/telegram;Message
+      - extra_data_model=github.com/TBXark/sphere/pkg/telegram;MethodExtraData
+      - extra_data_constructor=github.com/TBXark/sphere/pkg/telegram;NewMethodExtraData
   - local: protoc-gen-sphere
     out: api
     opt:

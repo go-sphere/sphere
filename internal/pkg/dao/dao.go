@@ -1,7 +1,7 @@
 package dao
 
 import (
-	"github.com/tbxark/sphere/internal/pkg/database/ent"
+	"github.com/TBXark/sphere/internal/pkg/database/ent"
 )
 
 type Dao struct {

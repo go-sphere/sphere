@@ -4,11 +4,11 @@ package cmd
 
 import (
 	"context"
+	"github.com/TBXark/sphere/internal/config"
+	"github.com/TBXark/sphere/pkg/log"
+	"github.com/TBXark/sphere/pkg/storage"
+	"github.com/TBXark/sphere/pkg/storage/qiniu"
 	"github.com/spf13/cobra"
-	"github.com/tbxark/sphere/internal/config"
-	"github.com/tbxark/sphere/pkg/log"
-	"github.com/tbxark/sphere/pkg/storage"
-	"github.com/tbxark/sphere/pkg/storage/qiniu"
 	"os"
 	"path/filepath"
 	"strings"

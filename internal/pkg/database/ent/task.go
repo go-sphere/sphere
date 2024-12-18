@@ -9,7 +9,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/task"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/task"
 )
 
 // Task is the model entity for the Task schema.

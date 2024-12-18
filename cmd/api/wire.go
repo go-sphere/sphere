@@ -4,10 +4,10 @@
 package main
 
 import (
+	"github.com/TBXark/sphere/internal"
+	"github.com/TBXark/sphere/internal/config"
+	"github.com/TBXark/sphere/pkg/utils/boot"
 	"github.com/google/wire"
-	"github.com/tbxark/sphere/internal"
-	"github.com/tbxark/sphere/internal/config"
-	"github.com/tbxark/sphere/pkg/utils/boot"
 )
 
 func NewAPIApplication(conf *config.Config) (*boot.Application, error) {

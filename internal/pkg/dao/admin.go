@@ -2,8 +2,8 @@ package dao
 
 import (
 	"context"
-	"github.com/tbxark/sphere/internal/pkg/database/ent"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
+	"github.com/TBXark/sphere/internal/pkg/database/ent"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/admin"
 )
 
 func (d *Dao) GetAdmins(ctx context.Context, ids []int64) (map[int64]*ent.Admin, error) {

@@ -7,10 +7,10 @@
 package main
 
 import (
-	"github.com/tbxark/sphere/internal/config"
-	bot2 "github.com/tbxark/sphere/internal/server/bot"
-	"github.com/tbxark/sphere/internal/service/bot"
-	"github.com/tbxark/sphere/pkg/utils/boot"
+	"github.com/TBXark/sphere/internal/config"
+	bot2 "github.com/TBXark/sphere/internal/server/bot"
+	"github.com/TBXark/sphere/internal/service/bot"
+	"github.com/TBXark/sphere/pkg/utils/boot"
 )
 
 // Injectors from wire.go:

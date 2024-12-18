@@ -2,8 +2,8 @@ package jwtauth
 
 import (
 	"encoding/json"
+	"github.com/TBXark/sphere/pkg/server/auth/authorizer"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
 	"testing"
 	"time"
 )

@@ -2,7 +2,7 @@ package bot
 
 import (
 	"context"
-	botv1 "github.com/tbxark/sphere/api/bot/v1"
+	botv1 "github.com/TBXark/sphere/api/bot/v1"
 )
 
 var _ botv1.CounterServiceBotServer = &Service{}

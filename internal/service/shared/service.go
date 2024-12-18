@@ -1,8 +1,8 @@
 package shared
 
 import (
-	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
-	"github.com/tbxark/sphere/pkg/storage"
+	"github.com/TBXark/sphere/pkg/server/auth/authorizer"
+	"github.com/TBXark/sphere/pkg/storage"
 )
 
 type Service struct {

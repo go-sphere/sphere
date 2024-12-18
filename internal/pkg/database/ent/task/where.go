@@ -5,7 +5,7 @@ package task
 import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/predicate"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.

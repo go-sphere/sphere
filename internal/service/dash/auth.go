@@ -2,13 +2,13 @@ package dash
 
 import (
 	"context"
-	dashv1 "github.com/tbxark/sphere/api/dash/v1"
-	"github.com/tbxark/sphere/internal/pkg/database/ent"
-	"github.com/tbxark/sphere/internal/pkg/database/ent/admin"
-	"github.com/tbxark/sphere/pkg/server/auth/authorizer"
-	"github.com/tbxark/sphere/pkg/server/ginx"
-	"github.com/tbxark/sphere/pkg/server/statuserr"
-	"github.com/tbxark/sphere/pkg/utils/secure"
+	dashv1 "github.com/TBXark/sphere/api/dash/v1"
+	"github.com/TBXark/sphere/internal/pkg/database/ent"
+	"github.com/TBXark/sphere/internal/pkg/database/ent/admin"
+	"github.com/TBXark/sphere/pkg/server/auth/authorizer"
+	"github.com/TBXark/sphere/pkg/server/ginx"
+	"github.com/TBXark/sphere/pkg/server/statuserr"
+	"github.com/TBXark/sphere/pkg/utils/secure"
 	"time"
 )
 
