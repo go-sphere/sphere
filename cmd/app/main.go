@@ -17,7 +17,7 @@ func newApplication(dash *dash.Web, api *api.Web, docs *docs.Web, initialize *ta
 	return boot.NewApplication(
 		dash,
 		api,
-		//docs,
+		docs,
 		initialize,
 		cleaner,
 	)
