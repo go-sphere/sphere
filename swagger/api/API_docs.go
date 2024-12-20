@@ -528,96 +528,99 @@ const docTemplateAPI = `{
         "ginx.DataResponse-apiv1_AuthWxMiniResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/apiv1.AuthWxMiniResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-apiv1_BindPhoneWxMiniResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/apiv1.BindPhoneWxMiniResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-apiv1_MeResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/apiv1.MeResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-apiv1_StatusResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/apiv1.StatusResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-apiv1_UpdateResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/apiv1.UpdateResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-sharedv1_RunTestResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/sharedv1.RunTestResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-sharedv1_UploadTokenResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/sharedv1.UploadTokenResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.ErrorResponse": {
             "type": "object",
             "properties": {
-                "message": {
+                "code": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "error": {
                     "type": "string"
                 },
-                "success": {
-                    "type": "boolean",
-                    "default": false
+                "message": {
+                    "type": "string"
                 }
             }
         },

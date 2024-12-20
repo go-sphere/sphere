@@ -32,12 +32,12 @@ func AbortWithJsonError(ctx *gin.Context, code int, err error) {
 	var hErr statusError
 	if errors.As(err, &hErr) {
 		ctx.AbortWithStatusJSON(hErr.Status(), ErrorResponse{
-			Success: false,
+			Code:    hErr.Status(),
 			Message: hErr.Error(),
 		})
 	} else {
 		ctx.AbortWithStatusJSON(code, ErrorResponse{
-			Success: false,
+			Code:    hErr.Status(),
 			Message: err.Error(),
 		})
 	}
@@ -65,8 +65,7 @@ func WithJson[T any](handler func(ctx *gin.Context) (T, error)) func(ctx *gin.Co
 			AbortWithJsonError(ctx, http.StatusBadRequest, err)
 		} else {
 			ctx.JSON(200, DataResponse[T]{
-				Success: true,
-				Data:    data,
+				Data: data,
 			})
 		}
 	})

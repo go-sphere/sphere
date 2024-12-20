@@ -12,10 +12,22 @@ service SystemService {
       body: "*"
     };
   }
+
+  rpc MenuAll(MenuAllRequest) returns (MenuAllResponse) {
+    option (google.api.http) = {
+      get: "/api/menu/all"
+    };
+  }
 }
 
 message CacheResetRequest {
 }
 
 message CacheResetResponse {
+}
+
+message MenuAllRequest {
+}
+
+message MenuAllResponse {
 }

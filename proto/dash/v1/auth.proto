@@ -20,32 +20,55 @@ service AuthService {
       body: "*"
     };
   }
+
+  rpc AuthLogout(AuthLogoutRequest) returns (AuthLogoutResponse) {
+    option (google.api.http) = {
+      post: "/api/auth/logout"
+      body: "*"
+    };
+  }
+
+  rpc AuthCodes(AuthCodesRequest) returns (AuthCodesResponse) {
+    option (google.api.http) = {
+      get: "/api/auth/codes"
+    };
+  }
 }
+
+
+// 兼容pure-admin登录
+// https://github.com/vbenjs/vue-vben-admin/blob/main/apps/web-ele/src/api/core/auth.ts
+
 
 message AuthLoginRequest {
   string username = 1;
   string password = 2 [(buf.validate.field).string = {min_len: 6}];
 }
 
-// 兼容pure-admin登录
-// https://github.com/pure-admin/vue-pure-admin/blob/main/src/api/user.ts
-
 message AuthLoginResponse {
-  string avatar = 1;
-  string username = 2;
-  string nickname = 3;
-  repeated string roles = 4;
-  string access_token = 5;
-  string refresh_token = 6;
-  string expires = 7;
+  string access_token = 1;
 }
 
 message AuthRefreshRequest {
-  string refresh_token = 1;
+  string data = 1;
+  int64 status = 2;
 }
 
 message AuthRefreshResponse {
   string access_token = 5;
   string refresh_token = 6;
   string expires = 7;
+}
+
+message AuthLogoutRequest {
+}
+
+message AuthLogoutResponse {
+}
+
+message AuthCodesRequest {
+}
+
+message AuthCodesResponse {
+  repeated string data = 1;
 }

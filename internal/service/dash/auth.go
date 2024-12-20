@@ -56,6 +56,12 @@ func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
 	}, nil
 }
 
+func (s *Service) AuthCodes(ctx context.Context, request *dashv1.AuthCodesRequest) (*dashv1.AuthCodesResponse, error) {
+	return &dashv1.AuthCodesResponse{
+		Data: make([]string, 0),
+	}, nil
+}
+
 func (s *Service) AuthLogin(ctx context.Context, req *dashv1.AuthLoginRequest) (*dashv1.AuthLoginResponse, error) {
 	u, err := s.DB.Admin.Query().Where(admin.UsernameEQ(req.Username)).Only(ctx)
 	if err != nil {
@@ -69,23 +75,20 @@ func (s *Service) AuthLogin(ctx context.Context, req *dashv1.AuthLoginRequest) (
 		return nil, err
 	}
 	return &dashv1.AuthLoginResponse{
-		Avatar:       token.Admin.Avatar,
-		Username:     token.Admin.Username,
-		Nickname:     token.Admin.Nickname,
-		Roles:        token.Admin.Roles,
-		AccessToken:  token.AccessToken,
-		RefreshToken: token.RefreshToken,
-		Expires:      token.Expires,
+		AccessToken: token.AccessToken,
 	}, nil
-
 }
 
-func (s *Service) AuthRefresh(ctx context.Context, req *dashv1.AuthRefreshRequest) (*dashv1.AuthRefreshResponse, error) {
-	claims, err := s.AuthRefresher.ParseToken(req.RefreshToken)
+func (s *Service) AuthLogout(ctx context.Context, request *dashv1.AuthLogoutRequest) (*dashv1.AuthLogoutResponse, error) {
+	return &dashv1.AuthLogoutResponse{}, nil
+}
+
+func (s *Service) AuthRefresh(ctx context.Context, request *dashv1.AuthRefreshRequest) (*dashv1.AuthRefreshResponse, error) {
+	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	u, err := s.DB.Admin.Get(ctx, claims.UID)
+	u, err := s.DB.Admin.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -94,8 +97,6 @@ func (s *Service) AuthRefresh(ctx context.Context, req *dashv1.AuthRefreshReques
 		return nil, err
 	}
 	return &dashv1.AuthRefreshResponse{
-		AccessToken:  token.AccessToken,
-		RefreshToken: token.RefreshToken,
-		Expires:      token.Expires,
+		AccessToken: token.AccessToken,
 	}, nil
 }

@@ -7,9 +7,9 @@ package dashv1
 
 import (
 	context "context"
+	ginx "github.com/TBXark/sphere/pkg/server/ginx"
 	protovalidate_go "github.com/bufbuild/protovalidate-go"
 	gin "github.com/gin-gonic/gin"
-	ginx "github.com/TBXark/sphere/pkg/server/ginx"
 )
 
 var _ = new(context.Context)
@@ -17,16 +17,22 @@ var _ = new(gin.IRouter)
 var _ = new(ginx.ErrorResponse)
 var _ = new(protovalidate_go.Validator)
 
+const OperationAuthServiceAuthCodes = "/dash.v1.AuthService/AuthCodes"
 const OperationAuthServiceAuthLogin = "/dash.v1.AuthService/AuthLogin"
+const OperationAuthServiceAuthLogout = "/dash.v1.AuthService/AuthLogout"
 const OperationAuthServiceAuthRefresh = "/dash.v1.AuthService/AuthRefresh"
 
 var EndpointsAuthService = [...][3]string{
 	{OperationAuthServiceAuthLogin, "POST", "/api/auth/login"},
 	{OperationAuthServiceAuthRefresh, "POST", "/api/auth/refresh"},
+	{OperationAuthServiceAuthLogout, "POST", "/api/auth/logout"},
+	{OperationAuthServiceAuthCodes, "GET", "/api/auth/codes"},
 }
 
 type AuthServiceHTTPServer interface {
+	AuthCodes(context.Context, *AuthCodesRequest) (*AuthCodesResponse, error)
 	AuthLogin(context.Context, *AuthLoginRequest) (*AuthLoginResponse, error)
+	AuthLogout(context.Context, *AuthLogoutRequest) (*AuthLogoutResponse, error)
 	AuthRefresh(context.Context, *AuthRefreshRequest) (*AuthRefreshResponse, error)
 }
 
@@ -85,8 +91,58 @@ func _AuthService_AuthRefresh0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx 
 	})
 }
 
+// @Summary AuthLogout
+// @Tags dash.v1
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body AuthLogoutRequest true "Request body"
+// @Success 200 {object} ginx.DataResponse[AuthLogoutResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
+// @Router /api/auth/logout [post]
+func _AuthService_AuthLogout0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *gin.Context) {
+	return ginx.WithJson(func(ctx *gin.Context) (*AuthLogoutResponse, error) {
+		var in AuthLogoutRequest
+		if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
+			return nil, err
+		}
+		out, err := srv.AuthLogout(ctx, &in)
+		if err != nil {
+			return nil, err
+		}
+		return out, nil
+	})
+}
+
+// @Summary AuthCodes
+// @Tags dash.v1
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} ginx.DataResponse[AuthCodesResponse]
+// @Success 400 {object} ginx.ErrorResponse
+// @Success 401 {object} ginx.ErrorResponse
+// @Success 403 {object} ginx.ErrorResponse
+// @Success 500 {object} ginx.ErrorResponse
+// @Router /api/auth/codes [get]
+func _AuthService_AuthCodes0_HTTP_Handler(srv AuthServiceHTTPServer) func(ctx *gin.Context) {
+	return ginx.WithJson(func(ctx *gin.Context) (*AuthCodesResponse, error) {
+		var in AuthCodesRequest
+		out, err := srv.AuthCodes(ctx, &in)
+		if err != nil {
+			return nil, err
+		}
+		return out, nil
+	})
+}
+
 func RegisterAuthServiceHTTPServer(route gin.IRouter, srv AuthServiceHTTPServer) {
 	r := route.Group("/")
 	r.POST("/api/auth/login", _AuthService_AuthLogin0_HTTP_Handler(srv))
 	r.POST("/api/auth/refresh", _AuthService_AuthRefresh0_HTTP_Handler(srv))
+	r.POST("/api/auth/logout", _AuthService_AuthLogout0_HTTP_Handler(srv))
+	r.GET("/api/auth/codes", _AuthService_AuthCodes0_HTTP_Handler(srv))
 }

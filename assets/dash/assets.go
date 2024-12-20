@@ -2,7 +2,7 @@ package dash
 
 import "embed"
 
-//go:embed dashboard/dist
+//go:embed dashboard/apps/web-ele/dist
 var Assets embed.FS
 
-var AssetsPath = "dashboard/dist"
+var AssetsPath = "dashboard/apps/web-ele/dist"

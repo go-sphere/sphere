@@ -2,7 +2,7 @@
 set -ex
 set -o pipefail
 
-dash_repo="git@github.com:pure-admin/pure-admin-thin.git"
+dash_repo="https://github.com/vbenjs/vue-vben-admin.git"
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 cd "$script_dir" || exit 1

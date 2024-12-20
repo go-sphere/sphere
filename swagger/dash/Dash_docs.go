@@ -374,6 +374,57 @@ const docTemplateDash = `{
                 }
             }
         },
+        "/api/auth/codes": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dash.v1"
+                ],
+                "summary": "AuthCodes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.DataResponse-dashv1_AuthCodesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/auth/login": {
             "post": {
                 "security": [
@@ -407,6 +458,68 @@ const docTemplateDash = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-dashv1_AuthLoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/logout": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dash.v1"
+                ],
+                "summary": "AuthLogout",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dashv1.AuthLogoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.DataResponse-dashv1_AuthLogoutResponse"
                         }
                     },
                     "400": {
@@ -531,6 +644,57 @@ const docTemplateDash = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/ginx.DataResponse-dashv1_CacheResetResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/menu/all": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dash.v1"
+                ],
+                "summary": "MenuAll",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.DataResponse-dashv1_MenuAllResponse"
                         }
                     },
                     "400": {
@@ -834,6 +998,57 @@ const docTemplateDash = `{
                     }
                 }
             }
+        },
+        "/api/user/info": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dash.v1"
+                ],
+                "summary": "UserInfo",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.DataResponse-dashv1_UserInfoResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/ginx.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -925,6 +1140,17 @@ const docTemplateDash = `{
                 }
             }
         },
+        "dashv1.AuthCodesResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "dashv1.AuthLoginRequest": {
             "type": "object",
             "properties": {
@@ -941,35 +1167,23 @@ const docTemplateDash = `{
             "properties": {
                 "access_token": {
                     "type": "string"
-                },
-                "avatar": {
-                    "type": "string"
-                },
-                "expires": {
-                    "type": "string"
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "refresh_token": {
-                    "type": "string"
-                },
-                "roles": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "username": {
-                    "type": "string"
                 }
             }
+        },
+        "dashv1.AuthLogoutRequest": {
+            "type": "object"
+        },
+        "dashv1.AuthLogoutResponse": {
+            "type": "object"
         },
         "dashv1.AuthRefreshRequest": {
             "type": "object",
             "properties": {
-                "refresh_token": {
+                "data": {
                     "type": "string"
+                },
+                "status": {
+                    "type": "integer"
                 }
             }
         },
@@ -993,6 +1207,9 @@ const docTemplateDash = `{
         "dashv1.CacheResetResponse": {
             "type": "object"
         },
+        "dashv1.MenuAllResponse": {
+            "type": "object"
+        },
         "dashv1.TaskDetailResponse": {
             "type": "object",
             "properties": {
@@ -1009,6 +1226,38 @@ const docTemplateDash = `{
                     "items": {
                         "$ref": "#/definitions/entpb.Task"
                     }
+                }
+            }
+        },
+        "dashv1.UserInfoResponse": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "type": "string"
+                },
+                "desc": {
+                    "type": "string"
+                },
+                "home_path": {
+                    "type": "string"
+                },
+                "real_name": {
+                    "type": "string"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "token": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -1057,10 +1306,7 @@ const docTemplateDash = `{
                     "type": "integer"
                 },
                 "job_id": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -1079,168 +1325,219 @@ const docTemplateDash = `{
         "ginx.DataResponse-dashv1_AdminCreateResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminCreateResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-dashv1_AdminDeleteResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminDeleteResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-dashv1_AdminDetailResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminDetailResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-dashv1_AdminListResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminListResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-dashv1_AdminRoleListResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminRoleListResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-dashv1_AdminUpdateResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/dashv1.AdminUpdateResponse"
+                }
+            }
+        },
+        "ginx.DataResponse-dashv1_AuthCodesResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
                 },
-                "success": {
-                    "type": "boolean",
-                    "default": true
+                "data": {
+                    "$ref": "#/definitions/dashv1.AuthCodesResponse"
                 }
             }
         },
         "ginx.DataResponse-dashv1_AuthLoginResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/dashv1.AuthLoginResponse"
+                }
+            }
+        },
+        "ginx.DataResponse-dashv1_AuthLogoutResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
                 },
-                "success": {
-                    "type": "boolean",
-                    "default": true
+                "data": {
+                    "$ref": "#/definitions/dashv1.AuthLogoutResponse"
                 }
             }
         },
         "ginx.DataResponse-dashv1_AuthRefreshResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/dashv1.AuthRefreshResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-dashv1_CacheResetResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/dashv1.CacheResetResponse"
+                }
+            }
+        },
+        "ginx.DataResponse-dashv1_MenuAllResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
                 },
-                "success": {
-                    "type": "boolean",
-                    "default": true
+                "data": {
+                    "$ref": "#/definitions/dashv1.MenuAllResponse"
                 }
             }
         },
         "ginx.DataResponse-dashv1_TaskDetailResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/dashv1.TaskDetailResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-dashv1_TaskListResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/dashv1.TaskListResponse"
+                }
+            }
+        },
+        "ginx.DataResponse-dashv1_UserInfoResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
                 },
-                "success": {
-                    "type": "boolean",
-                    "default": true
+                "data": {
+                    "$ref": "#/definitions/dashv1.UserInfoResponse"
                 }
             }
         },
         "ginx.DataResponse-sharedv1_RunTestResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/sharedv1.RunTestResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.DataResponse-sharedv1_UploadTokenResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer",
+                    "default": 0
+                },
                 "data": {
                     "$ref": "#/definitions/sharedv1.UploadTokenResponse"
-                },
-                "success": {
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },
         "ginx.ErrorResponse": {
             "type": "object",
             "properties": {
-                "message": {
+                "code": {
+                    "type": "integer",
+                    "default": 1
+                },
+                "error": {
                     "type": "string"
                 },
-                "success": {
-                    "type": "boolean",
-                    "default": false
+                "message": {
+                    "type": "string"
                 }
             }
         },

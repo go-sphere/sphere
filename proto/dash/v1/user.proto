@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package dash.v1;
+
+import "google/api/annotations.proto";
+
+service UserService {
+  rpc UserInfo(UserInfoRequest) returns (UserInfoResponse) {
+    option (google.api.http) = {
+      get: "/api/user/info"
+    };
+  }
+}
+
+message UserInfoRequest {
+}
+
+message UserInfoResponse {
+  string avatar = 1;
+  string real_name = 2;
+  repeated string roles = 3;
+  string user_id = 4;
+  string username = 5;
+  string desc = 6;
+  string home_path = 7;
+  string token = 8;
+}

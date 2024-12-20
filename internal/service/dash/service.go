@@ -48,3 +48,24 @@ func (s *Service) Init(authorizer TokenAuthorizer, authRefresher TokenAuthorizer
 	s.Authorizer = authorizer
 	s.AuthRefresher = authRefresher
 }
+
+/*
+// 兼容vben-admin-pro的接口返回格式
+export function convertKeysToCamelCase<T>(obj: T): T {
+  if (Array.isArray(obj)) {
+    return obj.map((item) => convertKeysToCamelCase(item)) as unknown as T;
+  } else if (obj !== null && typeof obj === 'object') {
+    const newObj: Record<string, unknown> = {};
+    for (const key of Object.keys(obj)) {
+      const newKey = key.replaceAll(/_([a-z])/g, (_, letter) =>
+        letter.toUpperCase(),
+      );
+      newObj[newKey] = convertKeysToCamelCase(
+        (obj as Record<string, unknown>)[key],
+      );
+    }
+    return newObj as T;
+  }
+  return obj;
+}
+*/
