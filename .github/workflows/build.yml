@@ -20,6 +20,7 @@ jobs:
 
     - name: Build
       run: |
+        mkdir -p assets/dash/dashboard/apps/web-ele/dist
         make init
         make generate
         make build
