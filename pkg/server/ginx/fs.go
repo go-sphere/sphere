@@ -9,7 +9,7 @@ import (
 
 func Fs(local string, emFs *embed.FS, emPath string) (http.FileSystem, error) {
 	if local != "" {
-		return gin.Dir(local, false), nil
+		return gin.Dir(local, true), nil
 	}
 	if emFs != nil {
 		sf, err := fs.Sub(emFs, emPath)

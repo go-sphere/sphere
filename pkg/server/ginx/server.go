@@ -23,7 +23,7 @@ func Start(ctx context.Context, server *http.Server, closeTimeout time.Duration)
 				errChan <- err
 			}
 		case <-closeChan: // 防止goroutine泄露
-			break
+			return
 		}
 	}()
 	defer close(closeChan)
