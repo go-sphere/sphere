@@ -19,9 +19,10 @@ rm -rf ./pkg
 rm -rf ./contrib
 
 echo "Renaming module from ${OLD_MODULE} to ${NEW_MODULE}"
-find . -type f -name "*.go" -exec sed -i '' "s,${OLD_MODULE}/cmd,${NEW_MODULE}/cmd,g" {} \;
-find . -type f -name "*.go" -exec sed -i '' "s,${OLD_MODULE}/internal,${NEW_MODULE}/internal,g" {} \;
+go install github.com/TBXark/sphere/contrib/import-renamer@latest
 go mod edit -module "${NEW_MODULE}"
+import-renamer -old "${OLD_MODULE}/cmd" -new "${NEW_MODULE}/cmd" -target .
+import-renamer -old "${OLD_MODULE}/internal" -new "${NEW_MODULE}/internal" -target .
 
 echo "Update buf.gen.yaml"
 sed -i '' "s,${OLD_MODULE}/api,${NEW_MODULE}/api,g" buf.gen.yaml
