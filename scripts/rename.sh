@@ -18,7 +18,7 @@ make init
 rm -rf ./pkg
 rm -rf ./contrib
 mkdir -p assets/dash/dashboard/apps/web-ele/dist
-touch assets/dash/dashboard/apps/web-ele/dist/.gitkeep
+touch assets/dash/dashboard/apps/web-ele/dist/index.html
 
 echo "Renaming module from ${OLD_MODULE} to ${NEW_MODULE}"
 go install github.com/TBXark/sphere/contrib/import-renamer@latest
