@@ -93,10 +93,14 @@ func NewGoIdent(s string, options ...func(*GoIdent)) *GoIdent {
 	if len(parts) != 2 {
 		return nil
 	}
-	return &GoIdent{
+	ident := &GoIdent{
 		pkg:   protogen.GoImportPath(parts[0]),
 		ident: parts[1],
 	}
+	for _, opt := range options {
+		opt(ident)
+	}
+	return ident
 }
 
 func identIsFunc() func(*GoIdent) {

@@ -15,8 +15,11 @@ fi
 
 make init
 
+rm -rf ./api
 rm -rf ./pkg
 rm -rf ./contrib
+rm -rf ./swagger
+
 mkdir -p assets/dash/dashboard/apps/web-ele/dist
 touch assets/dash/dashboard/apps/web-ele/dist/index.html
 
