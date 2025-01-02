@@ -22,6 +22,7 @@ init: ## Init all dependencies
 	$(MAKE) install
 	$(MAKE) gen-ent
 	$(MAKE) gen-docs
+	$(MAKE) gen-wire
 	buf dep update
 	go mod tidy
 
