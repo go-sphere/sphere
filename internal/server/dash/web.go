@@ -104,7 +104,7 @@ func (w *Web) Start(ctx context.Context) error {
 
 	systemRoute := needAuthRoute.Group("/")
 	dashv1.RegisterSystemServiceHTTPServer(systemRoute, w.service)
-	
+
 	userRoute := needAuthRoute.Group("/")
 	dashv1.RegisterUserServiceHTTPServer(userRoute, w.service)
 

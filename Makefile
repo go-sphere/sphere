@@ -1,3 +1,5 @@
+include scripts/Makefile.docs
+
 MODULE := $(shell go list -m)
 MODULE_NAME := $(lastword $(subst /, ,$(MODULE)))
 BUILD := $(shell git rev-parse --short HEAD)@$(shell date +%s)
@@ -9,7 +11,6 @@ DOCKER_FILE := cmd/app/Dockerfile
 
 LD_FLAGS := "-X $(MODULE)/internal/config.BuildVersion=$(BUILD)"
 GO_BUILD := CGO_ENABLED=0 go build -trimpath -ldflags $(LD_FLAGS) -tags=jsoniter
-
 
 .PHONY: init
 init: ## Init all dependencies
@@ -39,13 +40,13 @@ gen-proto: ## Generate proto files and run protoc plugins
 
 .PHONY: gen-docs
 gen-docs: gen-proto ## Generate swagger docs
-	swag init --output ./swagger/api  --tags api.v1,shared.v1   --instanceName API  -g docs.go --parseDependency
-	swag init --output ./swagger/dash --tags dash.v1,shared.v1  --instanceName Dash -g docs.go --parseDependency
+	$(call gen_docs,api,API)
+	$(call gen_docs,dash,Dash)
 
 .PHONY: gen-ts
 gen-ts: gen-docs ## Generate typescript client
-	npx swagger-typescript-api -p ./swagger/api/API_swagger.json   -o ./swagger/api/typescript  --modular --responses --extract-response-body --extract-response-error
-	npx swagger-typescript-api -p ./swagger/dash/Dash_swagger.json -o ./swagger/dash/typescript --modular --responses --extract-response-body --extract-response-error
+	$(call gen_ts,api,API)
+	$(call gen_ts,dash,Dash)
 
 .PHONY: gen-ent
 gen-ent: ## Generate ent code
@@ -108,7 +109,6 @@ clean: ## Clean build files
 	rm -rf ./swagger
 	rm -rf ./api
 	rm -rf ./internal/pkg/database/ent
-
 
 .PHONY: help
 help: ## Show this help message
