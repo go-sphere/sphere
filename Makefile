@@ -61,8 +61,9 @@ gen-conf: ## Generate example config
 
 .PHONY: generate
 generate: ## Run all generate command
-	go generate ./...
+	$(MAKE) gen-ent
 	$(MAKE) gen-docs
+	go generate ./...
 
 .PHONY: dash
 dash: ## Build dash
