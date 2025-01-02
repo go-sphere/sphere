@@ -1,7 +1,0 @@
-define gen_docs
-	swag init --output ./swagger/$(1) --tags $(1).v1,shared.v1 --instanceName $(2) -g docs.go --parseDependency
-endef
-
-define gen_ts
-	npx swagger-typescript-api -p ./swagger/$(1)/$(2)_swagger.json -o ./swagger/$(1)/typescript --modular --responses --extract-response-body --extract-response-error
-endef
