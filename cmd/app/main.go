@@ -1,24 +1,24 @@
 package main
 
 import (
-	"github.com/TBXark/sphere/internal/biz/task"
+	"flag"
+	"github.com/TBXark/sphere/internal/config"
 	"github.com/TBXark/sphere/internal/pkg/app"
-	"github.com/TBXark/sphere/internal/server/api"
-	"github.com/TBXark/sphere/internal/server/dash"
-	"github.com/TBXark/sphere/internal/server/docs"
 	"github.com/TBXark/sphere/pkg/utils/boot"
 )
 
 func main() {
-	app.Execute(NewApplication)
-}
-
-func newApplication(dash *dash.Web, api *api.Web, docs *docs.Web, initialize *task.DashInitialize, cleaner *task.ConnectCleaner) *boot.Application {
-	return boot.NewApplication(
-		dash,
-		api,
-		docs,
-		initialize,
-		cleaner,
-	)
+	mode := flag.String("mode", "app", "run mode: app, api, dash, bot")
+	app.Execute(func(config *config.Config) (*boot.Application, error) {
+		switch *mode {
+		case "api":
+			return NewAPIApplication(config)
+		case "dash":
+			return NewDashApplication(config)
+		case "bot":
+			return NewBotApplication(config)
+		default:
+			return NewApplication(config)
+		}
+	})
 }

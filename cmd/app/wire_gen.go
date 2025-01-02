@@ -12,9 +12,11 @@ import (
 	"github.com/TBXark/sphere/internal/pkg/dao"
 	"github.com/TBXark/sphere/internal/pkg/database/client"
 	api2 "github.com/TBXark/sphere/internal/server/api"
+	bot2 "github.com/TBXark/sphere/internal/server/bot"
 	dash2 "github.com/TBXark/sphere/internal/server/dash"
 	"github.com/TBXark/sphere/internal/server/docs"
 	"github.com/TBXark/sphere/internal/service/api"
+	"github.com/TBXark/sphere/internal/service/bot"
 	"github.com/TBXark/sphere/internal/service/dash"
 	"github.com/TBXark/sphere/pkg/cache/memory"
 	"github.com/TBXark/sphere/pkg/storage/qiniu"
@@ -47,5 +49,55 @@ func NewApplication(conf *config.Config) (*boot.Application, error) {
 	dashInitialize := task.NewDashInitialize(daoDao)
 	connectCleaner := task.NewConnectCleaner(entClient)
 	application := newApplication(web, apiWeb, docsWeb, dashInitialize, connectCleaner)
+	return application, nil
+}
+
+func NewAPIApplication(conf *config.Config) (*boot.Application, error) {
+	apiConfig := conf.API
+	clientConfig := conf.Database
+	entClient, err := client.NewDataBaseClient(clientConfig)
+	if err != nil {
+		return nil, err
+	}
+	daoDao := dao.NewDao(entClient)
+	wechatConfig := conf.WxMini
+	wechatWechat := wechat.NewWechat(wechatConfig)
+	qiniuConfig := conf.Storage
+	qiniuQiniu := qiniu.NewQiniu(qiniuConfig)
+	cache := memory.NewByteCache()
+	service := api.NewService(daoDao, wechatWechat, qiniuQiniu, cache)
+	web := api2.NewWebServer(apiConfig, service)
+	dashInitialize := task.NewDashInitialize(daoDao)
+	connectCleaner := task.NewConnectCleaner(entClient)
+	application := newAPIApplication(web, dashInitialize, connectCleaner)
+	return application, nil
+}
+
+func NewDashApplication(conf *config.Config) (*boot.Application, error) {
+	dashConfig := conf.Dash
+	clientConfig := conf.Database
+	entClient, err := client.NewDataBaseClient(clientConfig)
+	if err != nil {
+		return nil, err
+	}
+	daoDao := dao.NewDao(entClient)
+	wechatConfig := conf.WxMini
+	wechatWechat := wechat.NewWechat(wechatConfig)
+	qiniuConfig := conf.Storage
+	qiniuQiniu := qiniu.NewQiniu(qiniuConfig)
+	cache := memory.NewByteCache()
+	service := dash.NewService(daoDao, wechatWechat, qiniuQiniu, cache)
+	web := dash2.NewWebServer(dashConfig, service)
+	dashInitialize := task.NewDashInitialize(daoDao)
+	connectCleaner := task.NewConnectCleaner(entClient)
+	application := newDashApplication(web, dashInitialize, connectCleaner)
+	return application, nil
+}
+
+func NewBotApplication(conf *config.Config) (*boot.Application, error) {
+	botConfig := conf.Bot
+	service := bot.NewService()
+	botBot := bot2.NewApp(botConfig, service)
+	application := newBotApplication(botBot)
 	return application, nil
 }
