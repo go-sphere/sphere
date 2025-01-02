@@ -3,7 +3,7 @@ syntax = "proto3";
 
 package entpb;
 
-option go_package = "github.com/TBXark/sphere/internal/pkg/database/ent/proto/entpb";
+option go_package = "github.com/TBXark/sphere/internal/pkg/database/proto/entpb";
 
 message Admin {
   int64 id = 1;

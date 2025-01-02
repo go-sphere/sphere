@@ -33,7 +33,7 @@ install: ## Install all dependencies
 
 .PHONY: gen-proto
 gen-proto: ## Generate proto files and run protoc plugins
-	ent-gen-proto -path=./internal/pkg/database/ent/schema
+	ent-gen-proto -path=./internal/pkg/database/schema
 	buf generate
 	protoc-go-inject-tag -input="./api/*/*/*.pb.go" -remove_tag_comment
 
@@ -49,7 +49,7 @@ gen-ts: gen-docs ## Generate typescript client
 
 .PHONY: gen-ent
 gen-ent: ## Generate ent code
-	go generate ./internal/pkg/database/ent
+	go generate ./internal/pkg/database
 
 .PHONY: gen-wire
 gen-wire: ## Generate wire code
@@ -101,6 +101,14 @@ lint: ## Run linter
 fmt: ## Run formatter
 	go fmt ./...
 	buf format
+
+.PHONY: clean
+clean: ## Clean build files
+	rm -rf ./build
+	rm -rf ./swagger
+	rm -rf ./api
+	rm -rf ./internal/pkg/database/ent
+
 
 .PHONY: help
 help: ## Show this help message
