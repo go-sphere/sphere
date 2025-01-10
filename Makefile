@@ -1,8 +1,8 @@
 MODULE := $(shell go list -m)
 MODULE_NAME := $(lastword $(subst /, ,$(MODULE)))
 BUILD := $(shell git rev-parse --short HEAD)@$(shell date +%s)
-CURRENT_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
-CURRENT_ARCH := $(shell uname -m | tr '[:upper:]' '[:lower:]')
+CURRENT_OS := $(shell uname | tr "[A-Z]" "[a-z]")
+CURRENT_ARCH := $(shell uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
 
 DOCKER_IMAGE ?= ghcr.io/tbxark/$(MODULE_NAME)
 DOCKER_FILE := cmd/app/Dockerfile
@@ -66,16 +66,16 @@ dash: ## Build dash
 build: ## Build binary
 	$(GO_BUILD) -o ./build/$(CURRENT_OS)_$(CURRENT_ARCH)/ ./...
 
-.PHONY: build-linux-amd
-build-linux-amd: ## Build linux amd64 binary
-	GOOS=linux GOARCH=amd64 $(GO_BUILD) -o ./build/linux_x86/ ./...
+.PHONY: build-linux-amd64
+build-linux-amd64: ## Build linux amd64 binary
+	GOOS=linux GOARCH=amd64 $(GO_BUILD) -o ./build/linux_amd64/ ./...
 
-.PHONY: build-linux-arm
-build-linux-arm: ## Build linux arm64 binary
+.PHONY: build-linux-arm64
+build-linux-arm64: ## Build linux arm64 binary
 	GOOS=linux GOARCH=arm64 $(GO_BUILD) -o ./build/linux_arm64/ ./...
 
 .PHONY: build-all
-build-all: build-linux-amd build-linux-arm ## Build all arch binary
+build-all: build-linux-amd64 build-linux-arm64 ## Build all arch binary
 
 .PHONY: build-docker
 build-docker: ## Build docker image

@@ -23,7 +23,6 @@ jobs:
         mkdir -p assets/dash/dashboard/apps/web-ele/dist
         touch assets/dash/dashboard/apps/web-ele/dist/index.html
         make init
-        make generate
         make build
 
     - name: Test
