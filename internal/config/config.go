@@ -1,6 +1,7 @@
 package config
 
 import (
+	"github.com/TBXark/confstore"
 	"github.com/TBXark/sphere/internal/pkg/database/client"
 	"github.com/TBXark/sphere/internal/server/api"
 	"github.com/TBXark/sphere/internal/server/bot"
@@ -8,7 +9,6 @@ import (
 	"github.com/TBXark/sphere/internal/server/docs"
 	"github.com/TBXark/sphere/pkg/log"
 	"github.com/TBXark/sphere/pkg/storage/qiniu"
-	"github.com/TBXark/sphere/pkg/utils/config/parser"
 	"github.com/TBXark/sphere/pkg/utils/secure"
 	"github.com/TBXark/sphere/pkg/wechat"
 )
@@ -16,16 +16,15 @@ import (
 var BuildVersion = "dev"
 
 type Config struct {
-	Environments map[string]string    `json:"environments" yaml:"environments"`
-	Remote       *parser.RemoteConfig `json:"remote" yaml:"remote"`
-	Log          *log.Options         `json:"log" yaml:"log"`
-	Database     *client.Config       `json:"database" yaml:"database"`
-	Dash         *dash.Config         `json:"dash" yaml:"dash"`
-	API          *api.Config          `json:"api" yaml:"api"`
-	Docs         *docs.Config         `json:"docs" yaml:"docs"`
-	Storage      *qiniu.Config        `json:"storage" yaml:"storage"`
-	Bot          *bot.Config          `json:"bot" yaml:"bot"`
-	WxMini       *wechat.Config       `json:"wx_mini" yaml:"wx_mini"`
+	Environments map[string]string `json:"environments" yaml:"environments"`
+	Log          *log.Options      `json:"log" yaml:"log"`
+	Database     *client.Config    `json:"database" yaml:"database"`
+	Dash         *dash.Config      `json:"dash" yaml:"dash"`
+	API          *api.Config       `json:"api" yaml:"api"`
+	Docs         *docs.Config      `json:"docs" yaml:"docs"`
+	Storage      *qiniu.Config     `json:"storage" yaml:"storage"`
+	Bot          *bot.Config       `json:"bot" yaml:"bot"`
+	WxMini       *wechat.Config    `json:"wx_mini" yaml:"wx_mini"`
 }
 
 func NewEmptyConfig() *Config {
@@ -89,14 +88,7 @@ func setDefaultConfig(config *Config) *Config {
 }
 
 func NewConfig(path string) (*Config, error) {
-	config, err := parser.Local[Config](path)
-	if err != nil {
-		return nil, err
-	}
-	if config.Remote == nil {
-		return config, nil
-	}
-	config, err = parser.Remote[Config](config.Remote)
+	config, err := confstore.Load[Config](path)
 	if err != nil {
 		return nil, err
 	}
