@@ -1,8 +1,8 @@
 package cmd
 
 import (
+	"github.com/TBXark/confstore"
 	"github.com/TBXark/sphere/internal/config"
-	"github.com/TBXark/sphere/pkg/utils/config/parser"
 	"github.com/spf13/cobra"
 	"log"
 	"os"
@@ -42,11 +42,7 @@ func runConfig(cmd *cobra.Command, args []string) {
 		log.Fatalf("create file error: %v", err)
 	}
 	defer file.Close()
-	encoder := parser.NewEncoder(parser.Ext(output), file)
-	if encoder == nil {
-		log.Fatalf("unsupported file type: %s", output)
-	}
-	err = encoder.Encode(conf)
+	err = confstore.Save(output, conf)
 	if err != nil {
 		log.Fatalf("encode error: %v", err)
 	}
