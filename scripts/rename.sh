@@ -27,6 +27,8 @@ echo "Renaming module from ${OLD_MODULE} to ${NEW_MODULE}"
 go install github.com/TBXark/sphere/contrib/import-renamer@latest
 go mod edit -module "${NEW_MODULE}"
 import-renamer -old "${OLD_MODULE}/cmd" -new "${NEW_MODULE}/cmd" -target .
+import-renamer -old "${OLD_MODULE}/api" -new "${NEW_MODULE}/api" -target .
+import-renamer -old "${OLD_MODULE}/swagger" -new "${NEW_MODULE}/swagger" -target .
 import-renamer -old "${OLD_MODULE}/internal" -new "${NEW_MODULE}/internal" -target .
 
 echo "Update buf.gen.yaml"
