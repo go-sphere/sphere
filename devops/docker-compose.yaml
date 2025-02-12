@@ -4,7 +4,7 @@ services:
   api:
     build:
       context: ..
-      dockerfile: cmd/api/Dockerfile
+      dockerfile: ../example/cmd/api/Dockerfile
     hostname: api
     networks:
         - app-network
@@ -18,7 +18,7 @@ services:
   dash:
     build:
       context: ..
-      dockerfile: cmd/dash/Dockerfile
+      dockerfile: ../example/cmd/dash/Dockerfile
     hostname: dash
     networks:
       - app-network

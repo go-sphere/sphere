@@ -19,11 +19,7 @@ jobs:
         go-version: '1.23'
 
     - name: Build
-      run: |
-        mkdir -p assets/dash/dashboard/apps/web-ele/dist
-        touch assets/dash/dashboard/apps/web-ele/dist/index.html
-        make init
-        make build
+      run: cd example && make init &&make build
 
     - name: Test
       run: go test -v ./...
