@@ -89,6 +89,10 @@ func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middlewares ..
 	})
 }
 
+func (b *Bot) API() *bot.Bot {
+	return b.bot
+}
+
 func (b *Bot) SendMessage(ctx context.Context, update *Update, m *Message) error {
 	return SendMessage(ctx, b.bot, update, m)
 }
