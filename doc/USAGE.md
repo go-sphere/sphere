@@ -55,10 +55,11 @@ Sphere build tool. Usage: make [target]
 
 ## Quick Start
 
-### 1. Clone the project and install dependencies
+### 1. Clone the project and initialize the project with example
 
 ```bash
 git clone git@github.com:TBXark/sphere.git
+cd sphere/example
 make init
 ./scripts/rename.sh # rename the project and delete pkg and contrib folder
 ```
