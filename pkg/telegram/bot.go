@@ -16,40 +16,33 @@ type Config struct {
 type Bot struct {
 	config        *Config
 	bot           *bot.Bot
-	BotOptions    func() []bot.Option
 	ErrorHandler  ErrorHandlerFunc
 	AuthExtractor AuthExtractorFunc
 }
 
-func NewApp(config *Config) *Bot {
+func NewApp(config *Config, options ...bot.Option) (*Bot, error) {
+	if len(options) == 0 {
+		options = DefaultBotOptions()
+	}
+	client, err := bot.New(config.Token, options...)
+	if err != nil {
+		return nil, err
+	}
 	return &Bot{
 		config:        config,
-		BotOptions:    DefaultBotOptions,
+		bot:           client,
 		ErrorHandler:  DefaultErrorHandler,
 		AuthExtractor: DefaultAuthExtractor,
-	}
+	}, nil
 }
 
-func (b *Bot) Run(ctx context.Context, options ...func(*bot.Bot) error) error {
-	client, err := bot.New(b.config.Token, b.BotOptions()...)
-	if err != nil {
-		log.Panicf("create bot error: %v", err)
-	}
-	b.bot = client
-	for _, opt := range options {
-		if e := opt(client); e != nil {
-			return e
-		}
-	}
-	_, _ = client.DeleteWebhook(context.Background(), &bot.DeleteWebhookParams{})
+func (b *Bot) Start(ctx context.Context) error {
+	_, _ = b.bot.DeleteWebhook(context.Background(), &bot.DeleteWebhookParams{})
 	b.bot.Start(ctx)
 	return nil
 }
 
 func (b *Bot) Close(ctx context.Context) error {
-	if b.bot == nil {
-		return nil
-	}
 	_, err := b.bot.Close(ctx)
 	b.bot = nil
 	return err

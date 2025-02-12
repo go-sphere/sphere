@@ -97,7 +97,10 @@ func NewDashApplication(conf *config.Config) (*boot.Application, error) {
 func NewBotApplication(conf *config.Config) (*boot.Application, error) {
 	botConfig := conf.Bot
 	service := bot.NewService()
-	botBot := bot2.NewApp(botConfig, service)
+	botBot, err := bot2.NewApp(botConfig, service)
+	if err != nil {
+		return nil, err
+	}
 	application := newBotApplication(botBot)
 	return application, nil
 }

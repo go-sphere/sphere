@@ -5,7 +5,6 @@ import (
 	botv1 "github.com/TBXark/sphere/api/bot/v1"
 	service "github.com/TBXark/sphere/internal/service/bot"
 	"github.com/TBXark/sphere/pkg/telegram"
-	"github.com/go-telegram/bot"
 )
 
 type Config telegram.Config
@@ -15,29 +14,28 @@ type Bot struct {
 	service *service.Service
 }
 
-func NewApp(conf *Config, botService *service.Service) *Bot {
-	app := telegram.NewApp((*telegram.Config)(conf))
+func NewApp(conf *Config, botService *service.Service) (*Bot, error) {
+	app, err := telegram.NewApp((*telegram.Config)(conf))
+	if err != nil {
+		return nil, err
+	}
 	return &Bot{
 		Bot:     app,
 		service: botService,
-	}
+	}, nil
 }
 
 func (b *Bot) Identifier() string {
 	return "bot"
 }
 
-func (b *Bot) initBot(t *bot.Bot) error {
+func (b *Bot) Start(ctx context.Context) error {
 	sfMid := telegram.NewSingleFlightMiddleware()
 	route := botv1.RegisterCounterServiceBotServer(b.service, &CounterServiceCodec{}, b.SendMessage)
 	b.BindCommand(botv1.ExtraBotDataCounterServiceStart.Command, route[botv1.OperationBotCounterServiceStart])
 	b.BindCommand(botv1.ExtraBotDataCounterServiceCounter.Command, route[botv1.OperationBotCounterServiceCounter], sfMid)
 	b.BindCallback(botv1.ExtraBotDataCounterServiceCounter.CallbackQuery, route[botv1.OperationBotCounterServiceCounter], sfMid)
-	return nil
-}
-
-func (b *Bot) Start(ctx context.Context) error {
-	return b.Bot.Run(ctx, b.initBot)
+	return b.Bot.Start(ctx)
 }
 
 func (b *Bot) Stop(ctx context.Context) error {
