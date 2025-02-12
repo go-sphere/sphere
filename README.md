@@ -20,7 +20,7 @@
 
 ## Getting Started
 
-You can follow this [guide](doc/USAGE.md) to get started with **Sphere**.
+You can use the recommended [layout](layout/README.md) directory structure to develop your project, or you can customize the directory structure according to your needs.
 
 ## License
 

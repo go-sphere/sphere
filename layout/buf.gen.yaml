@@ -1,0 +1,32 @@
+version: v2
+managed:
+  enabled: true
+  disable:
+    - file_option: go_package_prefix
+      module: buf.build/googleapis/googleapis
+    - file_option: go_package_prefix
+      module: buf.build/bufbuild/protovalidate
+    - file_option: go_package_prefix
+      module: buf.build/tbxark/options
+  override:
+    - file_option: go_package_prefix
+      value: github.com/TBXark/sphere/layout/api
+plugins:
+  - local: protoc-gen-go
+    out: api
+    opt: paths=source_relative
+  - local: protoc-gen-route
+    out: api
+    opt:
+      - paths=source_relative
+      - options_key=bot
+      - gen_file_suffix=_bot.pb.go
+      - request_model=github.com/TBXark/sphere/telegram;Update
+      - response_model=github.com/TBXark/sphere/telegram;Message
+      - extra_data_model=github.com/TBXark/sphere/telegram;MethodExtraData
+      - extra_data_constructor=github.com/TBXark/sphere/telegram;NewMethodExtraData
+  - local: protoc-gen-sphere
+    out: api
+    opt:
+      - paths=source_relative
+      - swagger_auth_header=// @Security ApiKeyAuth
