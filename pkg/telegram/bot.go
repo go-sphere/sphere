@@ -89,6 +89,12 @@ func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middlewares ..
 	})
 }
 
+func (b *Bot) Update(options ...bot.Option) {
+	for _, opt := range options {
+		opt(b.bot)
+	}
+}
+
 func (b *Bot) API() *bot.Bot {
 	return b.bot
 }
@@ -114,16 +120,9 @@ func SendMessage(ctx context.Context, b *bot.Bot, update *Update, m *Message) er
 func DefaultBotOptions() []bot.Option {
 	return []bot.Option{
 		bot.WithSkipGetMe(),
+		bot.WithDefaultHandler(DefaultUpdateHandler),
 		bot.WithErrorsHandler(func(err error) {
 			log.Errorf("bot error: %v", err)
-		}),
-		bot.WithDefaultHandler(func(ctx context.Context, bot *bot.Bot, update *models.Update) {
-			if update.Message != nil {
-				log.Infof("receive message: %s", update.Message.Text)
-			}
-			if update.CallbackQuery != nil {
-				log.Infof("receive callback query: %s", update.CallbackQuery.Data)
-			}
 		}),
 		bot.WithMiddlewares(NewRecoveryMiddleware()),
 	}
@@ -131,6 +130,15 @@ func DefaultBotOptions() []bot.Option {
 
 func DefaultErrorHandler(ctx context.Context, b *bot.Bot, update *Update, err error) {
 	log.Warnw("bot error", logfields.Error(err))
+}
+
+func DefaultUpdateHandler(ctx context.Context, bot *bot.Bot, update *models.Update) {
+	if update.Message != nil {
+		log.Infof("receive message: %s", update.Message.Text)
+	}
+	if update.CallbackQuery != nil {
+		log.Infof("receive callback query: %s", update.CallbackQuery.Data)
+	}
 }
 
 func SendErrorMessageHandler(ctx context.Context, b *bot.Bot, update *Update, err error) {
