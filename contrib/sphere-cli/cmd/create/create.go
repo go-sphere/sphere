@@ -99,6 +99,7 @@ func renameGoModule(oldModName, newModName, target string) error {
 	err = execCommands(target,
 		[]string{"go", "get", sphereModule + "@latest"},
 		[]string{"go", "mod", "tidy"},
+		[]string{"go", "fmt", "./..."},
 	)
 	if err != nil {
 		return err
