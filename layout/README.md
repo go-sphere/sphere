@@ -55,7 +55,9 @@ Sphere build tool. Usage: make [target]
 
 ## Quick Start
 
-### 1. Clone the project and initialize the project with recommended layout
+### 1. Create a new project with `sphere-cli`
+
+Although you use `sphere-cli` to create the project, you are free to modify the project structure subsequently. `sphere` just provides a template, and you are free to modify the project structure according to your own needs. This way you can freely develop your own projects without relying on any framework.
 
 ```bash
 go install github.com/TBXark/sphere/contrib/sphere-cli@latest
