@@ -4,9 +4,6 @@ import (
 	"flag"
 	"github.com/TBXark/sphere/contrib/import-renamer/renamer"
 	"log"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 func main() {
@@ -14,22 +11,11 @@ func main() {
 	newModule := flag.String("new", "", "new module name")
 	target := flag.String("target", "", "target file")
 	flag.Parse()
-
 	if *oldModule == "" || *newModule == "" || *target == "" {
 		flag.PrintDefaults()
 		return
 	}
-
-	err := filepath.Walk(*target, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			return nil
-		}
-		if strings.HasSuffix(path, ".go") {
-			log.Printf("rename file: %s", path)
-			return renamer.RenameModule(*oldModule, *newModule, path)
-		}
-		return nil
-	})
+	err := renamer.RenameDirModule(*oldModule, *newModule, *target)
 	if err != nil {
 		log.Panicf("rename module error: %v", err)
 	}

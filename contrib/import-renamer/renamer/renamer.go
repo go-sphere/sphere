@@ -7,8 +7,26 @@ import (
 	"go/token"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 )
+
+func RenameDirModule(oldModule, newModule string, dir string) error {
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".go") {
+			log.Printf("rename file: %s", path)
+			return RenameModule(oldModule, newModule, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func RenameModule(oldModule, newModule string, path string) error {
 	fset := token.NewFileSet()
