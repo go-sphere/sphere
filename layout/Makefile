@@ -28,12 +28,9 @@ init: ## Init all dependencies
 
 .PHONY: install
 install: ## Install all dependencies
-	 cd ../contrib/protoc-gen-sphere && go mod download && go install .
-	 cd ../contrib/protoc-gen-route && go mod download && go install .
-	 cd ../contrib/ent-gen-proto && go mod download && go install .
-#	go install github.com/TBXark/sphere/contrib/protoc-gen-sphere@latest
-#	go install github.com/TBXark/sphere/contrib/protoc-gen-route@latest
-#	go install github.com/TBXark/sphere/contrib/ent-gen-proto@latest
+	go install github.com/TBXark/sphere/contrib/protoc-gen-sphere@latest
+	go install github.com/TBXark/sphere/contrib/protoc-gen-route@latest
+	go install github.com/TBXark/sphere/contrib/ent-gen-proto@latest
 
 .PHONY: gen-proto
 gen-proto: ## Generate proto files and run protoc plugins

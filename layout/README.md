@@ -58,10 +58,8 @@ Sphere build tool. Usage: make [target]
 ### 1. Clone the project and initialize the project with recommended layout
 
 ```bash
-git clone git@github.com:TBXark/sphere.git
-cd sphere/layout
-make init
-./scripts/rename.sh # rename the project and delete pkg and contrib folder
+go install github.com/TBXark/sphere/contrib/sphere-cli@latest
+sphere-cli create -name myproject -mod github.com/TBXark/myproject
 ```
 
 
