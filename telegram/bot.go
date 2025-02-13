@@ -89,6 +89,18 @@ func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middlewares ..
 	})
 }
 
+func (b *Bot) BindRoute(route map[string]func(ctx context.Context, request *Update) error, extra func(string) *MethodExtraData, operations []string, middlewares ...MiddlewareFunc) {
+	for _, operation := range operations {
+		info := extra(operation)
+		if info.Command != "" {
+			b.BindCommand(info.Command, route[operation], middlewares...)
+		}
+		if info.CallbackQuery != "" {
+			b.BindCallback(info.CallbackQuery, route[operation], middlewares...)
+		}
+	}
+}
+
 func (b *Bot) Update(options ...bot.Option) {
 	for _, opt := range options {
 		opt(b.bot)
