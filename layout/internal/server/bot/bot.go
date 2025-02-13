@@ -30,27 +30,14 @@ func (b *Bot) Identifier() string {
 }
 
 func (b *Bot) Start(ctx context.Context) error {
-	route := botv1.RegisterMenuServiceBotServer(b.service, &MenuServiceBotCodec{}, b.SendMessage)
-	b.BindCommand(botv1.ExtraBotDataMenuServiceStart.Command, route[botv1.OperationBotMenuServiceStart])
+	b.Bot.BindRoute(
+		botv1.RegisterMenuServiceBotServer(b.service, &MenuServiceBotCodec{}, b.SendMessage),
+		botv1.GetExtraBotDataByMenuServiceOperation,
+		botv1.GetAllBotMenuServiceOperations(),
+	)
 	return b.Bot.Start(ctx)
 }
 
 func (b *Bot) Stop(ctx context.Context) error {
 	return b.Bot.Close(ctx)
-}
-
-func NewButton[T any](text, query string, data T) telegram.Button {
-	return telegram.NewButton(text, query, data)
-}
-
-func UnmarshalUpdateDataWithDefault[T any](update *telegram.Update, defaultValue T) T {
-	if update != nil && update.CallbackQuery != nil {
-		_, data, err := telegram.UnmarshalData[T](update.CallbackQuery.Data)
-		if err == nil {
-			return *data
-		}
-		return defaultValue
-	} else {
-		return defaultValue
-	}
 }
