@@ -19,7 +19,7 @@ const (
 )
 
 func NewCommand() *command.Command {
-	fs := flag.NewFlagSet("project", flag.ExitOnError)
+	fs := flag.NewFlagSet("create", flag.ExitOnError)
 	name := fs.String("name", "", "project name")
 	mod := fs.String("mod", "", "go module name")
 	return command.NewCommand(fs, func() error {
