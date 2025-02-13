@@ -28,9 +28,13 @@ init: ## Init all dependencies
 
 .PHONY: install
 install: ## Install all dependencies
+ifeq ($(IGNORE_INSTALL_SPHERE_TOOLS),1)
+	@echo "Skipping sphere tools installation as IGNORE_INSTALL_SPHERE_TOOLS=1"
+else
 	go install github.com/TBXark/sphere/contrib/protoc-gen-sphere@latest
 	go install github.com/TBXark/sphere/contrib/protoc-gen-route@latest
 	go install github.com/TBXark/sphere/contrib/ent-gen-proto@latest
+endif
 
 .PHONY: gen-proto
 gen-proto: ## Generate proto files and run protoc plugins
