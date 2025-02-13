@@ -11,6 +11,7 @@ type Admin struct {
 }
 
 func (Admin) Fields() []ent.Field {
+	times := DefaultTimeFields()
 	return []ent.Field{
 		field.Int64("id").Unique().Immutable().DefaultFunc(idgenerator.NextId).Comment("用户ID"),
 		field.String("username").Unique().MinLen(1).Comment("用户名"),
@@ -18,11 +19,6 @@ func (Admin) Fields() []ent.Field {
 		field.String("avatar").Optional().Default("").Comment("头像"),
 		field.String("password").Comment("密码").Sensitive(),
 		field.Strings("roles").Default([]string{}).Comment("权限").Sensitive(),
-	}
-}
-
-func (Admin) Mixin() []ent.Mixin {
-	return []ent.Mixin{
-		TimeMixin{},
+		times[0], times[1],
 	}
 }

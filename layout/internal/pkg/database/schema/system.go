@@ -10,14 +10,10 @@ type KeyValueStore struct {
 }
 
 func (KeyValueStore) Fields() []ent.Field {
+	times := DefaultTimeFields()
 	return []ent.Field{
 		field.String("key").Unique().Comment("键"),
 		field.Bytes("value").Optional().Comment("值"),
-	}
-}
-
-func (KeyValueStore) Mixin() []ent.Mixin {
-	return []ent.Mixin{
-		TimeMixin{},
+		times[0], times[1],
 	}
 }

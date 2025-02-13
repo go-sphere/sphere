@@ -12,6 +12,7 @@ type User struct {
 }
 
 func (User) Fields() []ent.Field {
+	times := DefaultTimeFields()
 	return []ent.Field{
 		field.Int64("id").Unique().Immutable().DefaultFunc(idgenerator.NextId).Comment("用户ID"),
 		field.String("username").Comment("用户名").MinLen(1),
@@ -19,12 +20,7 @@ func (User) Fields() []ent.Field {
 		field.String("avatar").Comment("头像").Default(""),
 		field.String("phone").Optional().Default("").Comment("手机号").MaxLen(20),
 		field.Uint64("flags").Default(0).Comment("标记位"),
-	}
-}
-
-func (User) Mixin() []ent.Mixin {
-	return []ent.Mixin{
-		TimeMixin{},
+		times[0], times[1],
 	}
 }
 
@@ -33,23 +29,19 @@ type UserPlatform struct {
 }
 
 func (UserPlatform) Fields() []ent.Field {
+	times := DefaultTimeFields()
 	return []ent.Field{
 		field.Int64("user_id").Comment("用户ID"),
 		field.String("platform").Comment("平台"),
 		field.String("platform_id").Comment("平台ID"),
 		field.String("second_id").Optional().Default("").Comment("第二ID"),
 		//field.String("private_key").Optional().Default("").Comment("私钥").Sensitive(),
+		times[0], times[1],
 	}
 }
 
 func (UserPlatform) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("platform", "platform_id"),
-	}
-}
-
-func (UserPlatform) Mixin() []ent.Mixin {
-	return []ent.Mixin{
-		TimeMixin{},
 	}
 }

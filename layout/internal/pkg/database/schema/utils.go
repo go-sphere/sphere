@@ -11,12 +11,8 @@ func TimestampDefaultFunc() int64 {
 	return time.Now().Unix()
 }
 
-type TimeMixin struct {
-	mixin.Schema
-}
-
-func (TimeMixin) Fields() []ent.Field {
-	return []ent.Field{
+func DefaultTimeFields() [2]ent.Field {
+	return [2]ent.Field{
 		field.Int64("created_at").
 			Optional().
 			Immutable().
@@ -28,4 +24,13 @@ func (TimeMixin) Fields() []ent.Field {
 			UpdateDefault(TimestampDefaultFunc).
 			Comment("更新时间"),
 	}
+}
+
+type TimeMixin struct {
+	mixin.Schema
+}
+
+func (TimeMixin) Fields() []ent.Field {
+	fields := DefaultTimeFields()
+	return []ent.Field{fields[0], fields[1]}
 }
