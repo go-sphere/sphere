@@ -6,6 +6,9 @@
 {{$extraDataType := .ExtraDataType}}
 {{$newExtraDataFunc := .NewExtraDataFunc}}
 
+{{$handlerType := printf "func(ctx context.Context, request *%s) error" $requestType}}
+{{$senderType := printf "func(ctx context.Context, request *%s, msg *%s) error" $requestType $responseType}}
+
 {{- range .MethodSets}}
 const Operation{{$optionsKey}}{{$svrType}}{{.OriginalName}} = "/{{$svrName}}/{{.OriginalName}}"
 {{- end}}
@@ -35,6 +38,14 @@ func GetExtra{{$optionsKey}}DataBy{{$svrType}}Operation(operation string) *{{.Ex
     }
 }
 
+func GetAll{{$optionsKey}}{{$svrType}}Operations() []string {
+    return []string{
+    {{- range .MethodSets}}
+    Operation{{$optionsKey}}{{$svrType}}{{.OriginalName}},
+    {{- end}}
+    }
+}
+
 type {{.ServiceType}}{{$optionsKey}}Server interface {
 {{- range .MethodSets}}
 	{{.Name}}(context.Context, *{{.Request}}) (*{{.Reply}}, error)
@@ -48,12 +59,8 @@ type {{.ServiceType}}{{$optionsKey}}Codec interface {
 {{- end}}
 }
 
-type {{.ServiceType}}{{$optionsKey}}Handler func(ctx context.Context, request *{{.RequestType}}) error
-
-type {{.ServiceType}}{{$optionsKey}}Sender func(ctx context.Context, request *{{.RequestType}}, msg *{{.ResponseType}}) error
-
 {{range .Methods}}
-func _{{$svrType}}_{{.Name}}{{.Num}}_{{$optionsKey}}_Handler(srv {{$svrType}}{{$optionsKey}}Server, codec {{$svrType}}{{$optionsKey}}Codec, sender {{$svrType}}{{$optionsKey}}Sender) {{$svrType}}{{$optionsKey}}Handler {
+func _{{$svrType}}_{{.Name}}{{.Num}}_{{$optionsKey}}_Handler(srv {{$svrType}}{{$optionsKey}}Server, codec {{$svrType}}{{$optionsKey}}Codec, sender {{$senderType}}) {{$handlerType}} {
     return func(ctx context.Context, request *{{$requestType}}) error {
     		req, err := codec.Decode{{.Name}}Request(ctx, request)
     		if err != nil {
@@ -72,8 +79,8 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_{{$optionsKey}}_Handler(srv {{$svrType}}{{$
 }
 {{end}}
 
-func Register{{.ServiceType}}{{$optionsKey}}Server(srv {{.ServiceType}}{{$optionsKey}}Server, codec {{.ServiceType}}{{$optionsKey}}Codec, sender {{.ServiceType}}{{$optionsKey}}Sender) map[string]{{.ServiceType}}{{$optionsKey}}Handler {
-	handlers := make(map[string]{{.ServiceType}}{{$optionsKey}}Handler)
+func Register{{.ServiceType}}{{$optionsKey}}Server(srv {{.ServiceType}}{{$optionsKey}}Server, codec {{.ServiceType}}{{$optionsKey}}Codec, sender {{$senderType}}) map[string]{{$handlerType}} {
+	handlers := make(map[string]{{$handlerType}})
 {{- range .Methods}}
     handlers[Operation{{$optionsKey}}{{$svrType}}{{.OriginalName}}] = _{{$svrType}}_{{.Name}}{{.Num}}_{{$optionsKey}}_Handler(srv, codec, sender)
 {{- end}}
