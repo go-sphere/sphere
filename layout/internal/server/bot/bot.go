@@ -11,7 +11,7 @@ type Config telegram.Config
 
 type Bot struct {
 	*telegram.Bot
-	service	*service.Service
+	service *service.Service
 }
 
 func NewApp(conf *Config, botService *service.Service) (*Bot, error) {
@@ -20,8 +20,8 @@ func NewApp(conf *Config, botService *service.Service) (*Bot, error) {
 		return nil, err
 	}
 	return &Bot{
-		Bot:		app,
-		service:	botService,
+		Bot:     app,
+		service: botService,
 	}, nil
 }
 

@@ -19,7 +19,7 @@ jobs:
         go-version: '1.23'
 
     - name: Build
-      run: cd layout && make init &&make build
+      run: cd layout && make init && make build
 
     - name: Test
       run: go test -v ./...

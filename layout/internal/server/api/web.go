@@ -20,15 +20,15 @@ import (
 )
 
 type Web struct {
-	config	*Config
-	server	*http.Server
-	service	*api.Service
+	config  *Config
+	server  *http.Server
+	service *api.Service
 }
 
 func NewWebServer(conf *Config, service *api.Service) *Web {
 	return &Web{
-		config:		conf,
-		service:	service,
+		config:  conf,
+		service: service,
 	}
 }
 
@@ -64,8 +64,8 @@ func (w *Web) Start(ctx context.Context) error {
 	apiv2.RegisterUserServiceHTTPServer(route, w.service)
 
 	w.server = &http.Server{
-		Addr:		w.config.HTTP.Address,
-		Handler:	engine.Handler(),
+		Addr:    w.config.HTTP.Address,
+		Handler: engine.Handler(),
 	}
 	return ginx.Start(ctx, w.server, 30*time.Second)
 }

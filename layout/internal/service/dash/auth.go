@@ -15,9 +15,9 @@ import (
 var _ dashv2.AuthServiceHTTPServer = (*Service)(nil)
 
 const (
-	AuthTokenValidDuration		= time.Hour * 24
-	RefreshTokenValidDuration	= time.Hour * 24 * 30
-	AuthExpiresTimeFormat		= "2006/01/02 15:04:05"
+	AuthTokenValidDuration    = time.Hour * 24
+	RefreshTokenValidDuration = time.Hour * 24 * 30
+	AuthExpiresTimeFormat     = "2006/01/02 15:04:05"
 )
 
 var (
@@ -25,10 +25,10 @@ var (
 )
 
 type AdminToken struct {
-	Admin		*ent.Admin
-	AccessToken	string
-	RefreshToken	string
-	Expires		string
+	Admin        *ent.Admin
+	AccessToken  string
+	RefreshToken string
+	Expires      string
 }
 
 type AdminLoginResponseWrapper = ginx.DataResponse[AdminToken]
@@ -49,10 +49,10 @@ func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
 	}
 	u.Avatar = s.Storage.GenerateImageURL(u.Avatar, 512)
 	return &AdminToken{
-		Admin:		u,
-		AccessToken:	token,
-		RefreshToken:	refresh,
-		Expires:	claims.ExpiresAt.Format(AuthExpiresTimeFormat),
+		Admin:        u,
+		AccessToken:  token,
+		RefreshToken: refresh,
+		Expires:      claims.ExpiresAt.Format(AuthExpiresTimeFormat),
 	}, nil
 }
 
@@ -65,7 +65,7 @@ func (s *Service) AuthCodes(ctx context.Context, request *dashv2.AuthCodesReques
 func (s *Service) AuthLogin(ctx context.Context, req *dashv2.AuthLoginRequest) (*dashv2.AuthLoginResponse, error) {
 	u, err := s.DB.Admin.Query().Where(admin.UsernameEQ(req.Username)).Only(ctx)
 	if err != nil {
-		return nil, ErrPasswordNotMatch	// 隐藏错误信息
+		return nil, ErrPasswordNotMatch // 隐藏错误信息
 	}
 	if !secure.IsPasswordMatch(req.Password, u.Password) {
 		return nil, ErrPasswordNotMatch

@@ -1,13 +1,19 @@
 package main
 
-import "log"
+import (
+	"github.com/TBXark/sphere/contrib/sphere-cli/cmd/create"
+	"github.com/TBXark/sphere/contrib/sphere-cli/cmd/rename"
+	"github.com/TBXark/sphere/contrib/sphere-cli/internal/command"
+	"log"
+)
 
 func main() {
-	err := RunCommand(
+	err := command.RunCommand(
 		"sphere-cli",
 		"A tool for managing sphere projects",
-		map[string]*Command{
-			"create": createProjectCommand(),
+		[]*command.Command{
+			create.NewCommand(),
+			rename.NewCommand(),
 		},
 	)
 	if err != nil {

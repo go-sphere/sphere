@@ -8,9 +8,9 @@ import (
 )
 
 type Config struct {
-	Type	string	`json:"type" yaml:"type"`
-	Path	string	`json:"path" yaml:"path"`
-	Debug	bool	`json:"debug" yaml:"debug"`
+	Type  string `json:"type" yaml:"type"`
+	Path  string `json:"path" yaml:"path"`
+	Debug bool   `json:"debug" yaml:"debug"`
 }
 
 func NewDataBaseClient(config *Config) (*ent.Client, error) {

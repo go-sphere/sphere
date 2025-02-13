@@ -25,15 +25,15 @@ import (
 )
 
 type Web struct {
-	config	*Config
-	server	*http.Server
-	service	*dash.Service
+	config  *Config
+	server  *http.Server
+	service *dash.Service
 }
 
 func NewWebServer(config *Config, service *dash.Service) *Web {
 	return &Web{
-		config:		config,
-		service:	service,
+		config:  config,
+		service: service,
 	}
 }
 
@@ -109,8 +109,8 @@ func (w *Web) Start(ctx context.Context) error {
 	dashv2.RegisterUserServiceHTTPServer(userRoute, w.service)
 
 	w.server = &http.Server{
-		Addr:		w.config.HTTP.Address,
-		Handler:	engine.Handler(),
+		Addr:    w.config.HTTP.Address,
+		Handler: engine.Handler(),
 	}
 	return ginx.Start(ctx, w.server, 30*time.Second)
 }

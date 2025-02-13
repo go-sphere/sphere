@@ -6,10 +6,10 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:	"storage",
-	Short:	"storage Tools",
-	Long:	`storage Tools is a set of tools for storage operations.`,
-	Run:	runRoot,
+	Use:   "storage",
+	Short: "storage Tools",
+	Long:  `storage Tools is a set of tools for storage operations.`,
+	Run:   runRoot,
 }
 
 func Execute() {

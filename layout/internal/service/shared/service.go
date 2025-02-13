@@ -7,13 +7,13 @@ import (
 
 type Service struct {
 	authorizer.ContextUtils[int64]
-	Storage		storage.Storage
-	StorageDir	string
+	Storage    storage.Storage
+	StorageDir string
 }
 
 func NewService(store storage.Storage, storageDir string) *Service {
 	return &Service{
-		Storage:	store,
-		StorageDir:	storageDir,
+		Storage:    store,
+		StorageDir: storageDir,
 	}
 }

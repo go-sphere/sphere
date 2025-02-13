@@ -1,8 +1,10 @@
-package main
+package create
 
 import (
 	"flag"
-	"github.com/TBXark/sphere/contrib/import-renamer/renamer"
+	"github.com/TBXark/sphere/contrib/sphere-cli/internal/command"
+	"github.com/TBXark/sphere/contrib/sphere-cli/internal/renamer"
+	"github.com/TBXark/sphere/contrib/sphere-cli/internal/zip"
 	"log"
 	"os"
 	"os/exec"
@@ -16,11 +18,11 @@ const (
 	defaultProjectLayoutModName = "github.com/TBXark/sphere/layout"
 )
 
-func createProjectCommand() *Command {
+func NewCommand() *command.Command {
 	fs := flag.NewFlagSet("project", flag.ExitOnError)
 	name := fs.String("name", "", "project name")
 	mod := fs.String("mod", "", "go module name")
-	return NewCommand(fs, func() error {
+	return command.NewCommand(fs, func() error {
 		if *name == "" || *mod == "" {
 			fs.Usage()
 			return nil
@@ -58,7 +60,7 @@ func createProject(name, mod string) error {
 }
 
 func cloneLayoutDir(uri string) (string, error) {
-	tempDir, err := unzipToTemp(uri)
+	tempDir, err := zip.UnzipToTemp(uri)
 	if err != nil {
 		return "", err
 	}
@@ -124,8 +126,8 @@ func execCommand(dir string, name string, arg ...string) (string, error) {
 }
 
 func execCommands(dir string, commands ...[]string) error {
-	for _, command := range commands {
-		_, err := execCommand(dir, command[0], command[1:]...)
+	for _, cmd := range commands {
+		_, err := execCommand(dir, cmd[0], cmd[1:]...)
 		if err != nil {
 			return err
 		}

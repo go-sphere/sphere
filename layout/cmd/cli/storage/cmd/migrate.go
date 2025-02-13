@@ -18,10 +18,10 @@ import (
 
 // migrateCmd represents the cdn command
 var migrateCmd = &cobra.Command{
-	Use:	"migrate",
-	Short:	"Qiniu migration Tools",
-	Long:	`Move files from one qiniu bucket to another bucket.`,
-	Run:	runMigrate,
+	Use:   "migrate",
+	Short: "Qiniu migration Tools",
+	Long:  `Move files from one qiniu bucket to another bucket.`,
+	Run:   runMigrate,
 }
 
 func init() {

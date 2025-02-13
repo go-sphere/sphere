@@ -22,13 +22,13 @@ func (s *Service) UserInfo(ctx context.Context, req *dashv2.UserInfoRequest) (*d
 		return nil, err
 	}
 	return &dashv2.UserInfoResponse{
-		Avatar:		u.Avatar,
-		RealName:	u.Nickname,
-		Roles:		u.Roles,
-		UserId:		strconv.Itoa(int(u.ID)),
-		Username:	u.Username,
-		Desc:		"",
-		HomePath:	"",
-		Token:		token.AccessToken,
+		Avatar:   u.Avatar,
+		RealName: u.Nickname,
+		Roles:    u.Roles,
+		UserId:   strconv.Itoa(int(u.ID)),
+		Username: u.Username,
+		Desc:     "",
+		HomePath: "",
+		Token:    token.AccessToken,
 	}, nil
 }

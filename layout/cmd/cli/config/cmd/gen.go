@@ -10,10 +10,10 @@ import (
 
 // genCmd represents the config command
 var genCmd = &cobra.Command{
-	Use:	"gen",
-	Short:	"Generate config file",
-	Long:	`Generate a config file with default values.`,
-	Run:	runConfig,
+	Use:   "gen",
+	Short: "Generate config file",
+	Long:  `Generate a config file with default values.`,
+	Run:   runConfig,
 }
 
 func init() {

@@ -6,10 +6,10 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:	"config",
-	Short:	"Config Tools",
-	Long:	`Config Tools is a set of tools for config operations.`,
-	Run:	runRoot,
+	Use:   "config",
+	Short: "Config Tools",
+	Long:  `Config Tools is a set of tools for config operations.`,
+	Run:   runRoot,
 }
 
 func Execute() {

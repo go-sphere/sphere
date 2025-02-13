@@ -1,10 +1,9 @@
-package main
+package command
 
 import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 )
 
 type Command struct {
@@ -30,12 +29,12 @@ func NewCommand(fs *flag.FlagSet, handleFunc func() error) *Command {
 	return cmd
 }
 
-func RunCommand(name, desc string, commands map[string]*Command) error {
+func RunCommand(name, desc string, commands []*Command) error {
 	printDefaults := func() {
 		fmt.Printf("Usage: %s <command> [options]\n\n", name)
 		fmt.Printf("%s\n", desc)
-		for name, cmd := range commands {
-			fmt.Printf("%s Command:\n", strings.Title(name))
+		for _, cmd := range commands {
+			fmt.Printf("%s Command:\n", cmd.Name)
 			cmd.FlagSet.PrintDefaults()
 		}
 	}
@@ -45,18 +44,19 @@ func RunCommand(name, desc string, commands map[string]*Command) error {
 		return nil
 	}
 
-	cmd, exists := commands[os.Args[1]]
-	if !exists {
-		printDefaults()
+	for _, cmd := range commands {
+		if cmd.Name != os.Args[1] {
+			continue
+		}
+		if err := cmd.FlagSet.Parse(os.Args[2:]); err != nil {
+			return err
+		}
+		if err := cmd.HandleFunc(); err != nil {
+			return err
+		}
 		return nil
 	}
 
-	if err := cmd.FlagSet.Parse(os.Args[2:]); err != nil {
-		return err
-	}
-
-	if err := cmd.HandleFunc(); err != nil {
-		return err
-	}
+	printDefaults()
 	return nil
 }

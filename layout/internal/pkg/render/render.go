@@ -6,15 +6,15 @@ import (
 )
 
 type Render struct {
-	cdn		storage.URLHandler
-	db		*dao.Dao
-	hidePrivacy	bool
+	cdn         storage.URLHandler
+	db          *dao.Dao
+	hidePrivacy bool
 }
 
 const (
-	ImageWidthForAvatar	= 400
-	ImageWidthForPlatform	= 512
-	ImageWidthForCommon	= 1024
+	ImageWidthForAvatar   = 400
+	ImageWidthForPlatform = 512
+	ImageWidthForCommon   = 1024
 )
 
 func NewRender(cdn storage.URLHandler, db *dao.Dao, hidePrivacy bool) *Render {

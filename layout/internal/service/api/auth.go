@@ -23,9 +23,9 @@ func renderClaims(user *ent.User, pla *ent.UserPlatform, duration time.Duration)
 }
 
 type userContext struct {
-	isNew		bool
-	user		*ent.User
-	platform	*ent.UserPlatform
+	isNew    bool
+	user     *ent.User
+	platform *ent.UserPlatform
 }
 
 func (s *Service) AuthWxMini(ctx context.Context, req *apiv2.AuthWxMiniRequest) (*apiv2.AuthWxMiniResponse, error) {
@@ -45,8 +45,8 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv2.AuthWxMiniRequest) 
 				return nil, ue
 			}
 			return &userContext{
-				user:		u,
-				platform:	userPlat,
+				user:     u,
+				platform: userPlat,
 			}, nil
 		}
 		// 其他错误
@@ -70,9 +70,9 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv2.AuthWxMiniRequest) 
 			return nil, e
 		}
 		return &userContext{
-			isNew:		true,
-			user:		newUser,
-			platform:	userPlat,
+			isNew:    true,
+			user:     newUser,
+			platform: userPlat,
 		}, nil
 	})
 	if err != nil {
@@ -83,8 +83,8 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv2.AuthWxMiniRequest) 
 		return nil, err
 	}
 	return &apiv2.AuthWxMiniResponse{
-		IsNew:	res.isNew,
-		Token:	token,
-		User:	s.Render.Me(res.user),
+		IsNew: res.isNew,
+		Token: token,
+		User:  s.Render.Me(res.user),
 	}, nil
 }

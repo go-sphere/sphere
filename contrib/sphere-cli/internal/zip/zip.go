@@ -1,4 +1,4 @@
-package main
+package zip
 
 import (
 	"archive/zip"
@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 )
 
-func unzipToTemp(uri string) (tempDir string, err error) {
+func UnzipToTemp(uri string) (tempDir string, err error) {
 	tempDir, err = os.MkdirTemp("", "unzip_*")
 	if err != nil {
 		return "", err

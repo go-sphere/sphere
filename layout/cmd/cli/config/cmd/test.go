@@ -10,10 +10,10 @@ import (
 
 // testCmd represents the test command
 var testCmd = &cobra.Command{
-	Use:	"test",
-	Short:	"Test config file format",
-	Long:	`Test config file format is correct.`,
-	Run:	runTest,
+	Use:   "test",
+	Short: "Test config file format",
+	Long:  `Test config file format is correct.`,
+	Run:   runTest,
 }
 
 func init() {

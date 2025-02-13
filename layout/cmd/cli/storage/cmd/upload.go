@@ -16,10 +16,10 @@ import (
 
 // uploadCmd represents the upload command
 var uploadCmd = &cobra.Command{
-	Use:	"upload",
-	Short:	"Upload files to storage",
-	Long:	`Upload files to Qiniu storage.`,
-	Run:	runUpload,
+	Use:   "upload",
+	Short: "Upload files to storage",
+	Long:  `Upload files to Qiniu storage.`,
+	Run:   runUpload,
 }
 
 func init() {

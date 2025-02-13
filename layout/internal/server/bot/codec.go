@@ -22,7 +22,7 @@ func (b *CounterServiceCodec) DecodeCounterRequest(ctx context.Context, update *
 func (b *CounterServiceCodec) EncodeCounterResponse(ctx context.Context, reply *botv2.CounterResponse) (*telegram.Message, error) {
 	act := botv2.ExtraBotDataCounterServiceCounter.CallbackQuery
 	return &telegram.Message{
-		Text:	fmt.Sprintf("Counter: %d", reply.Count),
+		Text: fmt.Sprintf("Counter: %d", reply.Count),
 		Button: [][]telegram.Button{
 			{
 				NewButton("Increment", act, reply.Count+1),
