@@ -2,13 +2,13 @@ package dash
 
 import (
 	"context"
-	dashv2 "github.com/TBXark/sphere/layout/api/dash/v1"
+	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
 	"strconv"
 )
 
-var _ dashv2.UserServiceHTTPServer = (*Service)(nil)
+var _ dashv1.UserServiceHTTPServer = (*Service)(nil)
 
-func (s *Service) UserInfo(ctx context.Context, req *dashv2.UserInfoRequest) (*dashv2.UserInfoResponse, error) {
+func (s *Service) UserInfo(ctx context.Context, req *dashv1.UserInfoRequest) (*dashv1.UserInfoResponse, error) {
 	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -21,7 +21,7 @@ func (s *Service) UserInfo(ctx context.Context, req *dashv2.UserInfoRequest) (*d
 	if err != nil {
 		return nil, err
 	}
-	return &dashv2.UserInfoResponse{
+	return &dashv1.UserInfoResponse{
 		Avatar:   u.Avatar,
 		RealName: u.Nickname,
 		Roles:    u.Roles,

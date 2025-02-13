@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
-	apiv2 "github.com/TBXark/sphere/layout/api/api/v1"
+	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/consts"
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var _ apiv2.AuthServiceHTTPServer = (*Service)(nil)
+var _ apiv1.AuthServiceHTTPServer = (*Service)(nil)
 
 const (
 	AppTokenValidDuration = time.Hour * 24 * 7
@@ -28,7 +28,7 @@ type userContext struct {
 	platform *ent.UserPlatform
 }
 
-func (s *Service) AuthWxMini(ctx context.Context, req *apiv2.AuthWxMiniRequest) (*apiv2.AuthWxMiniResponse, error) {
+func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) (*apiv1.AuthWxMiniResponse, error) {
 	wxUser, err := s.Wechat.Auth(req.Code)
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv2.AuthWxMiniRequest) 
 	if err != nil {
 		return nil, err
 	}
-	return &apiv2.AuthWxMiniResponse{
+	return &apiv1.AuthWxMiniResponse{
 		IsNew: res.isNew,
 		Token: token,
 		User:  s.Render.Me(res.user),

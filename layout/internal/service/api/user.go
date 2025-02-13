@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
-	apiv2 "github.com/TBXark/sphere/layout/api/api/v1"
+	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/user"
@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-var _ apiv2.UserServiceHTTPServer = (*Service)(nil)
+var _ apiv1.UserServiceHTTPServer = (*Service)(nil)
 
 var wechatAvatarDomains = map[string]struct{}{
 	"thirdwx.qlogo.cn": {},
@@ -25,7 +25,7 @@ const RemoteImageMaxSize = 1024 * 1024 * 2
 var ErrImageSizeExceed = fmt.Errorf("image size exceed")
 var ErrImageHostNotAllowed = fmt.Errorf("image host not allowed")
 
-func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv2.BindPhoneWxMiniRequest) (*apiv2.BindPhoneWxMiniResponse, error) {
+func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMiniRequest) (*apiv1.BindPhoneWxMiniResponse, error) {
 	userId, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -54,10 +54,10 @@ func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv2.BindPhoneWxMin
 	if err != nil {
 		return nil, err
 	}
-	return &apiv2.BindPhoneWxMiniResponse{}, nil
+	return &apiv1.BindPhoneWxMiniResponse{}, nil
 }
 
-func (s *Service) Me(ctx context.Context, req *apiv2.MeRequest) (*apiv2.MeResponse, error) {
+func (s *Service) Me(ctx context.Context, req *apiv1.MeRequest) (*apiv1.MeResponse, error) {
 	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -66,12 +66,12 @@ func (s *Service) Me(ctx context.Context, req *apiv2.MeRequest) (*apiv2.MeRespon
 	if err != nil {
 		return nil, err
 	}
-	return &apiv2.MeResponse{
+	return &apiv1.MeResponse{
 		User: s.Render.Me(me),
 	}, nil
 }
 
-func (s *Service) Update(ctx context.Context, req *apiv2.UpdateRequest) (*apiv2.UpdateResponse, error) {
+func (s *Service) Update(ctx context.Context, req *apiv1.UpdateRequest) (*apiv1.UpdateResponse, error) {
 	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func (s *Service) Update(ctx context.Context, req *apiv2.UpdateRequest) (*apiv2.
 	if err != nil {
 		return nil, err
 	}
-	return &apiv2.UpdateResponse{
+	return &apiv1.UpdateResponse{
 		User: s.Render.Me(up),
 	}, nil
 }

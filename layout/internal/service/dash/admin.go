@@ -2,7 +2,7 @@ package dash
 
 import (
 	"context"
-	dashv2 "github.com/TBXark/sphere/layout/api/dash/v1"
+	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
 	"github.com/TBXark/sphere/layout/api/entpb"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/server/statuserr"
@@ -10,9 +10,9 @@ import (
 	"github.com/samber/lo"
 )
 
-var _ dashv2.AdminServiceHTTPServer = (*Service)(nil)
+var _ dashv1.AdminServiceHTTPServer = (*Service)(nil)
 
-func (s *Service) AdminCreate(ctx context.Context, req *dashv2.AdminCreateRequest) (*dashv2.AdminCreateResponse, error) {
+func (s *Service) AdminCreate(ctx context.Context, req *dashv1.AdminCreateRequest) (*dashv1.AdminCreateResponse, error) {
 	if len(req.Admin.Password) > 8 {
 		req.Admin.Password = secure.CryptPassword(req.Admin.Password)
 	} else {
@@ -28,12 +28,12 @@ func (s *Service) AdminCreate(ctx context.Context, req *dashv2.AdminCreateReques
 	if err != nil {
 		return nil, err
 	}
-	return &dashv2.AdminCreateResponse{
+	return &dashv1.AdminCreateResponse{
 		Admin: s.Render.AdminFull(u),
 	}, nil
 }
 
-func (s *Service) AdminDelete(ctx context.Context, req *dashv2.AdminDeleteRequest) (*dashv2.AdminDeleteResponse, error) {
+func (s *Service) AdminDelete(ctx context.Context, req *dashv1.AdminDeleteRequest) (*dashv1.AdminDeleteResponse, error) {
 	adm, err := s.DB.Admin.Get(ctx, req.Id)
 	if err != nil {
 		return nil, err
@@ -49,32 +49,32 @@ func (s *Service) AdminDelete(ctx context.Context, req *dashv2.AdminDeleteReques
 	if err != nil {
 		return nil, err
 	}
-	return &dashv2.AdminDeleteResponse{}, nil
+	return &dashv1.AdminDeleteResponse{}, nil
 }
 
-func (s *Service) AdminDetail(ctx context.Context, req *dashv2.AdminDetailRequest) (*dashv2.AdminDetailResponse, error) {
+func (s *Service) AdminDetail(ctx context.Context, req *dashv1.AdminDetailRequest) (*dashv1.AdminDetailResponse, error) {
 	adm, err := s.DB.Admin.Get(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
-	return &dashv2.AdminDetailResponse{
+	return &dashv1.AdminDetailResponse{
 		Admin: s.Render.AdminFull(adm),
 	}, nil
 }
 
-func (s *Service) AdminList(ctx context.Context, req *dashv2.AdminListRequest) (*dashv2.AdminListResponse, error) {
+func (s *Service) AdminList(ctx context.Context, req *dashv1.AdminListRequest) (*dashv1.AdminListResponse, error) {
 	all, err := s.DB.Admin.Query().All(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &dashv2.AdminListResponse{
+	return &dashv1.AdminListResponse{
 		Admins: lo.Map(all, func(admin *ent.Admin, i int) *entpb.Admin {
 			return s.Render.AdminFull(admin)
 		}),
 	}, nil
 }
 
-func (s *Service) AdminUpdate(ctx context.Context, req *dashv2.AdminUpdateRequest) (*dashv2.AdminUpdateResponse, error) {
+func (s *Service) AdminUpdate(ctx context.Context, req *dashv1.AdminUpdateRequest) (*dashv1.AdminUpdateResponse, error) {
 	update := s.DB.Admin.UpdateOneID(req.Id).
 		SetAvatar(s.Storage.ExtractKeyFromURL(req.Admin.Avatar)).
 		SetUsername(req.Admin.Username).
@@ -88,13 +88,13 @@ func (s *Service) AdminUpdate(ctx context.Context, req *dashv2.AdminUpdateReques
 	if err != nil {
 		return nil, err
 	}
-	return &dashv2.AdminUpdateResponse{
+	return &dashv1.AdminUpdateResponse{
 		Admin: s.Render.AdminFull(u),
 	}, nil
 }
 
-func (s *Service) AdminRoleList(ctx context.Context, request *dashv2.AdminRoleListRequest) (*dashv2.AdminRoleListResponse, error) {
-	return &dashv2.AdminRoleListResponse{
+func (s *Service) AdminRoleList(ctx context.Context, request *dashv1.AdminRoleListRequest) (*dashv1.AdminRoleListResponse, error) {
+	return &dashv1.AdminRoleListResponse{
 		Roles: []string{
 			PermissionAll,
 			PermissionAdmin,

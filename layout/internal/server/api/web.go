@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	apiv2 "github.com/TBXark/sphere/layout/api/api/v1"
+	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
 	"github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/service/api"
 	"github.com/TBXark/sphere/layout/internal/service/shared"
@@ -59,9 +59,9 @@ func (w *Web) Start(ctx context.Context) error {
 	sharedSrc := shared.NewService(w.service.Storage, "user")
 
 	sharedv1.RegisterStorageServiceHTTPServer(route, sharedSrc)
-	apiv2.RegisterAuthServiceHTTPServer(route, w.service)
-	apiv2.RegisterSystemServiceHTTPServer(route, w.service)
-	apiv2.RegisterUserServiceHTTPServer(route, w.service)
+	apiv1.RegisterAuthServiceHTTPServer(route, w.service)
+	apiv1.RegisterSystemServiceHTTPServer(route, w.service)
+	apiv1.RegisterUserServiceHTTPServer(route, w.service)
 
 	w.server = &http.Server{
 		Addr:    w.config.HTTP.Address,

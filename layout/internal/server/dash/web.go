@@ -2,7 +2,7 @@ package dash
 
 import (
 	"context"
-	dashv2 "github.com/TBXark/sphere/layout/api/dash/v1"
+	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
 	sharedv2 "github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/service/dash"
 	"github.com/TBXark/sphere/layout/internal/service/shared"
@@ -90,23 +90,23 @@ func (w *Web) Start(ctx context.Context) error {
 			selector.MatchFunc(
 				ginx.MatchOperation(
 					authRoute.BasePath(),
-					dashv2.EndpointsAuthService[:],
-					dashv2.OperationAuthServiceAuthLogin,
+					dashv1.EndpointsAuthService[:],
+					dashv1.OperationAuthServiceAuthLogin,
 				),
 			),
 			rateLimiter,
 		),
 	)
-	dashv2.RegisterAuthServiceHTTPServer(authRoute, w.service)
+	dashv1.RegisterAuthServiceHTTPServer(authRoute, w.service)
 
 	adminRoute := needAuthRoute.Group("/", w.withPermission(dash.PermissionAdmin))
-	dashv2.RegisterAdminServiceHTTPServer(adminRoute, w.service)
+	dashv1.RegisterAdminServiceHTTPServer(adminRoute, w.service)
 
 	systemRoute := needAuthRoute.Group("/")
-	dashv2.RegisterSystemServiceHTTPServer(systemRoute, w.service)
+	dashv1.RegisterSystemServiceHTTPServer(systemRoute, w.service)
 
 	userRoute := needAuthRoute.Group("/")
-	dashv2.RegisterUserServiceHTTPServer(userRoute, w.service)
+	dashv1.RegisterUserServiceHTTPServer(userRoute, w.service)
 
 	w.server = &http.Server{
 		Addr:    w.config.HTTP.Address,

@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package bot.v1;
+
+import "tbxark/options/annotations.proto";
+
+service MenuService {
+  rpc Start(StartRequest) returns (StartResponse) {
+    option (tbxark.options.options) = {
+      key: "bot",
+      extra: [
+        {
+          key: "command",
+          value: "start",
+        }
+      ]
+    };
+  }
+}
+
+message StartRequest {
+  string name = 1;
+}
+
+message StartResponse {
+  string message = 1;
+}

@@ -2,7 +2,7 @@ package dash
 
 import (
 	"context"
-	dashv2 "github.com/TBXark/sphere/layout/api/dash/v1"
+	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
 	"github.com/TBXark/sphere/server/auth/authorizer"
@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var _ dashv2.AuthServiceHTTPServer = (*Service)(nil)
+var _ dashv1.AuthServiceHTTPServer = (*Service)(nil)
 
 const (
 	AuthTokenValidDuration    = time.Hour * 24
@@ -56,13 +56,13 @@ func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
 	}, nil
 }
 
-func (s *Service) AuthCodes(ctx context.Context, request *dashv2.AuthCodesRequest) (*dashv2.AuthCodesResponse, error) {
-	return &dashv2.AuthCodesResponse{
+func (s *Service) AuthCodes(ctx context.Context, request *dashv1.AuthCodesRequest) (*dashv1.AuthCodesResponse, error) {
+	return &dashv1.AuthCodesResponse{
 		Data: make([]string, 0),
 	}, nil
 }
 
-func (s *Service) AuthLogin(ctx context.Context, req *dashv2.AuthLoginRequest) (*dashv2.AuthLoginResponse, error) {
+func (s *Service) AuthLogin(ctx context.Context, req *dashv1.AuthLoginRequest) (*dashv1.AuthLoginResponse, error) {
 	u, err := s.DB.Admin.Query().Where(admin.UsernameEQ(req.Username)).Only(ctx)
 	if err != nil {
 		return nil, ErrPasswordNotMatch // 隐藏错误信息
@@ -74,16 +74,16 @@ func (s *Service) AuthLogin(ctx context.Context, req *dashv2.AuthLoginRequest) (
 	if err != nil {
 		return nil, err
 	}
-	return &dashv2.AuthLoginResponse{
+	return &dashv1.AuthLoginResponse{
 		AccessToken: token.AccessToken,
 	}, nil
 }
 
-func (s *Service) AuthLogout(ctx context.Context, request *dashv2.AuthLogoutRequest) (*dashv2.AuthLogoutResponse, error) {
-	return &dashv2.AuthLogoutResponse{}, nil
+func (s *Service) AuthLogout(ctx context.Context, request *dashv1.AuthLogoutRequest) (*dashv1.AuthLogoutResponse, error) {
+	return &dashv1.AuthLogoutResponse{}, nil
 }
 
-func (s *Service) AuthRefresh(ctx context.Context, request *dashv2.AuthRefreshRequest) (*dashv2.AuthRefreshResponse, error) {
+func (s *Service) AuthRefresh(ctx context.Context, request *dashv1.AuthRefreshRequest) (*dashv1.AuthRefreshResponse, error) {
 	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (s *Service) AuthRefresh(ctx context.Context, request *dashv2.AuthRefreshRe
 	if err != nil {
 		return nil, err
 	}
-	return &dashv2.AuthRefreshResponse{
+	return &dashv1.AuthRefreshResponse{
 		AccessToken: token.AccessToken,
 	}, nil
 }

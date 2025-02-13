@@ -35,24 +35,6 @@ message KeyValueStore {
   int64 updated_at = 5;
 }
 
-message Task {
-  int64 id = 1;
-
-  string job_id = 2;
-
-  string name = 3;
-
-  string status = 4;
-
-  string result = 5;
-
-  string error = 6;
-
-  int64 created_at = 7;
-
-  int64 updated_at = 8;
-}
-
 message User {
   int64 id = 1;
 

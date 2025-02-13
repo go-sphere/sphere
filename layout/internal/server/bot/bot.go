@@ -2,7 +2,7 @@ package bot
 
 import (
 	"context"
-	"github.com/TBXark/sphere/layout/api/bot/v1"
+	botv1 "github.com/TBXark/sphere/layout/api/bot/v1"
 	service "github.com/TBXark/sphere/layout/internal/service/bot"
 	"github.com/TBXark/sphere/telegram"
 )
@@ -30,11 +30,8 @@ func (b *Bot) Identifier() string {
 }
 
 func (b *Bot) Start(ctx context.Context) error {
-	sfMid := telegram.NewSingleFlightMiddleware()
-	route := botv1.RegisterCounterServiceBotServer(b.service, &CounterServiceCodec{}, b.SendMessage)
-	b.BindCommand(botv1.ExtraBotDataCounterServiceStart.Command, route[botv1.OperationBotCounterServiceStart])
-	b.BindCommand(botv1.ExtraBotDataCounterServiceCounter.Command, route[botv1.OperationBotCounterServiceCounter], sfMid)
-	b.BindCallback(botv1.ExtraBotDataCounterServiceCounter.CallbackQuery, route[botv1.OperationBotCounterServiceCounter], sfMid)
+	route := botv1.RegisterMenuServiceBotServer(b.service, &MenuServiceBotCodec{}, b.SendMessage)
+	b.BindCommand(botv1.ExtraBotDataMenuServiceStart.Command, route[botv1.OperationBotMenuServiceStart])
 	return b.Bot.Start(ctx)
 }
 
