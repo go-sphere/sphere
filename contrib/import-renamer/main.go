@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"github.com/TBXark/sphere/contrib/import-renamer/renamer"
 	"log"
 	"os"
 	"path/filepath"
@@ -25,7 +26,7 @@ func main() {
 		}
 		if strings.HasSuffix(path, ".go") {
 			log.Printf("rename file: %s", path)
-			return RenameModule(*oldModule, *newModule, path)
+			return renamer.RenameModule(*oldModule, *newModule, path)
 		}
 		return nil
 	})
