@@ -1,7 +1,8 @@
 package main
 
 import (
-	"github.com/TBXark/sphere/layout/internal/biz/task"
+	"github.com/TBXark/sphere/layout/internal/biz/task/conncleaner"
+	"github.com/TBXark/sphere/layout/internal/biz/task/dashinit"
 	"github.com/TBXark/sphere/layout/internal/server/api"
 	"github.com/TBXark/sphere/layout/internal/server/bot"
 	"github.com/TBXark/sphere/layout/internal/server/dash"
@@ -9,7 +10,7 @@ import (
 	"github.com/TBXark/sphere/utils/boot"
 )
 
-func newApplication(dash *dash.Web, api *api.Web, docs *docs.Web, initialize *task.DashInitialize, cleaner *task.ConnectCleaner) *boot.Application {
+func newApplication(dash *dash.Web, api *api.Web, docs *docs.Web, initialize *dashinit.DashInitialize, cleaner *conncleaner.ConnectCleaner) *boot.Application {
 	return boot.NewApplication(
 		dash,
 		api,
@@ -19,7 +20,7 @@ func newApplication(dash *dash.Web, api *api.Web, docs *docs.Web, initialize *ta
 	)
 }
 
-func newAPIApplication(api *api.Web, initialize *task.DashInitialize, cleaner *task.ConnectCleaner) *boot.Application {
+func newAPIApplication(api *api.Web, initialize *dashinit.DashInitialize, cleaner *conncleaner.ConnectCleaner) *boot.Application {
 	return boot.NewApplication(
 		api,
 		initialize,
@@ -27,7 +28,7 @@ func newAPIApplication(api *api.Web, initialize *task.DashInitialize, cleaner *t
 	)
 }
 
-func newDashApplication(dash *dash.Web, initialize *task.DashInitialize, cleaner *task.ConnectCleaner) *boot.Application {
+func newDashApplication(dash *dash.Web, initialize *dashinit.DashInitialize, cleaner *conncleaner.ConnectCleaner) *boot.Application {
 	return boot.NewApplication(
 		dash,
 		initialize,

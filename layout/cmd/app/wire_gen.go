@@ -8,7 +8,8 @@ package main
 
 import (
 	"github.com/TBXark/sphere/cache/memory"
-	"github.com/TBXark/sphere/layout/internal/biz/task"
+	"github.com/TBXark/sphere/layout/internal/biz/task/conncleaner"
+	"github.com/TBXark/sphere/layout/internal/biz/task/dashinit"
 	"github.com/TBXark/sphere/layout/internal/config"
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/client"
@@ -46,8 +47,8 @@ func NewApplication(conf *config.Config) (*boot.Application, error) {
 	apiWeb := api2.NewWebServer(apiConfig, apiService)
 	docsConfig := conf.Docs
 	docsWeb := docs.NewWebServer(docsConfig)
-	dashInitialize := task.NewDashInitialize(daoDao)
-	connectCleaner := task.NewConnectCleaner(entClient)
+	dashInitialize := dashinit.NewDashInitialize(daoDao)
+	connectCleaner := conncleaner.NewConnectCleaner(entClient)
 	application := newApplication(web, apiWeb, docsWeb, dashInitialize, connectCleaner)
 	return application, nil
 }
@@ -67,8 +68,8 @@ func NewAPIApplication(conf *config.Config) (*boot.Application, error) {
 	cache := memory.NewByteCache()
 	service := api.NewService(daoDao, wechatWechat, qiniuQiniu, cache)
 	web := api2.NewWebServer(apiConfig, service)
-	dashInitialize := task.NewDashInitialize(daoDao)
-	connectCleaner := task.NewConnectCleaner(entClient)
+	dashInitialize := dashinit.NewDashInitialize(daoDao)
+	connectCleaner := conncleaner.NewConnectCleaner(entClient)
 	application := newAPIApplication(web, dashInitialize, connectCleaner)
 	return application, nil
 }
@@ -88,8 +89,8 @@ func NewDashApplication(conf *config.Config) (*boot.Application, error) {
 	cache := memory.NewByteCache()
 	service := dash.NewService(daoDao, wechatWechat, qiniuQiniu, cache)
 	web := dash2.NewWebServer(dashConfig, service)
-	dashInitialize := task.NewDashInitialize(daoDao)
-	connectCleaner := task.NewConnectCleaner(entClient)
+	dashInitialize := dashinit.NewDashInitialize(daoDao)
+	connectCleaner := conncleaner.NewConnectCleaner(entClient)
 	application := newDashApplication(web, dashInitialize, connectCleaner)
 	return application, nil
 }

@@ -1,4 +1,4 @@
-package task
+package conncleaner
 
 import (
 	"context"
