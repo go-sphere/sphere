@@ -58,8 +58,14 @@ gen-wire: ## Generate wire code
 gen-conf: ## Generate example config
 	go run ./cmd/cli/config gen
 
+.PHONY: gen-all
+gen-all: clean ## Generate both ent, docs and wire
+	$(MAKE) gen-ent
+	$(MAKE) gen-docs
+	$(MAKE) gen-wire
+
 .PHONY: generate
-generate: ## Run all generate command
+generate: ## Generate all code
 	go generate ./...
 
 .PHONY: dash
