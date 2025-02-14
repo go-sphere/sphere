@@ -29,10 +29,7 @@ type Config struct {
 
 func NewEmptyConfig() *Config {
 	return &Config{
-		Environments: map[string]string{
-			"GIN_MODE":          "release",
-			"CONSUL_HTTP_TOKEN": "",
-		},
+		Environments: map[string]string{},
 		Log: &log.Options{
 			File: &log.FileOptions{
 				FileName:   "./var/log/sphere.log",

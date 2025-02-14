@@ -35,7 +35,7 @@ func runConfig(cmd *cobra.Command, args []string) {
 		conf.Database.Path = "api:password@tcp(localhost:3306)/sphere?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s"
 	case "sqlite":
 		conf.Database.Type = "sqlite3"
-		conf.Database.Path = "file:./var/sphere/data.db?cache=shared&mode=rwc"
+		conf.Database.Path = "file:./var/data.db?cache=shared&mode=rwc"
 	}
 	file, err := os.Create(output)
 	if err != nil {

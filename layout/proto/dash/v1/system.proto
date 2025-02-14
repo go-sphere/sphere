@@ -13,9 +13,9 @@ service SystemService {
     };
   }
 
-  rpc MenuAll(MenuAllRequest) returns (MenuAllResponse) {
+  rpc GetAsyncRoutes(GetAsyncRoutesRequest) returns (GetAsyncRoutesResponse) {
     option (google.api.http) = {
-      get: "/api/menu/all"
+      get: "/api/get-async-routes"
     };
   }
 }
@@ -26,8 +26,8 @@ message CacheResetRequest {
 message CacheResetResponse {
 }
 
-message MenuAllRequest {
+message GetAsyncRoutesRequest {
 }
 
-message MenuAllResponse {
+message GetAsyncRoutesResponse {
 }

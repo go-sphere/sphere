@@ -3,72 +3,46 @@ syntax = "proto3";
 package dash.v1;
 
 import "google/api/annotations.proto";
-import "buf/validate/validate.proto";
 
+// https://github.com/pure-admin/pure-admin-thin/blob/main/src/api/user.ts
 
 service AuthService {
   rpc AuthLogin(AuthLoginRequest) returns (AuthLoginResponse) {
     option (google.api.http) = {
-      post: "/api/auth/login"
+      post: "/api/login"
       body: "*"
     };
   }
 
   rpc AuthRefresh(AuthRefreshRequest) returns (AuthRefreshResponse) {
     option (google.api.http) = {
-      post: "/api/auth/refresh"
+      post: "/api/refresh-token"
       body: "*"
-    };
-  }
-
-  rpc AuthLogout(AuthLogoutRequest) returns (AuthLogoutResponse) {
-    option (google.api.http) = {
-      post: "/api/auth/logout"
-      body: "*"
-    };
-  }
-
-  rpc AuthCodes(AuthCodesRequest) returns (AuthCodesResponse) {
-    option (google.api.http) = {
-      get: "/api/auth/codes"
     };
   }
 }
-
-
-// 兼容pure-admin登录
-// https://github.com/vbenjs/vue-vben-admin/blob/main/apps/web-ele/src/api/core/auth.ts
-
 
 message AuthLoginRequest {
   string username = 1;
-  string password = 2 [(buf.validate.field).string = {min_len: 6}];
+  string password = 2;
 }
 
 message AuthLoginResponse {
-  string access_token = 1;
-}
-
-message AuthRefreshRequest {
-  string data = 1;
-  int64 status = 2;
-}
-
-message AuthRefreshResponse {
-  string access_token = 5;
-  string refresh_token = 6;
+  string avatar = 1;
+  string username = 2;
+  repeated string roles = 3;
+  repeated string permissions = 4;
+  string accessToken = 5;
+  string refreshToken = 6;
   string expires = 7;
 }
 
-message AuthLogoutRequest {
+message AuthRefreshRequest {
+  string refreshToken = 1;
 }
 
-message AuthLogoutResponse {
-}
-
-message AuthCodesRequest {
-}
-
-message AuthCodesResponse {
-  repeated string data = 1;
+message AuthRefreshResponse {
+  string accessToken = 1;
+  string refreshToken = 2;
+  string expires = 3;
 }

@@ -65,7 +65,8 @@ func WithJson[T any](handler func(ctx *gin.Context) (T, error)) func(ctx *gin.Co
 			AbortWithJsonError(ctx, http.StatusBadRequest, err)
 		} else {
 			ctx.JSON(200, DataResponse[T]{
-				Data: data,
+				Success: true,
+				Data:    data,
 			})
 		}
 	})
