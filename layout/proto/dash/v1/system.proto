@@ -12,22 +12,10 @@ service SystemService {
       body: "*"
     };
   }
-
-  rpc GetAsyncRoutes(GetAsyncRoutesRequest) returns (GetAsyncRoutesResponse) {
-    option (google.api.http) = {
-      get: "/api/get-async-routes"
-    };
-  }
 }
 
 message CacheResetRequest {
 }
 
 message CacheResetResponse {
-}
-
-message GetAsyncRoutesRequest {
-}
-
-message GetAsyncRoutesResponse {
 }

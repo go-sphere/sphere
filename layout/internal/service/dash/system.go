@@ -14,7 +14,3 @@ func (s *Service) CacheReset(ctx context.Context, req *dashv1.CacheResetRequest)
 	}
 	return &dashv1.CacheResetResponse{}, nil
 }
-
-func (s *Service) GetAsyncRoutes(ctx context.Context, request *dashv1.GetAsyncRoutesRequest) (*dashv1.GetAsyncRoutesResponse, error) {
-	return &dashv1.GetAsyncRoutesResponse{}, nil
-}

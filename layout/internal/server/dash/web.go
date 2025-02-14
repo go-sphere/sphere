@@ -104,6 +104,9 @@ func (w *Web) Start(ctx context.Context) error {
 
 	systemRoute := needAuthRoute.Group("/")
 	dashv1.RegisterSystemServiceHTTPServer(systemRoute, w.service)
+	systemRoute.GET("/api/get-async-routes", ginx.WithJson(func(ctx *gin.Context) ([]struct{}, error) {
+		return []struct{}{}, nil
+	}))
 
 	w.server = &http.Server{
 		Addr:    w.config.HTTP.Address,
