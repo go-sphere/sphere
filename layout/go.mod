@@ -9,7 +9,7 @@ replace github.com/TBXark/sphere => ../
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.5-20250130201111-63bb56e20495.1
 	entgo.io/ent v0.14.1
-	github.com/TBXark/confstore v0.0.0-20250207082430-b61eaacbef9d
+	github.com/TBXark/confstore v0.0.0-20250213133642-966f3d3fb351
 	github.com/TBXark/sphere v0.0.0-20250212142829-4888dc2f7f00
 	github.com/alitto/pond/v2 v2.1.6
 	github.com/gin-contrib/gzip v1.2.2
@@ -17,11 +17,11 @@ require (
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/google/wire v0.6.0
 	github.com/samber/lo v1.49.1
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.9.0
 	github.com/swaggo/swag v1.16.4
 	github.com/tbxark/options-proto/go v0.0.0-20241107032846-d46ef06aa5e1
 	golang.org/x/sync v0.11.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20250207221924-e9438ea467c6
+	google.golang.org/genproto/googleapis/api v0.0.0-20250212204824-5a70512c5d8b
 	google.golang.org/protobuf v1.36.5
 )
 
@@ -50,7 +50,7 @@ require (
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
-	github.com/go-playground/validator/v10 v10.24.0 // indirect
+	github.com/go-playground/validator/v10 v10.25.0 // indirect
 	github.com/go-telegram/bot v1.14.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
@@ -73,7 +73,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/qiniu/go-sdk/v7 v7.25.2 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/swaggo/files v1.0.1 // indirect
 	github.com/swaggo/gin-swagger v1.6.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect

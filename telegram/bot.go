@@ -89,7 +89,11 @@ func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middlewares ..
 	})
 }
 
-func (b *Bot) BindRoute(route map[string]func(ctx context.Context, request *Update) error, extra func(string) *MethodExtraData, operations []string, middlewares ...MiddlewareFunc) {
+type MessageSender func(ctx context.Context, request *Update, msg *Message) error
+type RouteMap map[string]func(ctx context.Context, request *Update) error
+type RouteMapBuilder[S any, D any] func(srv S, codec D, sender MessageSender) RouteMap
+
+func (b *Bot) BindRoute(route RouteMap, extra func(string) *MethodExtraData, operations []string, middlewares ...MiddlewareFunc) {
 	for _, operation := range operations {
 		info := extra(operation)
 		if info.Command != "" {
@@ -116,6 +120,9 @@ func (b *Bot) SendMessage(ctx context.Context, update *Update, m *Message) error
 }
 
 func SendMessage(ctx context.Context, b *bot.Bot, update *Update, m *Message) error {
+	if m == nil || update == nil {
+		return nil
+	}
 	if update.CallbackQuery != nil {
 		origin := update.CallbackQuery.Message.Message
 		param := m.toEditMessageTextParams(origin.Chat.ID, origin.ID)
