@@ -91,6 +91,43 @@ func LoadJsonEx[T any](ctx context.Context, c ByteCache, sf *singleflight.Group,
 	return LoadEx[T, DecoderFunc, EncoderFunc](ctx, c, json.Unmarshal, json.Marshal, sf, key, expiration, builder)
 }
 
+func Get[T any](ctx context.Context, c Cache[T], key string) (*T, error) {
+	data, err := c.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	if data == nil {
+		return nil, NotFound
+	}
+	return data, nil
+}
+
+func Set[T any](ctx context.Context, c Cache[T], key string, value *T, expiration time.Duration) error {
+	return c.Set(ctx, key, *value, expiration)
+}
+
+func GetEx[T any](ctx context.Context, c Cache[T], sf *singleflight.Group, key string, expiration time.Duration, builder func() (obj *T, err error)) (*T, error) {
+	obj, err := Get[T](ctx, c, key)
+	if err == nil {
+		return obj, nil
+	}
+	build, err, _ := sf.Do(key, func() (interface{}, error) {
+		nObj, nErr := builder()
+		if nErr != nil {
+			return nil, nErr
+		}
+		nErr = Set[T](ctx, c, key, nObj, expiration)
+		if nErr != nil {
+			return nObj, nErr
+		}
+		return nObj, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return build.(*T), nil
+}
+
 func IsNotFound(err error) bool {
 	return errors.Is(err, NotFound)
 }
