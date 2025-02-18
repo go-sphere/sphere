@@ -2,6 +2,7 @@ package wechat
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/TBXark/sphere/log"
@@ -46,7 +47,7 @@ func NewWechat(config *Config) *Wechat {
 	}
 }
 
-func (w *Wechat) Auth(code string) (*AuthResponse, error) {
+func (w *Wechat) Auth(ctx context.Context, code string) (*AuthResponse, error) {
 	url, err := httpclient.URL("https://api.weixin.qq.com/sns/jscode2session", map[string]string{
 		"appid":      w.config.AppID,
 		"secret":     w.config.AppSecret,
@@ -56,7 +57,7 @@ func (w *Wechat) Auth(code string) (*AuthResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	result, err := httpclient.GET[AuthResponse](url)
+	result, err := httpclient.GET[AuthResponse](ctx, url)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +67,7 @@ func (w *Wechat) Auth(code string) (*AuthResponse, error) {
 	return result, nil
 }
 
-func (w *Wechat) GetAccessToken(reload bool) (string, error) {
+func (w *Wechat) GetAccessToken(ctx context.Context, reload bool) (string, error) {
 	if !reload && w.accessToken != "" && time.Now().Before(w.accessTokenExpire) {
 		return w.accessToken, nil
 	}
@@ -78,7 +79,7 @@ func (w *Wechat) GetAccessToken(reload bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	result, err := httpclient.GET[AccessTokenResponse](url)
+	result, err := httpclient.GET[AccessTokenResponse](ctx, url)
 	if err != nil {
 		return "", err
 	}
@@ -90,8 +91,8 @@ func (w *Wechat) GetAccessToken(reload bool) (string, error) {
 	return w.accessToken, nil
 }
 
-func (w *Wechat) GetQrCode(code QrCodeRequest, retryable bool) ([]byte, error) {
-	token, err := w.GetAccessToken(false)
+func (w *Wechat) GetQrCode(ctx context.Context, code QrCodeRequest, retryable bool) ([]byte, error) {
+	token, err := w.GetAccessToken(ctx, false)
 	if err != nil {
 		return nil, err
 	}
@@ -127,11 +128,11 @@ func (w *Wechat) GetQrCode(code QrCodeRequest, retryable bool) ([]byte, error) {
 		return nil, fmt.Errorf("%s", resp.Status)
 	}
 	if isNeedRetryErrorCode(result.ErrCode) && retryable {
-		_, err = w.GetAccessToken(true)
+		_, err = w.GetAccessToken(ctx, true)
 		if err != nil {
 			return nil, err
 		}
-		return w.GetQrCode(code, false)
+		return w.GetQrCode(ctx, code, false)
 	}
 	if result.ErrCode != 0 {
 		return nil, fmt.Errorf("get qr code error: %s", result.ErrMsg)
@@ -139,8 +140,8 @@ func (w *Wechat) GetQrCode(code QrCodeRequest, retryable bool) ([]byte, error) {
 	return nil, fmt.Errorf("error: %s", resp.Status)
 }
 
-func (w *Wechat) SendMessage(msg SubscribeMessageRequest, retryable bool) error {
-	token, err := w.GetAccessToken(false)
+func (w *Wechat) SendMessage(ctx context.Context, msg SubscribeMessageRequest, retryable bool) error {
+	token, err := w.GetAccessToken(ctx, false)
 	if err != nil {
 		return err
 	}
@@ -160,17 +161,17 @@ func (w *Wechat) SendMessage(msg SubscribeMessageRequest, retryable bool) error 
 	if err != nil {
 		return err
 	}
-	result, err := httpclient.POST[EmptyResponse](url, msg)
+	result, err := httpclient.POST[EmptyResponse](ctx, url, msg)
 	if err != nil {
 		return err
 	}
 	if result.ErrCode != 0 {
 		if isNeedRetryErrorCode(result.ErrCode) && retryable {
-			_, err = w.GetAccessToken(true)
+			_, err = w.GetAccessToken(ctx, true)
 			if err != nil {
 				return err
 			}
-			return w.SendMessage(msg, false)
+			return w.SendMessage(ctx, msg, false)
 		}
 		retErr := fmt.Errorf("send message error: %s", result.ErrMsg)
 		log.Warnw(
@@ -182,7 +183,7 @@ func (w *Wechat) SendMessage(msg SubscribeMessageRequest, retryable bool) error 
 	return nil
 }
 
-func (w *Wechat) SendMessageWithTemplate(temp *PushTemplateConfig, values []any, toUser string) error {
+func (w *Wechat) SendMessageWithTemplate(ctx context.Context, temp *PushTemplateConfig, values []any, toUser string) error {
 	data := make(map[string]any, len(temp.TemplateKeys))
 	for i, k := range temp.TemplateKeys {
 		if i < len(values) {
@@ -197,11 +198,11 @@ func (w *Wechat) SendMessageWithTemplate(temp *PushTemplateConfig, values []any,
 		MiniprogramState: w.config.Env.String(),
 		Lang:             "zh_CN",
 	}
-	return w.SendMessage(msg, true)
+	return w.SendMessage(ctx, msg, true)
 }
 
-func (w *Wechat) GetUserPhoneNumber(code string, retryable bool) (*GetUserPhoneNumberResponse, error) {
-	token, err := w.GetAccessToken(false)
+func (w *Wechat) GetUserPhoneNumber(ctx context.Context, code string, retryable bool) (*GetUserPhoneNumberResponse, error) {
+	token, err := w.GetAccessToken(ctx, false)
 	if err != nil {
 		return nil, err
 	}
@@ -211,17 +212,17 @@ func (w *Wechat) GetUserPhoneNumber(code string, retryable bool) (*GetUserPhoneN
 	if err != nil {
 		return nil, err
 	}
-	result, err := httpclient.POST[GetUserPhoneNumberResponse](url, map[string]string{"code": code})
+	result, err := httpclient.POST[GetUserPhoneNumberResponse](ctx, url, map[string]string{"code": code})
 	if err != nil {
 		return nil, err
 	}
 	if result.ErrCode != 0 {
 		if isNeedRetryErrorCode(result.ErrCode) && retryable {
-			_, err = w.GetAccessToken(true)
+			_, err = w.GetAccessToken(ctx, true)
 			if err != nil {
 				return nil, err
 			}
-			return w.GetUserPhoneNumber(code, false)
+			return w.GetUserPhoneNumber(ctx, code, false)
 		}
 		return nil, fmt.Errorf("get user phone number error: %s", result.ErrMsg)
 	}

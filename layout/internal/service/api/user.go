@@ -30,7 +30,7 @@ func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMin
 	if err != nil {
 		return nil, err
 	}
-	number, err := s.Wechat.GetUserPhoneNumber(req.Code, true)
+	number, err := s.Wechat.GetUserPhoneNumber(ctx, req.Code, true)
 	if err != nil {
 		return nil, err
 	}

@@ -29,7 +29,7 @@ type userContext struct {
 }
 
 func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) (*apiv1.AuthWxMiniResponse, error) {
-	wxUser, err := s.Wechat.Auth(req.Code)
+	wxUser, err := s.Wechat.Auth(ctx, req.Code)
 	if err != nil {
 		return nil, err
 	}
