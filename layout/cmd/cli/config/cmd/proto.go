@@ -14,7 +14,7 @@ var protoCmd = &cobra.Command{
 	Use:   "proto",
 	Short: "Generate config proto file",
 	Long:  `Generate proto definition file.`,
-	Run:   runConfig,
+	Run:   runProto,
 }
 
 func init() {
