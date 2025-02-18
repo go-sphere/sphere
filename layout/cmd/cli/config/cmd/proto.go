@@ -11,7 +11,7 @@ import (
 
 // protoCmd represents the config command
 var protoCmd = &cobra.Command{
-	Use:   "gen",
+	Use:   "proto",
 	Short: "Generate config proto file",
 	Long:  `Generate proto definition file.`,
 	Run:   runConfig,
