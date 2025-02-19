@@ -41,6 +41,9 @@ func SetFields[S any, T any](source S, target T, ignoreZero bool) (err error) {
 		err = fmt.Errorf("target must be a pointer")
 		return
 	}
+	for sourceValue.Kind() == reflect.Ptr {
+		sourceValue = sourceValue.Elem()
+	}
 	targetValue = targetValue.Elem()
 	sourceType := sourceValue.Type()
 	for i := 0; i < sourceValue.NumField(); i++ {
