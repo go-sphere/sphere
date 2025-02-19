@@ -1,19 +1,11 @@
 package ginx
 
 import (
-	"errors"
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
-
-var internalServerError = errors.New("internal server error")
-
-type statusError interface {
-	error
-	Status() int
-}
 
 type Context = gin.Context
 
@@ -28,19 +20,12 @@ func Value[T any](key string, ctx *gin.Context) (*T, bool) {
 	return nil, false
 }
 
-func AbortWithJsonError(ctx *gin.Context, code int, err error) {
-	var hErr statusError
-	if errors.As(err, &hErr) {
-		ctx.AbortWithStatusJSON(hErr.Status(), ErrorResponse{
-			Code:    hErr.Status(),
-			Message: hErr.Error(),
-		})
-	} else {
-		ctx.AbortWithStatusJSON(code, ErrorResponse{
-			Code:    hErr.Status(),
-			Message: err.Error(),
-		})
-	}
+func AbortWithJsonError(ctx *gin.Context, err error) {
+	code, status, message := parseError(err)
+	ctx.AbortWithStatusJSON(status, ErrorResponse{
+		Code:    code,
+		Message: message,
+	})
 }
 
 func WithRecover(message string, handler func(ctx *gin.Context)) func(ctx *gin.Context) {
@@ -51,7 +36,7 @@ func WithRecover(message string, handler func(ctx *gin.Context)) func(ctx *gin.C
 					message,
 					logfields.Any("error", err),
 				)
-				AbortWithJsonError(ctx, http.StatusInternalServerError, internalServerError)
+				AbortWithJsonError(ctx, internalServerError)
 			}
 		}()
 		handler(ctx)
@@ -62,7 +47,7 @@ func WithJson[T any](handler func(ctx *gin.Context) (T, error)) func(ctx *gin.Co
 	return WithRecover("WithJson panic", func(ctx *gin.Context) {
 		data, err := handler(ctx)
 		if err != nil {
-			AbortWithJsonError(ctx, http.StatusBadRequest, err)
+			AbortWithJsonError(ctx, err)
 		} else {
 			ctx.JSON(200, DataResponse[T]{
 				Success: true,
@@ -76,7 +61,7 @@ func WithText(handler func(ctx *gin.Context) (string, error)) func(ctx *gin.Cont
 	return WithRecover("WithText panic", func(ctx *gin.Context) {
 		data, err := handler(ctx)
 		if err != nil {
-			AbortWithJsonError(ctx, http.StatusBadRequest, err)
+			AbortWithJsonError(ctx, err)
 		} else {
 			ctx.String(200, data)
 		}
