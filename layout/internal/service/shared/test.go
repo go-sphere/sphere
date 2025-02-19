@@ -2,13 +2,13 @@ package shared
 
 import (
 	"context"
-	sharedv2 "github.com/TBXark/sphere/layout/api/shared/v1"
+	sharedv1 "github.com/TBXark/sphere/layout/api/shared/v1"
 )
 
-var _ sharedv2.TestServiceHTTPServer = (*Service)(nil)
+var _ sharedv1.TestServiceHTTPServer = (*Service)(nil)
 
-func (s *Service) RunTest(ctx context.Context, req *sharedv2.RunTestRequest) (*sharedv2.RunTestResponse, error) {
-	return &sharedv2.RunTestResponse{
+func (s *Service) RunTest(ctx context.Context, req *sharedv1.RunTestRequest) (*sharedv1.RunTestResponse, error) {
+	return &sharedv1.RunTestResponse{
 		FieldTest1: req.FieldTest1,
 		FieldTest2: req.FieldTest2,
 		PathTest1:  req.PathTest1,

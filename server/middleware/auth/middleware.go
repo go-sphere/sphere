@@ -1,7 +1,7 @@
 package auth
 
 import (
-	authorizer2 "github.com/TBXark/sphere/server/auth/authorizer"
+	"github.com/TBXark/sphere/server/auth/authorizer"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strings"
@@ -15,7 +15,7 @@ type AccessControl interface {
 	IsAllowed(role, resource string) bool
 }
 
-func NewAuthMiddleware(prefix string, parser authorizer2.Parser[authorizer2.RBACClaims[int64]], abortOnError bool) gin.HandlerFunc {
+func NewAuthMiddleware(prefix string, parser authorizer.Parser[authorizer.RBACClaims[int64]], abortOnError bool) gin.HandlerFunc {
 	abort := func(ctx *gin.Context) {
 		if abortOnError {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -41,9 +41,9 @@ func NewAuthMiddleware(prefix string, parser authorizer2.Parser[authorizer2.RBAC
 			return
 		}
 
-		ctx.Set(authorizer2.ContextKeyUID, claims.UID)
-		ctx.Set(authorizer2.ContextKeySubject, claims.Subject)
-		ctx.Set(authorizer2.ContextKeyRoles, claims.Roles)
+		ctx.Set(authorizer.ContextKeyUID, claims.UID)
+		ctx.Set(authorizer.ContextKeySubject, claims.Subject)
+		ctx.Set(authorizer.ContextKeyRoles, claims.Roles)
 	}
 }
 
@@ -54,7 +54,7 @@ func NewPermissionMiddleware(resource string, acl AccessControl) gin.HandlerFunc
 		})
 	}
 	return func(ctx *gin.Context) {
-		rolesRaw, exist := ctx.Get(authorizer2.ContextKeyRoles)
+		rolesRaw, exist := ctx.Get(authorizer.ContextKeyRoles)
 		if !exist {
 			abort(ctx)
 			return
