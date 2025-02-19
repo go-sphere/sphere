@@ -3,7 +3,7 @@ package dash
 import (
 	"context"
 	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
-	sharedv2 "github.com/TBXark/sphere/layout/api/shared/v1"
+	sharedv1 "github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/service/dash"
 	"github.com/TBXark/sphere/layout/internal/service/shared"
 	"github.com/TBXark/sphere/log"
@@ -80,8 +80,8 @@ func (w *Web) Start(ctx context.Context) error {
 	initDefaultRolesACL(w.service.ACL)
 
 	sharedSrc := shared.NewService(w.service.Storage, "dash")
-	sharedv2.RegisterStorageServiceHTTPServer(needAuthRoute, sharedSrc)
-	sharedv2.RegisterTestServiceHTTPServer(api, sharedSrc)
+	sharedv1.RegisterStorageServiceHTTPServer(needAuthRoute, sharedSrc)
+	sharedv1.RegisterTestServiceHTTPServer(api, sharedSrc)
 
 	authRoute := api.Group("/")
 	// 根据元数据限定中间件作用范围

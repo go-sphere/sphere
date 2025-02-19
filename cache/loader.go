@@ -16,7 +16,6 @@ var (
 type Encoder interface {
 	Marshal(val any) ([]byte, error)
 }
-
 type EncoderFunc func(val any) ([]byte, error)
 
 func (e EncoderFunc) Marshal(val any) ([]byte, error) {

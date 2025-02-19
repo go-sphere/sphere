@@ -5,7 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	log2 "github.com/TBXark/sphere/log"
+	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
 	"os"
 	"os/signal"
@@ -53,13 +53,13 @@ func DefaultConfigParser[T any](ver string, parser func(string) (*T, error)) *T 
 	return conf
 }
 
-func Run[T any](ver string, conf *T, logConf *log2.Options, builder func(*T) (*Application, error)) error {
+func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Application, error)) error {
 	// Init logger
-	log2.Init(logConf, logfields.String("version", ver))
-	log2.Info("Start application", logfields.String("version", ver))
+	log.Init(logConf, logfields.String("version", ver))
+	log.Info("Start application", logfields.String("version", ver))
 	defer func() {
-		if e := log2.Sync(); e != nil {
-			log2.Warnf("Failed to sync log: %v", e)
+		if e := log.Sync(); e != nil {
+			log.Warnf("Failed to sync log: %v", e)
 		}
 	}()
 
@@ -85,10 +85,10 @@ func Run[T any](ver string, conf *T, logConf *log2.Options, builder func(*T) (*A
 	// Wait for shutdown signal or application error
 	select {
 	case <-quit:
-		log2.Debug("Received shutdown signal")
+		log.Debug("Received shutdown signal")
 	case e := <-errChan:
 		if e != nil {
-			log2.Error("Application error", logfields.Error(e))
+			log.Error("Application error", logfields.Error(e))
 			errs = append(errs, e)
 		}
 	}

@@ -3,11 +3,11 @@ package dao
 import (
 	"context"
 	"encoding/json"
-	keyvaluestore2 "github.com/TBXark/sphere/layout/internal/pkg/database/ent/keyvaluestore"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/keyvaluestore"
 )
 
 func GetKeyValueStore[T any](ctx context.Context, dao *Dao, key string) (*T, error) {
-	value, err := dao.KeyValueStore.Query().Where(keyvaluestore2.KeyEQ(key)).Only(ctx)
+	value, err := dao.KeyValueStore.Query().Where(keyvaluestore.KeyEQ(key)).Only(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ func SetSystemConfig[T any](ctx context.Context, dao *Dao, key string, value *T)
 	err = dao.KeyValueStore.Create().
 		SetKey(key).
 		SetValue(data).
-		OnConflictColumns(keyvaluestore2.FieldKey).
+		OnConflictColumns(keyvaluestore.FieldKey).
 		SetValue(data).
 		Exec(ctx)
 	return err

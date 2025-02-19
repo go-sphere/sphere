@@ -2,18 +2,9 @@ package storage
 
 import (
 	"context"
+	"github.com/TBXark/sphere/storage/models"
 	"io"
 )
-
-type FileUploadToken struct {
-	Token string `json:"token"`
-	Key   string `json:"key"`
-	URL   string `json:"url"`
-}
-
-type FileUploadResult struct {
-	Key string `json:"key"`
-}
 
 type URLHandler interface {
 	GenerateURL(key string) string
@@ -24,12 +15,12 @@ type URLHandler interface {
 }
 
 type TokenGenerator interface {
-	GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) FileUploadToken
+	GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) models.FileUploadToken
 }
 
 type FileUploader interface {
-	UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*FileUploadResult, error)
-	UploadLocalFile(ctx context.Context, file string, key string) (*FileUploadResult, error)
+	UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.FileUploadResult, error)
+	UploadLocalFile(ctx context.Context, file string, key string) (*models.FileUploadResult, error)
 }
 
 type Storage interface {

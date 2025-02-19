@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/storage"
+	"github.com/TBXark/sphere/storage/models"
 	"io"
 	"net/url"
 	"strings"
@@ -97,22 +97,22 @@ func (s *S3) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) 
 	return parts[1], nil
 }
 
-func (s *S3) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*storage.FileUploadResult, error) {
+func (s *S3) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.FileUploadResult, error) {
 	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, size, minio.PutObjectOptions{})
 	if err != nil {
 		return nil, err
 	}
-	return &storage.FileUploadResult{
+	return &models.FileUploadResult{
 		Key: info.Key,
 	}, nil
 }
 
-func (s *S3) UploadLocalFile(ctx context.Context, file string, key string) (*storage.FileUploadResult, error) {
+func (s *S3) UploadLocalFile(ctx context.Context, file string, key string) (*models.FileUploadResult, error) {
 	info, err := s.client.FPutObject(ctx, s.config.Bucket, key, file, minio.PutObjectOptions{})
 	if err != nil {
 		return nil, err
 	}
-	return &storage.FileUploadResult{
+	return &models.FileUploadResult{
 		Key: info.Key,
 	}, nil
 }

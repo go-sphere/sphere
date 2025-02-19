@@ -5,7 +5,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	store "github.com/TBXark/sphere/storage"
+	"github.com/TBXark/sphere/storage/models"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
 	"io"
@@ -109,7 +109,7 @@ func (n *Qiniu) ExtractKeyFromURL(uri string) string {
 	return key
 }
 
-func (n *Qiniu) GenerateUploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) store.FileUploadToken {
+func (n *Qiniu) GenerateUploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) models.FileUploadToken {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
 	nameMd5 := hex.EncodeToString(sum[:])
@@ -120,14 +120,14 @@ func (n *Qiniu) GenerateUploadToken(fileName string, dir string, nameBuilder fun
 		InsertOnly: 1,
 		MimeLimit:  "image/*;video/*",
 	}
-	return store.FileUploadToken{
+	return models.FileUploadToken{
 		Token: put.UploadToken(n.mac),
 		Key:   key,
 		URL:   n.GenerateURL(key),
 	}
 }
 
-func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*store.FileUploadResult, error) {
+func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.FileUploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -140,12 +140,12 @@ func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key 
 	if err != nil {
 		return nil, err
 	}
-	return &store.FileUploadResult{
+	return &models.FileUploadResult{
 		Key: ret.Key,
 	}, nil
 }
 
-func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*store.FileUploadResult, error) {
+func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*models.FileUploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -158,7 +158,7 @@ func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*
 	if err != nil {
 		return nil, err
 	}
-	return &store.FileUploadResult{
+	return &models.FileUploadResult{
 		Key: ret.Key,
 	}, nil
 }
