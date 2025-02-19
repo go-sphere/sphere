@@ -1,6 +1,7 @@
 package wechat
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -43,7 +44,7 @@ func TestWechat_GetAccessToken(t *testing.T) {
 
 	}
 	wx := NewWechat(cfg.WxMini)
-	token, err := wx.GetAccessToken(true)
+	token, err := wx.GetAccessToken(context.Background(), true)
 	if err != nil {
 		t.Error(err)
 		return
@@ -95,7 +96,7 @@ func TestWechat_SendMessageWithTemplate(t *testing.T) {
 		TruncateString(longText, 20),
 	}
 	t.Log(msg2)
-	err = wx.SendMessageWithTemplate(&cfg.Dash.Push.Withdraw, msg2, toUser)
+	err = wx.SendMessageWithTemplate(context.Background(), &cfg.Dash.Push.Withdraw, msg2, toUser)
 	if err != nil {
 		t.Error(err)
 	} else {
