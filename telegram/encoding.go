@@ -1,8 +1,8 @@
 package telegram
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/TBXark/jsoncompressor"
 	"strings"
 )
 
@@ -15,7 +15,7 @@ func UnmarshalData[T any](data string) (string, *T, error) {
 		return "", nil, fmt.Errorf("invalid data format")
 	}
 	var v T
-	err := json.Unmarshal([]byte(cmp[1]), &v)
+	err := jsoncompressor.Unmarshal([]byte(cmp[1]), &v)
 	if err != nil {
 		return cmp[0], nil, err
 	}
@@ -23,6 +23,6 @@ func UnmarshalData[T any](data string) (string, *T, error) {
 }
 
 func MarshalData[T any](route string, data T) string {
-	b, _ := json.Marshal(data)
+	b, _ := jsoncompressor.Marshal(data)
 	return fmt.Sprintf("%s:%s", route, string(b))
 }
