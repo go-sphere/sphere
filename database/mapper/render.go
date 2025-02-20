@@ -52,10 +52,23 @@ func SetFields[S any, T any](source S, target T, ignoreZero bool) (err error) {
 		setterName := "Set" + strings.Title(field.Name)
 		method := targetValue.Addr().MethodByName(setterName)
 		if method.IsValid() {
-			args := []reflect.Value{fieldValue}
+			if method.Type().NumIn() != 1 {
+				err = fmt.Errorf("method %s must have one parameter", setterName)
+				return
+			}
+			methodParamType := method.Type().In(0)
+			if method.Type().In(0) != fieldValue.Type() {
+				if fieldValue.Type().ConvertibleTo(methodParamType) {
+					fieldValue = fieldValue.Convert(methodParamType)
+				} else {
+					err = fmt.Errorf("method %s parameter type must be %s, but got %s", setterName, methodParamType, fieldValue.Type())
+					return
+				}
+			}
 			if ignoreZero && fieldValue.IsZero() {
 				continue
 			}
+			args := []reflect.Value{fieldValue}
 			method.Call(args)
 		}
 	}
