@@ -5,17 +5,19 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-type Button struct {
-	Text         string
-	Type         string
-	CallbackData string
-}
+type Button = models.InlineKeyboardButton
 
-func NewButton[T any](text, dType string, data T) Button {
+func NewButton[T any](text, route string, data T) Button {
 	return Button{
 		Text:         text,
-		Type:         dType,
-		CallbackData: MarshalData(dType, data),
+		CallbackData: MarshalData(route, data),
+	}
+}
+
+func NewURLButton(text, url string) Button {
+	return Button{
+		Text: text,
+		URL:  url,
 	}
 }
 
@@ -23,24 +25,7 @@ type Message struct {
 	Text      string
 	Media     models.InputFile
 	ParseMode models.ParseMode
-	Button    [][]Button
-}
-
-func (m *Message) toInlineKeyboardMarkup() *models.InlineKeyboardMarkup {
-	keyboard := make([][]models.InlineKeyboardButton, 0, len(m.Button))
-	for _, row := range m.Button {
-		buttons := make([]models.InlineKeyboardButton, 0, len(row))
-		for _, btn := range row {
-			buttons = append(buttons, models.InlineKeyboardButton{
-				Text:         btn.Text,
-				CallbackData: btn.CallbackData,
-			})
-		}
-		keyboard = append(keyboard, buttons)
-	}
-	return &models.InlineKeyboardMarkup{
-		InlineKeyboard: keyboard,
-	}
+	Button    [][]models.InlineKeyboardButton
 }
 
 func (m *Message) toSendMessageParams(chatID int64) *bot.SendMessageParams {
@@ -50,7 +35,9 @@ func (m *Message) toSendMessageParams(chatID int64) *bot.SendMessageParams {
 		ParseMode: m.ParseMode,
 	}
 	if len(m.Button) > 0 {
-		params.ReplyMarkup = m.toInlineKeyboardMarkup()
+		params.ReplyMarkup = &models.InlineKeyboardMarkup{
+			InlineKeyboard: m.Button,
+		}
 	}
 	return params
 }
@@ -63,7 +50,9 @@ func (m *Message) toSendPhotoParams(chatID int64) *bot.SendPhotoParams {
 		Photo:     m.Media,
 	}
 	if len(m.Button) > 0 {
-		params.ReplyMarkup = m.toInlineKeyboardMarkup()
+		params.ReplyMarkup = &models.InlineKeyboardMarkup{
+			InlineKeyboard: m.Button,
+		}
 	}
 	return params
 }
@@ -76,7 +65,9 @@ func (m *Message) toEditMessageTextParams(chatID int64, messageID int) *bot.Edit
 		ParseMode: m.ParseMode,
 	}
 	if len(m.Button) > 0 {
-		params.ReplyMarkup = m.toInlineKeyboardMarkup()
+		params.ReplyMarkup = &models.InlineKeyboardMarkup{
+			InlineKeyboard: m.Button,
+		}
 	}
 	return params
 }
@@ -88,7 +79,9 @@ func (m *Message) toEditMessageCaptionParams(chatID int64, messageID int) *bot.E
 		Caption:   m.Text,
 	}
 	if len(m.Button) > 0 {
-		params.ReplyMarkup = m.toInlineKeyboardMarkup()
+		params.ReplyMarkup = &models.InlineKeyboardMarkup{
+			InlineKeyboard: m.Button,
+		}
 	}
 	return params
 }
@@ -112,7 +105,9 @@ func (m *Message) toEditMessageMediaParams(chatID int64, messageID int) *bot.Edi
 	}
 	params.Media = photo
 	if len(m.Button) > 0 {
-		params.ReplyMarkup = m.toInlineKeyboardMarkup()
+		params.ReplyMarkup = &models.InlineKeyboardMarkup{
+			InlineKeyboard: m.Button,
+		}
 	}
 	return params
 }
