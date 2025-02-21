@@ -21,8 +21,9 @@ func NewButton[T any](text, dType string, data T) Button {
 
 type Message struct {
 	Text      string
-	Button    [][]Button
+	Media     models.InputFile
 	ParseMode models.ParseMode
+	Button    [][]Button
 }
 
 func (m *Message) toInlineKeyboardMarkup() *models.InlineKeyboardMarkup {
@@ -54,6 +55,19 @@ func (m *Message) toSendMessageParams(chatID int64) *bot.SendMessageParams {
 	return params
 }
 
+func (m *Message) toSendPhotoParams(chatID int64) *bot.SendPhotoParams {
+	params := &bot.SendPhotoParams{
+		ChatID:    chatID,
+		Caption:   m.Text,
+		ParseMode: m.ParseMode,
+		Photo:     m.Media,
+	}
+	if len(m.Button) > 0 {
+		params.ReplyMarkup = m.toInlineKeyboardMarkup()
+	}
+	return params
+}
+
 func (m *Message) toEditMessageTextParams(chatID int64, messageID int) *bot.EditMessageTextParams {
 	params := &bot.EditMessageTextParams{
 		ChatID:    chatID,
@@ -61,6 +75,42 @@ func (m *Message) toEditMessageTextParams(chatID int64, messageID int) *bot.Edit
 		Text:      m.Text,
 		ParseMode: m.ParseMode,
 	}
+	if len(m.Button) > 0 {
+		params.ReplyMarkup = m.toInlineKeyboardMarkup()
+	}
+	return params
+}
+
+func (m *Message) toEditMessageCaptionParams(chatID int64, messageID int) *bot.EditMessageCaptionParams {
+	params := &bot.EditMessageCaptionParams{
+		ChatID:    chatID,
+		MessageID: messageID,
+		Caption:   m.Text,
+	}
+	if len(m.Button) > 0 {
+		params.ReplyMarkup = m.toInlineKeyboardMarkup()
+	}
+	return params
+}
+
+func (m *Message) toEditMessageMediaParams(chatID int64, messageID int) *bot.EditMessageMediaParams {
+	params := &bot.EditMessageMediaParams{
+		ChatID:    chatID,
+		MessageID: messageID,
+		Media: &models.InputMediaPhoto{
+			Caption:   m.Text,
+			ParseMode: m.ParseMode,
+		},
+	}
+	photo := &models.InputMediaPhoto{}
+	if upload, ok := m.Media.(*models.InputFileUpload); ok {
+		photo.Media = "attach://" + upload.Filename
+		photo.MediaAttachment = upload.Data
+	}
+	if url, ok := m.Media.(*models.InputFileString); ok {
+		photo.Media = url.Data
+	}
+	params.Media = photo
 	if len(m.Button) > 0 {
 		params.ReplyMarkup = m.toInlineKeyboardMarkup()
 	}
