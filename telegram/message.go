@@ -59,9 +59,9 @@ func (m *Message) toSendMessageParams(chatID int64) *bot.SendMessageParams {
 func (m *Message) toSendPhotoParams(chatID int64) *bot.SendPhotoParams {
 	params := &bot.SendPhotoParams{
 		ChatID:    chatID,
+		Photo:     m.Media,
 		Caption:   m.Text,
 		ParseMode: m.ParseMode,
-		Photo:     m.Media,
 	}
 	if len(m.Button) > 0 {
 		params.ReplyMarkup = &models.InlineKeyboardMarkup{
@@ -91,6 +91,7 @@ func (m *Message) toEditMessageCaptionParams(chatID int64, messageID int) *bot.E
 		ChatID:    chatID,
 		MessageID: messageID,
 		Caption:   m.Text,
+		ParseMode: m.ParseMode,
 	}
 	if len(m.Button) > 0 {
 		params.ReplyMarkup = &models.InlineKeyboardMarkup{
@@ -104,12 +105,12 @@ func (m *Message) toEditMessageMediaParams(chatID int64, messageID int) *bot.Edi
 	params := &bot.EditMessageMediaParams{
 		ChatID:    chatID,
 		MessageID: messageID,
-		Media: &models.InputMediaPhoto{
-			Caption:   m.Text,
-			ParseMode: m.ParseMode,
-		},
+		Media:     nil,
 	}
-	photo := &models.InputMediaPhoto{}
+	photo := &models.InputMediaPhoto{
+		Caption:   m.Text,
+		ParseMode: m.ParseMode,
+	}
 	if upload, ok := m.Media.(*models.InputFileUpload); ok {
 		photo.Media = "attach://" + upload.Filename
 		photo.MediaAttachment = upload.Data
