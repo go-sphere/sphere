@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"bytes"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 )
@@ -18,6 +19,19 @@ func NewURLButton(text, url string) Button {
 	return Button{
 		Text: text,
 		URL:  url,
+	}
+}
+
+func NewBytesInputFile(name string, data []byte) models.InputFile {
+	return &models.InputFileUpload{
+		Filename: name,
+		Data:     bytes.NewReader(data),
+	}
+}
+
+func NewStringInputFile(url string) models.InputFile {
+	return &models.InputFileString{
+		Data: url,
 	}
 }
 
