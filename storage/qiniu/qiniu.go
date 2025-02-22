@@ -47,11 +47,15 @@ func NewClient(config *Config) *Client {
 	}
 }
 
+func (n *Client) hasHttpScheme(uri string) bool {
+	return strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://")
+}
+
 func (n *Client) GenerateURL(key string) string {
 	if key == "" {
 		return ""
 	}
-	if strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://") {
+	if n.hasHttpScheme(key) {
 		return key
 	}
 	buf := strings.Builder{}
@@ -86,7 +90,7 @@ func (n *Client) ExtractKeyFromURLWithMode(uri string, strict bool) (string, err
 		return "", nil
 	}
 	// 不是 http 或者 https 开头的直接返回
-	if !(strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://")) {
+	if !n.hasHttpScheme(uri) {
 		return strings.TrimPrefix(uri, "/"), nil
 	}
 	// 解析URL

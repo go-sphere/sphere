@@ -44,14 +44,27 @@ func NewClient(config *Config) (*Client, error) {
 	}, nil
 }
 
+func (s *Client) hasHttpScheme(uri string) bool {
+	return strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://")
+}
+
 func (s *Client) GenerateURL(key string) string {
 	if key == "" {
 		return ""
 	}
-	if strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://") {
+	if s.hasHttpScheme(key) {
 		return key
 	}
-	return fmt.Sprintf("%s/%s/%s", s.config.Endpoint, s.config.Bucket, strings.TrimPrefix(key, "/"))
+	uri := fmt.Sprintf("%s/%s/%s", s.config.Endpoint, s.config.Bucket, strings.TrimPrefix(key, "/"))
+	if s.hasHttpScheme(uri) {
+		return uri
+	}
+	if s.config.UseSSL {
+		uri = "https://" + uri
+	} else {
+		uri = "http://" + uri
+	}
+	return uri
 }
 
 func (s *Client) GenerateURLs(keys []string) []string {
@@ -76,7 +89,7 @@ func (s *Client) ExtractKeyFromURLWithMode(uri string, strict bool) (string, err
 	if uri == "" {
 		return "", nil
 	}
-	if !(strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://")) {
+	if !s.hasHttpScheme(uri) {
 		return strings.TrimPrefix(uri, "/"), nil
 	}
 	u, err := url.Parse(uri)
