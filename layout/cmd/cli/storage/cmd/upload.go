@@ -59,10 +59,10 @@ func runUpload(cmd *cobra.Command, args []string) {
 			log.Errorf("upload file error: %v", err)
 			return nil
 		}
-		log.Debugf("upload file success: %s -> %s", path, ret.Key)
+		log.Debugf("upload file success: %s -> %s", path, ret)
 		resBuf.WriteString(info.Name())
 		resBuf.WriteString("\n -> ")
-		resBuf.WriteString(upload.GenerateURL(ret.Key))
+		resBuf.WriteString(upload.GenerateURL(ret))
 		resBuf.WriteString("\n\n")
 		return nil
 	})

@@ -79,7 +79,7 @@ func runMigrate(cmd *cobra.Command, args []string) {
 			log.Errorf("upload file error: %v", e)
 			continue
 		}
-		nu := upload.GenerateURL(ret.Key)
+		nu := upload.GenerateURL(ret)
 		result[u] = nu
 		log.Debugf("move file success: %s -> %s", u, nu)
 	}
