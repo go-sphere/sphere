@@ -14,7 +14,7 @@ import (
 )
 
 type Config struct {
-	EndPoint        string `json:"end_point"`
+	Endpoint        string `json:"endpoint"`
 	AccessKeyID     string `json:"access_key"`
 	SecretAccessKey string `json:"secret"`
 	Token           string `json:"token"`
@@ -28,7 +28,7 @@ type Client struct {
 }
 
 func NewClient(config *Config) (*Client, error) {
-	client, err := minio.New(config.EndPoint, &minio.Options{
+	client, err := minio.New(config.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(config.AccessKeyID, config.SecretAccessKey, config.Token),
 		Secure: config.UseSSL,
 	})
@@ -48,7 +48,7 @@ func (s *Client) GenerateURL(key string) string {
 	if strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://") {
 		return key
 	}
-	return fmt.Sprintf("%s/%s/%s", s.config.EndPoint, s.config.Bucket, strings.TrimPrefix(key, "/"))
+	return fmt.Sprintf("%s/%s/%s", s.config.Endpoint, s.config.Bucket, strings.TrimPrefix(key, "/"))
 }
 
 func (s *Client) GenerateURLs(keys []string) []string {
@@ -80,7 +80,7 @@ func (s *Client) ExtractKeyFromURLWithMode(uri string, strict bool) (string, err
 	if err != nil {
 		return "", nil
 	}
-	if u.Host != s.config.EndPoint {
+	if u.Host != s.config.Endpoint {
 		if strict {
 			return "", fmt.Errorf("invalid url")
 		}
