@@ -28,12 +28,12 @@ type Config struct {
 	Host      string `json:"host" yaml:"host"`
 }
 
-type Qiniu struct {
+type Client struct {
 	mac    *qbox.Mac
 	config *Config
 }
 
-func NewQiniu(config *Config) *Qiniu {
+func NewClient(config *Config) *Client {
 	config.Domain = strings.TrimSuffix(config.Domain, "/")
 	if config.Host == "" {
 		u, err := url.Parse(config.Domain)
@@ -41,13 +41,13 @@ func NewQiniu(config *Config) *Qiniu {
 			config.Host = u.Host
 		}
 	}
-	return &Qiniu{
+	return &Client{
 		mac:    qbox.NewMac(config.AccessKey, config.SecretKey),
 		config: config,
 	}
 }
 
-func (n *Qiniu) GenerateURL(key string) string {
+func (n *Client) GenerateURL(key string) string {
 	if key == "" {
 		return ""
 	}
@@ -61,7 +61,7 @@ func (n *Qiniu) GenerateURL(key string) string {
 	return buf.String()
 }
 
-func (n *Qiniu) GenerateImageURL(key string, width int) string {
+func (n *Client) GenerateImageURL(key string, width int) string {
 	// 判断是不是已经拼接了 ?imageView2 参数
 	if strings.Contains(key, "?imageView2") {
 		// 从URL中提取key
@@ -73,7 +73,7 @@ func (n *Qiniu) GenerateImageURL(key string, width int) string {
 	return n.GenerateURL(key) + "?imageView2/2/w/" + strconv.Itoa(width) + "/q/75"
 }
 
-func (n *Qiniu) GenerateURLs(keys []string) []string {
+func (n *Client) GenerateURLs(keys []string) []string {
 	urls := make([]string, len(keys))
 	for i, key := range keys {
 		urls[i] = n.GenerateURL(key)
@@ -81,7 +81,7 @@ func (n *Qiniu) GenerateURLs(keys []string) []string {
 	return urls
 }
 
-func (n *Qiniu) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
+func (n *Client) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
 	if uri == "" {
 		return "", nil
 	}
@@ -104,12 +104,12 @@ func (n *Qiniu) ExtractKeyFromURLWithMode(uri string, strict bool) (string, erro
 	return strings.TrimPrefix(u.Path, "/"), nil
 }
 
-func (n *Qiniu) ExtractKeyFromURL(uri string) string {
+func (n *Client) ExtractKeyFromURL(uri string) string {
 	key, _ := n.ExtractKeyFromURLWithMode(uri, true)
 	return key
 }
 
-func (n *Qiniu) GenerateUploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) models.FileUploadToken {
+func (n *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) models.FileUploadToken {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
 	nameMd5 := hex.EncodeToString(sum[:])
@@ -127,7 +127,7 @@ func (n *Qiniu) GenerateUploadToken(fileName string, dir string, nameBuilder fun
 	}
 }
 
-func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.FileUploadResult, error) {
+func (n *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.FileUploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -145,7 +145,7 @@ func (n *Qiniu) UploadFile(ctx context.Context, file io.Reader, size int64, key 
 	}, nil
 }
 
-func (n *Qiniu) UploadLocalFile(ctx context.Context, file string, key string) (*models.FileUploadResult, error) {
+func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (*models.FileUploadResult, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}

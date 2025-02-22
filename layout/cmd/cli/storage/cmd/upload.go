@@ -18,7 +18,7 @@ import (
 var uploadCmd = &cobra.Command{
 	Use:   "upload",
 	Short: "Upload files to storage",
-	Long:  `Upload files to Qiniu storage.`,
+	Long:  `Upload files to Client storage.`,
 	Run:   runUpload,
 }
 
@@ -41,7 +41,7 @@ func runUpload(cmd *cobra.Command, args []string) {
 		log.Panicf("load config error: %v", err)
 	}
 
-	upload := qiniu.NewQiniu(cfg.Storage)
+	upload := qiniu.NewClient(cfg.Storage)
 	ctx := context.Background()
 	resBuf := strings.Builder{}
 	nameBuilder := storage.KeepFileNameKeyBuilder()

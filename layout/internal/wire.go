@@ -20,8 +20,8 @@ var cacheSet = wire.NewSet(
 )
 
 var storageSet = wire.NewSet(
-	qiniu.NewQiniu,
-	wire.Bind(new(storage.Storage), new(*qiniu.Qiniu)),
+	qiniu.NewClient,
+	wire.Bind(new(storage.Storage), new(*qiniu.Client)),
 )
 
 var ProviderSet = wire.NewSet(

@@ -22,12 +22,12 @@ type Config struct {
 	UseSSL          bool   `json:"use_ssl"`
 }
 
-type S3 struct {
+type Client struct {
 	config *Config
 	client *minio.Client
 }
 
-func NewS3(config *Config) (*S3, error) {
+func NewClient(config *Config) (*Client, error) {
 	client, err := minio.New(config.EndPoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(config.AccessKeyID, config.SecretAccessKey, config.Token),
 		Secure: config.UseSSL,
@@ -35,13 +35,13 @@ func NewS3(config *Config) (*S3, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &S3{
+	return &Client{
 		config: config,
 		client: client,
 	}, nil
 }
 
-func (s *S3) GenerateURL(key string) string {
+func (s *Client) GenerateURL(key string) string {
 	if key == "" {
 		return ""
 	}
@@ -51,7 +51,7 @@ func (s *S3) GenerateURL(key string) string {
 	return fmt.Sprintf("%s/%s/%s", s.config.EndPoint, s.config.Bucket, strings.TrimPrefix(key, "/"))
 }
 
-func (s *S3) GenerateURLs(keys []string) []string {
+func (s *Client) GenerateURLs(keys []string) []string {
 	urls := make([]string, len(keys))
 	for i, key := range keys {
 		urls[i] = s.GenerateURL(key)
@@ -59,17 +59,17 @@ func (s *S3) GenerateURLs(keys []string) []string {
 	return urls
 }
 
-func (s *S3) GenerateImageURL(key string, width int) string {
-	log.Warnf("S3 not support image resize")
+func (s *Client) GenerateImageURL(key string, width int) string {
+	log.Warnf("Client not support image resize")
 	return s.GenerateURL(key)
 }
 
-func (s *S3) ExtractKeyFromURL(uri string) string {
+func (s *Client) ExtractKeyFromURL(uri string) string {
 	key, _ := s.ExtractKeyFromURLWithMode(uri, true)
 	return key
 }
 
-func (s *S3) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
+func (s *Client) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
 	if uri == "" {
 		return "", nil
 	}
@@ -97,7 +97,7 @@ func (s *S3) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) 
 	return parts[1], nil
 }
 
-func (s *S3) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.FileUploadResult, error) {
+func (s *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.FileUploadResult, error) {
 	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, size, minio.PutObjectOptions{})
 	if err != nil {
 		return nil, err
@@ -107,7 +107,7 @@ func (s *S3) UploadFile(ctx context.Context, file io.Reader, size int64, key str
 	}, nil
 }
 
-func (s *S3) UploadLocalFile(ctx context.Context, file string, key string) (*models.FileUploadResult, error) {
+func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (*models.FileUploadResult, error) {
 	info, err := s.client.FPutObject(ctx, s.config.Bucket, key, file, minio.PutObjectOptions{})
 	if err != nil {
 		return nil, err

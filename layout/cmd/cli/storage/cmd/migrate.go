@@ -19,7 +19,7 @@ import (
 // migrateCmd represents the cdn command
 var migrateCmd = &cobra.Command{
 	Use:   "migrate",
-	Short: "Qiniu migration Tools",
+	Short: "Client migration Tools",
 	Long:  `Move files from one qiniu bucket to another bucket.`,
 	Run:   runMigrate,
 }
@@ -48,7 +48,7 @@ func runMigrate(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}
-	upload := qiniu.NewQiniu(cfg.Storage)
+	upload := qiniu.NewClient(cfg.Storage)
 	list := strings.Split(string(file), "\n")
 	ctx := context.Background()
 	result := make(map[string]string, len(list))
