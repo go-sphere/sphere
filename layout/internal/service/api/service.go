@@ -16,7 +16,7 @@ type TokenAuthorizer = authorizer.TokenAuthorizer[authorizer.RBACClaims[int64]]
 type Service struct {
 	authorizer.ContextUtils[int64]
 	DB         *dao.Dao
-	Storage    storage.Storage
+	Storage    storage.ImageStorage
 	Cache      cache.ByteCache
 	Wechat     *wechat.Wechat
 	Render     *render.Render
@@ -24,7 +24,7 @@ type Service struct {
 	httpClient *http.Client
 }
 
-func NewService(db *dao.Dao, wx *wechat.Wechat, store storage.Storage, cache cache.ByteCache) *Service {
+func NewService(db *dao.Dao, wx *wechat.Wechat, store storage.ImageStorage, cache cache.ByteCache) *Service {
 	return &Service{
 		DB:      db,
 		Storage: store,

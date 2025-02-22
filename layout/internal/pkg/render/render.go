@@ -6,7 +6,7 @@ import (
 )
 
 type Render struct {
-	cdn         storage.URLHandler
+	cdn         storage.ImageURLHandler
 	db          *dao.Dao
 	hidePrivacy bool
 }
@@ -17,6 +17,6 @@ const (
 	ImageWidthForCommon   = 1024
 )
 
-func NewRender(cdn storage.URLHandler, db *dao.Dao, hidePrivacy bool) *Render {
+func NewRender(cdn storage.ImageURLHandler, db *dao.Dao, hidePrivacy bool) *Render {
 	return &Render{cdn: cdn, db: db, hidePrivacy: hidePrivacy}
 }

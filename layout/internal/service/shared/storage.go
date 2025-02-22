@@ -18,10 +18,13 @@ func (s *Service) UploadToken(ctx context.Context, req *sharedv1.UploadTokenRequ
 	if err != nil {
 		return nil, err
 	}
-	token := s.Storage.GenerateUploadToken(req.Filename, s.StorageDir, storage.DefaultKeyBuilder(strconv.Itoa(int(id))))
+	token, err := s.Storage.GenerateUploadToken(req.Filename, s.StorageDir, storage.DefaultKeyBuilder(strconv.Itoa(int(id))))
+	if err != nil {
+		return nil, err
+	}
 	return &sharedv1.UploadTokenResponse{
-		Token: token.Token,
-		Key:   token.Key,
-		Url:   token.URL,
+		Token: token[0],
+		Key:   token[1],
+		Url:   token[2],
 	}, nil
 }

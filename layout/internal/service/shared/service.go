@@ -7,11 +7,11 @@ import (
 
 type Service struct {
 	authorizer.ContextUtils[int64]
-	Storage    storage.Storage
+	Storage    storage.ImageStorage
 	StorageDir string
 }
 
-func NewService(store storage.Storage, storageDir string) *Service {
+func NewService(store storage.ImageStorage, storageDir string) *Service {
 	return &Service{
 		Storage:    store,
 		StorageDir: storageDir,

@@ -9,9 +9,11 @@ import (
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/user"
 	"github.com/TBXark/sphere/server/statuserr"
 	"github.com/TBXark/sphere/storage"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var _ apiv1.UserServiceHTTPServer = (*Service)(nil)
@@ -117,7 +119,13 @@ func (s *Service) uploadRemoteImage(ctx context.Context, uri string) (string, er
 		return "", err
 	}
 	key = storage.DefaultKeyBuilder(strconv.Itoa(int(id)))(uri, "user")
-	resp, err := s.httpClient.Get(uri)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -129,5 +137,5 @@ func (s *Service) uploadRemoteImage(ctx context.Context, uri string) (string, er
 	if err != nil {
 		return "", err
 	}
-	return ret.Key, nil
+	return ret, nil
 }

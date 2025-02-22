@@ -2,12 +2,15 @@ package s3
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/storage/models"
 	"io"
 	"net/url"
+	"path"
 	"strings"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -86,8 +89,7 @@ func (s *Client) ExtractKeyFromURLWithMode(uri string, strict bool) (string, err
 		}
 		return uri, nil
 	}
-	path := strings.TrimPrefix(u.Path, "/")
-	parts := strings.SplitN(path, "/", 2)
+	parts := strings.SplitN(strings.TrimPrefix(u.Path, "/"), "/", 2)
 	if len(parts) != 2 || parts[0] != s.config.Bucket {
 		if strict {
 			return "", fmt.Errorf("invalid url")
@@ -97,24 +99,41 @@ func (s *Client) ExtractKeyFromURLWithMode(uri string, strict bool) (string, err
 	return parts[1], nil
 }
 
-func (s *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.FileUploadResult, error) {
-	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, size, minio.PutObjectOptions{})
+func (s *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {
+	fileExt := path.Ext(fileName)
+	sum := md5.Sum([]byte(fileName))
+	nameMd5 := hex.EncodeToString(sum[:])
+	key := nameBuilder(nameMd5+fileExt, dir)
+	key = strings.TrimPrefix(key, "/")
+
+	preSignedURL, err := s.client.PresignedPutObject(context.Background(),
+		s.config.Bucket,
+		key,
+		time.Hour)
 	if err != nil {
-		return nil, err
+		return [3]string{}, err
 	}
-	return &models.FileUploadResult{
-		Key: info.Key,
+	return [3]string{
+		preSignedURL.String(),
+		key,
+		s.GenerateURL(key),
 	}, nil
 }
 
-func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (*models.FileUploadResult, error) {
+func (s *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error) {
+	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, size, minio.PutObjectOptions{})
+	if err != nil {
+		return "", err
+	}
+	return info.Key, nil
+}
+
+func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
 	info, err := s.client.FPutObject(ctx, s.config.Bucket, key, file, minio.PutObjectOptions{})
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return &models.FileUploadResult{
-		Key: info.Key,
-	}, nil
+	return info.Key, nil
 }
 
 func (s *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, error) {

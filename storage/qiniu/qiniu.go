@@ -5,7 +5,6 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"github.com/TBXark/sphere/storage/models"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
 	"io"
@@ -110,7 +109,7 @@ func (n *Client) ExtractKeyFromURL(uri string) string {
 	return key
 }
 
-func (n *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) models.FileUploadToken {
+func (n *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) ([3]string, error) {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
 	nameMd5 := hex.EncodeToString(sum[:])
@@ -121,14 +120,14 @@ func (n *Client) GenerateUploadToken(fileName string, dir string, nameBuilder fu
 		InsertOnly: 1,
 		MimeLimit:  "image/*;video/*",
 	}
-	return models.FileUploadToken{
-		Token: put.UploadToken(n.mac),
-		Key:   key,
-		URL:   n.GenerateURL(key),
-	}
+	return [3]string{
+		put.UploadToken(n.mac),
+		key,
+		n.GenerateURL(key),
+	}, nil
 }
 
-func (n *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.FileUploadResult, error) {
+func (n *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -139,14 +138,12 @@ func (n *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key
 	key = strings.TrimPrefix(key, "/")
 	err := formUploader.Put(ctx, &ret, upToken, key, file, size, nil)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return &models.FileUploadResult{
-		Key: ret.Key,
-	}, nil
+	return ret.Key, nil
 }
 
-func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (*models.FileUploadResult, error) {
+func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -157,11 +154,9 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	key = strings.TrimPrefix(key, "/")
 	err := formUploader.PutFile(ctx, &ret, upToken, key, file, nil)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return &models.FileUploadResult{
-		Key: ret.Key,
-	}, nil
+	return ret.Key, nil
 }
 
 func (n *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, error) {

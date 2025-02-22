@@ -2,25 +2,28 @@ package storage
 
 import (
 	"context"
-	"github.com/TBXark/sphere/storage/models"
 	"io"
 )
 
 type URLHandler interface {
 	GenerateURL(key string) string
 	GenerateURLs(keys []string) []string
-	GenerateImageURL(key string, width int) string
 	ExtractKeyFromURL(uri string) string
 	ExtractKeyFromURLWithMode(uri string, strict bool) (string, error)
 }
 
+type ImageURLHandler interface {
+	GenerateImageURL(key string, width int) string
+}
+
 type TokenGenerator interface {
-	GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) models.FileUploadToken
+	// GenerateUploadToken [token, key, url]
+	GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error)
 }
 
 type FileUploader interface {
-	UploadFile(ctx context.Context, file io.Reader, size int64, key string) (*models.FileUploadResult, error)
-	UploadLocalFile(ctx context.Context, file string, key string) (*models.FileUploadResult, error)
+	UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error)
+	UploadLocalFile(ctx context.Context, file string, key string) (string, error)
 }
 
 type FileDownloader interface {
@@ -29,7 +32,12 @@ type FileDownloader interface {
 
 type Storage interface {
 	URLHandler
-	TokenGenerator
 	FileUploader
 	FileDownloader
+	TokenGenerator
+}
+
+type ImageStorage interface {
+	Storage
+	ImageURLHandler
 }
