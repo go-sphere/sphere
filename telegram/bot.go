@@ -48,30 +48,30 @@ func (b *Bot) Close(ctx context.Context) error {
 	return err
 }
 
-func (b *Bot) ExtractorAuth(ctx context.Context, tBot *bot.Bot, update *Update) (context.Context, bool) {
+func (b *Bot) ExtractorAuth(ctx context.Context, tBot *bot.Bot, update *Update) (context.Context, error) {
 	if b.AuthExtractor != nil {
 		info, err := b.AuthExtractor(ctx, update)
 		if err != nil {
 			if b.ErrorHandler != nil {
 				b.ErrorHandler(ctx, tBot, update, err)
 			}
-			return nil, true
+			return nil, err
 		}
 		c := NewContext(ctx)
 		for k, v := range info {
 			c.SetValue(k, v)
 		}
-		return c, false
+		return c, nil
 	}
-	return ctx, false
+	return ctx, nil
 }
 
 func (b *Bot) BindCommand(command string, handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
 	fn := WithMiddleware(handlerFunc, b.ErrorHandler, middlewares...)
 	command = "/" + strings.TrimPrefix(command, "/")
 	b.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypePrefix, func(ctx context.Context, tBot *bot.Bot, update *models.Update) {
-		ctx, done := b.ExtractorAuth(ctx, tBot, (*Update)(update))
-		if done {
+		ctx, err := b.ExtractorAuth(ctx, tBot, (*Update)(update))
+		if err != nil {
 			return
 		}
 		fn(ctx, tBot, update)
@@ -81,8 +81,8 @@ func (b *Bot) BindCommand(command string, handlerFunc HandlerFunc, middlewares .
 func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
 	fn := WithMiddleware(handlerFunc, b.ErrorHandler, middlewares...)
 	b.bot.RegisterHandler(bot.HandlerTypeCallbackQueryData, route+":", bot.MatchTypePrefix, func(ctx context.Context, tBot *bot.Bot, update *models.Update) {
-		ctx, done := b.ExtractorAuth(ctx, tBot, (*Update)(update))
-		if done {
+		ctx, err := b.ExtractorAuth(ctx, tBot, (*Update)(update))
+		if err != nil {
 			return
 		}
 		fn(ctx, tBot, update)
