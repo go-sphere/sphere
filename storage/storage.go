@@ -23,8 +23,13 @@ type FileUploader interface {
 	UploadLocalFile(ctx context.Context, file string, key string) (*models.FileUploadResult, error)
 }
 
+type FileDownloader interface {
+	DownloadFile(ctx context.Context, key string) (io.ReadCloser, error)
+}
+
 type Storage interface {
 	URLHandler
-	FileUploader
 	TokenGenerator
+	FileUploader
+	FileDownloader
 }

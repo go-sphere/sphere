@@ -29,8 +29,8 @@ type Config struct {
 }
 
 type Client struct {
-	mac    *qbox.Mac
 	config *Config
+	mac    *qbox.Mac
 }
 
 func NewClient(config *Config) *Client {
@@ -41,9 +41,10 @@ func NewClient(config *Config) *Client {
 			config.Host = u.Host
 		}
 	}
+	mac := qbox.NewMac(config.AccessKey, config.SecretKey)
 	return &Client{
-		mac:    qbox.NewMac(config.AccessKey, config.SecretKey),
 		config: config,
+		mac:    mac,
 	}
 }
 
@@ -161,4 +162,9 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	return &models.FileUploadResult{
 		Key: ret.Key,
 	}, nil
+}
+
+func (n *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, error) {
+	manager := storage.NewBucketManager(n.mac, &storage.Config{})
+	return manager.Get(n.config.Bucket, key, nil)
 }
