@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"golang.org/x/exp/constraints"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"reflect"
-	"strings"
 )
 
 func Map[S any, T any](source []S, mapper func(S) T) []T {
@@ -49,7 +50,8 @@ func SetFields[S any, T any](source S, target T, ignoreZero bool) (err error) {
 	for i := 0; i < sourceValue.NumField(); i++ {
 		field := sourceType.Field(i)
 		fieldValue := sourceValue.Field(i)
-		setterName := "Set" + strings.Title(field.Name)
+		setterName := "Set" + cases.Title(language.Und, cases.NoLower).String(field.Name)
+		//setterName := "Set" + cases.Title(field.Name).String()
 		method := targetValue.Addr().MethodByName(setterName)
 		if method.IsValid() {
 			if method.Type().NumIn() != 1 {
