@@ -48,7 +48,10 @@ func runMigrate(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Panicf("load config error: %v", err)
 	}
-	upload := qiniu.NewClient(cfg.Storage)
+	upload, err := qiniu.NewClient(cfg.Storage)
+	if err != nil {
+		log.Panicf("new qiniu client error: %v", err)
+	}
 	list := strings.Split(string(file), "\n")
 	ctx := context.Background()
 	result := make(map[string]string, len(list))

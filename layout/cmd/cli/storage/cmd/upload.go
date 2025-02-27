@@ -41,7 +41,10 @@ func runUpload(cmd *cobra.Command, args []string) {
 		log.Panicf("load config error: %v", err)
 	}
 
-	upload := qiniu.NewClient(cfg.Storage)
+	upload, err := qiniu.NewClient(cfg.Storage)
+	if err != nil {
+		log.Panicf("new qiniu client error: %v", err)
+	}
 	ctx := context.Background()
 	resBuf := strings.Builder{}
 	nameBuilder := storage.KeepFileNameKeyBuilder()
