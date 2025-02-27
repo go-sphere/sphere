@@ -26,7 +26,11 @@ func NewDatabase(config *Config) (*Database, error) {
 
 func (d *Database) Set(ctx context.Context, key string, val []byte, expiration time.Duration) error {
 	return d.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(key), val)
+		entry := badger.NewEntry([]byte(key), val)
+		if expiration > 0 {
+			entry.WithTTL(expiration)
+		}
+		return txn.SetEntry(entry)
 	})
 }
 
@@ -58,8 +62,11 @@ func (d *Database) Del(ctx context.Context, key string) error {
 func (d *Database) MultiSet(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
 	return d.db.Update(func(txn *badger.Txn) error {
 		for k, v := range valMap {
-			err := txn.SetEntry(badger.NewEntry([]byte(k), v).WithTTL(expiration))
-			if err != nil {
+			entry := badger.NewEntry([]byte(k), v)
+			if expiration > 0 {
+				entry.WithTTL(expiration)
+			}
+			if err := txn.SetEntry(entry); err != nil {
 				return err
 			}
 		}

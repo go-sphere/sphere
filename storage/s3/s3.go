@@ -4,10 +4,9 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
-	"fmt"
 	"github.com/TBXark/sphere/log"
+	"github.com/TBXark/sphere/storage/urlhandler"
 	"io"
-	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -23,9 +22,11 @@ type Config struct {
 	Token           string `json:"token"`
 	Bucket          string `json:"bucket"`
 	UseSSL          bool   `json:"use_ssl"`
+	PublicBase      string `json:"public_base"`
 }
 
 type Client struct {
+	*urlhandler.Handler
 	config *Config
 	client *minio.Client
 }
@@ -38,78 +39,27 @@ func NewClient(config *Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	if config.PublicBase == "" {
+		if config.UseSSL {
+			config.PublicBase = "https://" + config.Endpoint + "/" + config.Bucket
+		} else {
+			config.PublicBase = "http://" + config.PublicBase + "/" + config.Bucket
+		}
+	}
+	handler, err := urlhandler.NewHandler(config.PublicBase)
+	if err != nil {
+		return nil, err
+	}
 	return &Client{
-		config: config,
-		client: client,
+		Handler: handler,
+		config:  config,
+		client:  client,
 	}, nil
-}
-
-func (s *Client) hasHttpScheme(uri string) bool {
-	return strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://")
-}
-
-func (s *Client) GenerateURL(key string) string {
-	if key == "" {
-		return ""
-	}
-	if s.hasHttpScheme(key) {
-		return key
-	}
-	uri := fmt.Sprintf("%s/%s/%s", s.config.Endpoint, s.config.Bucket, strings.TrimPrefix(key, "/"))
-	if s.hasHttpScheme(uri) {
-		return uri
-	}
-	if s.config.UseSSL {
-		uri = "https://" + uri
-	} else {
-		uri = "http://" + uri
-	}
-	return uri
-}
-
-func (s *Client) GenerateURLs(keys []string) []string {
-	urls := make([]string, len(keys))
-	for i, key := range keys {
-		urls[i] = s.GenerateURL(key)
-	}
-	return urls
 }
 
 func (s *Client) GenerateImageURL(key string, width int) string {
 	log.Warnf("Client not support image resize")
 	return s.GenerateURL(key)
-}
-
-func (s *Client) ExtractKeyFromURL(uri string) string {
-	key, _ := s.ExtractKeyFromURLWithMode(uri, true)
-	return key
-}
-
-func (s *Client) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
-	if uri == "" {
-		return "", nil
-	}
-	if !s.hasHttpScheme(uri) {
-		return strings.TrimPrefix(uri, "/"), nil
-	}
-	u, err := url.Parse(uri)
-	if err != nil {
-		return "", nil
-	}
-	if u.Host != s.config.Endpoint {
-		if strict {
-			return "", fmt.Errorf("invalid url")
-		}
-		return uri, nil
-	}
-	parts := strings.SplitN(strings.TrimPrefix(u.Path, "/"), "/", 2)
-	if len(parts) != 2 || parts[0] != s.config.Bucket {
-		if strict {
-			return "", fmt.Errorf("invalid url")
-		}
-		return uri, nil
-	}
-	return parts[1], nil
 }
 
 func (s *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {

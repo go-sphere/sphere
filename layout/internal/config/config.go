@@ -61,10 +61,10 @@ func NewEmptyConfig() *Config {
 			},
 		},
 		Storage: &qiniu.Config{
-			AccessKey: "",
-			SecretKey: "",
-			Bucket:    "",
-			Domain:    "",
+			AccessKey:  "",
+			SecretKey:  "",
+			Bucket:     "",
+			PublicBase: "",
 		},
 		Bot: &bot.Config{
 			Token: "",

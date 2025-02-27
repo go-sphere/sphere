@@ -5,112 +5,52 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"github.com/TBXark/sphere/storage/urlhandler"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
 	"io"
 	"net/url"
 	"path"
-	"strconv"
 	"strings"
-)
-
-var (
-	ErrNotQiniuHost = fmt.Errorf("not qiniu host")
 )
 
 type Config struct {
 	AccessKey string `json:"access_key" yaml:"access_key"`
 	SecretKey string `json:"secret_key" yaml:"secret_key"`
-	Bucket    string `json:"bucket" yaml:"bucket"`
-	Dir       string `json:"dir" yaml:"dir"`
-	Domain    string `json:"domain" yaml:"domain"`
-	Host      string `json:"host" yaml:"host"`
+
+	Bucket string `json:"bucket" yaml:"bucket"`
+	Dir    string `json:"dir" yaml:"dir"`
+
+	PublicBase string `json:"public_base" yaml:"public_base"`
 }
 
 type Client struct {
+	*urlhandler.Handler
 	config *Config
 	mac    *qbox.Mac
 }
 
-func NewClient(config *Config) *Client {
-	config.Domain = strings.TrimSuffix(config.Domain, "/")
-	if config.Host == "" {
-		u, err := url.Parse(config.Domain)
-		if err == nil {
-			config.Host = u.Host
-		}
+func NewClient(config *Config) (*Client, error) {
+	handler, err := urlhandler.NewHandler(config.PublicBase)
+	if err != nil {
+		return nil, err
 	}
 	mac := qbox.NewMac(config.AccessKey, config.SecretKey)
 	return &Client{
-		config: config,
-		mac:    mac,
-	}
-}
-
-func (n *Client) hasHttpScheme(uri string) bool {
-	return strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://")
-}
-
-func (n *Client) GenerateURL(key string) string {
-	if key == "" {
-		return ""
-	}
-	if n.hasHttpScheme(key) {
-		return key
-	}
-	buf := strings.Builder{}
-	buf.WriteString(strings.TrimSuffix(n.config.Domain, "/"))
-	buf.WriteString("/")
-	buf.WriteString(strings.TrimPrefix(key, "/"))
-	return buf.String()
+		Handler: handler,
+		config:  config,
+		mac:     mac,
+	}, nil
 }
 
 func (n *Client) GenerateImageURL(key string, width int) string {
-	// 判断是不是已经拼接了 ?imageView2 参数
-	if strings.Contains(key, "?imageView2") {
-		// 从URL中提取key
-		key = n.ExtractKeyFromURL(key)
-	}
-	if key == "" {
-		return ""
-	}
-	return n.GenerateURL(key) + "?imageView2/2/w/" + strconv.Itoa(width) + "/q/75"
-}
-
-func (n *Client) GenerateURLs(keys []string) []string {
-	urls := make([]string, len(keys))
-	for i, key := range keys {
-		urls[i] = n.GenerateURL(key)
-	}
-	return urls
-}
-
-func (n *Client) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
-	if uri == "" {
-		return "", nil
-	}
-	// 不是 http 或者 https 开头的直接返回
-	if !n.hasHttpScheme(uri) {
-		return strings.TrimPrefix(uri, "/"), nil
-	}
-	// 解析URL
-	u, err := url.Parse(uri)
+	uri := n.GenerateURL(key)
+	res, err := url.Parse(uri)
 	if err != nil {
-		return "", nil
+		return uri
 	}
-	// 不是以CDN域名开头的直接返回或者报错
-	if u.Host != n.config.Host {
-		if strict {
-			return "", ErrNotQiniuHost
-		}
-		return uri, nil
-	}
-	return strings.TrimPrefix(u.Path, "/"), nil
-}
-
-func (n *Client) ExtractKeyFromURL(uri string) string {
-	key, _ := n.ExtractKeyFromURLWithMode(uri, true)
-	return key
+	res.RawQuery = fmt.Sprintf("imageView2/2/w/%d/q/75", width)
+	return res.String()
 }
 
 func (n *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) ([3]string, error) {

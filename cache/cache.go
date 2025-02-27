@@ -7,6 +7,7 @@ import (
 )
 
 type Cache[S any] interface {
+	// Set sets the value for the given key with an expiration time, if expiration is -1, never expires
 	Set(ctx context.Context, key string, val S, expiration time.Duration) error
 	Get(ctx context.Context, key string) (*S, error)
 	Del(ctx context.Context, key string) error
