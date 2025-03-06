@@ -15,7 +15,7 @@ type Database struct {
 }
 
 func NewDatabase(config *Config) (*Database, error) {
-	db, err := badger.Open(badger.DefaultOptions("/tmp/badger"))
+	db, err := badger.Open(badger.DefaultOptions(config.Path))
 	if err != nil {
 		return nil, err
 	}

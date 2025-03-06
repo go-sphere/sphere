@@ -10,7 +10,6 @@ require (
 	entgo.io/ent v0.14.2
 	github.com/TBXark/confstore v0.0.0-20250213133642-966f3d3fb351
 	github.com/TBXark/sphere v0.0.0-20250220092258-cd61b708e243
-	github.com/TBXark/sphere/contrib/json-gen-proto v0.0.0-20250220092258-cd61b708e243
 	github.com/alitto/pond/v2 v2.2.0
 	github.com/gin-contrib/gzip v1.2.2
 	github.com/gin-gonic/gin v1.10.0
