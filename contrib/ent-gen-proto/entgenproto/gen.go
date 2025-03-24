@@ -5,10 +5,16 @@ import (
 	"entgo.io/ent/entc"
 	"entgo.io/ent/entc/gen"
 	"entgo.io/ent/schema/field"
+	"errors"
 	"fmt"
+	"github.com/golang/protobuf/protoc-gen-go/descriptor"
+	"github.com/jhump/protoreflect/desc"
+	"github.com/jhump/protoreflect/desc/protoprint"
 	"github.com/mitchellh/mapstructure"
+	"go.uber.org/multierr"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"log"
+	"path"
 	"reflect"
 	"sort"
 	_ "unsafe"
@@ -36,9 +42,6 @@ type ProtoPackage struct {
 	Types []string
 }
 
-//go:linkname generate entgo.io/contrib/entproto.(*Extension).generate
-func generate(extension *entproto.Extension, g *gen.Graph) error
-
 func Generate(options *Options) {
 	injectProtoPackages(options.ProtoPackages)
 	graph, err := entc.LoadGraph(options.SchemaPath, &gen.Config{
@@ -52,17 +55,42 @@ func Generate(options *Options) {
 			addAnnotationForNode(graph.Nodes[i], options)
 		}
 	}
-	extension, err := entproto.NewExtension(
-		entproto.WithProtoDir(options.ProtoDir),
-		entproto.SkipGenFile(),
-	)
-	if err != nil {
-		log.Fatalf("entproto: failed creating entproto extension: %v", err)
-	}
-	err = generate(extension, graph)
+	err = generate(graph, options)
 	if err != nil {
 		log.Fatalf("entproto: failed generating protos: %s", err)
 	}
+}
+
+func generate(g *gen.Graph, options *Options) error {
+	entProtoDir := path.Join(g.Config.Target, "proto")
+	if options.ProtoDir != "" {
+		entProtoDir = options.ProtoDir
+	}
+	adapter, err := entproto.LoadAdapter(g)
+	if err != nil {
+		return fmt.Errorf("entproto: failed parsing ent graph: %w", err)
+	}
+	var errs error
+	for _, schema := range g.Schemas {
+		name := schema.Name
+		_, sErr := adapter.GetFileDescriptor(name)
+		if sErr != nil && !errors.Is(sErr, entproto.ErrSchemaSkipped) {
+			errs = multierr.Append(errs, sErr)
+		}
+	}
+	if errs != nil {
+		return fmt.Errorf("entproto: failed parsing some schemas: %w", errs)
+	}
+	allDescriptors := make([]*desc.FileDescriptor, 0, len(adapter.AllFileDescriptors()))
+	for _, fDesc := range adapter.AllFileDescriptors() {
+		fixProto3Optional(g, fDesc)
+		allDescriptors = append(allDescriptors, fDesc)
+	}
+	var printer protoprint.Printer
+	if err = printer.PrintProtosToFileSystem(allDescriptors, entProtoDir); err != nil {
+		return fmt.Errorf("entproto: failed writing .proto files: %w", err)
+	}
+	return nil
 }
 
 func addAnnotationForNode(node *gen.Type, options *Options) {
@@ -142,10 +170,15 @@ func addAnnotationForField(fd *gen.Field, idGenerator *fieldIDGenerator, options
 		break
 	}
 	fd.Annotations[entproto.FieldAnnotation] = entproto.Field(idGenerator.MustNext(), fieldOptions...)
-	if fd.Optional && options.AllFieldsRequired {
+	if fd.Optional {
 		fd.Optional = false
+		if !options.AllFieldsRequired {
+			fd.Annotations[FieldIsProto3Optional] = struct{}{}
+		}
 	}
 }
+
+/// Fix
 
 func fixUnsupportedType(unsupportedProtoType string) (field.Type, []entproto.FieldOption) {
 	switch unsupportedProtoType {
@@ -178,28 +211,37 @@ func fixEnumType(fd *gen.Field, enumUseRawType bool) {
 	}
 }
 
-func extractExistFieldID(node *gen.Type) map[int]struct{} {
-	maxExistNum := 0
-	existNums := map[int]struct{}{}
-	for _, fd := range node.Fields {
-		if fd.Annotations != nil {
-			if obj, exist := fd.Annotations[entproto.FieldAnnotation]; exist {
-				pbField := struct {
-					Number int
-				}{}
-				err := mapstructure.Decode(obj, &pbField)
-				if err != nil {
-					log.Fatalf("entproto: failed decoding field annotation: %v", err)
-				}
-				existNums[pbField.Number] = struct{}{}
-				if pbField.Number > maxExistNum {
-					maxExistNum = pbField.Number
+const FieldIsProto3Optional = "IsProto3Optional"
+
+var isProto3OptionalValue = true
+var optionalFieldLabel = descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL
+
+func fixProto3Optional(g *gen.Graph, fDesc *desc.FileDescriptor) {
+	messageMap := make(map[string]*desc.MessageDescriptor)
+	for _, message := range fDesc.GetMessageTypes() {
+		messageMap[message.GetName()] = message
+	}
+	for _, node := range g.Nodes {
+		message, ok := messageMap[node.Name]
+		if !ok {
+			continue
+		}
+		for _, fd := range node.Fields {
+			if fd.Annotations != nil && fd.Annotations[FieldIsProto3Optional] != nil {
+				pbFd := message.FindFieldByName(fd.Name)
+				if pbFd != nil {
+					proto := pbFd.AsProto().(*descriptor.FieldDescriptorProto)
+					if proto.Label == nil || *proto.Label == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
+						proto.Label = &optionalFieldLabel
+						proto.Proto3Optional = &isProto3OptionalValue
+					}
 				}
 			}
 		}
 	}
-	return existNums
 }
+
+/// Type Mapping
 
 var reflectKind2FieldType = map[reflect.Kind]field.Type{
 	reflect.Bool:          field.TypeBool,
@@ -230,7 +272,8 @@ var reflectKind2FieldType = map[reflect.Kind]field.Type{
 	reflect.UnsafePointer: field.TypeOther,
 }
 
-// entprotoSupportJSONType entgo.io/contrib/entproto.extractJSONDetails
+// entprotoSupportJSONType
+// entgo.io/contrib/entproto.extractJSONDetails
 var entprotoSupportJSONType = map[string]struct{}{
 	"[]int32":  {},
 	"[]int64":  {},
@@ -238,6 +281,8 @@ var entprotoSupportJSONType = map[string]struct{}{
 	"[]uint64": {},
 	"[]string": {},
 }
+
+/// ID Generator
 
 type fieldIDGenerator struct {
 	current int
@@ -266,6 +311,31 @@ func (f *fieldIDGenerator) MustNext() int {
 	}
 	return num
 }
+
+func extractExistFieldID(node *gen.Type) map[int]struct{} {
+	maxExistNum := 0
+	existNums := map[int]struct{}{}
+	for _, fd := range node.Fields {
+		if fd.Annotations != nil {
+			if obj, exist := fd.Annotations[entproto.FieldAnnotation]; exist {
+				pbField := struct {
+					Number int
+				}{}
+				err := mapstructure.Decode(obj, &pbField)
+				if err != nil {
+					log.Fatalf("entproto: failed decoding field annotation: %v", err)
+				}
+				existNums[pbField.Number] = struct{}{}
+				if pbField.Number > maxExistNum {
+					maxExistNum = pbField.Number
+				}
+			}
+		}
+	}
+	return existNums
+}
+
+/// Inject
 
 //go:linkname wktsPaths entgo.io/contrib/entproto.wktsPaths
 var wktsPaths map[string]string
