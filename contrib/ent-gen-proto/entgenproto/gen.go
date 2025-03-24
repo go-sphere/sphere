@@ -7,7 +7,6 @@ import (
 	"entgo.io/ent/schema/field"
 	"errors"
 	"fmt"
-	"github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoprint"
 	"github.com/mitchellh/mapstructure"
@@ -178,7 +177,7 @@ func addAnnotationForField(fd *gen.Field, idGenerator *fieldIDGenerator, options
 	}
 }
 
-/// Fix
+//
 
 func fixUnsupportedType(unsupportedProtoType string) (field.Type, []entproto.FieldOption) {
 	switch unsupportedProtoType {
@@ -230,7 +229,7 @@ func fixProto3Optional(g *gen.Graph, fDesc *desc.FileDescriptor) {
 			if fd.Annotations != nil && fd.Annotations[FieldIsProto3Optional] != nil {
 				pbFd := message.FindFieldByName(fd.Name)
 				if pbFd != nil {
-					proto := pbFd.AsProto().(*descriptor.FieldDescriptorProto)
+					proto := pbFd.AsFieldDescriptorProto()
 					if proto.Label == nil || *proto.Label == descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL {
 						proto.Label = &optionalFieldLabel
 						proto.Proto3Optional = &isProto3OptionalValue
