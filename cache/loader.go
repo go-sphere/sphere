@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/sync/singleflight"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
-var (
-	NotFound = fmt.Errorf("not found")
-)
+var ErrNotFound = fmt.Errorf("not found")
 
 type Encoder interface {
 	Marshal(val any) ([]byte, error)
@@ -38,7 +37,7 @@ func Load[T any, D Decoder](ctx context.Context, c ByteCache, d D, key string) (
 		return nil, err
 	}
 	if data == nil {
-		return nil, NotFound
+		return nil, ErrNotFound
 	}
 	var value T
 	err = d.Unmarshal(*data, &value)
@@ -96,7 +95,7 @@ func Get[T any](ctx context.Context, c Cache[T], key string) (*T, error) {
 		return nil, err
 	}
 	if data == nil {
-		return nil, NotFound
+		return nil, ErrNotFound
 	}
 	return data, nil
 }
@@ -128,5 +127,5 @@ func GetEx[T any](ctx context.Context, c Cache[T], sf *singleflight.Group, key s
 }
 
 func IsNotFound(err error) bool {
-	return errors.Is(err, NotFound)
+	return errors.Is(err, ErrNotFound)
 }

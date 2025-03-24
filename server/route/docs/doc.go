@@ -9,5 +9,4 @@ import (
 
 func Setup(route gin.IRoutes, doc *swag.Spec) {
 	route.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.NewHandler(), ginSwagger.InstanceName(doc.InstanceName())))
-
 }

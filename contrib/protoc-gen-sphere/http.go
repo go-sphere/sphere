@@ -1,7 +1,6 @@
 package main
 
 import (
-	validatepb "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,11 +8,11 @@ import (
 	"slices"
 	"strings"
 
-	"google.golang.org/protobuf/reflect/protoreflect"
-
+	validatepb "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 

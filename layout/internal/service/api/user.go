@@ -3,17 +3,18 @@ package api
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
 	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/user"
 	"github.com/TBXark/sphere/server/statuserr"
 	"github.com/TBXark/sphere/storage"
-	"net/http"
-	"net/url"
-	"strconv"
-	"strings"
-	"time"
 )
 
 var _ apiv1.UserServiceHTTPServer = (*Service)(nil)
@@ -24,8 +25,10 @@ var wechatAvatarDomains = map[string]struct{}{
 
 const RemoteImageMaxSize = 1024 * 1024 * 2
 
-var ErrImageSizeExceed = fmt.Errorf("image size exceed")
-var ErrImageHostNotAllowed = fmt.Errorf("image host not allowed")
+var (
+	ErrImageSizeExceed     = fmt.Errorf("image size exceed")
+	ErrImageHostNotAllowed = fmt.Errorf("image host not allowed")
+)
 
 func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMiniRequest) (*apiv1.BindPhoneWxMiniResponse, error) {
 	userId, err := s.GetCurrentID(ctx)

@@ -1,10 +1,11 @@
 package idgenerator
 
 import (
-	"github.com/yitter/idgenerator-go/idgen"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/yitter/idgenerator-go/idgen"
 )
 
 func init() {

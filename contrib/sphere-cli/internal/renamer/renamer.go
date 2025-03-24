@@ -46,7 +46,7 @@ func RenameModule(oldModule, newModule string, path string) error {
 		}
 		return true
 	})
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0644)
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		log.Printf("open file error: %v", err)
 		return err

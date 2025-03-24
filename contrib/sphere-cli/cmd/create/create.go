@@ -2,14 +2,15 @@ package create
 
 import (
 	"flag"
-	"github.com/TBXark/sphere/contrib/sphere-cli/internal/command"
-	"github.com/TBXark/sphere/contrib/sphere-cli/internal/renamer"
-	"github.com/TBXark/sphere/contrib/sphere-cli/internal/zip"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/TBXark/sphere/contrib/sphere-cli/internal/command"
+	"github.com/TBXark/sphere/contrib/sphere-cli/internal/renamer"
+	"github.com/TBXark/sphere/contrib/sphere-cli/internal/zip"
 )
 
 const (

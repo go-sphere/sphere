@@ -2,6 +2,9 @@ package api
 
 import (
 	"context"
+	"net/http"
+	"time"
+
 	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
 	"github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/service/api"
@@ -15,8 +18,6 @@ import (
 	"github.com/TBXark/sphere/server/middleware/logger"
 	"github.com/TBXark/sphere/server/route/cors"
 	"github.com/gin-gonic/gin"
-	"net/http"
-	"time"
 )
 
 type Web struct {
@@ -43,7 +44,7 @@ func (w *Web) Start(ctx context.Context) error {
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
 	authMiddleware := auth.NewAuthMiddleware(jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, false)
-	//rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
+	// rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
 	engine := gin.New()
 	engine.Use(loggerMiddleware, recoveryMiddleware)

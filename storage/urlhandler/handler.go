@@ -6,9 +6,7 @@ import (
 	"strings"
 )
 
-var (
-	ErrorNotVerifyHost = fmt.Errorf("not verify host")
-)
+var ErrorNotVerifyHost = fmt.Errorf("not verify host")
 
 type Handler struct {
 	publicURLBase string
@@ -75,7 +73,6 @@ func (n *Handler) ExtractKeyFromURLWithMode(uri string, strict bool) (string, er
 	u.RawFragment = ""
 	// 返回去掉base url的key
 	return strings.TrimPrefix(strings.TrimPrefix(u.String(), n.publicURLBase), "/"), nil
-
 }
 
 func (n *Handler) ExtractKeyFromURL(uri string) string {

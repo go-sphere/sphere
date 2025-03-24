@@ -2,9 +2,10 @@ package app
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/TBXark/sphere/layout/internal/config"
 	"github.com/TBXark/sphere/utils/boot"
-	"os"
 )
 
 func Execute(app func(*config.Config) (*boot.Application, error)) {

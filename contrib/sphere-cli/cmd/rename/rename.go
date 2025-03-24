@@ -2,6 +2,7 @@ package rename
 
 import (
 	"flag"
+
 	"github.com/TBXark/sphere/contrib/sphere-cli/internal/command"
 	"github.com/TBXark/sphere/contrib/sphere-cli/internal/renamer"
 )

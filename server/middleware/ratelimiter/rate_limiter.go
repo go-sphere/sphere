@@ -1,11 +1,12 @@
 package ratelimiter
 
 import (
+	"net/http"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/time/rate"
-	"net/http"
-	"time"
 )
 
 func NewRateLimiter(key func(*gin.Context) string, createLimiter func(*gin.Context) (*rate.Limiter, time.Duration), abort func(*gin.Context)) gin.HandlerFunc {

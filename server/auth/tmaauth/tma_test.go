@@ -1,9 +1,10 @@
 package tmaauth
 
 import (
-	initdata "github.com/telegram-mini-apps/init-data-golang"
 	"testing"
 	"time"
+
+	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
 func TestTmaAuth_ParseToken(t *testing.T) {

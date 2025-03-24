@@ -16,11 +16,11 @@ func TestHandler_ExtractKeyFromURLWithMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	log.Printf(key)
+	log.Print(key)
 }
 
 func TestHandler_GenerateURL(t *testing.T) {
 	handler, _ := NewHandler(testPublicURL)
 	url := handler.GenerateURL("test")
-	log.Printf(url)
+	log.Print(url)
 }

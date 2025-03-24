@@ -34,5 +34,4 @@ func TestSetToStruct(t *testing.T) {
 	if test2.Value != tuple.Second {
 		t.Fatalf("expected %d, got %d", tuple.Second, test2.Value)
 	}
-
 }

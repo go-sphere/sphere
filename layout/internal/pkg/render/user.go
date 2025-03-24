@@ -1,7 +1,6 @@
 package render
 
 import (
-	"github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 )
 

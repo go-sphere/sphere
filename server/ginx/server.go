@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 	"net/http"
 	"time"
+
+	"github.com/TBXark/sphere/log"
+	"github.com/TBXark/sphere/log/logfields"
 )
 
 func Start(ctx context.Context, server *http.Server, closeTimeout time.Duration) error {

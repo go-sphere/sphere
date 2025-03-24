@@ -35,7 +35,7 @@ func (UserPlatform) Fields() []ent.Field {
 		field.String("platform").Comment("平台"),
 		field.String("platform_id").Comment("平台ID"),
 		field.String("second_id").Optional().Default("").Comment("第二ID"),
-		//field.String("private_key").Optional().Default("").Comment("私钥").Sensitive(),
+		// field.String("private_key").Optional().Default("").Comment("私钥").Sensitive(),
 		times[0], times[1],
 	}
 }

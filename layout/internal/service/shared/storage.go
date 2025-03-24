@@ -3,9 +3,10 @@ package shared
 import (
 	"context"
 	"fmt"
+	"strconv"
+
 	sharedv1 "github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/storage"
-	"strconv"
 )
 
 var _ sharedv1.StorageServiceHTTPServer = (*Service)(nil)

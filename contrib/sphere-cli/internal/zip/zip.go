@@ -51,7 +51,7 @@ func UnzipToTemp(uri string) (tempDir string, err error) {
 			continue
 		}
 
-		if e := os.MkdirAll(filepath.Dir(path), 0755); e != nil {
+		if e := os.MkdirAll(filepath.Dir(path), 0o755); e != nil {
 			return "", e
 		}
 

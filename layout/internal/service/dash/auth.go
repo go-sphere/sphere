@@ -2,6 +2,8 @@ package dash
 
 import (
 	"context"
+	"time"
+
 	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
@@ -9,7 +11,6 @@ import (
 	"github.com/TBXark/sphere/server/ginx"
 	"github.com/TBXark/sphere/server/statuserr"
 	"github.com/TBXark/sphere/utils/secure"
-	"time"
 )
 
 var _ dashv1.AuthServiceHTTPServer = (*Service)(nil)
@@ -20,9 +21,7 @@ const (
 	AuthExpiresTimeFormat     = "2006/01/02 15:04:05"
 )
 
-var (
-	ErrPasswordNotMatch = statuserr.NewError(400, "password not match")
-)
+var ErrPasswordNotMatch = statuserr.NewError(400, "password not match")
 
 type AdminToken struct {
 	Admin        *ent.Admin

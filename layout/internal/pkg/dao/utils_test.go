@@ -7,7 +7,6 @@ import (
 )
 
 func TestRemoveDuplicateAndZero(t *testing.T) {
-
 	duplicateAndZero := func(id []int) []int {
 		set := make(map[int]struct{})
 		for _, v := range id {
@@ -51,7 +50,6 @@ func TestRemoveDuplicateAndZero(t *testing.T) {
 			}
 		}
 		return true
-
 	}
 	for _, tt := range tests {
 		result := duplicateAndZero(tt)

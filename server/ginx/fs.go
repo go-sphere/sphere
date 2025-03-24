@@ -2,9 +2,10 @@ package ginx
 
 import (
 	"embed"
-	"github.com/gin-gonic/gin"
 	"io/fs"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 func Fs(local string, emFs *embed.FS, emPath string) (http.FileSystem, error) {

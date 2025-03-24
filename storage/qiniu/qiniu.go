@@ -5,13 +5,14 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"github.com/TBXark/sphere/storage/urlhandler"
-	"github.com/qiniu/go-sdk/v7/auth/qbox"
-	"github.com/qiniu/go-sdk/v7/storage"
 	"io"
 	"net/url"
 	"path"
 	"strings"
+
+	"github.com/TBXark/sphere/storage/urlhandler"
+	"github.com/qiniu/go-sdk/v7/auth/qbox"
+	"github.com/qiniu/go-sdk/v7/storage"
 )
 
 type Config struct {

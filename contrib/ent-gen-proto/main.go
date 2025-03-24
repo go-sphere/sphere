@@ -2,8 +2,9 @@ package main
 
 import (
 	"flag"
-	"github.com/TBXark/sphere/contrib/ent-gen-proto/entgenproto"
 	"strings"
+
+	"github.com/TBXark/sphere/contrib/ent-gen-proto/entgenproto"
 )
 
 func main() {

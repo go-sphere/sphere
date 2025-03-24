@@ -2,11 +2,12 @@ package telegram
 
 import (
 	"context"
+	"strings"
+
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"strings"
 )
 
 type Config struct {
@@ -89,9 +90,11 @@ func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middlewares ..
 	})
 }
 
-type MessageSender func(ctx context.Context, request *Update, msg *Message) error
-type RouteMap map[string]func(ctx context.Context, request *Update) error
-type RouteMapBuilder[S any, D any] func(srv S, codec D, sender MessageSender) RouteMap
+type (
+	MessageSender                 func(ctx context.Context, request *Update, msg *Message) error
+	RouteMap                      map[string]func(ctx context.Context, request *Update) error
+	RouteMapBuilder[S any, D any] func(srv S, codec D, sender MessageSender) RouteMap
+)
 
 func (b *Bot) BindRoute(route RouteMap, extra func(string) *MethodExtraData, operations []string, middlewares ...MiddlewareFunc) {
 	for _, operation := range operations {

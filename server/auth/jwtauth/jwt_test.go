@@ -2,10 +2,11 @@ package jwtauth
 
 import (
 	"encoding/json"
-	"github.com/TBXark/sphere/server/auth/authorizer"
-	"github.com/golang-jwt/jwt/v5"
 	"testing"
 	"time"
+
+	"github.com/TBXark/sphere/server/auth/authorizer"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func TestJwtAuth_ParseToken(t *testing.T) {
@@ -39,7 +40,6 @@ func TestJwtAuth_ParseToken(t *testing.T) {
 		t.Error("token should be expired")
 	}
 	t.Logf("error: %v", err)
-
 }
 
 func parseClaimsV1[T jwt.Claims](raw []byte) (*T, error) {

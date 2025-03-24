@@ -4,15 +4,15 @@ package cmd
 
 import (
 	"context"
-	"github.com/TBXark/sphere/layout/internal/config"
-	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/storage"
-	"github.com/TBXark/sphere/storage/qiniu"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 
+	"github.com/TBXark/sphere/layout/internal/config"
+	"github.com/TBXark/sphere/log"
+	"github.com/TBXark/sphere/storage"
+	"github.com/TBXark/sphere/storage/qiniu"
 	"github.com/spf13/cobra"
 )
 
@@ -95,7 +95,7 @@ func runMigrate(cmd *cobra.Command, args []string) {
 			resBuf.WriteString("\n\n ")
 		}
 	}
-	err = os.WriteFile(outP, []byte(resBuf.String()), 0644)
+	err = os.WriteFile(outP, []byte(resBuf.String()), 0o644)
 	if err != nil {
 		log.Panicf("write output error: %v", err)
 	}

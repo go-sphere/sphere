@@ -19,6 +19,7 @@ init: ## Init all dependencies
 	go install github.com/bufbuild/buf/cmd/buf@latest
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 	go install github.com/favadi/protoc-go-inject-tag@latest
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.0.0
 	$(MAKE) install
 	$(MAKE) gen-ent
 	$(MAKE) gen-docs
@@ -102,6 +103,9 @@ lint: ## Run linter
 
 .PHONY: fmt
 fmt: ## Run formatter
+	golangci-lint fmt
+	golangci-lint run --fix
+	go mod tidy
 	go fmt ./...
 	buf format
 

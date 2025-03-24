@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"google.golang.org/protobuf/compiler/protogen"
 	"strings"
+
+	"google.golang.org/protobuf/compiler/protogen"
 )
 
 func camelCaseVars(s string) string {

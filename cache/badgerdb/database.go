@@ -2,8 +2,9 @@ package badgerdb
 
 import (
 	"context"
-	"github.com/dgraph-io/badger/v4"
 	"time"
+
+	"github.com/dgraph-io/badger/v4"
 )
 
 type Config struct {

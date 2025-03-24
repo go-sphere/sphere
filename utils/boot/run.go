@@ -5,12 +5,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/TBXark/sphere/log"
+	"github.com/TBXark/sphere/log/logfields"
 )
 
 const DefaultTimezone = "Asia/Shanghai"

@@ -3,9 +3,10 @@ package redis
 import (
 	"bytes"
 	"context"
-	"github.com/redis/go-redis/v9"
 	"testing"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 func setupTestByteCache(t *testing.T) (*ByteCache, func()) {

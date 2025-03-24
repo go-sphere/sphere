@@ -1,10 +1,11 @@
 package ginx
 
 import (
+	"net/http"
+
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
 	"github.com/gin-gonic/gin"
-	"net/http"
 )
 
 type Context = gin.Context
@@ -66,7 +67,6 @@ func WithText(handler func(ctx *gin.Context) (string, error)) func(ctx *gin.Cont
 			ctx.String(200, data)
 		}
 	})
-
 }
 
 func WithHandler(h http.Handler) func(ctx *gin.Context) {

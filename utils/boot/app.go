@@ -3,6 +3,7 @@ package boot
 import (
 	"context"
 	"fmt"
+
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
 	"golang.org/x/sync/errgroup"

@@ -1,10 +1,11 @@
 package logger
 
 import (
+	"time"
+
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"time"
 )
 
 type Logger interface {

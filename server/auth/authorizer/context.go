@@ -22,8 +22,7 @@ var (
 	PermissionError = authError{Code: 403, Message: "permission denied"}
 )
 
-type ContextUtils[I UID] struct {
-}
+type ContextUtils[I UID] struct{}
 
 func (ContextUtils[I]) GetCurrentID(ctx context.Context) (I, error) {
 	var zeroID I

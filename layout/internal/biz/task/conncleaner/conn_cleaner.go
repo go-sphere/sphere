@@ -2,6 +2,7 @@ package conncleaner
 
 import (
 	"context"
+
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"golang.org/x/sync/errgroup"
 )

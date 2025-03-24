@@ -1,8 +1,14 @@
 severity:
+  default: error
   rules:
     - linters:
         - errcheck
         - unused
       severity: info
-  default: error
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
 version: "2"

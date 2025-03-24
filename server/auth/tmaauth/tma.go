@@ -3,10 +3,11 @@ package tmaauth
 import (
 	"bytes"
 	"encoding/json"
-	initdata "github.com/telegram-mini-apps/init-data-golang"
 	"net/url"
 	"strconv"
 	"time"
+
+	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
 const AuthorizationPrefixTMA = "tma"

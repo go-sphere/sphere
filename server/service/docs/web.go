@@ -3,17 +3,18 @@ package docs
 import (
 	"context"
 	"fmt"
-	"github.com/TBXark/sphere/server/ginx"
-	"github.com/TBXark/sphere/server/route/cors"
-	"github.com/TBXark/sphere/server/route/docs"
-	"github.com/gin-gonic/gin"
-	"github.com/swaggo/swag"
 	"html/template"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/TBXark/sphere/server/ginx"
+	"github.com/TBXark/sphere/server/route/cors"
+	"github.com/TBXark/sphere/server/route/docs"
+	"github.com/gin-gonic/gin"
+	"github.com/swaggo/swag"
 )
 
 type Target struct {

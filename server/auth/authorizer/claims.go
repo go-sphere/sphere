@@ -1,9 +1,10 @@
 package authorizer
 
 import (
+	"time"
+
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/exp/constraints"
-	"time"
 )
 
 type UID interface {

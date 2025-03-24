@@ -1,9 +1,9 @@
 package log
 
 import (
-	"github.com/TBXark/sphere/log/logfields"
 	"sync"
 
+	"github.com/TBXark/sphere/log/logfields"
 	"go.uber.org/zap"
 )
 

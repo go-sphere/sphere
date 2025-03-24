@@ -3,8 +3,9 @@ package sqlite
 import (
 	"database/sql"
 	"database/sql/driver"
-	"entgo.io/ent/dialect"
 	"fmt"
+
+	"entgo.io/ent/dialect"
 	"modernc.org/sqlite"
 )
 

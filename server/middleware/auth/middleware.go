@@ -1,10 +1,11 @@
 package auth
 
 import (
-	"github.com/TBXark/sphere/server/auth/authorizer"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"strings"
+
+	"github.com/TBXark/sphere/server/auth/authorizer"
+	"github.com/gin-gonic/gin"
 )
 
 const (

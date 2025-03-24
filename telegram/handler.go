@@ -2,19 +2,22 @@ package telegram
 
 import (
 	"context"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/TBXark/sphere/log"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"golang.org/x/sync/singleflight"
-	"strconv"
-	"strings"
-	"time"
 )
 
-type HandlerFunc = func(ctx context.Context, update *Update) error
-type MiddlewareFunc = func(next HandlerFunc) HandlerFunc
-type ErrorHandlerFunc = func(ctx context.Context, bot *bot.Bot, update *Update, err error)
-type AuthExtractorFunc = func(ctx context.Context, update *Update) (map[string]any, error)
+type (
+	HandlerFunc       = func(ctx context.Context, update *Update) error
+	MiddlewareFunc    = func(next HandlerFunc) HandlerFunc
+	ErrorHandlerFunc  = func(ctx context.Context, bot *bot.Bot, update *Update, err error)
+	AuthExtractorFunc = func(ctx context.Context, update *Update) (map[string]any, error)
+)
 
 func WithMiddleware(h HandlerFunc, e ErrorHandlerFunc, middleware ...MiddlewareFunc) bot.HandlerFunc {
 	handler := h
@@ -61,7 +64,6 @@ func NewRecoveryMiddleware() bot.Middleware {
 }
 
 func NewGroupMessageFilterMiddleware(b *bot.Bot, trimMention bool, infoExpire time.Duration) MiddlewareFunc {
-
 	var (
 		ts   time.Time
 		sf   singleflight.Group

@@ -3,11 +3,12 @@ package kvcache
 import (
 	"bytes"
 	"context"
+	"io"
+	"os"
+
 	"github.com/TBXark/sphere/cache"
 	"github.com/TBXark/sphere/storage"
 	"github.com/TBXark/sphere/storage/urlhandler"
-	"io"
-	"os"
 )
 
 var _ storage.Storage = (*Client)(nil)

@@ -2,8 +2,9 @@ package telegram
 
 import (
 	"fmt"
-	"github.com/TBXark/jsoncompressor"
 	"strings"
+
+	"github.com/TBXark/jsoncompressor"
 )
 
 // query prefix must be unique and has suffix ":" to separate the data

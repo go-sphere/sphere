@@ -3,13 +3,12 @@ package memory
 import (
 	"context"
 	"fmt"
-	"github.com/patrickmn/go-cache"
 	"time"
+
+	"github.com/patrickmn/go-cache"
 )
 
-var (
-	ErrorType = fmt.Errorf("type error")
-)
+var ErrorType = fmt.Errorf("type error")
 
 type Cache[T any] struct {
 	cache *cache.Cache

@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"encoding/json"
+
 	"golang.org/x/exp/constraints"
 )
 

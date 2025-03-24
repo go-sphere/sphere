@@ -2,12 +2,13 @@ package schema
 
 import (
 	"database/sql/driver"
+	"time"
+
 	"entgo.io/contrib/entproto"
 	"entgo.io/ent"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/descriptorpb"
-	"time"
 )
 
 type Extra struct {

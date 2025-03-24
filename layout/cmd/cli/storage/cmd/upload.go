@@ -4,14 +4,15 @@ package cmd
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/TBXark/sphere/layout/internal/config"
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/storage"
 	"github.com/TBXark/sphere/storage/qiniu"
 	"github.com/spf13/cobra"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 // uploadCmd represents the upload command
@@ -72,7 +73,7 @@ func runUpload(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Panicf("walk file error: %v", err)
 	}
-	err = os.WriteFile(outP, []byte(resBuf.String()), 0644)
+	err = os.WriteFile(outP, []byte(resBuf.String()), 0o644)
 	if err != nil {
 		log.Panicf("write output file error: %v", err)
 	}

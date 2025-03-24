@@ -1,11 +1,12 @@
 package log
 
 import (
+	"os"
+
 	"github.com/TBXark/sphere/log/logfields"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"os"
 )
 
 var _ Logger = &zapLogger{}
@@ -15,7 +16,6 @@ type zapLogger struct {
 }
 
 func newLogger(opts *Options, fields ...logfields.Field) *zapLogger {
-
 	levelRaw, err := zapcore.ParseLevel(opts.Level)
 	if err != nil {
 		levelRaw = zap.InfoLevel
@@ -141,7 +141,7 @@ func (l *zapLogger) Fatalw(message string, args ...interface{}) {
 }
 
 func (l *zapLogger) WithFields(fields map[string]interface{}) Logger {
-	var f = make([]zap.Field, 0)
+	f := make([]zap.Field, 0)
 	for k, v := range fields {
 		f = append(f, zap.Any(k, v))
 	}

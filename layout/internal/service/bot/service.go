@@ -2,13 +2,13 @@ package bot
 
 import (
 	"context"
+
 	botv1 "github.com/TBXark/sphere/layout/api/bot/v1"
 )
 
 var _ botv1.MenuServiceBotServer = &Service{}
 
-type Service struct {
-}
+type Service struct{}
 
 func NewService() *Service {
 	return &Service{}

@@ -1,11 +1,12 @@
 package cmd
 
 import (
+	"log"
+	"os"
+
 	"github.com/TBXark/confstore"
 	"github.com/TBXark/sphere/layout/internal/config"
 	"github.com/spf13/cobra"
-	"log"
-	"os"
 )
 
 // genCmd represents the config command

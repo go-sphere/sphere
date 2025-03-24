@@ -2,6 +2,9 @@ package dash
 
 import (
 	"context"
+	"net/http"
+	"time"
+
 	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
 	sharedv1 "github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/service/dash"
@@ -20,8 +23,6 @@ import (
 	"github.com/TBXark/sphere/server/route/pprof"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
-	"net/http"
-	"time"
 )
 
 type Web struct {
@@ -42,7 +43,6 @@ func (w *Web) Identifier() string {
 }
 
 func (w *Web) Start(ctx context.Context) error {
-
 	jwtAuthorizer := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.AuthJWT)
 	jwtRefresher := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.RefreshJWT)
 

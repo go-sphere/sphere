@@ -8,3 +8,10 @@ install: ## Install all dependencies
 .PHONY: lint
 lint: ## Run linter
 	golangci-lint run
+
+.PHONY: format
+format: ## Format code
+	golangci-lint fmt
+	golangci-lint run --fix
+	go fmt ./...
+	go mod tidy

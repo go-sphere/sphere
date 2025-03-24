@@ -1,22 +1,23 @@
 package entgenproto
 
 import (
-	"entgo.io/contrib/entproto"
-	"entgo.io/ent/entc"
-	"entgo.io/ent/entc/gen"
-	"entgo.io/ent/schema/field"
 	"errors"
 	"fmt"
-	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/desc/protoprint"
-	"github.com/mitchellh/mapstructure"
-	"go.uber.org/multierr"
-	"google.golang.org/protobuf/types/descriptorpb"
 	"log"
 	"path"
 	"reflect"
 	"sort"
 	_ "unsafe"
+
+	"entgo.io/contrib/entproto"
+	"entgo.io/ent/entc"
+	"entgo.io/ent/entc/gen"
+	"entgo.io/ent/schema/field"
+	"github.com/jhump/protoreflect/desc"
+	"github.com/jhump/protoreflect/desc/protoprint"
+	"github.com/mitchellh/mapstructure"
+	"go.uber.org/multierr"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 type Options struct {
@@ -212,8 +213,10 @@ func fixEnumType(fd *gen.Field, enumUseRawType bool) {
 
 const FieldIsProto3Optional = "IsProto3Optional"
 
-var isProto3OptionalValue = true
-var optionalFieldLabel = descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL
+var (
+	isProto3OptionalValue = true
+	optionalFieldLabel    = descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL
+)
 
 func fixProto3Optional(g *gen.Graph, fDesc *desc.FileDescriptor) {
 	messageMap := make(map[string]*desc.MessageDescriptor)
