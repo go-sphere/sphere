@@ -2,6 +2,9 @@ package dash
 
 import (
 	"context"
+	"github.com/TBXark/sphere/database/bind"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
+	"github.com/TBXark/sphere/layout/internal/pkg/render"
 
 	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
 	"github.com/TBXark/sphere/layout/api/entpb"
@@ -19,13 +22,8 @@ func (s *Service) AdminCreate(ctx context.Context, req *dashv1.AdminCreateReques
 	} else {
 		return nil, statuserr.NewError(400, "password is too short")
 	}
-	u, err := s.DB.Admin.Create().
-		SetAvatar(s.Storage.ExtractKeyFromURL(req.Admin.Avatar)).
-		SetUsername(req.Admin.Username).
-		SetNickname(req.Admin.Nickname).
-		SetPassword(req.Admin.Password).
-		SetRoles(req.Admin.Roles).
-		Save(ctx)
+	req.Admin.Avatar = s.Storage.ExtractKeyFromURL(req.Admin.Avatar)
+	u, err := render.CreateAdmin(s.DB.Admin.Create(), req.Admin).Save(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -76,16 +74,10 @@ func (s *Service) AdminList(ctx context.Context, req *dashv1.AdminListRequest) (
 }
 
 func (s *Service) AdminUpdate(ctx context.Context, req *dashv1.AdminUpdateRequest) (*dashv1.AdminUpdateResponse, error) {
-	update := s.DB.Admin.UpdateOneID(req.Id).
-		SetAvatar(s.Storage.ExtractKeyFromURL(req.Admin.Avatar)).
-		SetUsername(req.Admin.Username).
-		SetNickname(req.Admin.Nickname).
-		SetRoles(req.Admin.Roles)
 	if req.Admin.Password != "" {
 		req.Admin.Password = secure.CryptPassword(req.Admin.Password)
-		update = update.SetPassword(req.Admin.Password)
 	}
-	u, err := update.Save(ctx)
+	u, err := render.UpdateOneAdmin(s.DB.Admin.UpdateOneID(req.Id), req.Admin, bind.IgnoreSetZeroField(admin.FieldPassword)).Save(ctx)
 	if err != nil {
 		return nil, err
 	}
