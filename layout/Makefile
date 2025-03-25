@@ -7,6 +7,9 @@ CURRENT_ARCH := $(shell uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/
 DOCKER_IMAGE ?= ghcr.io/tbxark/$(MODULE_NAME)
 DOCKER_FILE := cmd/app/Dockerfile
 
+DASH_DIR := ../sphere-dashboard
+DASH_DIST := assets/dash/dashboard/dist
+
 LD_FLAGS := "-X $(MODULE)/internal/config.BuildVersion=$(BUILD)"
 GO_BUILD := CGO_ENABLED=0 go build -trimpath -ldflags $(LD_FLAGS) -tags=jsoniter
 
@@ -51,6 +54,8 @@ gen-ent: ## Generate ent code
 .PHONY: gen-docs
 gen-docs: gen-proto ## Generate swagger docs
 	go generate docs.go
+	# You can copy the swagger files to the dash project
+	# cp -r swagger/dash/typescript/* $(DASH_DIR)/src/api/swagger
 
 .PHONY: gen-wire
 gen-wire: ## Generate wire code
@@ -72,7 +77,10 @@ generate: ## Generate all code
 
 .PHONY: dash
 dash: ## Build dash
-	sh ./assets/dash/build.sh
+	# You can `git clone https://github.com/pure-admin/vue-pure-admin.git $(DASH_DIR)` to get the dash project
+	# cd $(DASH_DIR) &&  pnpm build
+	# cp -r $(DASH_DIR)/dist/* $(DASH_DIST)
+	echo "Not implemented"
 
 .PHONY: build
 build: ## Build binary
