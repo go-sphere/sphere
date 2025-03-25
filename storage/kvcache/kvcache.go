@@ -3,6 +3,7 @@ package kvcache
 import (
 	"bytes"
 	"context"
+	"github.com/TBXark/sphere/log"
 	"io"
 	"os"
 
@@ -77,4 +78,9 @@ func (c *Client) GenerateUploadToken(fileName string, dir string, nameBuilder fu
 		key,
 		c.GenerateURL(key),
 	}, nil
+}
+
+func (c *Client) GenerateImageURL(key string, width int) string {
+	log.Warnf("Client not support image resize")
+	return c.GenerateURL(key)
 }
