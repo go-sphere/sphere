@@ -45,7 +45,7 @@ func getPublicMethods(obj interface{}) ([]string, map[string]reflect.Method) {
 	if typ.Kind() == reflect.Ptr {
 		structType = typ.Elem()
 	} else {
-		ptrType = reflect.PtrTo(typ)
+		ptrType = reflect.PointerTo(typ)
 	}
 
 	for i := 0; i < structType.NumMethod(); i++ {
@@ -97,7 +97,7 @@ func genZeroCheck(sourceName string, field reflect.StructField) string {
 	case reflect.Bool:
 		return fmt.Sprintf("!%s.%s", sourceName, field.Name)
 	case reflect.Slice:
-		return fmt.Sprintf("len(%s.%s) == 0", sourceName, field.Name)
+		return fmt.Sprintf("%s.%s == nil", sourceName, field.Name)
 	default:
 		return fmt.Sprintf("reflect.ValueOf(%s.%s).IsZero()", sourceName, field.Name)
 	}
@@ -171,17 +171,17 @@ type GenConf struct {
 	source        any
 	target        any
 	action        any
-	ignoreFields  []string
+	IgnoreFields  []string
 	SourcePkgName string
 	TargetPkgName string
 }
 
-func NewGenConf(source, target, action any, ignoreFields ...string) *GenConf {
+func NewGenConf(source, target, action any) *GenConf {
 	return &GenConf{
 		source:        source,
 		target:        target,
 		action:        action,
-		ignoreFields:  ignoreFields,
+		IgnoreFields:  nil,
 		SourcePkgName: "ent",
 		TargetPkgName: "entpb",
 	}
@@ -194,6 +194,11 @@ func (c *GenConf) WithSourcePkgName(pkgName string) *GenConf {
 
 func (c *GenConf) WithTargetPkgName(pkgName string) *GenConf {
 	c.TargetPkgName = pkgName
+	return c
+}
+
+func (c *GenConf) WithIgnoreFields(fields ...string) *GenConf {
+	c.IgnoreFields = fields
 	return c
 }
 
@@ -218,8 +223,8 @@ func Gen(conf *GenConf) string {
 		Fields:     make([]GenFieldContext, 0),
 	}
 
-	ignoreFields := make(map[string]bool, len(conf.ignoreFields))
-	for _, field := range conf.ignoreFields {
+	ignoreFields := make(map[string]bool, len(conf.IgnoreFields))
+	for _, field := range conf.IgnoreFields {
 		ignoreFields[strings.ToLower(field)] = true
 	}
 
@@ -255,7 +260,12 @@ func Gen(conf *GenConf) string {
 			CanSettNillable:        hasSettNillable,
 			CanClearOnNil:          hasClearOnNil,
 			TargetFieldIsPtr:       targetFieldIsPtr,
-			TargetSourceIsSomeType: targetField.Type.Kind() == sourceField.Type.Kind(),
+			TargetSourceIsSomeType: false,
+		}
+		if targetFieldIsPtr {
+			field.TargetSourceIsSomeType = targetField.Type.Elem().Kind() == sourceField.Type.Kind()
+		} else {
+			field.TargetSourceIsSomeType = targetField.Type.Kind() == sourceField.Type.Kind()
 		}
 		context.Fields = append(context.Fields, field)
 	}
@@ -319,7 +329,11 @@ func {{.FuncName}}(source *{{.SourcePkgName}}.{{.ActionName}}, target *{{.Target
 	{{- end}}
 	{{- else}} {{/* 否则使用普通Setter方法，但需要解引用 */}}
 	if target.{{.TargetField.Name}} != nil {
-		source.{{.SetterFuncName}}(*target.{{.TargetField.Name}})
+        {{- if .TargetSourceIsSomeType}} {{/* 如果源和目标是相同类型，直接赋值 */}}
+		source.{{.SetterFuncName}}(*target.{{.TargetField.Name}}) 
+        {{- else}} {{/* 如果类型不同，需要进行类型转换 */}}
+		source.{{.SetterFuncName}}({{.SourceField.Type.String}}(*target.{{.TargetField.Name}}))
+        {{- end}}
 	}
 	{{- end}}
 {{- else -}} {{/* 当目标字段不是指针类型 */}}
