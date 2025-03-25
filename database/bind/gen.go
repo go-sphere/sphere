@@ -8,7 +8,18 @@ import (
 	"unicode"
 )
 
-func getPublicFields(obj interface{}) ([]string, map[string]reflect.StructField) {
+func pascalCaseToSnakeCase(str string) string {
+	result := make([]rune, 0, len(str)*2)
+	for i, r := range str {
+		if i > 0 && unicode.IsUpper(r) {
+			result = append(result, '_')
+		}
+		result = append(result, unicode.ToLower(r))
+	}
+	return string(result)
+}
+
+func getPublicFields(obj interface{}, keyMapper func(s string) string) ([]string, map[string]reflect.StructField) {
 	val := reflect.ValueOf(obj)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
@@ -22,7 +33,10 @@ func getPublicFields(obj interface{}) ([]string, map[string]reflect.StructField)
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		if unicode.IsUpper(rune(field.Name[0])) && !field.Anonymous {
-			k := strings.ToLower(field.Name)
+			k := field.Name
+			if keyMapper != nil {
+				k = keyMapper(k)
+			}
 			keys = append(keys, k)
 			fields[k] = field
 		}
@@ -30,7 +44,7 @@ func getPublicFields(obj interface{}) ([]string, map[string]reflect.StructField)
 	return keys, fields
 }
 
-func getPublicMethods(obj interface{}) ([]string, map[string]reflect.Method) {
+func getPublicMethods(obj interface{}, keyMapper func(s string) string) ([]string, map[string]reflect.Method) {
 	typ := reflect.TypeOf(obj)
 
 	if typ == nil || (typ.Kind() != reflect.Struct && (typ.Kind() != reflect.Ptr || typ.Elem().Kind() != reflect.Struct)) {
@@ -51,7 +65,10 @@ func getPublicMethods(obj interface{}) ([]string, map[string]reflect.Method) {
 	for i := 0; i < structType.NumMethod(); i++ {
 		method := structType.Method(i)
 		if unicode.IsUpper(rune(method.Name[0])) {
-			k := strings.ToLower(method.Name)
+			k := method.Name
+			if keyMapper != nil {
+				k = keyMapper(k)
+			}
 			keys = append(keys, k)
 			methods[k] = method
 		}
@@ -59,7 +76,10 @@ func getPublicMethods(obj interface{}) ([]string, map[string]reflect.Method) {
 
 	for i := 0; i < ptrType.NumMethod(); i++ {
 		method := ptrType.Method(i)
-		k := strings.ToLower(method.Name)
+		k := method.Name
+		if keyMapper != nil {
+			k = keyMapper(k)
+		}
 		if _, exists := methods[k]; !exists && unicode.IsUpper(rune(method.Name[0])) {
 			keys = append(keys, k)
 			methods[k] = method
@@ -101,17 +121,6 @@ func genZeroCheck(sourceName string, field reflect.StructField) string {
 	default:
 		return fmt.Sprintf("reflect.ValueOf(%s.%s).IsZero()", sourceName, field.Name)
 	}
-}
-
-func pascalCaseToSnakeCase(str string) string {
-	result := make([]rune, 0, len(str)*2)
-	for i, r := range str {
-		if i > 0 && unicode.IsUpper(r) {
-			result = append(result, '_')
-		}
-		result = append(result, unicode.ToLower(r))
-	}
-	return string(result)
 }
 
 type GenOptions struct {
@@ -228,9 +237,9 @@ func Gen(conf *GenConf) string {
 	targetName := getStructName(conf.target)
 	funcName := strings.Replace(actionName, sourceName, "", 1) + sourceName
 
-	keys, sourceFields := getPublicFields(conf.source)
-	_, targetFields := getPublicFields(conf.target)
-	_, actionMethods := getPublicMethods(conf.action)
+	keys, sourceFields := getPublicFields(conf.source, pascalCaseToSnakeCase)
+	_, targetFields := getPublicFields(conf.target, pascalCaseToSnakeCase)
+	_, actionMethods := getPublicMethods(conf.action, nil)
 
 	context := GenContext{
 		SourcePkgName: conf.SourcePkgName,
@@ -261,12 +270,12 @@ func Gen(conf *GenConf) string {
 			continue
 		}
 
-		setter, hasSetter := actionMethods[strings.ToLower(fmt.Sprintf("Set%s", targetField.Name))]
+		setter, hasSetter := actionMethods[fmt.Sprintf("Set%s", targetField.Name)]
 		if !hasSetter {
 			continue
 		}
-		settNillable, hasSettNillable := actionMethods[strings.ToLower(fmt.Sprintf("SetNillable%s", targetField.Name))]
-		clearOnNil, hasClearOnNil := actionMethods[strings.ToLower(fmt.Sprintf("Clear%s", targetField.Name))]
+		settNillable, hasSettNillable := actionMethods[fmt.Sprintf("SetNillable%s", targetField.Name)]
+		clearOnNil, hasClearOnNil := actionMethods[fmt.Sprintf("Clear%s", targetField.Name)]
 		targetFieldIsPtr := targetField.Type.Kind() == reflect.Ptr
 
 		field := GenFieldContext{
