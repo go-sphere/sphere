@@ -20,31 +20,33 @@ type TokenAuthorizer = authorizer.TokenAuthorizer[authorizer.RBACClaims[int64]]
 
 type Service struct {
 	authorizer.ContextUtils[int64]
-	DB      *dao.Dao
-	Storage storage.ImageStorage
-	Cache   cache.ByteCache
-	WeChat  *wechat.Wechat
-	Render  *render.Render
-	Tasks   pond.ResultPool[string]
 
-	Authorizer    TokenAuthorizer
-	AuthRefresher TokenAuthorizer
-	ACL           *acl.ACL
+	db     *dao.Dao
+	cache  cache.ByteCache
+	wechat *wechat.Wechat
+	render *render.Render
+	tasks  pond.ResultPool[string]
+
+	authorizer    TokenAuthorizer
+	authRefresher TokenAuthorizer
+
+	ACL     *acl.ACL
+	Storage storage.ImageStorage
 }
 
-func NewService(db *dao.Dao, wx *wechat.Wechat, store storage.ImageStorage, cache cache.ByteCache) *Service {
+func NewService(db *dao.Dao, wx *wechat.Wechat, cache cache.ByteCache, store storage.ImageStorage) *Service {
 	return &Service{
-		DB:      db,
+		db:      db,
 		Storage: store,
-		Cache:   cache,
-		WeChat:  wx,
-		Tasks:   pond.NewResultPool[string](16),
-		Render:  render.NewRender(store, db, true),
+		cache:   cache,
+		wechat:  wx,
+		tasks:   pond.NewResultPool[string](16),
+		render:  render.NewRender(store, db, true),
 		ACL:     acl.NewACL(),
 	}
 }
 
 func (s *Service) Init(authorizer TokenAuthorizer, authRefresher TokenAuthorizer) {
-	s.Authorizer = authorizer
-	s.AuthRefresher = authRefresher
+	s.authorizer = authorizer
+	s.authRefresher = authRefresher
 }

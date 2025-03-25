@@ -35,14 +35,14 @@ func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMin
 	if err != nil {
 		return nil, err
 	}
-	number, err := s.Wechat.GetUserPhoneNumber(ctx, req.Code, true)
+	number, err := s.wechat.GetUserPhoneNumber(ctx, req.Code, true)
 	if err != nil {
 		return nil, err
 	}
 	if number.PhoneInfo.CountryCode != "86" {
 		return nil, statuserr.NewError(400, "只支持中国大陆手机号")
 	}
-	err = dao.WithTxEx(ctx, s.DB.Client, func(ctx context.Context, client *ent.Client) error {
+	err = dao.WithTxEx(ctx, s.db.Client, func(ctx context.Context, client *ent.Client) error {
 		exist, e := client.User.Query().Where(user.PhoneEQ(number.PhoneInfo.PhoneNumber)).Only(ctx)
 		if e != nil {
 			if ent.IsNotFound(e) {
@@ -67,12 +67,12 @@ func (s *Service) Me(ctx context.Context, req *apiv1.MeRequest) (*apiv1.MeRespon
 	if err != nil {
 		return nil, err
 	}
-	me, err := s.DB.User.Get(ctx, id)
+	me, err := s.db.User.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	return &apiv1.MeResponse{
-		User: s.Render.Me(me),
+		User: s.render.Me(me),
 	}, nil
 }
 
@@ -86,7 +86,7 @@ func (s *Service) Update(ctx context.Context, req *apiv1.UpdateRequest) (*apiv1.
 		return nil, err
 	}
 	req.Avatar = s.Storage.ExtractKeyFromURL(req.Avatar)
-	up, err := s.DB.User.UpdateOneID(id).
+	up, err := s.db.User.UpdateOneID(id).
 		SetUsername(req.Username).
 		SetAvatar(req.Avatar).
 		Save(ctx)
@@ -94,7 +94,7 @@ func (s *Service) Update(ctx context.Context, req *apiv1.UpdateRequest) (*apiv1.
 		return nil, err
 	}
 	return &apiv1.UpdateResponse{
-		User: s.Render.Me(up),
+		User: s.render.Me(up),
 	}, nil
 }
 

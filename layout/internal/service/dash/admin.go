@@ -2,13 +2,13 @@ package dash
 
 import (
 	"context"
-	"github.com/TBXark/sphere/database/bind"
-	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
-	"github.com/TBXark/sphere/layout/internal/pkg/render"
 
+	"github.com/TBXark/sphere/database/bind"
 	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
 	"github.com/TBXark/sphere/layout/api/entpb"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
+	"github.com/TBXark/sphere/layout/internal/pkg/render"
 	"github.com/TBXark/sphere/server/statuserr"
 	"github.com/TBXark/sphere/utils/secure"
 	"github.com/samber/lo"
@@ -23,17 +23,17 @@ func (s *Service) AdminCreate(ctx context.Context, req *dashv1.AdminCreateReques
 		return nil, statuserr.NewError(400, "password is too short")
 	}
 	req.Admin.Avatar = s.Storage.ExtractKeyFromURL(req.Admin.Avatar)
-	u, err := render.CreateAdmin(s.DB.Admin.Create(), req.Admin).Save(ctx)
+	u, err := render.CreateAdmin(s.db.Admin.Create(), req.Admin).Save(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &dashv1.AdminCreateResponse{
-		Admin: s.Render.AdminFull(u),
+		Admin: s.render.AdminFull(u),
 	}, nil
 }
 
 func (s *Service) AdminDelete(ctx context.Context, req *dashv1.AdminDeleteRequest) (*dashv1.AdminDeleteResponse, error) {
-	adm, err := s.DB.Admin.Get(ctx, req.Id)
+	adm, err := s.db.Admin.Get(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (s *Service) AdminDelete(ctx context.Context, req *dashv1.AdminDeleteReques
 	if adm.Username == value {
 		return nil, statuserr.NewError(400, "can not delete self")
 	}
-	err = s.DB.Admin.DeleteOneID(adm.ID).Exec(ctx)
+	err = s.db.Admin.DeleteOneID(adm.ID).Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -52,23 +52,23 @@ func (s *Service) AdminDelete(ctx context.Context, req *dashv1.AdminDeleteReques
 }
 
 func (s *Service) AdminDetail(ctx context.Context, req *dashv1.AdminDetailRequest) (*dashv1.AdminDetailResponse, error) {
-	adm, err := s.DB.Admin.Get(ctx, req.Id)
+	adm, err := s.db.Admin.Get(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
 	return &dashv1.AdminDetailResponse{
-		Admin: s.Render.AdminFull(adm),
+		Admin: s.render.AdminFull(adm),
 	}, nil
 }
 
 func (s *Service) AdminList(ctx context.Context, req *dashv1.AdminListRequest) (*dashv1.AdminListResponse, error) {
-	all, err := s.DB.Admin.Query().All(ctx)
+	all, err := s.db.Admin.Query().All(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &dashv1.AdminListResponse{
 		Admins: lo.Map(all, func(admin *ent.Admin, i int) *entpb.Admin {
-			return s.Render.AdminFull(admin)
+			return s.render.AdminFull(admin)
 		}),
 	}, nil
 }
@@ -77,12 +77,12 @@ func (s *Service) AdminUpdate(ctx context.Context, req *dashv1.AdminUpdateReques
 	if req.Admin.Password != "" {
 		req.Admin.Password = secure.CryptPassword(req.Admin.Password)
 	}
-	u, err := render.UpdateOneAdmin(s.DB.Admin.UpdateOneID(req.Id), req.Admin, bind.IgnoreSetZeroField(admin.FieldPassword)).Save(ctx)
+	u, err := render.UpdateOneAdmin(s.db.Admin.UpdateOneID(req.Id), req.Admin, bind.IgnoreSetZeroField(admin.FieldPassword)).Save(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &dashv1.AdminUpdateResponse{
-		Admin: s.Render.AdminFull(u),
+		Admin: s.render.AdminFull(u),
 	}, nil
 }
 

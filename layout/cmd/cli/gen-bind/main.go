@@ -2,13 +2,14 @@ package main
 
 import (
 	"flag"
-	"github.com/TBXark/sphere/database/bind"
-	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
-	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"go/format"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/TBXark/sphere/database/bind"
+	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 )
 
 func Gen() string {
@@ -40,7 +41,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("format source failed: %v", err)
 	}
-	err = os.WriteFile(*file, source, 0644)
+	err = os.WriteFile(*file, source, 0o644)
 	if err != nil {
 		log.Fatalf("write file failed: %v", err)
 	}

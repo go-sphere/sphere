@@ -9,7 +9,7 @@ import (
 var _ dashv1.SystemServiceHTTPServer = (*Service)(nil)
 
 func (s *Service) CacheReset(ctx context.Context, req *dashv1.CacheResetRequest) (*dashv1.CacheResetResponse, error) {
-	err := s.Cache.DelAll(ctx)
+	err := s.cache.DelAll(ctx)
 	if err != nil {
 		return nil, err
 	}

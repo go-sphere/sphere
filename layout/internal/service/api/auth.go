@@ -30,12 +30,12 @@ type userContext struct {
 }
 
 func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) (*apiv1.AuthWxMiniResponse, error) {
-	wxUser, err := s.Wechat.Auth(ctx, req.Code)
+	wxUser, err := s.wechat.Auth(ctx, req.Code)
 	if err != nil {
 		return nil, err
 	}
 
-	res, err := dao.WithTx[userContext](ctx, s.DB.Client, func(ctx context.Context, client *ent.Client) (*userContext, error) {
+	res, err := dao.WithTx[userContext](ctx, s.db.Client, func(ctx context.Context, client *ent.Client) (*userContext, error) {
 		userPlat, e := client.UserPlatform.Query().
 			Where(userplatform.PlatformEQ(consts.WechatMiniPlatform), userplatform.PlatformIDEQ(wxUser.OpenID)).
 			Only(ctx)
@@ -79,13 +79,13 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) 
 	if err != nil {
 		return nil, err
 	}
-	token, err := s.Authorizer.GenerateToken(renderClaims(res.user, res.platform, AppTokenValidDuration))
+	token, err := s.authorizer.GenerateToken(renderClaims(res.user, res.platform, AppTokenValidDuration))
 	if err != nil {
 		return nil, err
 	}
 	return &apiv1.AuthWxMiniResponse{
 		IsNew: res.isNew,
 		Token: token,
-		User:  s.Render.Me(res.user),
+		User:  s.render.Me(res.user),
 	}, nil
 }

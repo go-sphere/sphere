@@ -283,9 +283,10 @@ func Gen(conf *GenConf) string {
 			TargetSourceIsSomeType: false,
 		}
 		if targetFieldIsPtr {
-			field.TargetSourceIsSomeType = targetField.Type.Elem().Kind() == sourceField.Type.Kind()
+			elem := targetField.Type.Elem()
+			field.TargetSourceIsSomeType = elem.Kind() == sourceField.Type.Kind() && elem.String() == sourceField.Type.String()
 		} else {
-			field.TargetSourceIsSomeType = targetField.Type.Kind() == sourceField.Type.Kind()
+			field.TargetSourceIsSomeType = targetField.Type.Kind() == sourceField.Type.Kind() && targetField.Type.String() == sourceField.Type.String()
 		}
 		context.Fields = append(context.Fields, field)
 	}

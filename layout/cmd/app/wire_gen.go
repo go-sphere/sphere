@@ -37,16 +37,16 @@ func NewApplication(conf *config.Config) (*boot.Application, error) {
 	daoDao := dao.NewDao(entClient)
 	wechatConfig := conf.WxMini
 	wechatWechat := wechat.NewWechat(wechatConfig)
+	cache := memory.NewByteCache()
 	qiniuConfig := conf.Storage
 	qiniuClient, err := qiniu.NewClient(qiniuConfig)
 	if err != nil {
 		return nil, err
 	}
-	cache := memory.NewByteCache()
-	service := dash.NewService(daoDao, wechatWechat, qiniuClient, cache)
+	service := dash.NewService(daoDao, wechatWechat, cache, qiniuClient)
 	web := dash2.NewWebServer(dashConfig, service)
 	apiConfig := conf.API
-	apiService := api.NewService(daoDao, wechatWechat, qiniuClient, cache)
+	apiService := api.NewService(daoDao, wechatWechat, cache, qiniuClient)
 	apiWeb := api2.NewWebServer(apiConfig, apiService)
 	docsConfig := conf.Docs
 	docsWeb := docs.NewWebServer(docsConfig)
@@ -66,13 +66,13 @@ func NewAPIApplication(conf *config.Config) (*boot.Application, error) {
 	daoDao := dao.NewDao(entClient)
 	wechatConfig := conf.WxMini
 	wechatWechat := wechat.NewWechat(wechatConfig)
+	cache := memory.NewByteCache()
 	qiniuConfig := conf.Storage
 	qiniuClient, err := qiniu.NewClient(qiniuConfig)
 	if err != nil {
 		return nil, err
 	}
-	cache := memory.NewByteCache()
-	service := api.NewService(daoDao, wechatWechat, qiniuClient, cache)
+	service := api.NewService(daoDao, wechatWechat, cache, qiniuClient)
 	web := api2.NewWebServer(apiConfig, service)
 	dashInitialize := dashinit.NewDashInitialize(daoDao)
 	connectCleaner := conncleaner.NewConnectCleaner(entClient)
@@ -90,13 +90,13 @@ func NewDashApplication(conf *config.Config) (*boot.Application, error) {
 	daoDao := dao.NewDao(entClient)
 	wechatConfig := conf.WxMini
 	wechatWechat := wechat.NewWechat(wechatConfig)
+	cache := memory.NewByteCache()
 	qiniuConfig := conf.Storage
 	qiniuClient, err := qiniu.NewClient(qiniuConfig)
 	if err != nil {
 		return nil, err
 	}
-	cache := memory.NewByteCache()
-	service := dash.NewService(daoDao, wechatWechat, qiniuClient, cache)
+	service := dash.NewService(daoDao, wechatWechat, cache, qiniuClient)
 	web := dash2.NewWebServer(dashConfig, service)
 	dashInitialize := dashinit.NewDashInitialize(daoDao)
 	connectCleaner := conncleaner.NewConnectCleaner(entClient)

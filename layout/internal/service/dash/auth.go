@@ -38,11 +38,11 @@ func renderClaims(admin *ent.Admin, duration time.Duration) *authorizer.RBACClai
 
 func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
 	claims := renderClaims(u, AuthTokenValidDuration)
-	token, err := s.Authorizer.GenerateToken(claims)
+	token, err := s.authorizer.GenerateToken(claims)
 	if err != nil {
 		return nil, err
 	}
-	refresh, err := s.AuthRefresher.GenerateToken(renderClaims(u, RefreshTokenValidDuration))
+	refresh, err := s.authRefresher.GenerateToken(renderClaims(u, RefreshTokenValidDuration))
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
 }
 
 func (s *Service) AuthLogin(ctx context.Context, req *dashv1.AuthLoginRequest) (*dashv1.AuthLoginResponse, error) {
-	u, err := s.DB.Admin.Query().Where(admin.UsernameEQ(req.Username)).Only(ctx)
+	u, err := s.db.Admin.Query().Where(admin.UsernameEQ(req.Username)).Only(ctx)
 	if err != nil {
 		return nil, ErrPasswordNotMatch // 隐藏错误信息
 	}
@@ -79,11 +79,11 @@ func (s *Service) AuthLogin(ctx context.Context, req *dashv1.AuthLoginRequest) (
 }
 
 func (s *Service) AuthRefresh(ctx context.Context, request *dashv1.AuthRefreshRequest) (*dashv1.AuthRefreshResponse, error) {
-	claims, err := s.AuthRefresher.ParseToken(request.RefreshToken)
+	claims, err := s.authRefresher.ParseToken(request.RefreshToken)
 	if err != nil {
 		return nil, err
 	}
-	u, err := s.DB.Admin.Get(ctx, claims.UID)
+	u, err := s.db.Admin.Get(ctx, claims.UID)
 	if err != nil {
 		return nil, err
 	}
