@@ -2,7 +2,6 @@ module github.com/TBXark/sphere/contrib/ent-gen-proto
 
 go 1.23.2
 
-
 require (
 	entgo.io/contrib v0.6.0
 	entgo.io/ent v0.14.4

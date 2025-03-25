@@ -9,40 +9,60 @@ import (
 
 func CreateAdmin(source *ent.AdminCreate, target *dashv1.AdminEdit, options ...bind.Options) *ent.AdminCreate {
 	option := bind.NewGenOptions(options...)
-	if !option.IgnoreSetZero("username") || !(target.Username == "") {
-		source.SetUsername(target.Username)
+	if option.CanSetField("username") {
+		if !option.IgnoreSetZero("username") || !(target.Username == "") {
+			source.SetUsername(target.Username)
+		}
 	}
-	if !option.IgnoreSetZero("nickname") || !(target.Nickname == "") {
-		source.SetNickname(target.Nickname)
+	if option.CanSetField("nickname") {
+		if !option.IgnoreSetZero("nickname") || !(target.Nickname == "") {
+			source.SetNickname(target.Nickname)
+		}
 	}
-	if !option.IgnoreSetZero("avatar") || !(target.Avatar == "") {
-		source.SetAvatar(target.Avatar)
+	if option.CanSetField("avatar") {
+		if !option.IgnoreSetZero("avatar") || !(target.Avatar == "") {
+			source.SetAvatar(target.Avatar)
+		}
 	}
-	if !option.IgnoreSetZero("password") || !(target.Password == "") {
-		source.SetPassword(target.Password)
+	if option.CanSetField("password") {
+		if !option.IgnoreSetZero("password") || !(target.Password == "") {
+			source.SetPassword(target.Password)
+		}
 	}
-	if !option.IgnoreSetZero("roles") || !(target.Roles == nil) {
-		source.SetRoles(target.Roles)
+	if option.CanSetField("roles") {
+		if !option.IgnoreSetZero("roles") || !(target.Roles == nil) {
+			source.SetRoles(target.Roles)
+		}
 	}
 	return source
 }
 
 func UpdateOneAdmin(source *ent.AdminUpdateOne, target *dashv1.AdminEdit, options ...bind.Options) *ent.AdminUpdateOne {
 	option := bind.NewGenOptions(options...)
-	if !option.IgnoreSetZero("username") || !(target.Username == "") {
-		source.SetUsername(target.Username)
+	if option.CanSetField("username") {
+		if !option.IgnoreSetZero("username") || !(target.Username == "") {
+			source.SetUsername(target.Username)
+		}
 	}
-	if !option.IgnoreSetZero("nickname") || !(target.Nickname == "") {
-		source.SetNickname(target.Nickname)
+	if option.CanSetField("nickname") {
+		if !option.IgnoreSetZero("nickname") || !(target.Nickname == "") {
+			source.SetNickname(target.Nickname)
+		}
 	}
-	if !option.IgnoreSetZero("avatar") || !(target.Avatar == "") {
-		source.SetAvatar(target.Avatar)
+	if option.CanSetField("avatar") {
+		if !option.IgnoreSetZero("avatar") || !(target.Avatar == "") {
+			source.SetAvatar(target.Avatar)
+		}
 	}
-	if !option.IgnoreSetZero("password") || !(target.Password == "") {
-		source.SetPassword(target.Password)
+	if option.CanSetField("password") {
+		if !option.IgnoreSetZero("password") || !(target.Password == "") {
+			source.SetPassword(target.Password)
+		}
 	}
-	if !option.IgnoreSetZero("roles") || !(target.Roles == nil) {
-		source.SetRoles(target.Roles)
+	if option.CanSetField("roles") {
+		if !option.IgnoreSetZero("roles") || !(target.Roles == nil) {
+			source.SetRoles(target.Roles)
+		}
 	}
 	return source
 }

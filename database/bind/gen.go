@@ -117,6 +117,7 @@ func pascalCaseToSnakeCase(str string) string {
 type GenOptions struct {
 	IgnoreSetZeroFields map[string]struct{}
 	ClearOnNilFields    map[string]struct{}
+	IgnoreFields        map[string]struct{}
 }
 
 func NewGenOptions(options ...Options) *GenOptions {
@@ -151,6 +152,17 @@ func ClearOnNilField(fields ...string) Options {
 	}
 }
 
+func IgnoreField(fields ...string) Options {
+	return func(o *GenOptions) {
+		if o.IgnoreFields == nil {
+			o.IgnoreFields = make(map[string]struct{}, len(fields))
+		}
+		for _, field := range fields {
+			o.IgnoreFields[field] = struct{}{}
+		}
+	}
+}
+
 func (o *GenOptions) ClearOnNil(field string) bool {
 	if o.ClearOnNilFields == nil {
 		return false
@@ -165,6 +177,14 @@ func (o *GenOptions) IgnoreSetZero(field string) bool {
 	}
 	_, ok := o.IgnoreSetZeroFields[field]
 	return ok
+}
+
+func (o *GenOptions) CanSetField(field string) bool {
+	if o.IgnoreFields == nil {
+		return true
+	}
+	_, ok := o.IgnoreFields[field]
+	return !ok
 }
 
 type GenConf struct {
@@ -315,36 +335,38 @@ type GenFieldContext struct {
 const genTemplate = `
 func {{.FuncName}}(source *{{.SourcePkgName}}.{{.ActionName}}, target *{{.TargetPkgName}}.{{.TargetName}}, options ...bind.Options) *{{.SourcePkgName}}.{{.ActionName}} {
 	option := bind.NewGenOptions(options...)
-{{- range .Fields -}}
-{{- if .TargetFieldIsPtr}} {{/* 当目标字段是指针类型 */}}
-	{{- if .CanSettNillable}} {{/* 如果存在SetNillable方法，直接使用 */}}
-	{{- if .CanClearOnNil}} {{/* 如果存在ClearOnNil，判断是否需要使用 */}}
-	if target.{{.TargetField.Name}} == nil && option.ClearOnNil("{{ToSnakeCase .SourceField.Name}}") {
-		source.{{.ClearOnNilFuncName}}()
-	} else {
-		source.{{.SettNillableFuncName}}(target.{{.TargetField.Name}})
+{{- range .Fields}}
+	if option.CanSetField("{{ToSnakeCase .SourceField.Name}}") {
+		{{- if .TargetFieldIsPtr}} {{/* 当目标字段是指针类型 */}}
+			{{- if .CanSettNillable}} {{/* 如果存在SetNillable方法，直接使用 */}}
+				{{- if .CanClearOnNil}} {{/* 如果存在ClearOnNil，判断是否需要使用 */}}
+					if target.{{.TargetField.Name}} == nil && option.ClearOnNil("{{ToSnakeCase .SourceField.Name}}") {
+						source.{{.ClearOnNilFuncName}}()
+					} else {
+						source.{{.SettNillableFuncName}}(target.{{.TargetField.Name}})
+					}
+				{{- else}}
+					source.{{.SettNillableFuncName}}(target.{{.TargetField.Name}})
+				{{- end}}
+			{{- else}} {{/* 否则使用普通Setter方法，但需要解引用 */}}
+				if target.{{.TargetField.Name}} != nil {
+        			{{- if .TargetSourceIsSomeType}} {{/* 如果源和目标是相同类型，直接赋值 */}}
+						source.{{.SetterFuncName}}(*target.{{.TargetField.Name}}) 
+        			{{- else}} {{/* 如果类型不同，需要进行类型转换 */}}
+						source.{{.SetterFuncName}}({{.SourceField.Type.String}}(*target.{{.TargetField.Name}}))
+        			{{- end}}
+				}
+			{{- end}}
+		{{- else -}} {{/* 当目标字段不是指针类型 */}}
+			if !option.IgnoreSetZero("{{ToSnakeCase .SourceField.Name}}") || !({{GenZeroCheck "target" .TargetField}}) {
+        		{{- if .TargetSourceIsSomeType}} {{/* 如果源和目标是相同类型，直接赋值 */}}
+					source.{{.SetterFuncName}}(target.{{.TargetField.Name}}) 
+        		{{- else}} {{/* 如果类型不同，需要进行类型转换 */}}
+					source.{{.SetterFuncName}}({{.SourceField.Type.String}}(target.{{.TargetField.Name}}))
+        		{{- end}}
+    		}
+		{{- end}}
 	}
-	{{- else}}
-		source.{{.SettNillableFuncName}}(target.{{.TargetField.Name}})
-	{{- end}}
-	{{- else}} {{/* 否则使用普通Setter方法，但需要解引用 */}}
-	if target.{{.TargetField.Name}} != nil {
-        {{- if .TargetSourceIsSomeType}} {{/* 如果源和目标是相同类型，直接赋值 */}}
-		source.{{.SetterFuncName}}(*target.{{.TargetField.Name}}) 
-        {{- else}} {{/* 如果类型不同，需要进行类型转换 */}}
-		source.{{.SetterFuncName}}({{.SourceField.Type.String}}(*target.{{.TargetField.Name}}))
-        {{- end}}
-	}
-	{{- end}}
-{{- else -}} {{/* 当目标字段不是指针类型 */}}
-    if !option.IgnoreSetZero("{{ToSnakeCase .SourceField.Name}}") || !({{GenZeroCheck "target" .TargetField}}) {
-        {{- if .TargetSourceIsSomeType}} {{/* 如果源和目标是相同类型，直接赋值 */}}
-		source.{{.SetterFuncName}}(target.{{.TargetField.Name}}) 
-        {{- else}} {{/* 如果类型不同，需要进行类型转换 */}}
-		source.{{.SetterFuncName}}({{.SourceField.Type.String}}(target.{{.TargetField.Name}}))
-        {{- end}}
-    }
-{{- end}}
 {{- end}}
 	return source
 }
