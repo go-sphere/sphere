@@ -35,11 +35,12 @@ func NewClient(config *Config) (*Client, error) {
 
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error) {
 	key = filepath.Clean(key)
-	err := os.MkdirAll(filepath.Dir(filepath.Join(c.config.RootDir, key)), 0750)
+	filePath := filepath.Join(c.config.RootDir, key)
+	err := os.MkdirAll(filepath.Dir(filePath), 0750)
 	if err != nil {
 		return "", err
 	}
-	out, err := os.Create(key)
+	out, err := os.Create(filePath)
 	if err != nil {
 		return "", err
 	}
@@ -61,6 +62,7 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 }
 
 func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, error) {
+	key = filepath.Clean(key)
 	file, err := os.Open(filepath.Join(c.config.RootDir, key))
 	if err != nil {
 		return nil, err
