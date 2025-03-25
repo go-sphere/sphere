@@ -103,6 +103,17 @@ func genZeroCheck(sourceName string, field reflect.StructField) string {
 	}
 }
 
+func pascalCaseToSnakeCase(str string) string {
+	result := make([]rune, 0, len(str)*2)
+	for i, r := range str {
+		if i > 0 && unicode.IsUpper(r) {
+			result = append(result, '_')
+		}
+		result = append(result, unicode.ToLower(r))
+	}
+	return string(result)
+}
+
 type GenOptions struct {
 	IgnoreSetZeroFields map[string]struct{}
 	ClearOnNilFields    map[string]struct{}
@@ -157,22 +168,36 @@ func (o *GenOptions) IgnoreSetZero(field string) bool {
 }
 
 type GenConf struct {
-	source       any
-	target       any
-	action       any
-	ignoreFields []string
+	source        any
+	target        any
+	action        any
+	ignoreFields  []string
+	SourcePkgName string
+	TargetPkgName string
 }
 
-func NewGenConf(source, target, action any, ignoreFields ...string) GenConf {
-	return GenConf{
-		source:       source,
-		target:       target,
-		action:       action,
-		ignoreFields: ignoreFields,
+func NewGenConf(source, target, action any, ignoreFields ...string) *GenConf {
+	return &GenConf{
+		source:        source,
+		target:        target,
+		action:        action,
+		ignoreFields:  ignoreFields,
+		SourcePkgName: "ent",
+		TargetPkgName: "entpb",
 	}
 }
 
-func Gen(conf GenConf) string {
+func (c *GenConf) WithSourcePkgName(pkgName string) *GenConf {
+	c.SourcePkgName = pkgName
+	return c
+}
+
+func (c *GenConf) WithTargetPkgName(pkgName string) *GenConf {
+	c.TargetPkgName = pkgName
+	return c
+}
+
+func Gen(conf *GenConf) string {
 	actionName := getStructName(conf.action)
 	sourceName := getStructName(conf.source)
 	targetName := getStructName(conf.target)
@@ -183,6 +208,9 @@ func Gen(conf GenConf) string {
 	_, actionMethods := getPublicMethods(conf.action)
 
 	context := GenContext{
+		SourcePkgName: conf.SourcePkgName,
+		TargetPkgName: conf.TargetPkgName,
+
 		ActionName: actionName,
 		SourceName: sourceName,
 		TargetName: targetName,
@@ -234,6 +262,7 @@ func Gen(conf GenConf) string {
 
 	parse, err := template.New("gen").Funcs(template.FuncMap{
 		"GenZeroCheck": genZeroCheck,
+		"ToSnakeCase":  pascalCaseToSnakeCase,
 	}).Parse(genTemplate)
 	if err != nil {
 		return ""
@@ -243,10 +272,13 @@ func Gen(conf GenConf) string {
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(builder.String())
+	return builder.String()
 }
 
 type GenContext struct {
+	SourcePkgName string
+	TargetPkgName string
+
 	ActionName string
 	SourceName string
 	TargetName string
@@ -271,13 +303,13 @@ type GenFieldContext struct {
 }
 
 const genTemplate = `
-func {{.FuncName}}(source *ent.{{.ActionName}}, target *entpb.{{.TargetName}}, options ...bind.Options) *ent.{{.ActionName}} {
-	option := NewGenOptions(options...)
+func {{.FuncName}}(source *{{.SourcePkgName}}.{{.ActionName}}, target *{{.TargetPkgName}}.{{.TargetName}}, options ...bind.Options) *{{.SourcePkgName}}.{{.ActionName}} {
+	option := bind.NewGenOptions(options...)
 {{- range .Fields -}}
 {{- if .TargetFieldIsPtr}} {{/* 当目标字段是指针类型 */}}
 	{{- if .CanSettNillable}} {{/* 如果存在SetNillable方法，直接使用 */}}
 	{{- if .CanClearOnNil}} {{/* 如果存在ClearOnNil，判断是否需要使用 */}}
-	if target.{{.TargetField.Name}} == nil && option.ClearOnNil("{{.SourceField.Name}}") {
+	if target.{{.TargetField.Name}} == nil && option.ClearOnNil("{{ToSnakeCase .SourceField.Name}}") {
 		source.{{.ClearOnNilFuncName}}()
 	} else {
 		source.{{.SettNillableFuncName}}(target.{{.TargetField.Name}})
@@ -291,7 +323,7 @@ func {{.FuncName}}(source *ent.{{.ActionName}}, target *entpb.{{.TargetName}}, o
 	}
 	{{- end}}
 {{- else -}} {{/* 当目标字段不是指针类型 */}}
-    if !option.IgnoreSetZero("{{.SourceField.Name}}") || !({{GenZeroCheck "target" .TargetField}}) {
+    if !option.IgnoreSetZero("{{ToSnakeCase .SourceField.Name}}") || !({{GenZeroCheck "target" .TargetField}}) {
         {{- if .TargetSourceIsSomeType}} {{/* 如果源和目标是相同类型，直接赋值 */}}
 		source.{{.SetterFuncName}}(target.{{.TargetField.Name}}) 
         {{- else}} {{/* 如果类型不同，需要进行类型转换 */}}
