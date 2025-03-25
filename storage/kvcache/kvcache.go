@@ -5,7 +5,9 @@ import (
 	"context"
 	"github.com/TBXark/sphere/log"
 	"io"
+	"mime"
 	"os"
+	"path/filepath"
 
 	"github.com/TBXark/sphere/cache"
 	"github.com/TBXark/sphere/storage"
@@ -60,15 +62,15 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	return key, nil
 }
 
-func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, error) {
+func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
 	data, err := c.cache.Get(ctx, key)
 	if err != nil {
-		return nil, err
+		return nil, "", 0, err
 	}
 	if data == nil {
-		return nil, os.ErrNotExist
+		return nil, "", 0, err
 	}
-	return io.NopCloser(bytes.NewReader(*data)), nil
+	return io.NopCloser(bytes.NewReader(*data)), mime.TypeByExtension(filepath.Ext(key)), int64(len(*data)), nil
 }
 
 func (c *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {

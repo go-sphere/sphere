@@ -104,7 +104,11 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	return ret.Key, nil
 }
 
-func (n *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, error) {
+func (n *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
-	return manager.Get(n.config.Bucket, key, nil)
+	object, err := manager.Get(n.config.Bucket, key, nil)
+	if err != nil {
+		return nil, "", 0, err
+	}
+	return object.Body, object.ContentType, object.ContentLength, nil
 }

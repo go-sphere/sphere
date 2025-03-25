@@ -6,6 +6,7 @@ import (
 	"github.com/TBXark/sphere/storage"
 	"github.com/TBXark/sphere/storage/urlhandler"
 	"io"
+	"mime"
 	"os"
 	"path/filepath"
 )
@@ -61,13 +62,17 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	return c.UploadFile(ctx, raw, 0, key)
 }
 
-func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, error) {
+func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
 	key = filepath.Clean(key)
 	file, err := os.Open(filepath.Join(c.config.RootDir, key))
 	if err != nil {
-		return nil, err
+		return nil, "", 0, err
 	}
-	return file, nil
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, "", 0, err
+	}
+	return file, mime.TypeByExtension(filepath.Ext(key)), stat.Size(), nil
 }
 
 func (c *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {

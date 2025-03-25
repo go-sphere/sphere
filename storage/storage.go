@@ -27,7 +27,7 @@ type FileUploader interface {
 }
 
 type FileDownloader interface {
-	DownloadFile(ctx context.Context, key string) (io.ReadCloser, error)
+	DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) // reader, mime, size
 }
 
 type Storage interface {

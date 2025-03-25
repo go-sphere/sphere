@@ -99,6 +99,14 @@ func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	return info.Key, nil
 }
 
-func (s *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, error) {
-	return s.client.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
+func (s *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+	object, err := s.client.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, "", 0, err
+	}
+	info, err := object.Stat()
+	if err != nil {
+		return nil, "", 0, err
+	}
+	return object, info.ContentType, info.Size, nil
 }
