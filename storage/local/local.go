@@ -49,7 +49,7 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key
 	if err != nil {
 		return "", err
 	}
-	return c.GenerateURL(key), nil
+	return key, nil
 }
 
 func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
