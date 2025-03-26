@@ -11,7 +11,6 @@ import (
 
 	"github.com/TBXark/sphere/cache"
 	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/storage"
 	"github.com/TBXark/sphere/storage/urlhandler"
 )
 
@@ -100,6 +99,12 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 }
 
 func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	if !overwrite {
+		value, err := c.cache.Get(ctx, destinationKey)
+		if err == nil && value != nil {
+			return ErrorDistExisted
+		}
+	}
 	value, err := c.cache.Get(ctx, sourceKey)
 	if err != nil {
 		return err
@@ -107,13 +112,7 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if value == nil {
 		return ErrorNotFound
 	}
-	if !overwrite {
-		value, err = c.cache.Get(ctx, destinationKey)
-		if err == nil && value != nil {
-			return ErrorDistExisted
-		}
-	}
-	err = c.cache.Set(ctx, destinationKey, value, -1)
+	err = c.cache.Set(ctx, destinationKey, *value, -1)
 	if err != nil {
 		return err
 	}
