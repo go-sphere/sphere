@@ -3,6 +3,7 @@ package kvcache
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"mime"
 	"os"
@@ -14,7 +15,12 @@ import (
 	"github.com/TBXark/sphere/storage/urlhandler"
 )
 
-var _ storage.Storage = (*Client)(nil)
+//var _ storage.Storage = (*Client)(nil)
+
+var (
+	ErrorNotFound    = errors.New("key not found")
+	ErrorDistExisted = errors.New("destination key existed")
+)
 
 type Config struct {
 	PublicBase string `json:"public_base" yaml:"public_base"`
@@ -75,6 +81,39 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 
 func (c *Client) DeleteFile(ctx context.Context, key string) error {
 	err := c.cache.Del(ctx, key)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	err := c.CopyFile(ctx, sourceKey, destinationKey, overwrite)
+	if err != nil {
+		return err
+	}
+	err = c.cache.Del(ctx, sourceKey)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	value, err := c.cache.Get(ctx, sourceKey)
+	if err != nil {
+		return err
+	}
+	if value == nil {
+		return ErrorNotFound
+	}
+	if !overwrite {
+		value, err = c.cache.Get(ctx, destinationKey)
+		if err == nil && value != nil {
+			return ErrorDistExisted
+		}
+	}
+	err = c.cache.Set(ctx, destinationKey, value, -1)
 	if err != nil {
 		return err
 	}

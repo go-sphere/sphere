@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"errors"
 	"io"
 	"path"
 	"strings"
@@ -13,6 +14,11 @@ import (
 	"github.com/TBXark/sphere/storage/urlhandler"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+)
+
+var (
+	ErrorNotFound    = errors.New("object not found")
+	ErrorDistExisted = errors.New("destination object existed")
 )
 
 type Config struct {
@@ -113,6 +119,51 @@ func (s *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 
 func (s *Client) DeleteFile(ctx context.Context, key string) error {
 	err := s.client.RemoveObject(ctx, s.config.Bucket, key, minio.RemoveObjectOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	if !overwrite {
+		_, err := s.client.StatObject(ctx, s.config.Bucket, destinationKey, minio.StatObjectOptions{})
+		if err == nil {
+			return ErrorDistExisted
+		}
+	}
+	_, err := s.client.CopyObject(ctx, minio.CopyDestOptions{
+		Bucket: s.config.Bucket,
+		Object: destinationKey,
+	}, minio.CopySrcOptions{
+		Bucket: s.config.Bucket,
+		Object: sourceKey,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = s.client.RemoveObject(ctx, s.config.Bucket, sourceKey, minio.RemoveObjectOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	if !overwrite {
+		_, err := s.client.StatObject(ctx, s.config.Bucket, destinationKey, minio.StatObjectOptions{})
+		if err == nil {
+			return ErrorDistExisted
+		}
+	}
+	_, err := s.client.CopyObject(ctx, minio.CopyDestOptions{
+		Bucket: s.config.Bucket,
+		Object: destinationKey,
+	}, minio.CopySrcOptions{
+		Bucket: s.config.Bucket,
+		Object: sourceKey,
+	})
 	if err != nil {
 		return err
 	}

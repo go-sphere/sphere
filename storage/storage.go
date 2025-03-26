@@ -34,11 +34,17 @@ type FileDeleter interface {
 	DeleteFile(ctx context.Context, key string) error
 }
 
+type FileMoverCopier interface {
+	MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error
+	CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error
+}
+
 type Storage interface {
 	URLHandler
 	FileDeleter
 	FileUploader
 	FileDownloader
+	FileMoverCopier
 	TokenGenerator
 }
 
