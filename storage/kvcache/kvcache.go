@@ -3,13 +3,13 @@ package kvcache
 import (
 	"bytes"
 	"context"
-	"github.com/TBXark/sphere/log"
 	"io"
 	"mime"
 	"os"
 	"path/filepath"
 
 	"github.com/TBXark/sphere/cache"
+	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/storage"
 	"github.com/TBXark/sphere/storage/urlhandler"
 )
@@ -71,6 +71,14 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 		return nil, "", 0, err
 	}
 	return io.NopCloser(bytes.NewReader(*data)), mime.TypeByExtension(filepath.Ext(key)), int64(len(*data)), nil
+}
+
+func (c *Client) DeleteFile(ctx context.Context, key string) error {
+	err := c.cache.Del(ctx, key)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {

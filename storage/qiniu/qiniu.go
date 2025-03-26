@@ -112,3 +112,12 @@ func (n *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 	}
 	return object.Body, object.ContentType, object.ContentLength, nil
 }
+
+func (n *Client) DeleteFile(ctx context.Context, key string) error {
+	manager := storage.NewBucketManager(n.mac, &storage.Config{})
+	err := manager.Delete(n.config.Bucket, key)
+	if err != nil {
+		return err
+	}
+	return nil
+}

@@ -2,13 +2,14 @@ package local
 
 import (
 	"context"
-	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/storage"
-	"github.com/TBXark/sphere/storage/urlhandler"
 	"io"
 	"mime"
 	"os"
 	"path/filepath"
+
+	"github.com/TBXark/sphere/log"
+	"github.com/TBXark/sphere/storage"
+	"github.com/TBXark/sphere/storage/urlhandler"
 )
 
 var _ storage.Storage = (*Client)(nil)
@@ -37,7 +38,7 @@ func NewClient(config *Config) (*Client, error) {
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error) {
 	key = filepath.Clean(key)
 	filePath := filepath.Join(c.config.RootDir, key)
-	err := os.MkdirAll(filepath.Dir(filePath), 0750)
+	err := os.MkdirAll(filepath.Dir(filePath), 0o750)
 	if err != nil {
 		return "", err
 	}
@@ -64,7 +65,8 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 
 func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
 	key = filepath.Clean(key)
-	file, err := os.Open(filepath.Join(c.config.RootDir, key))
+	filePath := filepath.Join(c.config.RootDir, key)
+	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, "", 0, err
 	}
@@ -73,6 +75,16 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 		return nil, "", 0, err
 	}
 	return file, mime.TypeByExtension(filepath.Ext(key)), stat.Size(), nil
+}
+
+func (c *Client) DeleteFile(ctx context.Context, key string) error {
+	key = filepath.Clean(key)
+	filePath := filepath.Join(c.config.RootDir, key)
+	err := os.Remove(filePath)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {

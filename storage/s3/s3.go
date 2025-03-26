@@ -110,3 +110,11 @@ func (s *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 	}
 	return object, info.ContentType, info.Size, nil
 }
+
+func (s *Client) DeleteFile(ctx context.Context, key string) error {
+	err := s.client.RemoveObject(ctx, s.config.Bucket, key, minio.RemoveObjectOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}

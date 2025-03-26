@@ -30,8 +30,13 @@ type FileDownloader interface {
 	DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) // reader, mime, size
 }
 
+type FileDeleter interface {
+	DeleteFile(ctx context.Context, key string) error
+}
+
 type Storage interface {
 	URLHandler
+	FileDeleter
 	FileUploader
 	FileDownloader
 	TokenGenerator
