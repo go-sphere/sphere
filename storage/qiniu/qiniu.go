@@ -106,7 +106,7 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 
 func (n *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
-	object, err := manager.Get(n.config.Bucket, key, nil)
+	object, err := manager.Get(n.config.Bucket, key, &storage.GetObjectInput{Context: ctx})
 	if err != nil {
 		return nil, "", 0, err
 	}
