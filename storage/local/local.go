@@ -95,7 +95,7 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 
 func (c *Client) removeBeforeOverwrite(path string, overwrite bool) error {
 	_, err := os.Stat(path)
-	if err == nil {
+	if err != nil {
 		return nil
 	}
 	if !overwrite {
