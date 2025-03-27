@@ -2,6 +2,7 @@ package dash
 
 import (
 	"context"
+	"github.com/TBXark/sphere/server/route/cors"
 	"net/http"
 	"time"
 
@@ -19,9 +20,7 @@ import (
 	"github.com/TBXark/sphere/server/middleware/logger"
 	"github.com/TBXark/sphere/server/middleware/ratelimiter"
 	"github.com/TBXark/sphere/server/middleware/selector"
-	"github.com/TBXark/sphere/server/route/cors"
 	"github.com/TBXark/sphere/server/route/pprof"
-	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 )
 
@@ -55,27 +54,21 @@ func (w *Web) Start(ctx context.Context) error {
 	engine := gin.New()
 	engine.Use(loggerMiddleware, recoveryMiddleware)
 
-	// 1. 使用go直接反代
-	// ignore embed: web.Fs(w.config.DashStatic, nil, "")
-	// 2. 使用embed集成
-	// with embed: web.Fs("", &dash.Assets, dash.AssetsPath)
-	if dashFs, err := ginx.Fs(w.config.HTTP.Static, nil, ""); err == nil && dashFs != nil {
-		d := engine.Group("/dash", gzip.Gzip(gzip.DefaultCompression))
-		d.StaticFS("/", dashFs)
-	}
-	// 3. 使用其他服务反代但是允许其跨域访问
-	// 其中w.config.DashCors是一个配置项，用于配置允许跨域访问的域名,例如：https://dash.example.com
-	if len(w.config.HTTP.Cors) > 0 {
-		cors.Setup(engine, w.config.HTTP.Cors)
-	}
+	// dashboard 静态资源
+	// 1. 不设置 `embed_dash` 编译选项，使用默认的静态资源, 在配置中设置静态资源的绝对路径
+	// 2. 设置 `embed_dash` 编译选项，使用内置的静态资源, 静态资源位置在 `assets/dash/dashboard` 目录下
+	// 3. 由使用其他服务反代，设置API允许其跨域访问, 其中w.config.DashCors是一个配置项，用于配置允许跨域访问的域名,例如：https://dash.example.com
+	w.RegisterDashStatic(engine.Group("/dash"))
 
 	api := engine.Group("/")
 	needAuthRoute := api.Group("/", authMiddleware)
-
 	w.service.Init(jwtAuthorizer, jwtRefresher)
 
 	if w.config.HTTP.PProf {
 		pprof.SetupPProf(api)
+	}
+	if len(w.config.HTTP.Cors) > 0 {
+		cors.Setup(engine, w.config.HTTP.Cors)
 	}
 	initDefaultRolesACL(w.service.ACL)
 

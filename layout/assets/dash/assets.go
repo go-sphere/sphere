@@ -1,3 +1,5 @@
+//go:build embed_dash
+
 package dash
 
 import "embed"
