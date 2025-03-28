@@ -7,6 +7,7 @@ COPY go.mod go.sum ./
 RUN go mod edit -dropreplace github.com/TBXark/sphere
 RUN go mod download
 COPY . .
+RUN go mod edit -dropreplace github.com/TBXark/sphere
 RUN make init && make build
 
 FROM scratch
