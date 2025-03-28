@@ -114,6 +114,9 @@ func (c *Client) removeBeforeOverwrite(path string, overwrite bool) error {
 func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourcePath := c.filePath(sourceKey)
 	destinationPath := c.filePath(destinationKey)
+	if err := os.MkdirAll(filepath.Dir(destinationPath), 0o750); err != nil {
+		return err
+	}
 	if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
 		return ErrorNotFound
 	}
@@ -129,10 +132,12 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourcePath := c.filePath(sourceKey)
 	destinationPath := c.filePath(destinationKey)
+	if err := os.MkdirAll(filepath.Dir(destinationPath), 0o750); err != nil {
+		return err
+	}
 	if err := c.removeBeforeOverwrite(destinationPath, overwrite); err != nil {
 		return err
 	}
-
 	srcFile, err := os.Open(sourcePath)
 	if err != nil {
 		return ErrorNotFound
