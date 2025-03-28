@@ -1,0 +1,16 @@
+- name: reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: enable systemd
+  ansible.builtin.systemd:
+    name: "{{ unit_name }}"
+    enabled: yes
+    when: enable_service
+
+- name: restart service
+  ansible.builtin.systemd:
+    name: "{{ unit_name }}"
+    state: restarted
+    force: "{{ force_restart }}"
+

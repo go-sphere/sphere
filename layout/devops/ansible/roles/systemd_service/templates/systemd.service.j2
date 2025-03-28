@@ -1,0 +1,31 @@
+[Unit]
+Description={{ unit_name | upper }} Service
+After=network.target
+Requires=network-online.target
+# If there is a database dependency, it should be added.：
+# After=mariadb.service
+
+[Service]
+Type=simple
+User={{ service_user }}
+Group={{ service_group }}
+ExecStart={{ remote_bin_path }} {{ exec_args }}
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=30s
+
+# Security enhancement
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=read-only
+MemoryDenyWriteExecute=yes
+# RestrictAddressFamilies=AF_INET AF_INET6
+
+# Log Configuration
+# StandardOutput=syslog
+# StandardError=syslog
+# SyslogIdentifier={{ unit_name }}
+
+[Install]
+WantedBy=multi-user.target

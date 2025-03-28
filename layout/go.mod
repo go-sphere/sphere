@@ -7,7 +7,7 @@ toolchain go1.23.6
 replace github.com/TBXark/sphere => ../
 
 require (
-	entgo.io/ent v0.14.3
+	entgo.io/ent v0.14.4
 	github.com/TBXark/confstore v0.0.0-20250305015938-d50631374870
 	github.com/TBXark/sphere v0.0.0-20250220092258-cd61b708e243
 	github.com/alitto/pond/v2 v2.2.0

@@ -1,9 +1,6 @@
 //go:generate swag init --output ./swagger/api --tags api.v1,shared.v1 --instanceName API -g docs.go --parseDependency
 //go:generate swag init --output ./swagger/dash --tags dash.v1,shared.v1 --instanceName Dash -g docs.go --parseDependency
 
-//go:generate npx swagger-typescript-api generate -p ./swagger/api/API_swagger.json -o ./swagger/api/typescript --modular --responses --extract-response-body --extract-response-error
-//go:generate npx swagger-typescript-api generate -p ./swagger/dash/Dash_swagger.json -o ./swagger/dash/typescript --modular --responses --extract-response-body --extract-response-error
-
 package layout
 
 import (

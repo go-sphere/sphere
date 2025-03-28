@@ -1,0 +1,6 @@
+- hosts: all
+  become: yes
+  roles:
+    - role: systemd_service
+      vars:
+        service_user: "sphere"
