@@ -9,7 +9,7 @@ replace github.com/TBXark/sphere => ../
 require (
 	entgo.io/ent v0.14.4
 	github.com/TBXark/confstore v0.0.0-20250312091006-41b7721fb8c8
-	github.com/TBXark/sphere v0.0.0-20250220092258-cd61b708e243
+	github.com/TBXark/sphere v0.0.0-20250328085124-a9c9a318a522
 	github.com/alitto/pond/v2 v2.3.0
 	github.com/gin-contrib/gzip v1.2.2
 	github.com/gin-gonic/gin v1.10.0

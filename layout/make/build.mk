@@ -1,13 +1,15 @@
 .PHONY: dash
 dash: ## Build dash
+ifneq ($(wildcard $(DASH_DIR)),)
 	# You can `git clone https://github.com/pure-admin/vue-pure-admin.git $(DASH_DIR)` to get the dash project
-	# cd $(DASH_DIR) &&  pnpm build
-	# cp -r $(DASH_DIR)/dist/* $(DASH_DIST)
-	echo "Not implemented"
-
+	cd $(DASH_DIR) && pnpm build
+	cp -r $(DASH_DIR)/dist/* $(DASH_DIST)
+else
+	@echo "Skipping dash build - DASH_DIR does not exist"
+endif
 .PHONY: build
 build: ## Build binary
-	$(GO_BUILD) -o ./build/$(CURRENT_OS)_$(CURRENT_ARCH)/ ./...
+	$(GO_BUILD) -o ./build/current_arch/ ./...
 
 .PHONY: build-linux-amd64
 build-linux-amd64: ## Build linux amd64 binary

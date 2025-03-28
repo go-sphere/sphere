@@ -15,6 +15,8 @@ github.com/TBXark/confstore v0.0.0-20250312091006-41b7721fb8c8 h1:2tgRxDEeWnDoCs
 github.com/TBXark/confstore v0.0.0-20250312091006-41b7721fb8c8/go.mod h1:TOxM19Snt9wT02PJzyz66sgq7sWhr4AFzPEZIKvVnTE=
 github.com/TBXark/jsoncompressor v0.0.0-20250220144542-bbb0ba981919 h1:sxewEc5ioUQSsmXoxlIR48lcOMuAnHUejV6LTmLXrfY=
 github.com/TBXark/jsoncompressor v0.0.0-20250220144542-bbb0ba981919/go.mod h1:Le17YSrfvfVgsIlzJpjc7zvxwtzTwshAguHcrQqJY/E=
+github.com/TBXark/sphere v0.0.0-20250328085124-a9c9a318a522 h1:p45uCl0Pwgz4mVgmgwJYPghSfCXj2WetQMHNCTeiZx4=
+github.com/TBXark/sphere v0.0.0-20250328085124-a9c9a318a522/go.mod h1:QprCXeHynM61VNSAK7KuzYU6Pqy+bKhkjU20gTXbAdk=
 github.com/agext/levenshtein v1.2.1 h1:QmvMAjj2aEICytGiWzmxoE0x2KZvE0fvmqMOfy2tjT8=
 github.com/agext/levenshtein v1.2.1/go.mod h1:JEDfjyjHDjOF/1e4FlBE/PkbqA9OfWu2ki2W0IB5558=
 github.com/alex-ant/gomath v0.0.0-20160516115720-89013a210a82 h1:7dONQ3WNZ1zy960TmkxJPuwoolZwL7xKtpcM04MBnt4=

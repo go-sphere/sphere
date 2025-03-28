@@ -1,9 +1,7 @@
-../.idea
-.vscode
-build
-temp
-logs
-log
-db
-
-config.json
+/.idea
+/.vscode
+/build
+/db
+/var
+/devops
+/config.json

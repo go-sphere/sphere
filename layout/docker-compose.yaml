@@ -1,0 +1,7 @@
+services:
+  app:
+    build:
+      context: cmd/app
+    volumes:
+      - ./config.json:/config/config.json
+    restart: always
