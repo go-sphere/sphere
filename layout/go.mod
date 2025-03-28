@@ -29,7 +29,7 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/TBXark/jsoncompressor v0.0.0-20250220090015-07c767467512 // indirect
+	github.com/TBXark/jsoncompressor v0.0.0-20250220144542-bbb0ba981919 // indirect
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/alex-ant/gomath v0.0.0-20160516115720-89013a210a82 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
@@ -41,7 +41,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/gammazero/toposort v0.1.1 // indirect
-	github.com/gin-contrib/cors v1.7.3 // indirect
+	github.com/gin-contrib/cors v1.7.4 // indirect
 	github.com/gin-contrib/pprof v1.5.2 // indirect
 	github.com/gin-contrib/sse v1.0.0 // indirect
 	github.com/gin-contrib/zap v1.1.4 // indirect
@@ -53,7 +53,7 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.25.0 // indirect
-	github.com/go-telegram/bot v1.14.0 // indirect
+	github.com/go-telegram/bot v1.14.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
@@ -87,18 +87,18 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/arch v0.15.0 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
-	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa // indirect
+	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
 	golang.org/x/mod v0.24.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
-	golang.org/x/time v0.10.0 // indirect
+	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.31.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/fileutil v1.3.0 // indirect
 	modernc.org/libc v1.61.13 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.8.2 // indirect
-	modernc.org/sqlite v1.35.0 // indirect
+	modernc.org/memory v1.9.1 // indirect
+	modernc.org/sqlite v1.36.2 // indirect
 )
