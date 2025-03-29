@@ -15,8 +15,6 @@ github.com/TBXark/confstore v0.0.0-20250312091006-41b7721fb8c8 h1:2tgRxDEeWnDoCs
 github.com/TBXark/confstore v0.0.0-20250312091006-41b7721fb8c8/go.mod h1:TOxM19Snt9wT02PJzyz66sgq7sWhr4AFzPEZIKvVnTE=
 github.com/TBXark/jsoncompressor v0.0.0-20250220144542-bbb0ba981919 h1:sxewEc5ioUQSsmXoxlIR48lcOMuAnHUejV6LTmLXrfY=
 github.com/TBXark/jsoncompressor v0.0.0-20250220144542-bbb0ba981919/go.mod h1:Le17YSrfvfVgsIlzJpjc7zvxwtzTwshAguHcrQqJY/E=
-github.com/TBXark/sphere v0.0.0-20250328085124-a9c9a318a522 h1:p45uCl0Pwgz4mVgmgwJYPghSfCXj2WetQMHNCTeiZx4=
-github.com/TBXark/sphere v0.0.0-20250328085124-a9c9a318a522/go.mod h1:QprCXeHynM61VNSAK7KuzYU6Pqy+bKhkjU20gTXbAdk=
 github.com/agext/levenshtein v1.2.1 h1:QmvMAjj2aEICytGiWzmxoE0x2KZvE0fvmqMOfy2tjT8=
 github.com/agext/levenshtein v1.2.1/go.mod h1:JEDfjyjHDjOF/1e4FlBE/PkbqA9OfWu2ki2W0IB5558=
 github.com/alex-ant/gomath v0.0.0-20160516115720-89013a210a82 h1:7dONQ3WNZ1zy960TmkxJPuwoolZwL7xKtpcM04MBnt4=
@@ -340,3 +338,5 @@ modernc.org/strutil v1.2.1/go.mod h1:EHkiggD70koQxjVdSBM3JKM7k6L0FbGE5eymy9i3B9A
 modernc.org/token v1.1.0 h1:Xl7Ap9dKaEs5kLoOQeQmPWevfnk/DM5qcLcYlA8ys6Y=
 modernc.org/token v1.1.0/go.mod h1:UGzOrNV1mAFSEB63lOFHIpNRUVMvYTc6yu1SMY/XTDM=
 nullprogram.com/x/optparse v1.0.0/go.mod h1:KdyPE+Igbe0jQUrVfMqDMeJQIJZEuyV7pjYmp6pbG50=
+resty.dev/v3 v3.0.0-beta.2 h1:xu4mGAdbCLuc3kbk7eddWfWm4JfhwDtdapwss5nCjnQ=
+resty.dev/v3 v3.0.0-beta.2/go.mod h1:OgkqiPvTDtOuV4MGZuUDhwOpkY8enjOsjjMzeOHefy4=

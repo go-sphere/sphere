@@ -3,16 +3,16 @@ package local
 import (
 	"context"
 	"errors"
-	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/storage/urlhandler"
 	"io"
 	"mime"
 	"os"
 	"path/filepath"
+
+	"github.com/TBXark/sphere/log"
+	"github.com/TBXark/sphere/storage/urlhandler"
 )
 
-//var _ storage.Storage = (*Client)(nil)
-
+// var _ storage.Storage = (*Client)(nil)
 var (
 	ErrorNotFound    = errors.New("file not found")
 	ErrorDistExisted = errors.New("destination file existed")
@@ -38,10 +38,17 @@ func NewClient(config *Config) (*Client, error) {
 		config:  config,
 	}, nil
 }
+
 func (c *Client) filePath(key string) string {
 	key = filepath.Clean(key)
 	filePath := filepath.Join(c.config.RootDir, key)
 	return filePath
+}
+
+func (c *Client) logErrorIfPresent(err error) {
+	if err != nil {
+		log.Errorf("local storage error: %v", err)
+	}
 }
 
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error) {
@@ -54,7 +61,7 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key
 	if err != nil {
 		return "", err
 	}
-	defer out.Close()
+	defer c.logErrorIfPresent(out.Close())
 	_, err = io.Copy(out, file)
 	if err != nil {
 		return "", err
@@ -67,7 +74,7 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	if err != nil {
 		return "", err
 	}
-	defer raw.Close()
+	defer c.logErrorIfPresent(raw.Close())
 	return c.UploadFile(ctx, raw, 0, key)
 }
 
@@ -142,12 +149,12 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return ErrorNotFound
 	}
-	defer srcFile.Close()
+	defer c.logErrorIfPresent(srcFile.Close())
 	dstFile, err := os.Create(destinationPath)
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
+	defer c.logErrorIfPresent(dstFile.Close())
 	_, err = io.Copy(dstFile, srcFile)
 	if err != nil {
 		return err

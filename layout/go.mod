@@ -101,4 +101,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.9.1 // indirect
 	modernc.org/sqlite v1.36.2 // indirect
+	resty.dev/v3 v3.0.0-beta.2 // indirect
 )

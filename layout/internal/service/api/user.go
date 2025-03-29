@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"github.com/TBXark/sphere/wechat"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -35,7 +36,7 @@ func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMin
 	if err != nil {
 		return nil, err
 	}
-	number, err := s.wechat.GetUserPhoneNumber(ctx, req.Code, true)
+	number, err := s.wechat.GetUserPhoneNumber(ctx, req.Code, wechat.WithRetryable(true))
 	if err != nil {
 		return nil, err
 	}

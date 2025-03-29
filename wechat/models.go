@@ -1,16 +1,50 @@
 package wechat
 
-const (
-	// ErrorInvalidCredential 40001 获取access_token时AppSecret错误，或者access_token无效
-	ErrorInvalidCredential = 40001
-	// ErrorAccessTokenExpired 42001 access_token超时
-	ErrorAccessTokenExpired = 42001
-	// ErrorInvalidAccessToken 40014 不合法的access_token，请开发者认真比对access_token的有效性（如是否过期），或查看是否正在为恰当的公众号调用接口
-	ErrorInvalidAccessToken = 40014
+import (
+	"errors"
 )
 
-func isNeedRetryErrorCode(errCode int) bool {
-	return errCode == ErrorAccessTokenExpired || errCode == ErrorInvalidAccessToken || errCode == ErrorInvalidCredential
+const (
+	// ErrCodeInvalidCredential 40001 获取access_token时AppSecret错误，或者access_token无效
+	ErrCodeInvalidCredential = 40001
+	// ErrCodeAccessTokenExpired 42001 access_token超时
+	ErrCodeAccessTokenExpired = 42001
+	// ErrCodeInvalidAccessToken 40014 不合法的access_token，请开发者认真比对access_token的有效性（如是否过期），或查看是否正在为恰当的公众号调用接口
+	ErrCodeInvalidAccessToken = 40014
+)
+
+var (
+	ErrorInvalidCredential  = errors.New("invalid credential")
+	ErrorAccessTokenExpired = errors.New("access token expired")
+	ErrorInvalidAccessToken = errors.New("invalid access token")
+)
+
+func isNeedRetryError(err error) bool {
+	if errors.Is(err, ErrorInvalidCredential) {
+		return true
+	}
+	if errors.Is(err, ErrorAccessTokenExpired) {
+		return true
+	}
+	if errors.Is(err, ErrorInvalidAccessToken) {
+		return true
+	}
+	return false
+}
+
+func checkResponseError(errCode int, errMsg string) error {
+	switch errCode {
+	case ErrCodeInvalidCredential:
+		return ErrorInvalidCredential
+	case ErrCodeAccessTokenExpired:
+		return ErrorAccessTokenExpired
+	case ErrCodeInvalidAccessToken:
+		return ErrorInvalidAccessToken
+	}
+	if errCode != 0 {
+		return errors.New(errMsg)
+	}
+	return nil
 }
 
 type EmptyResponse struct {

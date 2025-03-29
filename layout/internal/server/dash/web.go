@@ -2,7 +2,6 @@ package dash
 
 import (
 	"context"
-	"github.com/TBXark/sphere/server/route/cors"
 	"net/http"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/TBXark/sphere/server/middleware/logger"
 	"github.com/TBXark/sphere/server/middleware/ratelimiter"
 	"github.com/TBXark/sphere/server/middleware/selector"
+	"github.com/TBXark/sphere/server/route/cors"
 	"github.com/TBXark/sphere/server/route/pprof"
 	"github.com/gin-gonic/gin"
 )
