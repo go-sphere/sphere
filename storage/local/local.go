@@ -13,7 +13,6 @@ import (
 	"github.com/TBXark/sphere/utils/safe"
 )
 
-// var _ storage.Storage = (*Client)(nil)
 var (
 	ErrorNotFound    = errors.New("file not found")
 	ErrorDistExisted = errors.New("destination file existed")

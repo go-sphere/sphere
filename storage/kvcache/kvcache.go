@@ -14,7 +14,6 @@ import (
 	"github.com/TBXark/sphere/storage/urlhandler"
 )
 
-// var _ storage.Storage = (*Client)(nil)
 var (
 	ErrorNotFound    = errors.New("key not found")
 	ErrorDistExisted = errors.New("destination key existed")
