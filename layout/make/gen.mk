@@ -42,10 +42,11 @@ gen-docs: gen-proto ## Generate swagger docs
 
 .PHONY: gen-ts-docs
 gen-ts-docs: gen-docs ## Generate swagger typescript docs
-	npx swagger-typescript-api generate -p ./swagger/api/API_swagger.json -o ./swagger/api/typescript --modular --responses --extract-response-body --extract-response-error
-	npx swagger-typescript-api generate -p ./swagger/dash/Dash_swagger.json -o ./swagger/dash/typescript --modular --responses --extract-response-body --extract-response-error
+	cd swagger/typescript-api && npm run gen
+ifneq ($(wildcard $(DASH_DIR)),)
 	mkdir -p $(DASH_DIR)/src/api/swagger
 	cp -r swagger/dash/typescript/* $(DASH_DIR)/src/api/swagger
+endif
 
 .PHONY: gen-wire
 gen-wire: ## Generate wire code
