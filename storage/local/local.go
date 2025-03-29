@@ -55,7 +55,7 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key
 	if err != nil {
 		return "", err
 	}
-	defer out.Close()
+	defer log.ErrorIfPresent("close file", out.Close)
 	_, err = io.Copy(out, file)
 	if err != nil {
 		return "", err
@@ -68,7 +68,7 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	if err != nil {
 		return "", err
 	}
-	defer raw.Close()
+	defer log.ErrorIfPresent("close file", raw.Close)
 	return c.UploadFile(ctx, raw, 0, key)
 }
 
@@ -143,12 +143,12 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return ErrorNotFound
 	}
-	defer srcFile.Close()
+	defer log.ErrorIfPresent("close file", srcFile.Close)
 	dstFile, err := os.Create(destinationPath)
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
+	defer log.ErrorIfPresent("close file", dstFile.Close)
 	_, err = io.Copy(dstFile, srcFile)
 	if err != nil {
 		return err

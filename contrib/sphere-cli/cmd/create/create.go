@@ -2,6 +2,7 @@ package create
 
 import (
 	"flag"
+	"github.com/TBXark/sphere/contrib/sphere-cli/internal/safe"
 	"log"
 	"os"
 	"os/exec"
@@ -147,7 +148,7 @@ func replaceFileContent(old, new, filePath string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer safe.ErrorIfPresent("close file", file.Close)
 	_, err = replacer.WriteString(file, string(content))
 	return err
 }

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/TBXark/sphere/utils/safe"
 	"log"
 	"os"
 
@@ -42,9 +43,7 @@ func runConfig(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("create file error: %v", err)
 	}
-	defer func() {
-		_ = file.Close()
-	}()
+	defer safe.ErrorIfPresent("close file", file.Close)
 	err = confstore.Save(output, conf)
 	if err != nil {
 		log.Fatalf("encode error: %v", err)

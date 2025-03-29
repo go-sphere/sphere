@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"github.com/TBXark/sphere/utils/safe"
 	"github.com/TBXark/sphere/wechat"
 	"net/http"
 	"net/url"
@@ -136,9 +137,7 @@ func (s *Service) uploadRemoteImage(ctx context.Context, uri string) (string, er
 	if resp.ContentLength > RemoteImageMaxSize {
 		return "", ErrImageSizeExceed
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer safe.ErrorIfPresent("close response body", resp.Body.Close)
 	ret, err := s.Storage.UploadFile(ctx, resp.Body, resp.ContentLength, key)
 	if err != nil {
 		return "", err
