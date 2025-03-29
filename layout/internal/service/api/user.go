@@ -3,8 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"github.com/TBXark/sphere/utils/safe"
-	"github.com/TBXark/sphere/wechat"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -17,6 +15,8 @@ import (
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/user"
 	"github.com/TBXark/sphere/server/statuserr"
 	"github.com/TBXark/sphere/storage"
+	"github.com/TBXark/sphere/utils/safe"
+	"github.com/TBXark/sphere/wechat"
 )
 
 var _ apiv1.UserServiceHTTPServer = (*Service)(nil)

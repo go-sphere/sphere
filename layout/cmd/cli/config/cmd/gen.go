@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"github.com/TBXark/sphere/utils/safe"
 	"log"
 	"os"
 
 	"github.com/TBXark/confstore"
 	"github.com/TBXark/sphere/layout/internal/config"
+	"github.com/TBXark/sphere/utils/safe"
 	"github.com/spf13/cobra"
 )
 
