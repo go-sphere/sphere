@@ -3,4 +3,4 @@
   roles:
     - role: systemd_service
       vars:
-        service_user: "sphere"
+        service_name: "sphere"
