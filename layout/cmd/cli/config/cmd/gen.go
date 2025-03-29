@@ -43,7 +43,7 @@ func runConfig(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("create file error: %v", err)
 	}
-	defer safe.ErrorIfPresent("close file", file.Close)
+	defer safe.IfErrorPresent("close file", file.Close)
 	err = confstore.Save(output, conf)
 	if err != nil {
 		log.Fatalf("encode error: %v", err)

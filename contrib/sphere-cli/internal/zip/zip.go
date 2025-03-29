@@ -4,8 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
-	"github.com/TBXark/sphere/contrib/sphere-cli/internal/safe"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -42,7 +42,7 @@ func downloadFile(uri string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("http request failed: %w", err)
 	}
-	defer safe.ErrorIfPresent("close response body", resp.Body.Close)
+	defer ifErrorPresent("close response body", resp.Body.Close)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -96,13 +96,13 @@ func extractFile(zipFile *zip.File, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("open zip entry failed: %w", err)
 	}
-	defer safe.ErrorIfPresent("close zip entry", srcFile.Close)
+	defer ifErrorPresent("close zip entry", srcFile.Close)
 
 	dstFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, zipFile.Mode())
 	if err != nil {
 		return fmt.Errorf("create file failed: %w", err)
 	}
-	defer safe.ErrorIfPresent("close file", dstFile.Close)
+	defer ifErrorPresent("close file", dstFile.Close)
 
 	_, err = io.Copy(dstFile, srcFile)
 	if err != nil {
@@ -110,4 +110,11 @@ func extractFile(zipFile *zip.File, destPath string) error {
 	}
 
 	return nil
+}
+
+func ifErrorPresent(label string, fn func() error) {
+	err := fn()
+	if err != nil {
+		log.Printf("%s: %v", label, err)
+	}
 }

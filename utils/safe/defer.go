@@ -14,14 +14,14 @@ func InitErrorHandler(handler ErrorHandler) {
 	}
 }
 
-func ErrorIfPresent(label string, fn func() error) {
+func IfErrorPresent(label string, fn func() error) {
 	err := fn()
 	if err != nil {
 		defaultErrorHandler(label, err)
 	}
 }
 
-func ErrorIfPresentWithValue[T any](label string, fn func() (T, error)) {
+func IfErrorXPresent[T any](label string, fn func() (T, error)) {
 	_, err := fn()
 	if err != nil {
 		defaultErrorHandler(label, err)

@@ -137,7 +137,7 @@ func (s *Service) uploadRemoteImage(ctx context.Context, uri string) (string, er
 	if resp.ContentLength > RemoteImageMaxSize {
 		return "", ErrImageSizeExceed
 	}
-	defer safe.ErrorIfPresent("close response body", resp.Body.Close)
+	defer safe.IfErrorPresent("close response body", resp.Body.Close)
 	ret, err := s.Storage.UploadFile(ctx, resp.Body, resp.ContentLength, key)
 	if err != nil {
 		return "", err
