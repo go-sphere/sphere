@@ -3,6 +3,7 @@ package local
 import (
 	"context"
 	"errors"
+	"github.com/TBXark/sphere/utils/safe"
 	"io"
 	"mime"
 	"os"
@@ -55,7 +56,7 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key
 	if err != nil {
 		return "", err
 	}
-	defer log.ErrorIfPresent("close file", out.Close)
+	defer safe.ErrorIfPresent("close file", out.Close)
 	_, err = io.Copy(out, file)
 	if err != nil {
 		return "", err
@@ -68,7 +69,7 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	if err != nil {
 		return "", err
 	}
-	defer log.ErrorIfPresent("close file", raw.Close)
+	defer safe.ErrorIfPresent("close file", raw.Close)
 	return c.UploadFile(ctx, raw, 0, key)
 }
 
@@ -143,12 +144,12 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return ErrorNotFound
 	}
-	defer log.ErrorIfPresent("close file", srcFile.Close)
+	defer safe.ErrorIfPresent("close file", srcFile.Close)
 	dstFile, err := os.Create(destinationPath)
 	if err != nil {
 		return err
 	}
-	defer log.ErrorIfPresent("close file", dstFile.Close)
+	defer safe.ErrorIfPresent("close file", dstFile.Close)
 	_, err = io.Copy(dstFile, srcFile)
 	if err != nil {
 		return err
