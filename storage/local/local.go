@@ -45,12 +45,6 @@ func (c *Client) filePath(key string) string {
 	return filePath
 }
 
-func (c *Client) logErrorIfPresent(err error) {
-	if err != nil {
-		log.Errorf("local storage error: %v", err)
-	}
-}
-
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error) {
 	filePath := c.filePath(key)
 	err := os.MkdirAll(filepath.Dir(filePath), 0o750)
@@ -61,7 +55,7 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key
 	if err != nil {
 		return "", err
 	}
-	defer c.logErrorIfPresent(out.Close())
+	defer out.Close()
 	_, err = io.Copy(out, file)
 	if err != nil {
 		return "", err
@@ -74,7 +68,7 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	if err != nil {
 		return "", err
 	}
-	defer c.logErrorIfPresent(raw.Close())
+	defer raw.Close()
 	return c.UploadFile(ctx, raw, 0, key)
 }
 
@@ -149,12 +143,12 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return ErrorNotFound
 	}
-	defer c.logErrorIfPresent(srcFile.Close())
+	defer srcFile.Close()
 	dstFile, err := os.Create(destinationPath)
 	if err != nil {
 		return err
 	}
-	defer c.logErrorIfPresent(dstFile.Close())
+	defer dstFile.Close()
 	_, err = io.Copy(dstFile, srcFile)
 	if err != nil {
 		return err
