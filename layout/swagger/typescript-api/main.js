@@ -24,6 +24,3 @@ await generateApi({
     extractResponseBody: true,
     defaultResponseAsSuccess: true,
 });
-
-
-// npx swagger-typescript-api generate -p ./swagger/api/API_swagger.json -o ./swagger/api/typescript --modular --responses --extract-response-body --extract-response-error --axios
