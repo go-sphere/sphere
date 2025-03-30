@@ -16,6 +16,10 @@ import (
 
 const DefaultTimezone = "Asia/Shanghai"
 
+var versionPrinter = func(version string) {
+	fmt.Println(version)
+}
+
 func init() {
 	_ = InitTimezone(DefaultTimezone)
 }
@@ -30,6 +34,10 @@ func InitTimezone(zone string) error {
 	return os.Setenv("TZ", defaultLoc)
 }
 
+func InitVersionPrinter(printer func(string)) {
+	versionPrinter = printer
+}
+
 func DefaultConfigParser[T any](ver string, parser func(string) (*T, error)) *T {
 	path := flag.String("config", "config.json", "config file path")
 	version := flag.Bool("version", false, "show version")
@@ -37,7 +45,7 @@ func DefaultConfigParser[T any](ver string, parser func(string) (*T, error)) *T 
 	flag.Parse()
 
 	if *version {
-		fmt.Println(ver)
+		versionPrinter(ver)
 		os.Exit(0)
 	}
 
