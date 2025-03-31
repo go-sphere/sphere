@@ -2,6 +2,7 @@ package dash
 
 import (
 	"context"
+	"github.com/TBXark/sphere/storage"
 	"net/http"
 	"time"
 
@@ -25,15 +26,19 @@ import (
 )
 
 type Web struct {
-	config  *Config
-	server  *http.Server
-	service *dash.Service
+	config    *Config
+	acl       *acl.ACL
+	server    *http.Server
+	storage   storage.ImageStorage
+	service   *dash.Service
+	sharedSvc *shared.Service
 }
 
-func NewWebServer(config *Config, service *dash.Service) *Web {
+func NewWebServer(config *Config, storage storage.ImageStorage, service *dash.Service) *Web {
 	return &Web{
-		config:  config,
-		service: service,
+		config:    config,
+		service:   service,
+		sharedSvc: shared.NewService(storage, "dash"),
 	}
 }
 
@@ -70,11 +75,10 @@ func (w *Web) Start(ctx context.Context) error {
 	if len(w.config.HTTP.Cors) > 0 {
 		cors.Setup(engine, w.config.HTTP.Cors)
 	}
-	initDefaultRolesACL(w.service.ACL)
+	initDefaultRolesACL(w.acl)
 
-	sharedSrc := shared.NewService(w.service.Storage, "dash")
-	sharedv1.RegisterStorageServiceHTTPServer(needAuthRoute, sharedSrc)
-	sharedv1.RegisterTestServiceHTTPServer(api, sharedSrc)
+	sharedv1.RegisterStorageServiceHTTPServer(needAuthRoute, w.sharedSvc)
+	sharedv1.RegisterTestServiceHTTPServer(api, w.sharedSvc)
 
 	authRoute := api.Group("/")
 	// 根据元数据限定中间件作用范围
@@ -113,7 +117,7 @@ func (w *Web) Stop(ctx context.Context) error {
 }
 
 func (w *Web) withPermission(resource string) gin.HandlerFunc {
-	return auth.NewPermissionMiddleware(resource, w.service.ACL)
+	return auth.NewPermissionMiddleware(resource, w.acl)
 }
 
 func initDefaultRolesACL(acl *acl.ACL) {

@@ -4,7 +4,6 @@ import (
 	"github.com/TBXark/sphere/cache"
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/render"
-	"github.com/TBXark/sphere/server/auth/acl"
 	"github.com/TBXark/sphere/server/auth/authorizer"
 	"github.com/TBXark/sphere/storage"
 	"github.com/TBXark/sphere/wechat"
@@ -22,27 +21,25 @@ type Service struct {
 	authorizer.ContextUtils[int64]
 
 	db     *dao.Dao
-	cache  cache.ByteCache
 	wechat *wechat.Wechat
 	render *render.Render
-	tasks  pond.ResultPool[string]
+
+	cache   cache.ByteCache
+	storage storage.ImageStorage
+	tasks   pond.ResultPool[string]
 
 	authorizer    TokenAuthorizer
 	authRefresher TokenAuthorizer
-
-	ACL     *acl.ACL
-	Storage storage.ImageStorage
 }
 
-func NewService(db *dao.Dao, wx *wechat.Wechat, cache cache.ByteCache, store storage.ImageStorage) *Service {
+func NewService(db *dao.Dao, wechat *wechat.Wechat, cache cache.ByteCache, store storage.ImageStorage) *Service {
 	return &Service{
 		db:      db,
-		Storage: store,
+		wechat:  wechat,
+		render:  render.NewRender(db, store, true),
 		cache:   cache,
-		wechat:  wx,
+		storage: store,
 		tasks:   pond.NewResultPool[string](16),
-		render:  render.NewRender(store, db, true),
-		ACL:     acl.NewACL(),
 	}
 }
 

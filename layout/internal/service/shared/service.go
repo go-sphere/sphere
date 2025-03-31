@@ -11,9 +11,9 @@ type Service struct {
 	storageDir string
 }
 
-func NewService(store storage.ImageStorage, storageDir string) *Service {
+func NewService(storage storage.ImageStorage, storageDir string) *Service {
 	return &Service{
-		storage:    store,
+		storage:    storage,
 		storageDir: storageDir,
 	}
 }

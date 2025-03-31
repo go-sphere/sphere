@@ -33,7 +33,7 @@ import (
 
 func main() {
 	file := flag.String("file", "./internal/pkg/render/bind.go", "file path")
-	mod := flag.String("mod", "", "run mode: app, api, dash, bot")
+	mod := flag.String("mod", "", "go module path")
 	flag.Parse()
 	if *file == "" {
 		log.Fatal("file is required")

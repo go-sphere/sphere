@@ -46,7 +46,7 @@ func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
 	if err != nil {
 		return nil, err
 	}
-	u.Avatar = s.Storage.GenerateImageURL(u.Avatar, 512)
+	u.Avatar = s.storage.GenerateImageURL(u.Avatar, 512)
 	return &AdminToken{
 		Admin:        u,
 		AccessToken:  token,

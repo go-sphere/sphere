@@ -22,7 +22,7 @@ func (s *Service) AdminCreate(ctx context.Context, req *dashv1.AdminCreateReques
 	} else {
 		return nil, statuserr.NewError(400, "password is too short")
 	}
-	req.Admin.Avatar = s.Storage.ExtractKeyFromURL(req.Admin.Avatar)
+	req.Admin.Avatar = s.storage.ExtractKeyFromURL(req.Admin.Avatar)
 	u, err := render.CreateAdmin(s.db.Admin.Create(), req.Admin).Save(ctx)
 	if err != nil {
 		return nil, err

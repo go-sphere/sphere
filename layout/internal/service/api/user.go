@@ -87,7 +87,7 @@ func (s *Service) Update(ctx context.Context, req *apiv1.UpdateRequest) (*apiv1.
 	if err != nil {
 		return nil, err
 	}
-	req.Avatar = s.Storage.ExtractKeyFromURL(req.Avatar)
+	req.Avatar = s.storage.ExtractKeyFromURL(req.Avatar)
 	up, err := s.db.User.UpdateOneID(id).
 		SetUsername(req.Username).
 		SetAvatar(req.Avatar).
@@ -101,7 +101,7 @@ func (s *Service) Update(ctx context.Context, req *apiv1.UpdateRequest) (*apiv1.
 }
 
 func (s *Service) uploadRemoteImage(ctx context.Context, uri string) (string, error) {
-	key, err := s.Storage.ExtractKeyFromURLWithMode(uri, true)
+	key, err := s.storage.ExtractKeyFromURLWithMode(uri, true)
 	if key != "" && err == nil {
 		return key, nil
 	}
@@ -138,7 +138,7 @@ func (s *Service) uploadRemoteImage(ctx context.Context, uri string) (string, er
 		return "", ErrImageSizeExceed
 	}
 	defer safe.IfErrorPresent("close response body", resp.Body.Close)
-	ret, err := s.Storage.UploadFile(ctx, resp.Body, resp.ContentLength, key)
+	ret, err := s.storage.UploadFile(ctx, resp.Body, resp.ContentLength, key)
 	if err != nil {
 		return "", err
 	}

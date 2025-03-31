@@ -29,6 +29,11 @@ import (
 
 func NewApplication(conf *config.Config) (*boot.Application, error) {
 	dashConfig := conf.Dash
+	qiniuConfig := conf.Storage
+	qiniuClient, err := qiniu.NewClient(qiniuConfig)
+	if err != nil {
+		return nil, err
+	}
 	clientConfig := conf.Database
 	entClient, err := client.NewDataBaseClient(clientConfig)
 	if err != nil {
@@ -38,16 +43,11 @@ func NewApplication(conf *config.Config) (*boot.Application, error) {
 	wechatConfig := conf.WxMini
 	wechatWechat := wechat.NewWechat(wechatConfig)
 	cache := memory.NewByteCache()
-	qiniuConfig := conf.Storage
-	qiniuClient, err := qiniu.NewClient(qiniuConfig)
-	if err != nil {
-		return nil, err
-	}
 	service := dash.NewService(daoDao, wechatWechat, cache, qiniuClient)
-	web := dash2.NewWebServer(dashConfig, service)
+	web := dash2.NewWebServer(dashConfig, qiniuClient, service)
 	apiConfig := conf.API
 	apiService := api.NewService(daoDao, wechatWechat, cache, qiniuClient)
-	apiWeb := api2.NewWebServer(apiConfig, apiService)
+	apiWeb := api2.NewWebServer(apiConfig, qiniuClient, apiService)
 	docsConfig := conf.Docs
 	docsWeb := docs.NewWebServer(docsConfig)
 	dashInitialize := dashinit.NewDashInitialize(daoDao)
@@ -58,6 +58,11 @@ func NewApplication(conf *config.Config) (*boot.Application, error) {
 
 func NewAPIApplication(conf *config.Config) (*boot.Application, error) {
 	apiConfig := conf.API
+	qiniuConfig := conf.Storage
+	qiniuClient, err := qiniu.NewClient(qiniuConfig)
+	if err != nil {
+		return nil, err
+	}
 	clientConfig := conf.Database
 	entClient, err := client.NewDataBaseClient(clientConfig)
 	if err != nil {
@@ -67,13 +72,8 @@ func NewAPIApplication(conf *config.Config) (*boot.Application, error) {
 	wechatConfig := conf.WxMini
 	wechatWechat := wechat.NewWechat(wechatConfig)
 	cache := memory.NewByteCache()
-	qiniuConfig := conf.Storage
-	qiniuClient, err := qiniu.NewClient(qiniuConfig)
-	if err != nil {
-		return nil, err
-	}
 	service := api.NewService(daoDao, wechatWechat, cache, qiniuClient)
-	web := api2.NewWebServer(apiConfig, service)
+	web := api2.NewWebServer(apiConfig, qiniuClient, service)
 	dashInitialize := dashinit.NewDashInitialize(daoDao)
 	connectCleaner := conncleaner.NewConnectCleaner(entClient)
 	application := newAPIApplication(web, dashInitialize, connectCleaner)
@@ -82,6 +82,11 @@ func NewAPIApplication(conf *config.Config) (*boot.Application, error) {
 
 func NewDashApplication(conf *config.Config) (*boot.Application, error) {
 	dashConfig := conf.Dash
+	qiniuConfig := conf.Storage
+	qiniuClient, err := qiniu.NewClient(qiniuConfig)
+	if err != nil {
+		return nil, err
+	}
 	clientConfig := conf.Database
 	entClient, err := client.NewDataBaseClient(clientConfig)
 	if err != nil {
@@ -91,13 +96,8 @@ func NewDashApplication(conf *config.Config) (*boot.Application, error) {
 	wechatConfig := conf.WxMini
 	wechatWechat := wechat.NewWechat(wechatConfig)
 	cache := memory.NewByteCache()
-	qiniuConfig := conf.Storage
-	qiniuClient, err := qiniu.NewClient(qiniuConfig)
-	if err != nil {
-		return nil, err
-	}
 	service := dash.NewService(daoDao, wechatWechat, cache, qiniuClient)
-	web := dash2.NewWebServer(dashConfig, service)
+	web := dash2.NewWebServer(dashConfig, qiniuClient, service)
 	dashInitialize := dashinit.NewDashInitialize(daoDao)
 	connectCleaner := conncleaner.NewConnectCleaner(entClient)
 	application := newDashApplication(web, dashInitialize, connectCleaner)

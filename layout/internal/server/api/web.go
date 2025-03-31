@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"github.com/TBXark/sphere/storage"
 	"net/http"
 	"time"
 
@@ -21,15 +22,17 @@ import (
 )
 
 type Web struct {
-	config  *Config
-	server  *http.Server
-	service *api.Service
+	config    *Config
+	server    *http.Server
+	service   *api.Service
+	sharedSvc *shared.Service
 }
 
-func NewWebServer(conf *Config, service *api.Service) *Web {
+func NewWebServer(conf *Config, storage storage.ImageStorage, service *api.Service) *Web {
 	return &Web{
-		config:  conf,
-		service: service,
+		config:    conf,
+		service:   service,
+		sharedSvc: shared.NewService(storage, "user"),
 	}
 }
 
@@ -57,9 +60,7 @@ func (w *Web) Start(ctx context.Context) error {
 
 	route := engine.Group("/", authMiddleware)
 
-	sharedSrc := shared.NewService(w.service.Storage, "user")
-
-	sharedv1.RegisterStorageServiceHTTPServer(route, sharedSrc)
+	sharedv1.RegisterStorageServiceHTTPServer(route, w.sharedSvc)
 	apiv1.RegisterAuthServiceHTTPServer(route, w.service)
 	apiv1.RegisterSystemServiceHTTPServer(route, w.service)
 	apiv1.RegisterUserServiceHTTPServer(route, w.service)

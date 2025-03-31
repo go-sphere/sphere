@@ -18,25 +18,25 @@ type Service struct {
 	authorizer.ContextUtils[int64]
 
 	db         *dao.Dao
-	cache      cache.ByteCache
 	wechat     *wechat.Wechat
 	render     *render.Render
-	authorizer TokenAuthorizer
 	httpClient *http.Client
 
-	Storage storage.ImageStorage
+	cache      cache.ByteCache
+	storage    storage.ImageStorage
+	authorizer TokenAuthorizer
 }
 
-func NewService(db *dao.Dao, wx *wechat.Wechat, cache cache.ByteCache, store storage.ImageStorage) *Service {
+func NewService(db *dao.Dao, wechat *wechat.Wechat, cache cache.ByteCache, store storage.ImageStorage) *Service {
 	return &Service{
 		db:     db,
+		wechat: wechat,
 		cache:  cache,
-		wechat: wx,
-		render: render.NewRender(store, db, true),
+		render: render.NewRender(db, store, true),
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		Storage: store,
+		storage: store,
 	}
 }
 

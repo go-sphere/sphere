@@ -13,6 +13,7 @@ type URLHandler interface {
 }
 
 type ImageURLHandler interface {
+	URLHandler
 	GenerateImageURL(key string, width int) string
 }
 
