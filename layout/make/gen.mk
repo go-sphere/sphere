@@ -30,7 +30,7 @@ gen-proto: ## Generate proto files and run protoc plugins
 	ent-gen-proto -path=./internal/pkg/database/schema
 	buf generate
 	protoc-go-inject-tag -input="./api/*/*/*.pb.go" -remove_tag_comment
-	go run ./cmd/cli/gen-bind --file ./internal/pkg/render/bind.go
+	go run ./cmd/cli/gen-bind --file ./internal/pkg/render/bind.go --mod $(MODULE)
 
 .PHONY: gen-ent
 gen-ent: ## Generate ent code
