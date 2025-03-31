@@ -2,6 +2,7 @@
 dash: ## Build dash
 ifneq ($(wildcard $(DASH_DIR)),)
 	# You can `git clone https://github.com/pure-admin/vue-pure-admin.git $(DASH_DIR)` to get the dash project
+	mkdir -p $(DASH_DIST)
 	cd $(DASH_DIR) && pnpm build
 	cp -r $(DASH_DIR)/dist/* $(DASH_DIST)
 else
