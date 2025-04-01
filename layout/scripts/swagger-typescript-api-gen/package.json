@@ -1,0 +1,13 @@
+{
+  "name": "swagger-typescript-api-gen",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "swagger-typescript-api": "^13.0.28"
+  },
+  "scripts": {
+    "gen": "node main.js"
+  }
+}

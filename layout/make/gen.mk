@@ -42,7 +42,7 @@ gen-docs: gen-proto ## Generate swagger docs
 
 .PHONY: gen-ts-docs
 gen-ts-docs: gen-docs ## Generate swagger typescript docs
-	cd swagger/typescript-api && npm run gen
+	cd scripts/swagger-typescript-api-gen && npm run gen
 ifneq ($(wildcard $(DASH_DIR)),)
 	mkdir -p $(DASH_DIR)/src/api/swagger
 	cp -r swagger/dash/typescript/* $(DASH_DIR)/src/api/swagger
