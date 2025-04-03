@@ -45,6 +45,7 @@ gen-ts-docs: gen-docs ## Generate swagger typescript docs
 	cd scripts/swagger-typescript-api-gen && npm run gen
 ifneq ($(wildcard $(DASH_DIR)),)
 	mkdir -p $(DASH_DIR)/src/api/swagger
+	rm -rf $(DASH_DIR)/src/api/swagger/*
 	cp -r swagger/dash/typescript/* $(DASH_DIR)/src/api/swagger
 endif
 
