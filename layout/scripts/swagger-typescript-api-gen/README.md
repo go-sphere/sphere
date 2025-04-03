@@ -27,6 +27,21 @@ type AdapterAPI<T> = UnwrappedApiClient<T>;
 function createNewAPI(): AdapterAPI<unknown> {
     const client = new HttpClient<unknown>();
     client.instance = (http.constructor as unknown as PureHTTP).axiosInstance;
+    client.instance.interceptors.response.use(
+        resp => resp,
+        (err: PureHttpError) => {
+            if (!err.isCancelRequest) {
+                if (err.response?.data) {
+                    const {code, message} = err.response.data
+                    as
+                    GinxErrorResponse;
+                    err.message = message;
+                    err["errCode"] = code;
+                }
+            }
+            return Promise.reject(err);
+        }
+    );
     const api = new Api<unknown>(client);
     return api.api as AdapterAPI<unknown>;
 }
