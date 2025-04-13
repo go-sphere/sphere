@@ -49,22 +49,16 @@ func createTask(ctx context.Context, task Task, action string, taskFunc func(Tas
 	}
 }
 
-func (a *Application) newErrorGroup(ctx context.Context, stopOnError bool) (*errgroup.Group, context.Context) {
-	group, errCtx := errgroup.WithContext(ctx)
-	if stopOnError {
-		return group, errCtx
-	}
-	return group, ctx
-}
-
 func (a *Application) executeTasks(ctx context.Context, action string, stopOnError bool, taskFunc func(Task, context.Context) error) error {
-	wg, gCtx := a.newErrorGroup(ctx, stopOnError)
+	wg, ctx := errgroup.WithContext(ctx)
 	for _, task := range a.tasks {
-		log.Infof("%s %s", action, task.Identifier())
-		if gCtx.Err() != nil {
-			log.Infof("skip %s %s", action, task.Identifier())
+		// 如果设置了stopOnError且上下文已取消，则跳过后续任务
+		if stopOnError && ctx.Err() != nil {
+			log.Infof("skip %s %s due to context error: %v", action, task.Identifier(), ctx.Err())
+			continue
 		}
-		wg.Go(createTask(gCtx, task, action, taskFunc))
+		log.Infof("%s %s", action, task.Identifier())
+		wg.Go(createTask(ctx, task, action, taskFunc))
 	}
 	return wg.Wait()
 }

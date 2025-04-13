@@ -67,9 +67,7 @@ func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Ap
 	log.Init(logConf, logfields.String("version", ver))
 	log.Info("Start application", logfields.String("version", ver))
 	defer func() {
-		if e := log.Sync(); e != nil {
-			log.Warnf("Failed to sync log: %v", e)
-		}
+		_ = log.Sync()
 	}()
 
 	// Create application
@@ -78,37 +76,42 @@ func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Ap
 		return fmt.Errorf("failed to build application: %w", err)
 	}
 
+	// Create root context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Listen for shutdown signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(quit)
 
-	// Catch application error
+	// Start application
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- app.Start(context.Background())
+		errChan <- app.Start(ctx)
 	}()
 
-	errs := make([]error, 0, 2)
-
 	// Wait for shutdown signal or application error
+	var errs []error
 	select {
-	case <-quit:
-		log.Debug("Received shutdown signal")
+	case sig := <-quit:
+		log.Infof("Received shutdown signal: %v", sig)
+		cancel() // Trigger application shutdown
 	case e := <-errChan:
 		if e != nil {
 			log.Error("Application error", logfields.Error(e))
-			errs = append(errs, e)
+			errs = append(errs, fmt.Errorf("application error: %w", e))
+			cancel() // Ensure context is canceled
 		}
 	}
 
-	// Close application
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
 
-	if e := app.Stop(ctx); e != nil {
-		errs = append(errs, e)
+	err = app.Stop(shutdownCtx)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("shutdown error: %w", err))
 	}
-
 	return errors.Join(errs...)
 }
