@@ -110,7 +110,7 @@ func (w *Web) Start(ctx context.Context) error {
 		Addr:    w.config.HTTP.Address,
 		Handler: engine.Handler(),
 	}
-	return ginx.Start(ctx, w.server, 30*time.Second)
+	return ginx.Start(w.server)
 }
 
 func (w *Web) Stop(ctx context.Context) error {

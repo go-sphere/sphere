@@ -2,10 +2,6 @@ package api
 
 import (
 	"context"
-	"github.com/TBXark/sphere/storage"
-	"net/http"
-	"time"
-
 	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
 	"github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/service/api"
@@ -18,7 +14,9 @@ import (
 	"github.com/TBXark/sphere/server/middleware/auth"
 	"github.com/TBXark/sphere/server/middleware/logger"
 	"github.com/TBXark/sphere/server/route/cors"
+	"github.com/TBXark/sphere/storage"
 	"github.com/gin-gonic/gin"
+	"net/http"
 )
 
 type Web struct {
@@ -69,7 +67,7 @@ func (w *Web) Start(ctx context.Context) error {
 		Addr:    w.config.HTTP.Address,
 		Handler: engine.Handler(),
 	}
-	return ginx.Start(ctx, w.server, 30*time.Second)
+	return ginx.Start(w.server)
 }
 
 func (w *Web) Stop(ctx context.Context) error {

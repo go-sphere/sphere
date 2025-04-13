@@ -11,7 +11,7 @@ import (
 	"github.com/TBXark/sphere/log/logfields"
 )
 
-func Start(ctx context.Context, server *http.Server, closeTimeout time.Duration) error {
+func ListenAndAutoShutdown(ctx context.Context, server *http.Server, closeTimeout time.Duration) error {
 	errChan := make(chan error, 1)
 	closeChan := make(chan struct{})
 	go func() {
@@ -37,6 +37,13 @@ func Start(ctx context.Context, server *http.Server, closeTimeout time.Duration)
 	default:
 		return nil
 	}
+}
+
+func Start(server *http.Server) error {
+	if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
 
 func Close(ctx context.Context, server *http.Server) error {
