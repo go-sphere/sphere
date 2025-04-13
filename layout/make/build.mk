@@ -9,9 +9,14 @@ ifneq ($(wildcard $(DASH_DIR)),)
 else
 	@echo "Skipping dash build - DASH_DIR does not exist"
 endif
+
 .PHONY: build
 build: ## Build binary
 	$(GO_BUILD) -o ./build/current_arch/ ./...
+
+.PHONY: run
+run:
+	$(GO_RUN) $(MODULE)/cmd/app
 
 .PHONY: build-linux-amd64
 build-linux-amd64: ## Build linux amd64 binary

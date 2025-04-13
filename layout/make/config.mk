@@ -16,3 +16,4 @@ DASH_DIST     ?= assets/dash/dashboard/dist
 LD_FLAGS      ?= -X $(MODULE)/internal/config.BuildVersion=$(BUILD_VER)
 GO_TAGS	   	  ?= jsoniter#,embed_dash
 GO_BUILD      ?= CGO_ENABLED=0 go build -trimpath -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
+GO_RUN        ?= CGO_ENABLED=0 go run -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
