@@ -37,6 +37,7 @@ type Web struct {
 func NewWebServer(config *Config, storage storage.ImageStorage, service *dash.Service) *Web {
 	return &Web{
 		config:    config,
+		acl:       acl.NewACL(),
 		service:   service,
 		sharedSvc: shared.NewService(storage, "dash"),
 	}
