@@ -3,19 +3,20 @@ package local
 import (
 	"context"
 	"errors"
+	"github.com/TBXark/sphere/log"
+	"github.com/TBXark/sphere/storage/urlhandler"
+	"github.com/TBXark/sphere/utils/safe"
 	"io"
 	"mime"
 	"os"
 	"path/filepath"
-
-	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/storage/urlhandler"
-	"github.com/TBXark/sphere/utils/safe"
+	"strings"
 )
 
 var (
-	ErrorNotFound    = errors.New("file not found")
-	ErrorDistExisted = errors.New("destination file existed")
+	ErrorNotFound        = errors.New("file not found")
+	ErrorDistExisted     = errors.New("destination file existed")
+	ErrorFileOutsideRoot = errors.New("file path outside root dir")
 )
 
 type Config struct {
@@ -39,15 +40,29 @@ func NewClient(config *Config) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) filePath(key string) string {
-	key = filepath.Clean(key)
-	filePath := filepath.Join(c.config.RootDir, key)
-	return filePath
+func (c *Client) fixFilePath(key string) (string, error) {
+	rootDir, err := filepath.Abs(c.config.RootDir)
+	if err != nil {
+		return "", err
+	}
+	filePath, err := filepath.Abs(filepath.Join(c.config.RootDir, filepath.Clean(key)))
+	if err != nil {
+		return "", err
+	}
+	rootDir = filepath.Clean(rootDir)
+	filePath = filepath.Clean(filePath)
+	if !strings.HasPrefix(filePath, rootDir) {
+		return "", ErrorFileOutsideRoot
+	}
+	return filePath, nil
 }
 
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error) {
-	filePath := c.filePath(key)
-	err := os.MkdirAll(filepath.Dir(filePath), 0o750)
+	filePath, err := c.fixFilePath(key)
+	if err != nil {
+		return "", err
+	}
+	err = os.MkdirAll(filepath.Dir(filePath), 0o750)
 	if err != nil {
 		return "", err
 	}
@@ -73,7 +88,10 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 }
 
 func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
-	filePath := c.filePath(key)
+	filePath, err := c.fixFilePath(key)
+	if err != nil {
+		return nil, "", 0, err
+	}
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, "", 0, err
@@ -86,8 +104,11 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 }
 
 func (c *Client) DeleteFile(ctx context.Context, key string) error {
-	filePath := c.filePath(key)
-	err := os.Remove(filePath)
+	filePath, err := c.fixFilePath(key)
+	if err != nil {
+		return err
+	}
+	err = os.Remove(filePath)
 	if err != nil {
 		return err
 	}
@@ -113,31 +134,43 @@ func (c *Client) removeBeforeOverwrite(path string, overwrite bool) error {
 }
 
 func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourcePath := c.filePath(sourceKey)
-	destinationPath := c.filePath(destinationKey)
-	if err := os.MkdirAll(filepath.Dir(destinationPath), 0o750); err != nil {
+	sourcePath, err := c.fixFilePath(sourceKey)
+	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
+	destinationPath, err := c.fixFilePath(destinationKey)
+	if err != nil {
+		return err
+	}
+	if e := os.MkdirAll(filepath.Dir(destinationPath), 0o750); e != nil {
+		return e
+	}
+	if _, e := os.Stat(sourcePath); os.IsNotExist(e) {
 		return ErrorNotFound
 	}
-	if err := c.removeBeforeOverwrite(destinationPath, overwrite); err != nil {
-		return err
+	if e := c.removeBeforeOverwrite(destinationPath, overwrite); e != nil {
+		return e
 	}
-	if err := os.Rename(sourcePath, destinationPath); err != nil {
-		return err
+	if e := os.Rename(sourcePath, destinationPath); e != nil {
+		return e
 	}
 	return nil
 }
 
 func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourcePath := c.filePath(sourceKey)
-	destinationPath := c.filePath(destinationKey)
-	if err := os.MkdirAll(filepath.Dir(destinationPath), 0o750); err != nil {
+	sourcePath, err := c.fixFilePath(sourceKey)
+	if err != nil {
 		return err
 	}
-	if err := c.removeBeforeOverwrite(destinationPath, overwrite); err != nil {
+	destinationPath, err := c.fixFilePath(destinationKey)
+	if err != nil {
 		return err
+	}
+	if e := os.MkdirAll(filepath.Dir(destinationPath), 0o750); e != nil {
+		return e
+	}
+	if e := c.removeBeforeOverwrite(destinationPath, overwrite); e != nil {
+		return e
 	}
 	srcFile, err := os.Open(sourcePath)
 	if err != nil {
