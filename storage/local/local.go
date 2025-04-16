@@ -34,6 +34,9 @@ func NewClient(config *Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	if config.RootDir == "" {
+		return nil, errors.New("root_dir is required")
+	}
 	return &Client{
 		Handler: handler,
 		config:  config,
