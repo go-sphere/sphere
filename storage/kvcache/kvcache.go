@@ -65,6 +65,14 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	return key, nil
 }
 
+func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
+	data, err := c.cache.Get(ctx, key)
+	if err != nil {
+		return false, err
+	}
+	return data != nil, nil
+}
+
 func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
 	data, err := c.cache.Get(ctx, key)
 	if err != nil {

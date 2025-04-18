@@ -90,6 +90,21 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	return c.UploadFile(ctx, raw, 0, key)
 }
 
+func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
+	filePath, err := c.fixFilePath(key)
+	if err != nil {
+		return false, err
+	}
+	_, err = os.Stat(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {

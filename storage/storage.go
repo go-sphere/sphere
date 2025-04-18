@@ -28,6 +28,7 @@ type FileUploader interface {
 }
 
 type FileDownloader interface {
+	IsFileExists(ctx context.Context, key string) (bool, error)
 	DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) // reader, mime, size
 }
 
