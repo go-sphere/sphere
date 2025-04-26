@@ -1,7 +1,7 @@
 package mapper
 
 import (
-	"encoding/json"
+	"github.com/go-viper/mapstructure/v2"
 
 	"golang.org/x/exp/constraints"
 )
@@ -15,12 +15,18 @@ func Map[S any, T any](source []S, mapper func(S) T) []T {
 }
 
 func MapStruct[S any, T any](source *S) *T {
-	bytes, err := json.Marshal(source)
-	if err != nil {
-		return nil
-	}
+	//bytes, err := json.Marshal(source)
+	//if err != nil {
+	//	return nil
+	//}
+	//var target T
+	//err = json.Unmarshal(bytes, &target)
+	//if err != nil {
+	//	return nil
+	//}
+	//return &target
 	var target T
-	err = json.Unmarshal(bytes, &target)
+	err := mapstructure.Decode(source, &target)
 	if err != nil {
 		return nil
 	}
