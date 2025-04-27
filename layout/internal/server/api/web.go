@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"net/http"
+
 	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
 	"github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/service/api"
@@ -16,7 +18,6 @@ import (
 	"github.com/TBXark/sphere/server/route/cors"
 	"github.com/TBXark/sphere/storage"
 	"github.com/gin-gonic/gin"
-	"net/http"
 )
 
 type Web struct {
