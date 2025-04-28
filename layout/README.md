@@ -15,7 +15,7 @@ Alternatively, you can import this project in go mod and implement your own busi
 Sphere build tool. Usage: make [target]
 
   init                Init all dependencies
-  install             Install sphere tools
+  install             Install dependencies tools
   gen-proto           Generate proto files and run protoc plugins
   gen-ent             Generate ent code
   gen-docs            Generate swagger docs
@@ -23,7 +23,6 @@ Sphere build tool. Usage: make [target]
   gen-wire            Generate wire code
   gen-conf            Generate example config
   gen-all             Generate both ent, docs and wire
-  generate            Generate all code
   clean               Clean gen code and build files
   dash                Build dash
   build               Build binary
@@ -34,6 +33,7 @@ Sphere build tool. Usage: make [target]
   lint                Run linter
   fmt                 Run formatter
   build-docker        Build docker image
+  build-x-docker      Build multi-arch docker image
   help                Show this help message
 ```
 

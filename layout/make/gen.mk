@@ -1,13 +1,6 @@
 .PHONY: init
 init: ## Init all dependencies
 	go mod download
-	go get entgo.io/ent/cmd/ent@latest
-	go get github.com/google/wire/cmd/wire@latest
-	go install github.com/swaggo/swag/cmd/swag@latest
-	go install github.com/bufbuild/buf/cmd/buf@latest
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	go install github.com/favadi/protoc-go-inject-tag@latest
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.0.0
 	$(MAKE) install
 	$(MAKE) gen-ent
 	$(MAKE) gen-docs
@@ -16,20 +9,20 @@ init: ## Init all dependencies
 	go mod tidy
 
 .PHONY: install
-install: ## Install sphere tools
+install: ## Install dependencies tools
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 ifeq ($(IGNORE_INSTALL_SPHERE_TOOLS),1)
 	@echo "Skipping sphere tools installation as IGNORE_INSTALL_SPHERE_TOOLS=1"
 else
 	go install github.com/TBXark/sphere/contrib/protoc-gen-sphere@latest
 	go install github.com/TBXark/sphere/contrib/protoc-gen-route@latest
-	go install github.com/TBXark/sphere/contrib/ent-gen-proto@latest
 endif
 
 .PHONY: gen-proto
 gen-proto: ## Generate proto files and run protoc plugins
-	ent-gen-proto -path=./internal/pkg/database/schema
-	buf generate
-	protoc-go-inject-tag -input="./api/*/*/*.pb.go" -remove_tag_comment
+	go tool ent-gen-proto -path=./internal/pkg/database/schema
+	go tool buf generate
+	go tool protoc-go-inject-tag -input="./api/*/*/*.pb.go" -remove_tag_comment
 	go run ./cmd/cli/gen-bind --file ./internal/pkg/render/bind.go --mod $(MODULE)
 
 .PHONY: gen-ent
@@ -62,10 +55,6 @@ gen-all: clean ## Generate both ent, docs and wire
 	$(MAKE) gen-ent
 	$(MAKE) gen-docs
 	$(MAKE) gen-wire
-
-.PHONY: generate
-generate: ## Generate all code
-	go generate ./...
 
 .PHONY: clean
 clean: ## Clean gen code and build files

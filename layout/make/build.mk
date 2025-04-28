@@ -35,13 +35,13 @@ deploy: build-linux-amd64 ## Deploy binary
 
 .PHONY: lint
 lint: ## Run linter
-	golangci-lint run
-	buf lint
+	go tool golangci-lint run
+	go tool buf lint
 
 .PHONY: fmt
 fmt: ## Run formatter
-	golangci-lint fmt
-	golangci-lint run --fix
+	go tool golangci-lint fmt
+	go tool golangci-lint run --fix
 	go mod tidy
 	go fmt ./...
-	buf format
+	go tool buf format

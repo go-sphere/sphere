@@ -1,5 +1,5 @@
-//go:generate swag init --output ./swagger/api --tags api.v1,shared.v1 --instanceName API -g docs.go --parseDependency
-//go:generate swag init --output ./swagger/dash --tags dash.v1,shared.v1 --instanceName Dash -g docs.go --parseDependency
+//go:generate go tool swag init --output ./swagger/api --tags api.v1,shared.v1 --instanceName API -g docs.go --parseDependency
+//go:generate go tool swag init --output ./swagger/dash --tags dash.v1,shared.v1 --instanceName Dash -g docs.go --parseDependency
 
 package layout
 
