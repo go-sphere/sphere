@@ -1,6 +1,6 @@
 # protoc-gen-route
 
-This is a tool to generate common route code from proto files
+This is a protoc plugin to generate route code from proto files
 
 ## Installation
 
