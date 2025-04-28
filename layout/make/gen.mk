@@ -5,7 +5,7 @@ init: ## Init all dependencies
 	$(MAKE) gen-ent
 	$(MAKE) gen-docs
 	$(MAKE) gen-wire
-	buf dep update
+	go tool buf dep update
 	go mod tidy
 
 .PHONY: install
