@@ -67,8 +67,7 @@ github.com/OpenPeeDeeP/depguard/v2 v2.2.1 h1:vckeWVESWp6Qog7UZSARNqfu/cZqvki8zsu
 github.com/OpenPeeDeeP/depguard/v2 v2.2.1/go.mod h1:q4DKzC4UcVaAvcfd41CZh0PWpGgzrVxUYBlgKNGquUo=
 github.com/TBXark/confstore v0.0.3 h1:d+djx1k6lh6E9UZsPKXpigYZk0z1j5KoMuhwgb2LLMg=
 github.com/TBXark/confstore v0.0.3/go.mod h1:TOxM19Snt9wT02PJzyz66sgq7sWhr4AFzPEZIKvVnTE=
-github.com/TBXark/jsoncompressor v0.0.0-20250220144542-bbb0ba981919 h1:sxewEc5ioUQSsmXoxlIR48lcOMuAnHUejV6LTmLXrfY=
-github.com/TBXark/jsoncompressor v0.0.0-20250220144542-bbb0ba981919/go.mod h1:Le17YSrfvfVgsIlzJpjc7zvxwtzTwshAguHcrQqJY/E=
+github.com/TBXark/jsoncompressor v0.0.1 h1:C2hshiwpS5ziO7wbPFnDKnxRKPeRq2vyybWHVoGeLbc=
 github.com/TBXark/jsoncompressor v0.0.1/go.mod h1:Le17YSrfvfVgsIlzJpjc7zvxwtzTwshAguHcrQqJY/E=
 github.com/TBXark/sphere/contrib/ent-gen-proto v0.0.0-20250427020708-54e5d1f6b0c7 h1:DhS1ECU7JZaqsd+VxjSC10yg3sWm1GLPfrI88dUdpus=
 github.com/TBXark/sphere/contrib/ent-gen-proto v0.0.0-20250427020708-54e5d1f6b0c7/go.mod h1:scbG69UctWgjldi+sbhAQQ7A4o4vM+6lfEAzLWqTaG8=
