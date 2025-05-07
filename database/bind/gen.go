@@ -2,11 +2,12 @@ package bind
 
 import (
 	"fmt"
-	"github.com/iancoleman/strcase"
 	"reflect"
 	"strings"
 	"text/template"
 	"unicode"
+
+	"github.com/iancoleman/strcase"
 )
 
 func getPublicFields(obj interface{}, keyMapper func(s string) string) ([]string, map[string]reflect.StructField) {

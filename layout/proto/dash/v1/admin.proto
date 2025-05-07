@@ -20,7 +20,7 @@ service AdminService {
   }
   rpc AdminUpdate(AdminUpdateRequest) returns (AdminUpdateResponse) {
     option (google.api.http) = {
-      post: "/api/admin/update/{id}"
+      post: "/api/admin/update"
       body: "*"
     };
   }
@@ -42,13 +42,6 @@ service AdminService {
   }
 }
 
-message AdminEdit {
-  string avatar = 1;
-  string username = 2;
-  string nickname = 3;
-  string password = 4;
-  repeated string roles = 5;
-}
 
 message AdminListRequest {
 }
@@ -58,7 +51,7 @@ message AdminListResponse {
 }
 
 message AdminCreateRequest {
-  AdminEdit admin = 1;
+  entpb.Admin admin = 1;
 }
 
 message AdminCreateResponse {
@@ -66,8 +59,7 @@ message AdminCreateResponse {
 }
 
 message AdminUpdateRequest {
-  int64 id = 1; // @gotags: json:"-"` uri:"id"`
-  AdminEdit admin = 2;
+  entpb.Admin admin = 1;
 }
 
 message AdminUpdateResponse {

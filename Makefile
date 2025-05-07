@@ -7,7 +7,7 @@ install: ## Install all dependencies
 
 .PHONY: lint
 lint: ## Run linter
-	golangci-lint run
+	go tool golangci-lint run
 
 .PHONY: fmt
 fmt: ## Format code

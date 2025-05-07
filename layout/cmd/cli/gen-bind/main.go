@@ -9,8 +9,9 @@ import (
 	"strings"
 
 	"github.com/TBXark/sphere/database/bind"
-	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
+	"github.com/TBXark/sphere/layout/api/entpb"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
 )
 
 func Gen(mod string) string {
@@ -20,13 +21,19 @@ package render
 
 import (
 	"github.com/TBXark/sphere/database/bind"
-	dashv1 "%s/api/dash/v1"
+	"%s/api/entpb"
 	"%s/internal/pkg/database/ent"
 )
 
 `, mod, mod))
 	for _, act := range []any{ent.AdminCreate{}, ent.AdminUpdateOne{}} {
-		sb.WriteString(bind.Gen(bind.NewGenConf(ent.Admin{}, dashv1.AdminEdit{}, act).WithTargetPkgName("dashv1")))
+		sb.WriteString(
+			bind.Gen(
+				bind.NewGenConf(ent.Admin{}, entpb.Admin{}, act).
+					WithTargetPkgName("entpb").
+					WithIgnoreFields(admin.FieldCreatedAt, admin.FieldUpdatedAt),
+			),
+		)
 	}
 	return sb.String()
 }

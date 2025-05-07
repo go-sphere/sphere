@@ -3,12 +3,17 @@ package render
 
 import (
 	"github.com/TBXark/sphere/database/bind"
-	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
+	"github.com/TBXark/sphere/layout/api/entpb"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 )
 
-func CreateAdmin(source *ent.AdminCreate, target *dashv1.AdminEdit, options ...bind.Options) *ent.AdminCreate {
+func CreateAdmin(source *ent.AdminCreate, target *entpb.Admin, options ...bind.Options) *ent.AdminCreate {
 	option := bind.NewGenOptions(options...)
+	if option.CanSetField("id") {
+		if !option.IgnoreSetZero("id") || !(target.Id == 0) {
+			source.SetID(target.Id)
+		}
+	}
 	if option.CanSetField("username") {
 		if !option.IgnoreSetZero("username") || !(target.Username == "") {
 			source.SetUsername(target.Username)
@@ -37,7 +42,7 @@ func CreateAdmin(source *ent.AdminCreate, target *dashv1.AdminEdit, options ...b
 	return source
 }
 
-func UpdateOneAdmin(source *ent.AdminUpdateOne, target *dashv1.AdminEdit, options ...bind.Options) *ent.AdminUpdateOne {
+func UpdateOneAdmin(source *ent.AdminUpdateOne, target *entpb.Admin, options ...bind.Options) *ent.AdminUpdateOne {
 	option := bind.NewGenOptions(options...)
 	if option.CanSetField("username") {
 		if !option.IgnoreSetZero("username") || !(target.Username == "") {

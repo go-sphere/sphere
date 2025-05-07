@@ -77,7 +77,11 @@ func (s *Service) AdminUpdate(ctx context.Context, req *dashv1.AdminUpdateReques
 	if req.Admin.Password != "" {
 		req.Admin.Password = secure.CryptPassword(req.Admin.Password)
 	}
-	u, err := render.UpdateOneAdmin(s.db.Admin.UpdateOneID(req.Id), req.Admin, bind.IgnoreSetZeroField(admin.FieldPassword)).Save(ctx)
+	u, err := render.UpdateOneAdmin(
+		s.db.Admin.UpdateOneID(req.Admin.Id),
+		req.Admin,
+		bind.IgnoreSetZeroField(admin.FieldPassword),
+	).Save(ctx)
 	if err != nil {
 		return nil, err
 	}

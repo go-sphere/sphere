@@ -1,6 +1,10 @@
 module github.com/TBXark/sphere
 
-go 1.23.2
+go 1.23.4
+
+toolchain go1.24.2
+
+tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 
 require (
 	entgo.io/ent v0.14.4
@@ -282,5 +286,3 @@ require (
 	mvdan.cc/gofumpt v0.8.0 // indirect
 	mvdan.cc/unparam v0.0.0-20250301125049-0df0534333a4 // indirect
 )
-
-tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
