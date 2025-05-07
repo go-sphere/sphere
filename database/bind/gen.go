@@ -2,22 +2,12 @@ package bind
 
 import (
 	"fmt"
+	"github.com/iancoleman/strcase"
 	"reflect"
 	"strings"
 	"text/template"
 	"unicode"
 )
-
-func pascalCaseToSnakeCase(str string) string {
-	result := make([]rune, 0, len(str)*2)
-	for i, r := range str {
-		if i > 0 && unicode.IsUpper(r) {
-			result = append(result, '_')
-		}
-		result = append(result, unicode.ToLower(r))
-	}
-	return string(result)
-}
 
 func getPublicFields(obj interface{}, keyMapper func(s string) string) ([]string, map[string]reflect.StructField) {
 	val := reflect.ValueOf(obj)
@@ -237,9 +227,9 @@ func Gen(conf *GenConf) string {
 	targetName := getStructName(conf.target)
 	funcName := strings.Replace(actionName, sourceName, "", 1) + sourceName
 
-	keys, sourceFields := getPublicFields(conf.source, pascalCaseToSnakeCase)
-	_, targetFields := getPublicFields(conf.target, pascalCaseToSnakeCase)
-	_, actionMethods := getPublicMethods(conf.action, nil)
+	keys, sourceFields := getPublicFields(conf.source, strcase.ToSnake)
+	_, targetFields := getPublicFields(conf.target, strcase.ToSnake)
+	_, actionMethods := getPublicMethods(conf.action, strcase.ToSnake)
 
 	context := GenContext{
 		SourcePkgName: conf.SourcePkgName,
@@ -270,12 +260,12 @@ func Gen(conf *GenConf) string {
 			continue
 		}
 
-		setter, hasSetter := actionMethods[fmt.Sprintf("Set%s", targetField.Name)]
+		setter, hasSetter := actionMethods[strcase.ToSnake(fmt.Sprintf("Set%s", targetField.Name))]
 		if !hasSetter {
 			continue
 		}
-		settNillable, hasSettNillable := actionMethods[fmt.Sprintf("SetNillable%s", targetField.Name)]
-		clearOnNil, hasClearOnNil := actionMethods[fmt.Sprintf("Clear%s", targetField.Name)]
+		settNillable, hasSettNillable := actionMethods[strcase.ToSnake(fmt.Sprintf("SetNillable%s", targetField.Name))]
+		clearOnNil, hasClearOnNil := actionMethods[strcase.ToSnake(fmt.Sprintf("Clear%s", targetField.Name))]
 		targetFieldIsPtr := targetField.Type.Kind() == reflect.Ptr
 
 		field := GenFieldContext{
@@ -302,7 +292,7 @@ func Gen(conf *GenConf) string {
 
 	parse, err := template.New("gen").Funcs(template.FuncMap{
 		"GenZeroCheck": genZeroCheck,
-		"ToSnakeCase":  pascalCaseToSnakeCase,
+		"ToSnakeCase":  strcase.ToSnake,
 	}).Parse(genTemplate)
 	if err != nil {
 		return ""

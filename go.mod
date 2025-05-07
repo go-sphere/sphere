@@ -13,6 +13,7 @@ require (
 	github.com/go-telegram/bot v1.14.2
 	github.com/go-viper/mapstructure/v2 v2.2.1
 	github.com/golang-jwt/jwt/v5 v5.2.2
+	github.com/iancoleman/strcase v0.3.0
 	github.com/meilisearch/meilisearch-go v0.31.0
 	github.com/minio/minio-go/v7 v7.0.91
 	github.com/patrickmn/go-cache v2.1.0+incompatible
