@@ -2,16 +2,14 @@ package dash
 
 import (
 	"context"
+	"github.com/TBXark/sphere/database/mapper"
 
 	"github.com/TBXark/sphere/database/bind"
 	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
-	"github.com/TBXark/sphere/layout/api/entpb"
-	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
 	"github.com/TBXark/sphere/layout/internal/pkg/render"
 	"github.com/TBXark/sphere/server/statuserr"
 	"github.com/TBXark/sphere/utils/secure"
-	"github.com/samber/lo"
 )
 
 var _ dashv1.AdminServiceHTTPServer = (*Service)(nil)
@@ -67,9 +65,7 @@ func (s *Service) AdminList(ctx context.Context, req *dashv1.AdminListRequest) (
 		return nil, err
 	}
 	return &dashv1.AdminListResponse{
-		Admins: lo.Map(all, func(admin *ent.Admin, i int) *entpb.Admin {
-			return s.render.AdminFull(admin)
-		}),
+		Admins: mapper.Map(all, s.render.AdminFull),
 	}, nil
 }
 

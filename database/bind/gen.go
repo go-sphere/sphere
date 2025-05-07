@@ -115,9 +115,10 @@ func genZeroCheck(sourceName string, field reflect.StructField) string {
 }
 
 type GenOptions struct {
-	IgnoreSetZeroFields map[string]struct{}
-	ClearOnNilFields    map[string]struct{}
-	IgnoreFields        map[string]struct{}
+	ignoreSetZeroFields map[string]struct{}
+	clearOnNilFields    map[string]struct{}
+	ignoreFields        map[string]struct{}
+	keepFieldsOnly      map[string]struct{}
 }
 
 func NewGenOptions(options ...Options) *GenOptions {
@@ -132,58 +133,73 @@ type Options func(*GenOptions)
 
 func IgnoreSetZeroField(fields ...string) Options {
 	return func(o *GenOptions) {
-		if o.IgnoreSetZeroFields == nil {
-			o.IgnoreSetZeroFields = make(map[string]struct{}, len(fields))
+		if o.ignoreSetZeroFields == nil {
+			o.ignoreSetZeroFields = make(map[string]struct{}, len(fields))
 		}
 		for _, field := range fields {
-			o.IgnoreSetZeroFields[field] = struct{}{}
+			o.ignoreSetZeroFields[field] = struct{}{}
 		}
 	}
 }
 
 func ClearOnNilField(fields ...string) Options {
 	return func(o *GenOptions) {
-		if o.ClearOnNilFields == nil {
-			o.ClearOnNilFields = make(map[string]struct{}, len(fields))
+		if o.clearOnNilFields == nil {
+			o.clearOnNilFields = make(map[string]struct{}, len(fields))
 		}
 		for _, field := range fields {
-			o.ClearOnNilFields[field] = struct{}{}
+			o.clearOnNilFields[field] = struct{}{}
 		}
 	}
 }
 
 func IgnoreField(fields ...string) Options {
 	return func(o *GenOptions) {
-		if o.IgnoreFields == nil {
-			o.IgnoreFields = make(map[string]struct{}, len(fields))
+		if o.ignoreFields == nil {
+			o.ignoreFields = make(map[string]struct{}, len(fields))
 		}
 		for _, field := range fields {
-			o.IgnoreFields[field] = struct{}{}
+			o.ignoreFields[field] = struct{}{}
+		}
+	}
+}
+
+func KeepFieldsOnly(fields ...string) Options {
+	return func(o *GenOptions) {
+		if o.keepFieldsOnly == nil {
+			o.keepFieldsOnly = make(map[string]struct{}, len(fields))
+		}
+		for _, field := range fields {
+			o.keepFieldsOnly[field] = struct{}{}
 		}
 	}
 }
 
 func (o *GenOptions) ClearOnNil(field string) bool {
-	if o.ClearOnNilFields == nil {
+	if o.clearOnNilFields == nil {
 		return false
 	}
-	_, ok := o.ClearOnNilFields[field]
+	_, ok := o.clearOnNilFields[field]
 	return ok
 }
 
 func (o *GenOptions) IgnoreSetZero(field string) bool {
-	if o.IgnoreSetZeroFields == nil {
+	if o.ignoreSetZeroFields == nil {
 		return false
 	}
-	_, ok := o.IgnoreSetZeroFields[field]
+	_, ok := o.ignoreSetZeroFields[field]
 	return ok
 }
 
 func (o *GenOptions) CanSetField(field string) bool {
-	if o.IgnoreFields == nil {
+	if o.keepFieldsOnly != nil {
+		_, ok := o.keepFieldsOnly[field]
+		return ok
+	}
+	if o.ignoreFields == nil {
 		return true
 	}
-	_, ok := o.IgnoreFields[field]
+	_, ok := o.ignoreFields[field]
 	return !ok
 }
 
