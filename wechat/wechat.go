@@ -41,7 +41,9 @@ func NewWechat(config *Config) *Wechat {
 	}
 	return &Wechat{
 		config: config,
-		client: resty.New().SetTimeout(time.Second * 30),
+		client: resty.New().
+			SetTimeout(time.Second * 30).
+			SetBaseURL("https://api.weixin.qq.com"),
 	}
 }
 
@@ -66,6 +68,7 @@ func loadSuccessResponse[T any](resp *resty.Response, check func(*T) error) (*T,
 
 func (w *Wechat) Auth(ctx context.Context, code string) (*AuthResponse, error) {
 	resp, err := w.client.R().
+		Clone(ctx).
 		SetQueryParams(map[string]string{
 			"appid":      w.config.AppID,
 			"secret":     w.config.AppSecret,
@@ -74,8 +77,7 @@ func (w *Wechat) Auth(ctx context.Context, code string) (*AuthResponse, error) {
 		}).
 		SetResult(&AuthResponse{}).
 		SetError(&EmptyResponse{}).
-		Clone(ctx).
-		Get("https://api.weixin.qq.com/sns/jscode2session")
+		Get("/sns/jscode2session")
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +95,7 @@ func (w *Wechat) GetAccessToken(ctx context.Context, reload bool) (string, error
 		return w.accessToken, nil
 	}
 	resp, err := w.client.R().
+		Clone(ctx).
 		SetQueryParams(map[string]string{
 			"grant_type": "client_credential",
 			"appid":      w.config.AppID,
@@ -100,8 +103,7 @@ func (w *Wechat) GetAccessToken(ctx context.Context, reload bool) (string, error
 		}).
 		SetResult(&AccessTokenResponse{}).
 		SetError(&EmptyResponse{}).
-		Clone(ctx).
-		Get("https://api.weixin.qq.com/cgi-bin/token")
+		Get("/cgi-bin/token")
 	if err != nil {
 		return "", err
 	}
@@ -155,13 +157,13 @@ func (w *Wechat) GetQrCode(ctx context.Context, code QrCodeRequest, options ...R
 		code.EnvVersion = w.config.Env.String()
 	}
 	resp, err := w.client.R().
+		Clone(ctx).
 		SetQueryParams(map[string]string{
 			"access_token": token,
 		}).
 		SetBody(code).
 		SetError(&EmptyResponse{}).
-		Clone(ctx).
-		Post("https://api.weixin.qq.com/wxa/getwxacodeunlimit")
+		Post("/wxa/getwxacodeunlimit")
 	if err != nil {
 		return nil, err
 	}
@@ -207,14 +209,14 @@ func (w *Wechat) SendMessage(ctx context.Context, msg SubscribeMessageRequest, o
 		}
 	}
 	resp, err := w.client.R().
+		Clone(ctx).
 		SetQueryParams(map[string]string{
 			"access_token": token,
 		}).
 		SetBody(msg).
 		SetResult(&EmptyResponse{}).
 		SetError(&EmptyResponse{}).
-		Clone(ctx).
-		Post("https://api.weixin.qq.com/cgi-bin/message/subscribe/send")
+		Post("/cgi-bin/message/subscribe/send")
 	if err != nil {
 		return err
 	}
@@ -262,14 +264,14 @@ func (w *Wechat) GetUserPhoneNumber(ctx context.Context, code string, options ..
 		return nil, err
 	}
 	resp, err := w.client.R().
+		Clone(ctx).
 		SetQueryParams(map[string]string{
 			"access_token": token,
 		}).
 		SetBody(map[string]string{"code": code}).
 		SetResult(&GetUserPhoneNumberResponse{}).
 		SetError(&EmptyResponse{}).
-		Clone(ctx).
-		Post("https://api.weixin.qq.com/wxa/business/getuserphonenumber")
+		Post("/wxa/business/getuserphonenumber")
 	if err != nil {
 		return nil, err
 	}
