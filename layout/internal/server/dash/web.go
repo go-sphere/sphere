@@ -54,7 +54,7 @@ func (w *Web) Start(ctx context.Context) error {
 	zapLogger := log.ZapLogger().With(logfields.String("module", "dash"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
-	authMiddleware := auth.NewAuthMiddleware(jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, true)
+	authMiddleware := auth.NewAuthMiddleware[int64](jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, true)
 	rateLimiter := ratelimiter.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
 	engine := gin.New()
