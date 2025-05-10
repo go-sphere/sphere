@@ -24,7 +24,7 @@ func abort(ctx *gin.Context, abortOnError bool) {
 	}
 }
 
-func parserToken(ctx *gin.Context, raw string, loader func(text string) (string, error), parser authorizer.Parser[authorizer.RBACClaims[int64]], abortOnError bool) {
+func parserToken[T authorizer.UID](ctx *gin.Context, raw string, loader func(text string) (string, error), parser authorizer.Parser[authorizer.RBACClaims[T]], abortOnError bool) {
 	token, err := loader(raw)
 	if err != nil {
 		abort(ctx, abortOnError)
@@ -40,7 +40,7 @@ func parserToken(ctx *gin.Context, raw string, loader func(text string) (string,
 	ctx.Set(authorizer.ContextKeyRoles, claims.Roles)
 }
 
-func NewAuthMiddleware(prefix string, parser authorizer.Parser[authorizer.RBACClaims[int64]], abortOnError bool) gin.HandlerFunc {
+func NewAuthMiddleware[T authorizer.UID](prefix string, parser authorizer.Parser[authorizer.RBACClaims[T]], abortOnError bool) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader(AuthorizationHeader)
 		if token == "" {
@@ -56,7 +56,7 @@ func NewAuthMiddleware(prefix string, parser authorizer.Parser[authorizer.RBACCl
 	}
 }
 
-func NewCookieAuthMiddleware(cookieName string, loader func(raw string) (string, error), parser authorizer.Parser[authorizer.RBACClaims[int64]], abortOnError bool) gin.HandlerFunc {
+func NewCookieAuthMiddleware[T authorizer.UID](cookieName string, loader func(raw string) (string, error), parser authorizer.Parser[authorizer.RBACClaims[T]], abortOnError bool) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		token, err := ctx.Cookie(cookieName)
 		if err != nil {
