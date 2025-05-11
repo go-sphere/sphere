@@ -54,7 +54,7 @@ func parseError(err error) (code int, status int, message string) {
 	if errors.As(err, &ce) {
 		code = ce.Code()
 	} else {
-		code = 500
+		code = status
 	}
 	message = err.Error()
 	return
