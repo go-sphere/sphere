@@ -14,6 +14,9 @@ func Map[S any, T any](source []S, mapper func(S) T) []T {
 }
 
 func MapStruct[S any, T any](source *S) *T {
+	if source == nil {
+		return nil
+	}
 	var target T
 	err := mapstructure.WeakDecode(source, &target)
 	if err != nil {
