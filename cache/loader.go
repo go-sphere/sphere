@@ -65,6 +65,9 @@ func LoadEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, d D, 
 		if nErr != nil {
 			return nil, nErr
 		}
+		if nObj == nil {
+			return nil, nil
+		}
 		nErr = Save[T, E](ctx, c, e, key, nObj, expiration)
 		if nErr != nil {
 			return nObj, nErr
@@ -73,6 +76,9 @@ func LoadEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, d D, 
 	})
 	if err != nil {
 		return nil, err
+	}
+	if build == nil {
+		return nil, nil
 	}
 	return build.(*T), nil
 }
