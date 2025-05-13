@@ -33,16 +33,19 @@ func abortForbidden(ctx *gin.Context) {
 	})
 }
 
-func parserToken[T authorizer.UID](ctx *gin.Context, raw string, loader func(text string) (string, error), parser authorizer.Parser[authorizer.RBACClaims[T]]) error {
-	if raw == "" {
-		return errTokenNotFound
-	}
-	token, err := loader(raw)
-	if err != nil {
-		return err
-	}
+func parserToken[T authorizer.UID](ctx *gin.Context, token string, transform func(text string) (string, error), parser authorizer.Parser[authorizer.RBACClaims[T]]) error {
 	if token == "" {
 		return errTokenNotFound
+	}
+	if transform != nil {
+		tranToken, err := transform(token)
+		if err != nil {
+			return err
+		}
+		if tranToken == "" {
+			return errTokenNotFound
+		}
+		token = tranToken
 	}
 	claims, err := parser.ParseToken(token)
 	if err != nil {
@@ -59,30 +62,35 @@ func NewAuthMiddleware[T authorizer.UID](prefix string, parser authorizer.Parser
 	if len(prefix) > 0 {
 		prefix = prefix + " "
 	}
-	return func(ctx *gin.Context) {
-		token := ctx.GetHeader(AuthorizationHeader)
-		err := parserToken(ctx, token, func(text string) (string, error) {
+	return NewCommonAuthMiddleware[T](
+		func(ctx *gin.Context) (string, error) {
+			return ctx.GetHeader(AuthorizationHeader), nil
+		},
+		func(token string) (string, error) {
 			if len(prefix) > 0 && strings.HasPrefix(token, prefix) {
 				token = strings.TrimSpace(strings.TrimPrefix(token, prefix))
 			}
 			return token, nil
-		}, parser)
-		if err != nil && abortOnError {
-			abortUnauthorized(ctx)
-			return
-		}
-		ctx.Next()
-	}
+		},
+		parser,
+		abortOnError,
+	)
 }
 
-func NewCookieAuthMiddleware[T authorizer.UID](cookieName string, loader func(raw string) (string, error), parser authorizer.Parser[authorizer.RBACClaims[T]], abortOnError bool) gin.HandlerFunc {
+func NewCookieAuthMiddleware[T authorizer.UID](cookieName string, transform func(raw string) (string, error), parser authorizer.Parser[authorizer.RBACClaims[T]], abortOnError bool) gin.HandlerFunc {
+	return NewCommonAuthMiddleware[T](func(ctx *gin.Context) (string, error) {
+		return ctx.Cookie(cookieName)
+	}, transform, parser, abortOnError)
+}
+
+func NewCommonAuthMiddleware[T authorizer.UID](loader func(ctx *gin.Context) (string, error), transform func(text string) (string, error), parser authorizer.Parser[authorizer.RBACClaims[T]], abortOnError bool) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		token, err := ctx.Cookie(cookieName)
+		token, err := loader(ctx)
 		if err != nil && abortOnError {
 			abortUnauthorized(ctx)
 			return
 		}
-		err = parserToken(ctx, token, loader, parser)
+		err = parserToken(ctx, token, transform, parser)
 		if err != nil && abortOnError {
 			abortUnauthorized(ctx)
 			return
