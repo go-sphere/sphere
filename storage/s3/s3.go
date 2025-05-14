@@ -105,6 +105,17 @@ func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	return info.Key, nil
 }
 
+func (s *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
+	_, err := s.client.StatObject(ctx, s.config.Bucket, key, minio.StatObjectOptions{})
+	if err != nil {
+		if minio.ToErrorResponse(err).Code == "NoSuchKey" {
+			return false, ErrorNotFound
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (s *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
 	object, err := s.client.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
 	if err != nil {
