@@ -43,7 +43,7 @@ func (e *Error) Code() int {
 	return e.code
 }
 
-func parseError(err error) (code int, status int, message string) {
+func ParseError(err error) (code int, status int, message string) {
 	var se statusError
 	if errors.As(err, &se) {
 		status = se.Status()

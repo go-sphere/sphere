@@ -9,7 +9,13 @@ import (
 )
 
 type Context = gin.Context
+type ErrorParser func(error) (int, int, string)
 
+var defaultErrorParser ErrorParser = ParseError
+
+func SetDefaultErrorParser(parser ErrorParser) {
+	defaultErrorParser = parser
+}
 func Value[T any](key string, ctx *gin.Context) (*T, bool) {
 	v, exists := ctx.Get(key)
 	if !exists {
@@ -22,7 +28,7 @@ func Value[T any](key string, ctx *gin.Context) (*T, bool) {
 }
 
 func AbortWithJsonError(ctx *gin.Context, err error) {
-	code, status, message := parseError(err)
+	code, status, message := defaultErrorParser(err)
 	ctx.AbortWithStatusJSON(status, ErrorResponse{
 		Code:    code,
 		Message: message,
