@@ -8,7 +8,6 @@ import (
 	"github.com/TBXark/sphere/storage"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
 )
 
@@ -55,9 +54,8 @@ func (c *CommonCache) Delete(ctx context.Context, key string) error {
 }
 
 func (c *CommonCache) Save(ctx context.Context, key string, header http.Header, reader io.Reader) error {
-	size, _ := strconv.Atoi(header.Get("Content-Length"))
 	filename := key //base64.URLEncoding.EncodeToString([]byte(key))
-	cacheFileKey, err := c.storage.UploadFile(ctx, reader, int64(size), filename)
+	cacheFileKey, err := c.storage.UploadFile(ctx, reader, filename)
 	if err != nil {
 		return err
 	}

@@ -92,7 +92,7 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 		return "", err
 	}
 	defer safe.IfErrorPresent("close file", raw.Close)
-	return c.UploadFile(ctx, raw, 0, key)
+	return c.UploadFile(ctx, raw, key)
 }
 
 func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {

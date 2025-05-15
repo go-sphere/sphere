@@ -8,6 +8,7 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/TBXark/sphere/cache"
 	"github.com/TBXark/sphere/log"
@@ -20,8 +21,8 @@ var (
 )
 
 type Config struct {
-	Expires    int64  `json:"expires" yaml:"expires"`
-	PublicBase string `json:"public_base" yaml:"public_base"`
+	Expires    time.Duration `json:"expires" yaml:"expires"`
+	PublicBase string        `json:"public_base" yaml:"public_base"`
 }
 
 type Client struct {
