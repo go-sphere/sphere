@@ -29,7 +29,12 @@ func (a *Application) Identifier() string {
 
 func (a *Application) Start(ctx context.Context) error {
 	for i, task := range a.tasks {
-		err := a.manager.RunTask(ctx, fmt.Sprintf("%d:%s", i, task.Identifier()), task, false)
+		err := a.manager.StartTask(
+			ctx,
+			fmt.Sprintf("%d:%s", i, task.Identifier()),
+			task,
+			WithStopGroupOnError(),
+		)
 		if err != nil {
 			return err
 		}
@@ -38,5 +43,5 @@ func (a *Application) Start(ctx context.Context) error {
 }
 
 func (a *Application) Stop(ctx context.Context) error {
-	return a.manager.Stop(ctx)
+	return a.manager.StopAll(ctx)
 }

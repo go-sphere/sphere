@@ -27,13 +27,30 @@ func NewManager() *Manager {
 	}
 }
 
-func (m *Manager) RunTask(ctx context.Context, name string, task Task, ignoreStartError bool) error {
+type StartOptions struct {
+	stopGroupOnError bool
+}
+
+type StartOption func(*StartOptions)
+
+func WithStopGroupOnError() func(*StartOptions) {
+	return func(opts *StartOptions) {
+		opts.stopGroupOnError = true
+	}
+}
+
+func (m *Manager) StartTask(ctx context.Context, name string, task Task, options ...StartOption) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if _, ok := m.tasks[name]; ok {
+		m.mu.Unlock()
 		return ErrTaskAlreadyExists
 	}
 	m.tasks[name] = task
+	m.mu.Unlock()
+	opts := &StartOptions{}
+	for _, opt := range options {
+		opt(opts)
+	}
 	m.runningGroup.Go(func() error {
 		log.Infof("<Manager> %s starting", name)
 		err := execute(ctx, name, task, func(ctx context.Context, task Task) error {
@@ -41,12 +58,11 @@ func (m *Manager) RunTask(ctx context.Context, name string, task Task, ignoreSta
 		})
 		if err != nil {
 			logTaskError(task, name, err)
-			if ignoreStartError {
-				return nil
+			if opts.stopGroupOnError {
+				return err
 			}
-			return err
+			return nil
 		}
-		log.Infof("<Manager> %s started", name)
 		return nil
 	})
 	return nil
@@ -84,12 +100,20 @@ func (m *Manager) StopAll(ctx context.Context) error {
 	for name, task := range tasks {
 		stopGroup.Add(1)
 		go func() {
+			defer stopGroup.Done()
+			log.Infof("<Manager> %s stopping", name)
 			err := execute(ctx, name, task, func(ctx context.Context, task Task) error {
 				return task.Stop(ctx)
 			})
-			stopErrs.Add(err)
+			if err != nil {
+				stopErrs.Add(err)
+				return
+			}
+			log.Infof("<Manager> %s stopped", name)
 		}()
 	}
+	stopGroup.Wait()
+
 	return errors.Join(
 		stopErrs.Err(),
 		m.runningGroup.Wait(),
