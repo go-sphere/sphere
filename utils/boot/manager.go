@@ -39,6 +39,8 @@ func (m *Manager) RunTask(ctx context.Context, name string, task Task) error {
 		defer func() {
 			if r := recover(); r != nil {
 				logTaskPanic(task, name, r)
+				err := fmt.Errorf("%s panic: %v", name, r)
+				m.runningErrs.add(err)
 			}
 		}()
 		defer func() {
@@ -48,8 +50,7 @@ func (m *Manager) RunTask(ctx context.Context, name string, task Task) error {
 		}()
 		defer m.runningGroup.Done()
 		log.Infof("<Manager> %s starting", name)
-		err := task.Start(ctx)
-		if err != nil {
+		if err := task.Start(ctx); err != nil {
 			logTaskError(task, name, err)
 			m.runningErrs.add(err)
 			return
@@ -94,6 +95,8 @@ func (m *Manager) StopAll(ctx context.Context) error {
 			defer func() {
 				if r := recover(); r != nil {
 					logTaskPanic(task, name, r)
+					err := fmt.Errorf("%s panic: %v", name, r)
+					stopErrs.add(err)
 				}
 			}()
 			defer stopGroup.Done()
@@ -101,6 +104,7 @@ func (m *Manager) StopAll(ctx context.Context) error {
 			if err := task.Stop(ctx); err != nil {
 				logTaskError(task, name, err)
 				stopErrs.add(err)
+				return
 			}
 			log.Infof("<Manager> %s stopped", name)
 		}(name, task)
