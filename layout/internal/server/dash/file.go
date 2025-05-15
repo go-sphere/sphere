@@ -21,7 +21,7 @@ func (w *Web) UploadFile(ctx *gin.Context) (gin.H, error) {
 		return nil, err
 	}
 	filename := storage.DefaultKeyBuilder("dash")(file.Filename, "upload")
-	result, err := w.storage.UploadFile(ctx, read, file.Size, filename)
+	result, err := w.storage.UploadFile(ctx, read, filename)
 	if err != nil {
 		return nil, err
 	}

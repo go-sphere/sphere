@@ -65,7 +65,7 @@ func (c *Client) fixFilePath(key string) (string, error) {
 	return filePath, nil
 }
 
-func (c *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error) {
+func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
 		return "", err

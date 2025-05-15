@@ -1,6 +1,10 @@
 # Sphere
 
-**Sphere** is a multi-server application template. **Sphere** aims to provide a simple, fast, and maintainable multi-server application template. All modules are replaceable, and you can replace modules according to your needs. You can customize your own microservice framework without being limited.
+> This project is under development. APIs may change at any time. Please use it with caution.
+
+**Sphere** is a multiserver application template. **Sphere** aims to provide a simple, fast, and maintainable
+multiserver application template. All modules are replaceable, and you can replace modules according to your needs. You
+can customize your own microservice framework without being limited.
 
 
 ## Features

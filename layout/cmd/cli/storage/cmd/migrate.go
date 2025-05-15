@@ -77,7 +77,7 @@ func runMigrate(cmd *cobra.Command, args []string) {
 			log.Errorf("get file error: %v", e)
 			continue
 		}
-		ret, e := upload.UploadFile(ctx, resp.Body, resp.ContentLength, key)
+		ret, e := upload.UploadFile(ctx, resp.Body, key)
 		if e != nil {
 			log.Errorf("upload file error: %v", e)
 			continue

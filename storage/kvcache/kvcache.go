@@ -20,6 +20,7 @@ var (
 )
 
 type Config struct {
+	Expires    int64  `json:"expires" yaml:"expires"`
 	PublicBase string `json:"public_base" yaml:"public_base"`
 }
 
@@ -34,6 +35,9 @@ func NewClient(config *Config, cache cache.ByteCache) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	if config.Expires == 0 {
+		config.Expires = -1
+	}
 	return &Client{
 		Handler: handler,
 		config:  config,
@@ -41,12 +45,12 @@ func NewClient(config *Config, cache cache.ByteCache) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error) {
+func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	all, err := io.ReadAll(file)
 	if err != nil {
 		return "", err
 	}
-	err = c.cache.Set(ctx, key, all, -1)
+	err = c.cache.Set(ctx, key, all, c.config.Expires)
 	if err != nil {
 		return "", err
 	}
@@ -58,7 +62,7 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	if err != nil {
 		return "", err
 	}
-	err = c.cache.Set(ctx, key, raw, -1)
+	err = c.cache.Set(ctx, key, raw, c.config.Expires)
 	if err != nil {
 		return "", err
 	}
@@ -118,7 +122,7 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if value == nil {
 		return ErrorNotFound
 	}
-	err = c.cache.Set(ctx, destinationKey, *value, -1)
+	err = c.cache.Set(ctx, destinationKey, *value, c.config.Expires)
 	if err != nil {
 		return err
 	}

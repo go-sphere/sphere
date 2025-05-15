@@ -23,7 +23,7 @@ type TokenGenerator interface {
 }
 
 type FileUploader interface {
-	UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error)
+	UploadFile(ctx context.Context, file io.Reader, key string) (string, error)
 	UploadLocalFile(ctx context.Context, file string, key string) (string, error)
 }
 

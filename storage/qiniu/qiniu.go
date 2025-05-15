@@ -76,7 +76,7 @@ func (n *Client) keyPreprocess(key string) string {
 	return strings.TrimPrefix(key, "/")
 }
 
-func (n *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error) {
+func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -85,7 +85,7 @@ func (n *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key
 	ret := storage.PutRet{}
 	formUploader := storage.NewFormUploader(&cfg)
 	key = n.keyPreprocess(key)
-	err := formUploader.Put(ctx, &ret, upToken, key, file, size, nil)
+	err := formUploader.Put(ctx, &ret, upToken, key, file, -1, nil)
 	if err != nil {
 		return "", err
 	}
