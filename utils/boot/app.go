@@ -29,7 +29,7 @@ func (a *Application) Identifier() string {
 
 func (a *Application) Start(ctx context.Context) error {
 	for i, task := range a.tasks {
-		err := a.manager.RunTask(ctx, fmt.Sprintf("%d:%s", i, task.Identifier()), task)
+		err := a.manager.RunTask(ctx, fmt.Sprintf("%d:%s", i, task.Identifier()), task, false)
 		if err != nil {
 			return err
 		}
