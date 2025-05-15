@@ -5,11 +5,15 @@ import (
 	"github.com/TBXark/sphere/storage/local"
 	"net/http"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 )
 
 func TestServeCacheReverseProxy(t *testing.T) {
+	if os.Getenv("TEST_REVERSE_PROXY") != "true" {
+		t.Skip()
+	}
 	store, err := local.NewClient(&local.Config{
 		RootDir:    "./temp",
 		PublicBase: "/",
