@@ -18,6 +18,7 @@ var (
 	ErrorNotFound        = errors.New("file not found")
 	ErrorDistExisted     = errors.New("destination file existed")
 	ErrorFileOutsideRoot = errors.New("file path outside root dir")
+	ErrorFileNameInvalid = errors.New("file name invalid")
 )
 
 type Config struct {
@@ -57,6 +58,9 @@ func (c *Client) fixFilePath(key string) (string, error) {
 	filePath = filepath.Clean(filePath)
 	if !strings.HasPrefix(filePath, rootDir) {
 		return "", ErrorFileOutsideRoot
+	}
+	if rootDir == filePath {
+		return "", ErrorFileNameInvalid
 	}
 	return filePath, nil
 }
