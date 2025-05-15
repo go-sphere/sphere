@@ -89,7 +89,7 @@ func (s *Client) GenerateUploadToken(fileName string, dir string, nameBuilder fu
 	}, nil
 }
 
-func (s *Client) UploadFile(ctx context.Context, file io.Reader, size int64, key string) (string, error) {
+func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, -1, minio.PutObjectOptions{})
 	if err != nil {
 		return "", err
