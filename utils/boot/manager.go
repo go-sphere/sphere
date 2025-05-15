@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
+	"golang.org/x/sync/errgroup"
 	"sync"
 )
 
@@ -17,8 +18,7 @@ var (
 type Manager struct {
 	mu           sync.RWMutex
 	tasks        map[string]Task
-	runningErrs  ErrCollection
-	runningGroup sync.WaitGroup
+	runningGroup errgroup.Group
 }
 
 func NewManager() *Manager {
@@ -27,36 +27,28 @@ func NewManager() *Manager {
 	}
 }
 
-func (m *Manager) RunTask(ctx context.Context, name string, task Task) error {
+func (m *Manager) RunTask(ctx context.Context, name string, task Task, ignoreStartError bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, ok := m.tasks[name]; ok {
 		return ErrTaskAlreadyExists
 	}
 	m.tasks[name] = task
-	m.runningGroup.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logTaskPanic(task, name, r)
-				err := fmt.Errorf("%s panic: %v", name, r)
-				m.runningErrs.add(err)
-			}
-		}()
-		defer func() {
-			m.mu.Lock()
-			delete(m.tasks, name)
-			m.mu.Unlock()
-		}()
-		defer m.runningGroup.Done()
+	m.runningGroup.Go(func() error {
 		log.Infof("<Manager> %s starting", name)
-		if err := task.Start(ctx); err != nil {
+		err := execute(ctx, name, task, func(ctx context.Context, task Task) error {
+			return task.Start(ctx)
+		})
+		if err != nil {
 			logTaskError(task, name, err)
-			m.runningErrs.add(err)
-			return
+			if ignoreStartError {
+				return nil
+			}
+			return err
 		}
-		log.Infof("<Manager> %s finished", name)
-	}()
+		log.Infof("<Manager> %s started", name)
+		return nil
+	})
 	return nil
 }
 
@@ -91,26 +83,17 @@ func (m *Manager) StopAll(ctx context.Context) error {
 	var stopErrs ErrCollection
 	for name, task := range tasks {
 		stopGroup.Add(1)
-		go func(name string, task Task) {
-			defer func() {
-				if r := recover(); r != nil {
-					logTaskPanic(task, name, r)
-					err := fmt.Errorf("%s panic: %v", name, r)
-					stopErrs.add(err)
-				}
-			}()
-			defer stopGroup.Done()
-			log.Infof("<Manager> %s stopping", name)
-			if err := task.Stop(ctx); err != nil {
-				logTaskError(task, name, err)
-				stopErrs.add(err)
-				return
-			}
-			log.Infof("<Manager> %s stopped", name)
-		}(name, task)
+		go func() {
+			err := execute(ctx, name, task, func(ctx context.Context, task Task) error {
+				return task.Stop(ctx)
+			})
+			stopErrs.Add(err)
+		}()
 	}
-	m.runningGroup.Wait()
-	return stopErrs.err()
+	return errors.Join(
+		stopErrs.Err(),
+		m.runningGroup.Wait(),
+	)
 }
 
 func (m *Manager) Identifier() string {
@@ -126,8 +109,7 @@ func (m *Manager) Stop(ctx context.Context) error {
 }
 
 func (m *Manager) Wait() error {
-	m.runningGroup.Wait()
-	return m.runningErrs.err()
+	return m.runningGroup.Wait()
 }
 
 func (m *Manager) IsRunning(name string) bool {
@@ -142,19 +124,37 @@ type ErrCollection struct {
 	errs []error
 }
 
-func (ec *ErrCollection) add(err error) {
+func (ec *ErrCollection) Add(err error) {
+	if err == nil {
+		return
+	}
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
 	ec.errs = append(ec.errs, err)
 }
 
-func (ec *ErrCollection) err() error {
+func (ec *ErrCollection) Err() error {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
 	if len(ec.errs) == 0 {
 		return nil
 	}
 	return errors.Join(ec.errs...)
+}
+
+func execute(ctx context.Context, name string, task Task, run func(ctx context.Context, task Task) error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logTaskPanic(task, name, r)
+			err = fmt.Errorf("%s panic: %v", name, r)
+		}
+	}()
+	err = run(ctx, task)
+	if err != nil {
+		logTaskError(task, name, err)
+		return
+	}
+	return
 }
 
 func logTaskPanic(task Task, name string, reason any) {
