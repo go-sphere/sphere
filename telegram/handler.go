@@ -13,10 +13,11 @@ import (
 )
 
 type (
-	HandlerFunc       = func(ctx context.Context, update *Update) error
-	MiddlewareFunc    = func(next HandlerFunc) HandlerFunc
-	ErrorHandlerFunc  = func(ctx context.Context, bot *bot.Bot, update *Update, err error)
-	AuthExtractorFunc = func(ctx context.Context, update *Update) (map[string]any, error)
+	HandlerFunc    = func(ctx context.Context, update *Update) error
+	MiddlewareFunc = func(next HandlerFunc) HandlerFunc
+)
+type (
+	ErrorHandlerFunc = func(ctx context.Context, bot *bot.Bot, update *Update, err error)
 )
 
 func WithMiddleware(h HandlerFunc, e ErrorHandlerFunc, middleware ...MiddlewareFunc) bot.HandlerFunc {
@@ -25,10 +26,9 @@ func WithMiddleware(h HandlerFunc, e ErrorHandlerFunc, middleware ...MiddlewareF
 		handler = middleware[i](handler)
 	}
 	return func(ctx context.Context, bot *bot.Bot, update *models.Update) {
-		u := (*Update)(update)
-		if err := handler(ctx, u); err != nil {
+		if err := handler(ctx, update); err != nil {
 			if e != nil {
-				e(ctx, bot, u, err)
+				e(ctx, bot, update, err)
 			}
 		}
 	}

@@ -2,39 +2,93 @@ package telegram
 
 import (
 	"context"
-	"strings"
-
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
+	"strings"
+
 	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
 )
 
 type Config struct {
 	Token string `json:"token" yaml:"token"`
 }
 
-type Bot struct {
-	config        *Config
-	bot           *bot.Bot
-	ErrorHandler  ErrorHandlerFunc
-	AuthExtractor AuthExtractorFunc
+type options struct {
+	botOptions []bot.Option
+
+	embedDefaultAuthMiddleware bool
 }
 
-func NewApp(config *Config, options ...bot.Option) (*Bot, error) {
-	if len(options) == 0 {
-		options = DefaultBotOptions()
+type Options func(*options)
+
+func WithoutEmbedDefaultAuthMiddleware() func(*options) {
+	return func(o *options) {
+		o.embedDefaultAuthMiddleware = false
 	}
-	client, err := bot.New(config.Token, options...)
+}
+
+func WithBotOptions(opt ...bot.Option) func(*options) {
+	return func(o *options) {
+		o.botOptions = append(o.botOptions, opt...)
+	}
+}
+
+type Bot struct {
+	config *Config
+	bot    *bot.Bot
+
+	middlewares []MiddlewareFunc
+
+	noRouteHandler bot.HandlerFunc
+	ErrorHandler   ErrorHandlerFunc
+	AuthExtractor  AuthExtractorFunc
+}
+
+func NewApp(config *Config, opts ...Options) (*Bot, error) {
+	opt := &options{embedDefaultAuthMiddleware: true}
+	for _, o := range opts {
+		o(opt)
+	}
+	app := &Bot{
+		config: config,
+		noRouteHandler: func(ctx context.Context, bot *bot.Bot, update *Update) {
+			if update.Message != nil {
+				log.Infof("receive message: %s", update.Message.Text)
+			}
+			if update.CallbackQuery != nil {
+				log.Infof("receive callback query: %s", update.CallbackQuery.Data)
+			}
+		},
+		ErrorHandler: func(ctx context.Context, bot *bot.Bot, update *Update, err error) {
+			log.Warnw("bot error", logfields.Error(err))
+		},
+	}
+	if len(opt.botOptions) == 0 {
+		opt.botOptions = []bot.Option{
+			bot.WithSkipGetMe(),
+			bot.WithMiddlewares(NewRecoveryMiddleware()),
+			bot.WithDefaultHandler(app.handleNoRouteMessage),
+		}
+	}
+	if opt.embedDefaultAuthMiddleware {
+		app.middlewares = append(app.middlewares, NewAuthMiddleware(app))
+	}
+	client, err := bot.New(config.Token, opt.botOptions...)
 	if err != nil {
 		return nil, err
 	}
-	return &Bot{
-		config:        config,
-		bot:           client,
-		ErrorHandler:  DefaultErrorHandler,
-		AuthExtractor: DefaultAuthExtractor,
-	}, nil
+	app.bot = client
+	return app, nil
+}
+
+func (b *Bot) Update(options ...bot.Option) {
+	for _, opt := range options {
+		opt(b.bot)
+	}
+}
+
+func (b *Bot) API() *bot.Bot {
+	return b.bot
 }
 
 func (b *Bot) Start(ctx context.Context) error {
@@ -49,45 +103,44 @@ func (b *Bot) Close(ctx context.Context) error {
 	return err
 }
 
-func (b *Bot) ExtractorAuth(ctx context.Context, tBot *bot.Bot, update *Update) (context.Context, error) {
-	if b.AuthExtractor != nil {
-		info, err := b.AuthExtractor(ctx, update)
-		if err != nil {
-			if b.ErrorHandler != nil {
-				b.ErrorHandler(ctx, tBot, update, err)
-			}
-			return nil, err
-		}
-		c := NewContext(ctx)
-		for k, v := range info {
-			c.SetValue(k, v)
-		}
-		return c, nil
+func (b *Bot) SendMessage(ctx context.Context, update *Update, m *Message) error {
+	return SendMessage(ctx, b.bot, update, m)
+}
+
+func (b *Bot) ExtractorAuth(ctx context.Context, update *Update) (map[string]any, error) {
+	if b.AuthExtractor == nil {
+		return nil, nil
 	}
-	return ctx, nil
+	return b.AuthExtractor(ctx, update)
+}
+
+func (b *Bot) handleNoRouteMessage(ctx context.Context, bot *bot.Bot, update *Update) {
+	if b.noRouteHandler != nil {
+		return
+	}
+	b.noRouteHandler(ctx, bot, update)
+}
+
+func (b *Bot) WithDefaultMiddlewares(middlewares []MiddlewareFunc) []MiddlewareFunc {
+	mid := make([]MiddlewareFunc, 0, len(middlewares)+len(b.middlewares))
+	mid = append(mid, b.middlewares...)
+	mid = append(mid, middlewares...)
+	return mid
+}
+
+func (b *Bot) BindNoRoute(handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
+	b.noRouteHandler = WithMiddleware(handlerFunc, b.ErrorHandler, b.WithDefaultMiddlewares(middlewares)...)
 }
 
 func (b *Bot) BindCommand(command string, handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
-	fn := WithMiddleware(handlerFunc, b.ErrorHandler, middlewares...)
+	fn := WithMiddleware(handlerFunc, b.ErrorHandler, b.WithDefaultMiddlewares(middlewares)...)
 	command = "/" + strings.TrimPrefix(command, "/")
-	b.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypePrefix, func(ctx context.Context, tBot *bot.Bot, update *models.Update) {
-		ctx, err := b.ExtractorAuth(ctx, tBot, (*Update)(update))
-		if err != nil {
-			return
-		}
-		fn(ctx, tBot, update)
-	})
+	b.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypePrefix, fn)
 }
 
 func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
-	fn := WithMiddleware(handlerFunc, b.ErrorHandler, middlewares...)
-	b.bot.RegisterHandler(bot.HandlerTypeCallbackQueryData, route+":", bot.MatchTypePrefix, func(ctx context.Context, tBot *bot.Bot, update *models.Update) {
-		ctx, err := b.ExtractorAuth(ctx, tBot, (*Update)(update))
-		if err != nil {
-			return
-		}
-		fn(ctx, tBot, update)
-	})
+	fn := WithMiddleware(handlerFunc, b.ErrorHandler, b.WithDefaultMiddlewares(middlewares)...)
+	b.bot.RegisterHandler(bot.HandlerTypeCallbackQueryData, route+":", bot.MatchTypePrefix, fn)
 }
 
 type (
@@ -106,113 +159,4 @@ func (b *Bot) BindRoute(route RouteMap, extra func(string) *MethodExtraData, ope
 			b.BindCallback(info.CallbackQuery, route[operation], middlewares...)
 		}
 	}
-}
-
-func (b *Bot) Update(options ...bot.Option) {
-	for _, opt := range options {
-		opt(b.bot)
-	}
-}
-
-func (b *Bot) API() *bot.Bot {
-	return b.bot
-}
-
-func (b *Bot) SendMessage(ctx context.Context, update *Update, m *Message) error {
-	return SendMessage(ctx, b.bot, update, m)
-}
-
-func SendMessage(ctx context.Context, b *bot.Bot, update *Update, m *Message) error {
-	if m == nil || update == nil {
-		return nil
-	}
-	if update.CallbackQuery != nil {
-		origin := update.CallbackQuery.Message.Message
-		if len(origin.Photo) == 0 {
-			param := m.toEditMessageTextParams(origin.Chat.ID, origin.ID)
-			_, err := b.EditMessageText(ctx, param)
-			return err
-		} else {
-			if m.Media == nil {
-				param := m.toEditMessageCaptionParams(origin.Chat.ID, origin.ID)
-				_, err := b.EditMessageCaption(ctx, param)
-				return err
-			} else {
-				param := m.toEditMessageMediaParams(origin.Chat.ID, origin.ID)
-				_, err := b.EditMessageMedia(ctx, param)
-				return err
-			}
-		}
-	}
-	if update.Message != nil {
-		if m.Media == nil {
-			param := m.toSendMessageParams(update.Message.Chat.ID)
-			_, err := b.SendMessage(ctx, param)
-			return err
-		} else {
-			param := m.toSendPhotoParams(update.Message.Chat.ID)
-			_, err := b.SendPhoto(ctx, param)
-			return err
-		}
-	}
-	return nil
-}
-
-func DefaultBotOptions() []bot.Option {
-	return []bot.Option{
-		bot.WithSkipGetMe(),
-		bot.WithDefaultHandler(DefaultUpdateHandler),
-		bot.WithErrorsHandler(func(err error) {
-			log.Errorf("bot error: %v", err)
-		}),
-		bot.WithMiddlewares(NewRecoveryMiddleware()),
-	}
-}
-
-func DefaultErrorHandler(ctx context.Context, b *bot.Bot, update *Update, err error) {
-	log.Warnw("bot error", logfields.Error(err))
-}
-
-func DefaultUpdateHandler(ctx context.Context, bot *bot.Bot, update *models.Update) {
-	if update.Message != nil {
-		log.Infof("receive message: %s", update.Message.Text)
-	}
-	if update.CallbackQuery != nil {
-		log.Infof("receive callback query: %s", update.CallbackQuery.Data)
-	}
-}
-
-func SendErrorMessageHandler(ctx context.Context, b *bot.Bot, update *Update, err error) {
-	if err == nil {
-		return
-	}
-	if update.Message != nil {
-		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.Message.Chat.ID,
-			Text:   err.Error(),
-		})
-	}
-	if update.CallbackQuery != nil {
-		_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-			CallbackQueryID: update.CallbackQuery.ID,
-			Text:            err.Error(),
-		})
-	}
-}
-
-func DefaultAuthExtractor(ctx context.Context, update *Update) (map[string]any, error) {
-	var user *models.User
-	if update.Message != nil {
-		user = update.Message.From
-	}
-	if update.CallbackQuery != nil {
-		user = &update.CallbackQuery.From
-	}
-	if user == nil {
-		return nil, nil
-	}
-	return map[string]any{
-		"uid":     user.ID,
-		"subject": user.Username,
-	}, nil
 }
