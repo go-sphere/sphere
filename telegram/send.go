@@ -2,8 +2,10 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"github.com/go-telegram/bot"
 	"golang.org/x/time/rate"
+	"time"
 )
 
 func SendMessage(ctx context.Context, b *bot.Bot, update *Update, m *Message) error {
@@ -82,4 +84,21 @@ func BroadcastMessage[T any](ctx context.Context, b *bot.Bot, data []T, rateLimi
 		progress(total, total)
 	}
 	return nil
+}
+
+func RetryOnTooManyRequestsError(maxRetries int, send func() error) error {
+	if maxRetries < 0 {
+		return errors.New("max retries exceeded")
+	}
+	err := send()
+	if err == nil {
+		return nil
+	}
+	var tooManyRequestsError *bot.TooManyRequestsError
+	if errors.As(err, &tooManyRequestsError) {
+		sleepDuration := time.Duration(tooManyRequestsError.RetryAfter) * time.Second
+		time.Sleep(sleepDuration)
+		return RetryOnTooManyRequestsError(maxRetries-1, send)
+	}
+	return err
 }
