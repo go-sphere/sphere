@@ -49,7 +49,10 @@ func WithTargetURL(target *url.URL) ConfigOption {
 				request.URL.Host = target.Host
 				request.Host = target.Host
 				request.Header.Del("Origin")          // remove origin header
+				request.Header.Del("Referer")         // remove referer header
 				request.Header.Del("Accept-Encoding") // remove gzip encoding
+				//request.Header.Set("Origin", target.Scheme+"://"+target.Host)
+				//request.Header.Set("Referer", target.Scheme+"://"+target.Host)
 				//request.URL.Path = target.Path + request.URL.Path
 				//if request.URL.RawQuery != "" {
 				//	request.URL.Path += "?" + request.URL.RawQuery
@@ -96,6 +99,7 @@ func CreateCacheReverseProxy(cache Cache, options ...ConfigOption) (*httputil.Re
 	}
 
 	proxy.ModifyResponse = func(resp *http.Response) error {
+
 		if !conf.checker(resp) {
 			return nil
 		}
