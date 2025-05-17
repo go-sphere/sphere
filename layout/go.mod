@@ -18,7 +18,7 @@ tool (
 
 require (
 	entgo.io/ent v0.14.4
-	github.com/TBXark/confstore v0.0.3
+	github.com/TBXark/confstore v0.0.4
 	github.com/TBXark/sphere v0.0.0-20250328085124-a9c9a318a522
 	github.com/alitto/pond/v2 v2.3.4
 	github.com/gin-contrib/gzip v1.2.3
@@ -29,7 +29,7 @@ require (
 	github.com/swaggo/swag v1.16.4
 	github.com/tbxark/options-proto/go v0.0.0-20241107032846-d46ef06aa5e1
 	golang.org/x/sync v0.14.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20250425173222-7b384671a197
+	google.golang.org/genproto/googleapis/api v0.0.0-20250512202823-5a2f75b736a9
 	google.golang.org/protobuf v1.36.6
 )
 
@@ -366,14 +366,14 @@ require (
 	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.33.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250414145226-207652e42e2e // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250505200425-f936aa4a68b2 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.6.1 // indirect
 	modernc.org/fileutil v1.3.1 // indirect
-	modernc.org/libc v1.65.3 // indirect
+	modernc.org/libc v1.65.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.10.0 // indirect
 	modernc.org/sqlite v1.37.0 // indirect
