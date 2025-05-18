@@ -63,14 +63,37 @@ func SendErrorMessage(ctx context.Context, b *bot.Bot, update *Update, err error
 	}
 }
 
-func BroadcastMessage[T any](ctx context.Context, b *bot.Bot, data []T, rateLimiter *rate.Limiter, send func(context.Context, *bot.Bot, T) error, progress func(int, int)) error {
+type BroadcastOptions struct {
+	progress            func(int, int, int)
+	terminalOnSendError bool
+}
+
+type BroadcastOption func(*BroadcastOptions)
+
+func WithProgress(progress func(int, int, int)) BroadcastOption {
+	return func(o *BroadcastOptions) {
+		o.progress = progress
+	}
+}
+func WithTerminalOnSendError(terminalOnSendError bool) BroadcastOption {
+	return func(o *BroadcastOptions) {
+		o.terminalOnSendError = terminalOnSendError
+	}
+}
+
+func BroadcastMessage[T any](ctx context.Context, b *bot.Bot, data []T, rateLimiter *rate.Limiter, send func(context.Context, *bot.Bot, T) error, options ...BroadcastOption) error {
+	opts := &BroadcastOptions{}
+	for _, opt := range options {
+		opt(opts)
+	}
 	total := len(data)
+	errCount := 0
 	for i, d := range data {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if progress != nil {
-			progress(i, total)
+		if opts.progress != nil {
+			opts.progress(i, errCount, total)
 		}
 		err := rateLimiter.Wait(ctx)
 		if err != nil {
@@ -78,11 +101,14 @@ func BroadcastMessage[T any](ctx context.Context, b *bot.Bot, data []T, rateLimi
 		}
 		err = send(ctx, b, d)
 		if err != nil {
-			return err
+			errCount++
+			if opts.terminalOnSendError {
+				return err
+			}
 		}
 	}
-	if progress != nil {
-		progress(total, total)
+	if opts.progress != nil {
+		opts.progress(total, errCount, total)
 	}
 	return nil
 }
