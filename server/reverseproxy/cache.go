@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/TBXark/sphere/cache"
-	"github.com/TBXark/sphere/storage"
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/TBXark/sphere/cache"
+	"github.com/TBXark/sphere/storage"
 )
 
 const cacheFileKeyForReverseProxyBody = "X-Cache-ReverseProxy-Body"
@@ -54,7 +55,7 @@ func (c *CommonCache) Delete(ctx context.Context, key string) error {
 }
 
 func (c *CommonCache) Save(ctx context.Context, key string, header http.Header, reader io.Reader) error {
-	filename := key //base64.URLEncoding.EncodeToString([]byte(key))
+	filename := key // base64.URLEncoding.EncodeToString([]byte(key))
 	cacheFileKey, err := c.storage.UploadFile(ctx, reader, filename)
 	if err != nil {
 		return err

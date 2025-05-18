@@ -1,13 +1,14 @@
 package reverseproxy
 
 import (
-	"github.com/TBXark/sphere/cache/memory"
-	"github.com/TBXark/sphere/storage/local"
 	"net/http"
 	"net/url"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/TBXark/sphere/cache/memory"
+	"github.com/TBXark/sphere/storage/local"
 )
 
 func TestServeCacheReverseProxy(t *testing.T) {

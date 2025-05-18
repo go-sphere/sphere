@@ -9,9 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var (
-	errTokenNotFound = errors.New("token not found")
-)
+var errTokenNotFound = errors.New("token not found")
 
 const (
 	AuthorizationHeader = "Authorization"

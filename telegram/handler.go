@@ -16,6 +16,7 @@ type (
 	HandlerFunc    = func(ctx context.Context, update *Update) error
 	MiddlewareFunc = func(next HandlerFunc) HandlerFunc
 )
+
 type (
 	ErrorHandlerFunc = func(ctx context.Context, bot *bot.Bot, update *Update, err error)
 )

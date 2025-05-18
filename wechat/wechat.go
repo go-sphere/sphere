@@ -123,21 +123,21 @@ type RequestOptions struct {
 	reloadAccessToken bool
 }
 
-type RequestOption func(*RequestOptions)
+type RequestOption = func(*RequestOptions)
 
-func WithRetryable(retryable bool) func(*RequestOptions) {
+func WithRetryable(retryable bool) RequestOption {
 	return func(opts *RequestOptions) {
 		opts.retryable = retryable
 	}
 }
 
-func WithReloadAccessToken(reload bool) func(*RequestOptions) {
+func WithReloadAccessToken(reload bool) RequestOption {
 	return func(opts *RequestOptions) {
 		opts.reloadAccessToken = reload
 	}
 }
 
-func WithClone(opts *RequestOptions) func(*RequestOptions) {
+func WithClone(opts *RequestOptions) RequestOption {
 	return func(o *RequestOptions) {
 		o.retryable = opts.retryable
 		o.reloadAccessToken = opts.reloadAccessToken

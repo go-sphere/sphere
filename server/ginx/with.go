@@ -8,14 +8,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type Context = gin.Context
-type ErrorParser func(error) (int, int, string)
+type (
+	Context     = gin.Context
+	ErrorParser func(error) (int, int, string)
+)
 
 var defaultErrorParser ErrorParser = ParseError
 
 func SetDefaultErrorParser(parser ErrorParser) {
 	defaultErrorParser = parser
 }
+
 func Value[T any](key string, ctx *gin.Context) (*T, bool) {
 	v, exists := ctx.Get(key)
 	if !exists {

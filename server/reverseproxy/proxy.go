@@ -8,8 +8,10 @@ import (
 	"net/url"
 )
 
-type RequestCacheKeyFunc func(*http.Request) string
-type ResponseCacheCheckFunc func(*http.Response) bool
+type (
+	RequestCacheKeyFunc    func(*http.Request) string
+	ResponseCacheCheckFunc func(*http.Response) bool
+)
 
 type ProxyConfig struct {
 	target   *url.URL
@@ -38,7 +40,7 @@ func NewProxyConfig() *ProxyConfig {
 	}
 }
 
-type ConfigOption func(*ProxyConfig)
+type ConfigOption = func(*ProxyConfig)
 
 func WithTargetURL(target *url.URL) ConfigOption {
 	return func(config *ProxyConfig) {
@@ -99,7 +101,6 @@ func CreateCacheReverseProxy(cache Cache, options ...ConfigOption) (*httputil.Re
 	}
 
 	proxy.ModifyResponse = func(resp *http.Response) error {
-
 		if !conf.checker(resp) {
 			return nil
 		}

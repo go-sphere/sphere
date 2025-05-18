@@ -3,9 +3,10 @@ package telegram
 import (
 	"context"
 	"errors"
+	"time"
+
 	"github.com/go-telegram/bot"
 	"golang.org/x/time/rate"
-	"time"
 )
 
 func SendMessage(ctx context.Context, b *bot.Bot, update *Update, m *Message) error {

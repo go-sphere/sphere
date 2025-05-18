@@ -9,11 +9,11 @@ import (
 	"modernc.org/sqlite"
 )
 
-type sqliteDriver struct {
+type Driver struct {
 	*sqlite.Driver
 }
 
-func (d sqliteDriver) Open(name string) (driver.Conn, error) {
+func (d Driver) Open(name string) (driver.Conn, error) {
 	conn, err := d.Driver.Open(name)
 	if err != nil {
 		return conn, err
@@ -29,5 +29,5 @@ func (d sqliteDriver) Open(name string) (driver.Conn, error) {
 }
 
 func init() {
-	sql.Register(dialect.SQLite, sqliteDriver{Driver: &sqlite.Driver{}})
+	sql.Register(dialect.SQLite, Driver{Driver: &sqlite.Driver{}})
 }

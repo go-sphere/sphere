@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
 	"golang.org/x/sync/errgroup"
-	"sync"
 )
 
 var (
@@ -31,9 +32,9 @@ type StartOptions struct {
 	stopGroupOnError bool
 }
 
-type StartOption func(*StartOptions)
+type StartOption = func(*StartOptions)
 
-func WithStopGroupOnError() func(*StartOptions) {
+func WithStopGroupOnError() StartOption {
 	return func(opts *StartOptions) {
 		opts.stopGroupOnError = true
 	}

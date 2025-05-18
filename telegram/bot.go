@@ -2,10 +2,10 @@ package telegram
 
 import (
 	"context"
-	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 	"strings"
 
+	"github.com/TBXark/sphere/log"
+	"github.com/TBXark/sphere/log/logfields"
 	"github.com/go-telegram/bot"
 )
 
@@ -13,22 +13,22 @@ type Config struct {
 	Token string `json:"token" yaml:"token"`
 }
 
-type options struct {
+type Options struct {
 	botOptions []bot.Option
 
 	embedDefaultAuthMiddleware bool
 }
 
-type Options func(*options)
+type Option = func(*Options)
 
-func WithoutEmbedDefaultAuthMiddleware() func(*options) {
-	return func(o *options) {
+func WithoutEmbedDefaultAuthMiddleware() Option {
+	return func(o *Options) {
 		o.embedDefaultAuthMiddleware = false
 	}
 }
 
-func WithBotOptions(opt ...bot.Option) func(*options) {
-	return func(o *options) {
+func WithBotOptions(opt ...bot.Option) Option {
+	return func(o *Options) {
 		o.botOptions = append(o.botOptions, opt...)
 	}
 }
@@ -44,8 +44,8 @@ type Bot struct {
 	AuthExtractor  AuthExtractorFunc
 }
 
-func NewApp(config *Config, opts ...Options) (*Bot, error) {
-	opt := &options{embedDefaultAuthMiddleware: true}
+func NewApp(config *Config, opts ...Option) (*Bot, error) {
+	opt := &Options{embedDefaultAuthMiddleware: true}
 	for _, o := range opts {
 		o(opt)
 	}
