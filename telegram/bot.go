@@ -115,7 +115,7 @@ func (b *Bot) ExtractorAuth(ctx context.Context, update *Update) (map[string]any
 }
 
 func (b *Bot) handleNoRouteMessage(ctx context.Context, bot *bot.Bot, update *Update) {
-	if b.noRouteHandler != nil {
+	if b.noRouteHandler == nil {
 		return
 	}
 	b.noRouteHandler(ctx, bot, update)
