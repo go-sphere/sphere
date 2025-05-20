@@ -1,6 +1,7 @@
 package jwtauth
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -10,13 +11,14 @@ import (
 )
 
 func TestJwtAuth_ParseToken(t *testing.T) {
+	ctx := context.Background()
 	auth := NewJwtAuth[authorizer.RBACClaims[int64]]("secret")
 	info := authorizer.NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(time.Hour))
-	token, err := auth.GenerateToken(info)
+	token, err := auth.GenerateToken(ctx, info)
 	if err != nil {
 		t.Error(err)
 	}
-	claims1, err := auth.ParseToken(token)
+	claims1, err := auth.ParseToken(ctx, token)
 	if err != nil {
 		t.Error(err)
 	}
@@ -30,12 +32,12 @@ func TestJwtAuth_ParseToken(t *testing.T) {
 		t.Error("uid not match")
 	}
 	info = authorizer.NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(-time.Hour))
-	token, err = auth.GenerateToken(info)
+	token, err = auth.GenerateToken(ctx, info)
 	if err != nil {
 		t.Error(err)
 	}
 	time.Sleep(time.Second)
-	_, err = auth.ParseToken(token)
+	_, err = auth.ParseToken(ctx, token)
 	if err == nil {
 		t.Error("token should be expired")
 	}

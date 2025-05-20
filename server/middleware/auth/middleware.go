@@ -45,7 +45,7 @@ func parserToken[T authorizer.UID](ctx *gin.Context, token string, transform fun
 		}
 		token = tranToken
 	}
-	claims, err := parser.ParseToken(token)
+	claims, err := parser.ParseToken(ctx, token)
 	if err != nil {
 		return err
 	}

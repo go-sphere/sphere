@@ -2,6 +2,7 @@ package tmaauth
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/url"
 	"strconv"
@@ -26,7 +27,7 @@ func NewTmaAuth(token string, expIn time.Duration) *TmaAuth {
 	}
 }
 
-func (t *TmaAuth) ParseToken(token string) (*Claims, error) {
+func (t *TmaAuth) ParseToken(ctx context.Context, token string) (*Claims, error) {
 	err := initdata.Validate(token, t.token, t.expIn)
 	if err != nil {
 		return nil, err
@@ -38,7 +39,7 @@ func (t *TmaAuth) ParseToken(token string) (*Claims, error) {
 	return (*Claims)(&data), nil
 }
 
-func (t *TmaAuth) GenerateToken(claims *Claims) (string, error) {
+func (t *TmaAuth) GenerateToken(ctx context.Context, claims *Claims) (string, error) {
 	rawInitMap := map[string]any{}
 	initBytes, err := json.Marshal(claims)
 	if err != nil {

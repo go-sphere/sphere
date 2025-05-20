@@ -1,6 +1,7 @@
 package tmaauth
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 )
 
 func TestTmaAuth_ParseToken(t *testing.T) {
+	ctx := context.Background()
 	secretToken := "test"
 	claims := Claims{
 		ChatInstance:    123,
@@ -27,12 +29,12 @@ func TestTmaAuth_ParseToken(t *testing.T) {
 		AuthDateRaw: int(time.Now().Unix()),
 	}
 	tmaAuth := NewTmaAuth(secretToken, time.Hour)
-	token, err := tmaAuth.GenerateToken(&claims)
+	token, err := tmaAuth.GenerateToken(ctx, &claims)
 	if err != nil {
 		t.Error(err)
 	}
 	t.Log(token)
-	parsedClaims, err := tmaAuth.ParseToken(token)
+	parsedClaims, err := tmaAuth.ParseToken(ctx, token)
 	if err != nil {
 		t.Error(err)
 	}

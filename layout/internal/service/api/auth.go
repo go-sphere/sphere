@@ -79,7 +79,7 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) 
 	if err != nil {
 		return nil, err
 	}
-	token, err := s.authorizer.GenerateToken(renderClaims(res.user, res.platform, AppTokenValidDuration))
+	token, err := s.authorizer.GenerateToken(ctx, renderClaims(res.user, res.platform, AppTokenValidDuration))
 	if err != nil {
 		return nil, err
 	}

@@ -36,19 +36,19 @@ func renderClaims(admin *ent.Admin, duration time.Duration) *authorizer.RBACClai
 	return authorizer.NewRBACClaims(admin.ID, admin.Username, admin.Roles, time.Now().Add(duration))
 }
 
-func (s *Service) createToken(u *ent.Admin) (*AdminToken, error) {
-	claims := renderClaims(u, AuthTokenValidDuration)
-	token, err := s.authorizer.GenerateToken(claims)
+func (s *Service) createToken(ctx context.Context, administrator *ent.Admin) (*AdminToken, error) {
+	claims := renderClaims(administrator, AuthTokenValidDuration)
+	token, err := s.authorizer.GenerateToken(ctx, claims)
 	if err != nil {
 		return nil, err
 	}
-	refresh, err := s.authRefresher.GenerateToken(renderClaims(u, RefreshTokenValidDuration))
+	refresh, err := s.authRefresher.GenerateToken(ctx, renderClaims(administrator, RefreshTokenValidDuration))
 	if err != nil {
 		return nil, err
 	}
-	u.Avatar = s.storage.GenerateImageURL(u.Avatar, 512)
+	administrator.Avatar = s.storage.GenerateImageURL(administrator.Avatar, 512)
 	return &AdminToken{
-		Admin:        u,
+		Admin:        administrator,
 		AccessToken:  token,
 		RefreshToken: refresh,
 		Expires:      claims.ExpiresAt.Format(AuthExpiresTimeFormat),
@@ -63,7 +63,7 @@ func (s *Service) AuthLogin(ctx context.Context, req *dashv1.AuthLoginRequest) (
 	if !secure.IsPasswordMatch(req.Password, u.Password) {
 		return nil, ErrPasswordNotMatch
 	}
-	token, err := s.createToken(u)
+	token, err := s.createToken(ctx, u)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (s *Service) AuthLogin(ctx context.Context, req *dashv1.AuthLoginRequest) (
 }
 
 func (s *Service) AuthRefresh(ctx context.Context, request *dashv1.AuthRefreshRequest) (*dashv1.AuthRefreshResponse, error) {
-	claims, err := s.authRefresher.ParseToken(request.RefreshToken)
+	claims, err := s.authRefresher.ParseToken(ctx, request.RefreshToken)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (s *Service) AuthRefresh(ctx context.Context, request *dashv1.AuthRefreshRe
 	if err != nil {
 		return nil, err
 	}
-	token, err := s.createToken(u)
+	token, err := s.createToken(ctx, u)
 	if err != nil {
 		return nil, err
 	}
