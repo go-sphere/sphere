@@ -1,6 +1,7 @@
 package ginx
 
 import (
+	"io"
 	"net/http"
 
 	"github.com/TBXark/sphere/log"
@@ -38,7 +39,7 @@ func AbortWithJsonError(ctx *gin.Context, err error) {
 	})
 }
 
-func WithRecover(message string, handler func(ctx *gin.Context)) func(ctx *gin.Context) {
+func WithRecover(message string, handler func(ctx *gin.Context)) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
@@ -53,7 +54,7 @@ func WithRecover(message string, handler func(ctx *gin.Context)) func(ctx *gin.C
 	}
 }
 
-func WithJson[T any](handler func(ctx *gin.Context) (T, error)) func(ctx *gin.Context) {
+func WithJson[T any](handler func(ctx *gin.Context) (T, error)) gin.HandlerFunc {
 	return WithRecover("WithJson panic", func(ctx *gin.Context) {
 		data, err := handler(ctx)
 		if err != nil {
@@ -67,7 +68,7 @@ func WithJson[T any](handler func(ctx *gin.Context) (T, error)) func(ctx *gin.Co
 	})
 }
 
-func WithText(handler func(ctx *gin.Context) (string, error)) func(ctx *gin.Context) {
+func WithText(handler func(ctx *gin.Context) (string, error)) gin.HandlerFunc {
 	return WithRecover("WithText panic", func(ctx *gin.Context) {
 		data, err := handler(ctx)
 		if err != nil {
@@ -81,5 +82,32 @@ func WithText(handler func(ctx *gin.Context) (string, error)) func(ctx *gin.Cont
 func WithHandler(h http.Handler) func(ctx *gin.Context) {
 	return WithRecover("WithHandler panic", func(ctx *gin.Context) {
 		h.ServeHTTP(ctx.Writer, ctx.Request)
+	})
+}
+
+func WithFormFileReader[T any](handler func(ctx *gin.Context, file io.Reader, filename string) (*T, error)) gin.HandlerFunc {
+	return WithJson(func(ctx *gin.Context) (*T, error) {
+		file, err := ctx.FormFile("file")
+		if err != nil {
+			return nil, err
+		}
+		read, err := file.Open()
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			_ = read.Close()
+		}()
+		return handler(ctx, read, file.Filename)
+	})
+}
+
+func WithFormFileBytes[T any](handler func(ctx *gin.Context, file []byte, filename string) (*T, error)) gin.HandlerFunc {
+	return WithFormFileReader(func(ctx *gin.Context, file io.Reader, filename string) (*T, error) {
+		all, err := io.ReadAll(file)
+		if err != nil {
+			return nil, err
+		}
+		return handler(ctx, all, filename)
 	})
 }

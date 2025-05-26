@@ -3,8 +3,10 @@ package fileserver
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/TBXark/sphere/cache"
@@ -12,19 +14,29 @@ import (
 	"github.com/google/uuid"
 )
 
-type S3Adapter struct {
-	storage.Storage
-	cache cache.ByteCache
+var _ storage.CDNStorage = (*S3Adapter)(nil)
+
+type Config struct {
+	PublicBase string `json:"public_base" yaml:"public_base"`
+	PutPrefix  string `json:"put_prefix" yaml:"put_prefix"`
 }
 
-func NewS3Adapter(cache cache.ByteCache, store storage.Storage) *S3Adapter {
+type S3Adapter struct {
+	storage.Storage
+
+	config *Config
+	cache  cache.ByteCache
+}
+
+func NewS3Adapter(config *Config, cache cache.ByteCache, store storage.Storage) *S3Adapter {
 	return &S3Adapter{
 		Storage: store,
+		config:  config,
 		cache:   cache,
 	}
 }
 
-func (a *S3Adapter) CreateFileKey(ctx context.Context, filename string, expiration time.Duration) (string, error) {
+func (a *S3Adapter) createFileKey(ctx context.Context, filename string, expiration time.Duration) (string, error) {
 	id, err := uuid.NewUUID()
 	if err != nil {
 		return "", err
@@ -38,43 +50,56 @@ func (a *S3Adapter) CreateFileKey(ctx context.Context, filename string, expirati
 
 func (a *S3Adapter) GenerateUploadToken(ctx context.Context, fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {
 	key := nameBuilder(fileName, dir)
-	newToken, err := a.CreateFileKey(ctx, key, time.Minute*5)
+	newToken, err := a.createFileKey(ctx, key, time.Minute*5)
 	if err != nil {
 		return [3]string{}, err
 	}
-	return [3]string{newToken, key, a.GenerateURL(key)}, nil
+	uri, err := url.JoinPath(a.config.PublicBase, a.config.PutPrefix, newToken)
+	if err != nil {
+		return [3]string{}, err
+	}
+	return [3]string{
+		uri,
+		key,
+		a.GenerateURL(key),
+	}, nil
 }
 
 func (a *S3Adapter) RegisterPutFileUploader(route gin.IRouter) {
+	abortWithError := func(ctx *gin.Context, status int, err error) {
+		ctx.AbortWithStatusJSON(status, gin.H{"message": err.Error()})
+	}
 	route.PUT("/*key", func(ctx *gin.Context) {
 		key := ctx.Param("key")
 		if key == "" {
-			ctx.AbortWithStatusJSON(400, gin.H{"error": "key is required"})
+			abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key is required"))
 			return
 		}
 		filename, err := a.cache.Get(ctx, key)
 		if err != nil {
-			ctx.AbortWithStatusJSON(404, gin.H{"error": "upload token not unavailable"})
+			abortWithError(ctx, http.StatusBadRequest, err)
 			return
 		}
 		if filename == nil {
-			ctx.AbortWithStatusJSON(404, gin.H{"error": "upload token not found"})
+			abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key expires or not found"))
 			return
 		}
 		err = a.cache.Del(ctx, key)
 		if err != nil {
-			ctx.AbortWithStatusJSON(500, gin.H{"error": "refresh upload token failed"})
+			abortWithError(ctx, http.StatusInternalServerError, err)
 			return
 		}
 		data, err := ctx.GetRawData()
 		if err != nil {
-			ctx.AbortWithStatusJSON(500, gin.H{"error": "read file content failed"})
+			abortWithError(ctx, http.StatusInternalServerError, err)
 			return
 		}
 		uploadKey, err := a.UploadFile(ctx, bytes.NewReader(data), string(*filename))
 		ctx.JSON(http.StatusOK, gin.H{
-			"key": uploadKey,
-			"url": a.Storage.GenerateURL(uploadKey),
+			"data": gin.H{
+				"key": uploadKey,
+				"url": a.Storage.GenerateURL(uploadKey),
+			},
 		})
 	})
 }
