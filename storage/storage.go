@@ -19,7 +19,7 @@ type ImageURLHandler interface {
 
 type TokenGenerator interface {
 	// GenerateUploadToken [token, key, url]
-	GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error)
+	GenerateUploadToken(ctx context.Context, fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error)
 }
 
 type FileUploader interface {
@@ -47,10 +47,14 @@ type Storage interface {
 	FileUploader
 	FileDownloader
 	FileMoverCopier
+}
+
+type CDNStorage interface {
+	Storage
 	TokenGenerator
 }
 
 type ImageStorage interface {
-	Storage
 	ImageURLHandler
+	CDNStorage
 }

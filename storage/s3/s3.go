@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/storage/urlhandler"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -63,19 +62,14 @@ func NewClient(config *Config) (*Client, error) {
 	}, nil
 }
 
-func (s *Client) GenerateImageURL(key string, width int) string {
-	log.Warnf("Client not support image resize")
-	return s.GenerateURL(key)
-}
-
-func (s *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {
+func (s *Client) GenerateUploadToken(ctx context.Context, fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
 	nameMd5 := hex.EncodeToString(sum[:])
 	key := nameBuilder(nameMd5+fileExt, dir)
 	key = strings.TrimPrefix(key, "/")
 
-	preSignedURL, err := s.client.PresignedPutObject(context.Background(),
+	preSignedURL, err := s.client.PresignedPutObject(ctx,
 		s.config.Bucket,
 		key,
 		time.Hour)

@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/storage/urlhandler"
 	"github.com/TBXark/sphere/utils/safe"
 )
@@ -214,18 +213,4 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 		return err
 	}
 	return nil
-}
-
-func (c *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {
-	key := nameBuilder(fileName, dir)
-	return [3]string{
-		"",
-		key,
-		c.GenerateURL(key),
-	}, nil
-}
-
-func (c *Client) GenerateImageURL(key string, width int) string {
-	log.Warnf("Client not support image resize")
-	return c.GenerateURL(key)
 }

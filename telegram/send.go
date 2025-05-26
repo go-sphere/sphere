@@ -75,6 +75,7 @@ func WithProgress(progress func(int, int, int)) BroadcastOption {
 		o.progress = progress
 	}
 }
+
 func WithTerminalOnSendError(terminalOnSendError bool) BroadcastOption {
 	return func(o *BroadcastOptions) {
 		o.terminalOnSendError = terminalOnSendError

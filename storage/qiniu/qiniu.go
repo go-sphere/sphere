@@ -54,7 +54,7 @@ func (n *Client) GenerateImageURL(key string, width int) string {
 	return res.String()
 }
 
-func (n *Client) GenerateUploadToken(fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) ([3]string, error) {
+func (n *Client) GenerateUploadToken(ctx context.Context, fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) ([3]string, error) {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
 	nameMd5 := hex.EncodeToString(sum[:])
