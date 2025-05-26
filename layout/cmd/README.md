@@ -8,13 +8,3 @@ This directory contains the main entry of the application. There are some execut
 | `dash`     | Start the dashboard server                     |
 | `bot`      | Start the bot server                           |
 | `app`      | Start the multi server, api, dashboard and bot |
-
-
-## cli tools
-
-| Executable          | Description                          |
-|---------------------|--------------------------------------|
-| `config`            | Configuration cli tool               |
-| `storage`           | Storage cli tool                     |
-
-
