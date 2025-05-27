@@ -3,12 +3,13 @@ package config
 import (
 	"github.com/TBXark/confstore"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/client"
+	storage "github.com/TBXark/sphere/layout/internal/pkg/file"
 	"github.com/TBXark/sphere/layout/internal/server/api"
 	"github.com/TBXark/sphere/layout/internal/server/bot"
 	"github.com/TBXark/sphere/layout/internal/server/dash"
 	"github.com/TBXark/sphere/layout/internal/server/docs"
+	"github.com/TBXark/sphere/layout/internal/server/file"
 	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/storage/qiniu"
 	"github.com/TBXark/sphere/utils/secure"
 	"github.com/TBXark/sphere/wechat"
 )
@@ -21,8 +22,9 @@ type Config struct {
 	Database     *client.Config    `json:"database" yaml:"database"`
 	Dash         *dash.Config      `json:"dash" yaml:"dash"`
 	API          *api.Config       `json:"api" yaml:"api"`
+	File         *file.Config      `json:"file" yaml:"file"`
 	Docs         *docs.Config      `json:"docs" yaml:"docs"`
-	Storage      *qiniu.Config     `json:"storage" yaml:"storage"`
+	Storage      *storage.Config   `json:"storage" yaml:"storage"`
 	Bot          *bot.Config       `json:"bot" yaml:"bot"`
 	WxMini       *wechat.Config    `json:"wx_mini" yaml:"wx_mini"`
 }
@@ -53,6 +55,14 @@ func NewEmptyConfig() *Config {
 				Address: "0.0.0.0:8899",
 			},
 		},
+		File: &file.Config{
+			HTTP: file.HTTPConfig{
+				Address: "0.0.0.0:9900",
+				Cors: []string{
+					"http://localhost:*",
+				},
+			},
+		},
 		Docs: &docs.Config{
 			Address: "0.0.0.0:9999",
 			Targets: docs.Targets{
@@ -60,11 +70,9 @@ func NewEmptyConfig() *Config {
 				Dash: "http://localhost:8800",
 			},
 		},
-		Storage: &qiniu.Config{
-			AccessKey:  "",
-			SecretKey:  "",
-			Bucket:     "",
-			PublicBase: "",
+		Storage: &storage.Config{
+			RootDir:    "./var/file",
+			PublicBase: "http://localhost:9900",
 		},
 		Bot: &bot.Config{
 			Token: "",

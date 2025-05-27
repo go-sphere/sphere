@@ -27,7 +27,7 @@ type Web struct {
 	sharedSvc *shared.Service
 }
 
-func NewWebServer(conf *Config, storage storage.ImageStorage, service *api.Service) *Web {
+func NewWebServer(conf *Config, storage storage.CDNStorage, service *api.Service) *Web {
 	return &Web{
 		config:    conf,
 		service:   service,

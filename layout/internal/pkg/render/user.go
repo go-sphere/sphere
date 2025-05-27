@@ -12,7 +12,7 @@ func (r *Render) Me(u *ent.User) *sharedv1.User {
 	return &sharedv1.User{
 		Id:       u.ID,
 		Username: u.Username,
-		Avatar:   r.storage.GenerateImageURL(u.Avatar, ImageWidthForAvatar),
+		Avatar:   r.storage.GenerateURL(u.Avatar),
 		Phone:    u.Phone,
 	}
 }
@@ -24,6 +24,6 @@ func (r *Render) User(u *ent.User) *sharedv1.User {
 	return &sharedv1.User{
 		Id:       u.ID,
 		Username: u.Username,
-		Avatar:   r.storage.GenerateImageURL(u.Avatar, ImageWidthForAvatar),
+		Avatar:   r.storage.GenerateURL(u.Avatar),
 	}
 }

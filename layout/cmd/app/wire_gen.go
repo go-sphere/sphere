@@ -13,14 +13,15 @@ import (
 	"github.com/TBXark/sphere/layout/internal/config"
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/client"
+	"github.com/TBXark/sphere/layout/internal/pkg/file"
 	api2 "github.com/TBXark/sphere/layout/internal/server/api"
 	bot2 "github.com/TBXark/sphere/layout/internal/server/bot"
 	dash2 "github.com/TBXark/sphere/layout/internal/server/dash"
 	"github.com/TBXark/sphere/layout/internal/server/docs"
+	file2 "github.com/TBXark/sphere/layout/internal/server/file"
 	"github.com/TBXark/sphere/layout/internal/service/api"
 	"github.com/TBXark/sphere/layout/internal/service/bot"
 	"github.com/TBXark/sphere/layout/internal/service/dash"
-	"github.com/TBXark/sphere/storage/qiniu"
 	"github.com/TBXark/sphere/utils/boot"
 	"github.com/TBXark/sphere/wechat"
 )
@@ -29,8 +30,8 @@ import (
 
 func NewApplication(conf *config.Config) (*boot.Application, error) {
 	dashConfig := conf.Dash
-	qiniuConfig := conf.Storage
-	qiniuClient, err := qiniu.NewClient(qiniuConfig)
+	v := conf.Storage
+	v2, err := file.NewFileService(v)
 	if err != nil {
 		return nil, err
 	}
@@ -43,74 +44,23 @@ func NewApplication(conf *config.Config) (*boot.Application, error) {
 	wechatConfig := conf.WxMini
 	wechatWechat := wechat.NewWechat(wechatConfig)
 	cache := memory.NewByteCache()
-	service := dash.NewService(daoDao, wechatWechat, cache, qiniuClient)
-	web := dash2.NewWebServer(dashConfig, qiniuClient, service)
+	service := dash.NewService(daoDao, wechatWechat, cache, v2)
+	web := dash2.NewWebServer(dashConfig, v2, service)
 	apiConfig := conf.API
-	apiService := api.NewService(daoDao, wechatWechat, cache, qiniuClient)
-	apiWeb := api2.NewWebServer(apiConfig, qiniuClient, apiService)
+	apiService := api.NewService(daoDao, wechatWechat, cache, v2)
+	apiWeb := api2.NewWebServer(apiConfig, v2, apiService)
+	botConfig := conf.Bot
+	botService := bot.NewService()
+	botBot, err := bot2.NewApp(botConfig, botService)
+	if err != nil {
+		return nil, err
+	}
+	fileConfig := conf.File
+	fileWeb := file2.NewWebServer(fileConfig, v2)
 	docsConfig := conf.Docs
 	docsWeb := docs.NewWebServer(docsConfig)
 	dashInitialize := dashinit.NewDashInitialize(daoDao)
 	connectCleaner := conncleaner.NewConnectCleaner(entClient)
-	application := newApplication(web, apiWeb, docsWeb, dashInitialize, connectCleaner)
-	return application, nil
-}
-
-func NewAPIApplication(conf *config.Config) (*boot.Application, error) {
-	apiConfig := conf.API
-	qiniuConfig := conf.Storage
-	qiniuClient, err := qiniu.NewClient(qiniuConfig)
-	if err != nil {
-		return nil, err
-	}
-	clientConfig := conf.Database
-	entClient, err := client.NewDataBaseClient(clientConfig)
-	if err != nil {
-		return nil, err
-	}
-	daoDao := dao.NewDao(entClient)
-	wechatConfig := conf.WxMini
-	wechatWechat := wechat.NewWechat(wechatConfig)
-	cache := memory.NewByteCache()
-	service := api.NewService(daoDao, wechatWechat, cache, qiniuClient)
-	web := api2.NewWebServer(apiConfig, qiniuClient, service)
-	dashInitialize := dashinit.NewDashInitialize(daoDao)
-	connectCleaner := conncleaner.NewConnectCleaner(entClient)
-	application := newAPIApplication(web, dashInitialize, connectCleaner)
-	return application, nil
-}
-
-func NewDashApplication(conf *config.Config) (*boot.Application, error) {
-	dashConfig := conf.Dash
-	qiniuConfig := conf.Storage
-	qiniuClient, err := qiniu.NewClient(qiniuConfig)
-	if err != nil {
-		return nil, err
-	}
-	clientConfig := conf.Database
-	entClient, err := client.NewDataBaseClient(clientConfig)
-	if err != nil {
-		return nil, err
-	}
-	daoDao := dao.NewDao(entClient)
-	wechatConfig := conf.WxMini
-	wechatWechat := wechat.NewWechat(wechatConfig)
-	cache := memory.NewByteCache()
-	service := dash.NewService(daoDao, wechatWechat, cache, qiniuClient)
-	web := dash2.NewWebServer(dashConfig, qiniuClient, service)
-	dashInitialize := dashinit.NewDashInitialize(daoDao)
-	connectCleaner := conncleaner.NewConnectCleaner(entClient)
-	application := newDashApplication(web, dashInitialize, connectCleaner)
-	return application, nil
-}
-
-func NewBotApplication(conf *config.Config) (*boot.Application, error) {
-	botConfig := conf.Bot
-	service := bot.NewService()
-	botBot, err := bot2.NewApp(botConfig, service)
-	if err != nil {
-		return nil, err
-	}
-	application := newBotApplication(botBot)
+	application := newApplication(web, apiWeb, botBot, fileWeb, docsWeb, dashInitialize, connectCleaner)
 	return application, nil
 }

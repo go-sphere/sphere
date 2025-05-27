@@ -25,14 +25,14 @@ type Service struct {
 	render *render.Render
 
 	cache   cache.ByteCache
-	storage storage.ImageStorage
+	storage storage.CDNStorage
 	tasks   pond.ResultPool[string]
 
 	authorizer    TokenAuthorizer
 	authRefresher TokenAuthorizer
 }
 
-func NewService(db *dao.Dao, wechat *wechat.Wechat, cache cache.ByteCache, store storage.ImageStorage) *Service {
+func NewService(db *dao.Dao, wechat *wechat.Wechat, cache cache.ByteCache, store storage.CDNStorage) *Service {
 	return &Service{
 		db:      db,
 		wechat:  wechat,

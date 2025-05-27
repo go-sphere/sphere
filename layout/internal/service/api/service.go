@@ -23,11 +23,11 @@ type Service struct {
 	httpClient *http.Client
 
 	cache      cache.ByteCache
-	storage    storage.ImageStorage
+	storage    storage.CDNStorage
 	authorizer TokenAuthorizer
 }
 
-func NewService(db *dao.Dao, wechat *wechat.Wechat, cache cache.ByteCache, store storage.ImageStorage) *Service {
+func NewService(db *dao.Dao, wechat *wechat.Wechat, cache cache.ByteCache, store storage.CDNStorage) *Service {
 	return &Service{
 		db:     db,
 		wechat: wechat,

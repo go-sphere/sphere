@@ -6,4 +6,7 @@ import (
 	"github.com/google/wire"
 )
 
-var ProviderSet = wire.NewSet(dashinit.NewDashInitialize, conncleaner.NewConnectCleaner)
+var ProviderSet = wire.NewSet(
+	dashinit.NewDashInitialize,
+	conncleaner.NewConnectCleaner,
+)

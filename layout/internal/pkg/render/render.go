@@ -7,16 +7,10 @@ import (
 
 type Render struct {
 	db          *dao.Dao
-	storage     storage.ImageURLHandler
+	storage     storage.URLHandler
 	hidePrivacy bool
 }
 
-const (
-	ImageWidthForAvatar   = 400
-	ImageWidthForPlatform = 512
-	ImageWidthForCommon   = 1024
-)
-
-func NewRender(db *dao.Dao, storage storage.ImageURLHandler, hidePrivacy bool) *Render {
+func NewRender(db *dao.Dao, storage storage.URLHandler, hidePrivacy bool) *Render {
 	return &Render{db: db, storage: storage, hidePrivacy: hidePrivacy}
 }

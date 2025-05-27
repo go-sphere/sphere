@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/TBXark/sphere/cache"
 	"github.com/TBXark/sphere/storage"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
@@ -95,11 +95,19 @@ func (a *S3Adapter) RegisterPutFileUploader(route gin.IRouter) {
 			return
 		}
 		uploadKey, err := a.UploadFile(ctx, bytes.NewReader(data), string(*filename))
+		if err != nil {
+			abortWithError(ctx, http.StatusInternalServerError, err)
+			return
+		}
 		ctx.JSON(http.StatusOK, gin.H{
 			"data": gin.H{
 				"key": uploadKey,
-				"url": a.Storage.GenerateURL(uploadKey),
+				"url": a.GenerateURL(uploadKey),
 			},
 		})
 	})
+}
+
+func (a *S3Adapter) RegisterFileDownloader(route gin.IRouter, options ...DownloaderOption) {
+	RegisterFileDownloader(route, a.Storage, options...)
 }

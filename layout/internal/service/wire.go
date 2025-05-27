@@ -7,4 +7,8 @@ import (
 	"github.com/google/wire"
 )
 
-var ProviderSet = wire.NewSet(api.NewService, dash.NewService, bot.NewService)
+var ProviderSet = wire.NewSet(
+	api.NewService,
+	dash.NewService,
+	bot.NewService,
+)

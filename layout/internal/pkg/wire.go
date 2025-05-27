@@ -6,4 +6,7 @@ import (
 	"github.com/google/wire"
 )
 
-var ProviderSet = wire.NewSet(dao.NewDao, client.NewDataBaseClient)
+var ProviderSet = wire.NewSet(
+	dao.NewDao,
+	client.NewDataBaseClient,
+)

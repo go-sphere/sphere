@@ -29,12 +29,11 @@ type Web struct {
 	config    *Config
 	acl       *acl.ACL
 	server    *http.Server
-	storage   storage.ImageStorage
 	service   *dash.Service
 	sharedSvc *shared.Service
 }
 
-func NewWebServer(config *Config, storage storage.ImageStorage, service *dash.Service) *Web {
+func NewWebServer(config *Config, storage storage.CDNStorage, service *dash.Service) *Web {
 	return &Web{
 		config:    config,
 		acl:       acl.NewACL(),
