@@ -1,6 +1,7 @@
 package fileserver
 
 import (
+	"maps"
 	"net/http"
 	"os"
 	"strconv"
@@ -43,7 +44,8 @@ func RegisterFileDownloader(route gin.IRouter, storage storage.Storage, options 
 			return
 		}
 		defer safe.IfErrorPresent("close reader", reader.Close)
-		ctx.DataFromReader(200, size, mime, reader, sharedHeaders)
+		headers := maps.Clone(sharedHeaders)
+		ctx.DataFromReader(200, size, mime, reader, headers)
 	})
 }
 
