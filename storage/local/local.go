@@ -38,6 +38,10 @@ func NewClient(config *Config) (*Client, error) {
 	if config.RootDir == "" {
 		return nil, errors.New("root_dir is required")
 	}
+	err = os.MkdirAll(config.RootDir, 0o750)
+	if err != nil {
+		return nil, err
+	}
 	return &Client{
 		Handler: handler,
 		config:  config,
@@ -57,9 +61,6 @@ func (c *Client) fixFilePath(key string) (string, error) {
 	filePath = filepath.Clean(filePath)
 	if !strings.HasPrefix(filePath, rootDir) {
 		return "", ErrorFileOutsideRoot
-	}
-	if rootDir == filePath {
-		return "", ErrorFileNameInvalid
 	}
 	return filePath, nil
 }
