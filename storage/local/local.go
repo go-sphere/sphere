@@ -116,6 +116,9 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 	}
 	file, err := os.Open(filePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, "", 0, ErrorNotFound
+		}
 		return nil, "", 0, err
 	}
 	stat, err := file.Stat()
