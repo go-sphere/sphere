@@ -2,6 +2,7 @@ package fileserver
 
 import (
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/TBXark/sphere/storage"
@@ -32,9 +33,13 @@ func RegisterFileDownloader(route gin.IRouter, storage storage.Storage, options 
 	}
 	route.GET("/*filename", func(ctx *gin.Context) {
 		param := ctx.Param("filename")
+		if param == "" {
+			abortWithError(ctx, http.StatusNotFound, os.ErrNotExist)
+		}
+		param = param[1:]
 		reader, mime, size, err := storage.DownloadFile(ctx, param)
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusNotFound, gin.H{"message": err.Error()})
+			abortWithError(ctx, http.StatusNotFound, err)
 			return
 		}
 		defer safe.IfErrorPresent("close reader", reader.Close)
@@ -48,24 +53,35 @@ func RegisterFormFileUploader(route gin.IRouter, storage storage.Storage, keyBui
 	route.POST("/", func(ctx *gin.Context) {
 		file, err := ctx.FormFile("file")
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+			abortWithError(ctx, http.StatusBadRequest, err)
 			return
 		}
 		read, err := file.Open()
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+			abortWithError(ctx, http.StatusInternalServerError, err)
 			return
 		}
 		defer safe.IfErrorPresent("close reader", read.Close)
 		filename := keyBuilder(ctx, file.Filename)
 		result, err := storage.UploadFile(ctx, read, filename)
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+			abortWithError(ctx, http.StatusInternalServerError, err)
 			return
 		}
-		ctx.JSON(http.StatusOK, gin.H{
+		successWithData(ctx, gin.H{
 			"key": result,
 			"url": storage.GenerateURL(result),
 		})
+	})
+}
+
+func abortWithError(ctx *gin.Context, status int, err error) {
+	ctx.AbortWithStatusJSON(status, gin.H{"message": err.Error()})
+}
+
+func successWithData(ctx *gin.Context, data interface{}) {
+	ctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
 	})
 }

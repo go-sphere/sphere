@@ -66,10 +66,7 @@ func (a *S3Adapter) GenerateUploadToken(ctx context.Context, fileName string, di
 }
 
 func (a *S3Adapter) RegisterPutFileUploader(route gin.IRouter) {
-	abortWithError := func(ctx *gin.Context, status int, err error) {
-		ctx.AbortWithStatusJSON(status, gin.H{"message": err.Error()})
-	}
-	route.PUT("/*key", func(ctx *gin.Context) {
+	route.PUT("/:key", func(ctx *gin.Context) {
 		key := ctx.Param("key")
 		if key == "" {
 			abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key is required"))
@@ -99,11 +96,9 @@ func (a *S3Adapter) RegisterPutFileUploader(route gin.IRouter) {
 			abortWithError(ctx, http.StatusInternalServerError, err)
 			return
 		}
-		ctx.JSON(http.StatusOK, gin.H{
-			"data": gin.H{
-				"key": uploadKey,
-				"url": a.GenerateURL(uploadKey),
-			},
+		successWithData(ctx, gin.H{
+			"key": uploadKey,
+			"url": a.GenerateURL(uploadKey),
 		})
 	})
 }

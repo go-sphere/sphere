@@ -2,9 +2,9 @@ package file
 
 import (
 	"context"
-	"github.com/TBXark/sphere/layout/internal/pkg/file"
 	"net/http"
 
+	"github.com/TBXark/sphere/layout/internal/pkg/file"
 	"github.com/TBXark/sphere/server/ginx"
 	"github.com/TBXark/sphere/server/route/cors"
 	"github.com/TBXark/sphere/storage/fileserver"
