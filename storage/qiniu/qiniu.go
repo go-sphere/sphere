@@ -54,12 +54,16 @@ func (n *Client) GenerateImageURL(key string, width int) string {
 	return res.String()
 }
 
+func (n *Client) keyPreprocess(key string) string {
+	return strings.TrimPrefix(key, "/")
+}
+
 func (n *Client) GenerateUploadToken(ctx context.Context, fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) ([3]string, error) {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
 	nameMd5 := hex.EncodeToString(sum[:])
 	key := nameBuilder(nameMd5+fileExt, n.config.Dir, dir)
-	key = strings.TrimPrefix(key, "/")
+	key = n.keyPreprocess(key)
 	put := &storage.PutPolicy{
 		Scope:      n.config.Bucket + ":" + key,
 		InsertOnly: 1,
@@ -72,11 +76,8 @@ func (n *Client) GenerateUploadToken(ctx context.Context, fileName string, dir s
 	}, nil
 }
 
-func (n *Client) keyPreprocess(key string) string {
-	return strings.TrimPrefix(key, "/")
-}
-
 func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
+	key = n.keyPreprocess(key)
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -84,7 +85,6 @@ func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	cfg := storage.Config{}
 	ret := storage.PutRet{}
 	formUploader := storage.NewFormUploader(&cfg)
-	key = n.keyPreprocess(key)
 	err := formUploader.Put(ctx, &ret, upToken, key, file, -1, nil)
 	if err != nil {
 		return "", err
@@ -93,6 +93,7 @@ func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 }
 
 func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
+	key = n.keyPreprocess(key)
 	put := &storage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -100,7 +101,6 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	cfg := storage.Config{}
 	ret := storage.PutRet{}
 	formUploader := storage.NewFormUploader(&cfg)
-	key = n.keyPreprocess(key)
 	err := formUploader.PutFile(ctx, &ret, upToken, key, file, nil)
 	if err != nil {
 		return "", err
@@ -109,6 +109,7 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 }
 
 func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
+	key = n.keyPreprocess(key)
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
 	_, err := manager.Stat(n.config.Bucket, key)
 	if err != nil {
@@ -118,6 +119,7 @@ func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 }
 
 func (n *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+	key = n.keyPreprocess(key)
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
 	object, err := manager.Get(n.config.Bucket, key, &storage.GetObjectInput{Context: ctx})
 	if err != nil {
@@ -127,6 +129,7 @@ func (n *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 }
 
 func (n *Client) DeleteFile(ctx context.Context, key string) error {
+	key = n.keyPreprocess(key)
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
 	err := manager.Delete(n.config.Bucket, key)
 	if err != nil {
@@ -136,8 +139,9 @@ func (n *Client) DeleteFile(ctx context.Context, key string) error {
 }
 
 func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	manager := storage.NewBucketManager(n.mac, &storage.Config{})
+	sourceKey = n.keyPreprocess(sourceKey)
 	destinationKey = n.keyPreprocess(destinationKey)
+	manager := storage.NewBucketManager(n.mac, &storage.Config{})
 	err := manager.Move(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {
 		return err
@@ -146,8 +150,9 @@ func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 }
 
 func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	manager := storage.NewBucketManager(n.mac, &storage.Config{})
+	sourceKey = n.keyPreprocess(sourceKey)
 	destinationKey = n.keyPreprocess(destinationKey)
+	manager := storage.NewBucketManager(n.mac, &storage.Config{})
 	err := manager.Copy(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {
 		return err

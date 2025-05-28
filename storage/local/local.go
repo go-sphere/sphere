@@ -3,6 +3,7 @@ package local
 import (
 	"context"
 	"errors"
+	"github.com/TBXark/sphere/storage/storageerr"
 	"io"
 	"mime"
 	"os"
@@ -10,14 +11,6 @@ import (
 	"strings"
 
 	"github.com/TBXark/sphere/storage/urlhandler"
-	"github.com/TBXark/sphere/utils/safe"
-)
-
-var (
-	ErrorNotFound        = errors.New("file not found")
-	ErrorDistExisted     = errors.New("destination file existed")
-	ErrorFileOutsideRoot = errors.New("file path outside root dir")
-	ErrorFileNameInvalid = errors.New("file name invalid")
 )
 
 type Config struct {
@@ -60,7 +53,7 @@ func (c *Client) fixFilePath(key string) (string, error) {
 	rootDir = filepath.Clean(rootDir)
 	filePath = filepath.Clean(filePath)
 	if !strings.HasPrefix(filePath, rootDir) {
-		return "", ErrorFileOutsideRoot
+		return "", storageerr.ErrorFileNameInvalid
 	}
 	return filePath, nil
 }
@@ -78,7 +71,9 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	if err != nil {
 		return "", err
 	}
-	defer safe.IfErrorPresent("close file", out.Close)
+	defer func() {
+		_ = out.Close()
+	}()
 	_, err = io.Copy(out, file)
 	if err != nil {
 		return "", err
@@ -91,7 +86,9 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	if err != nil {
 		return "", err
 	}
-	defer safe.IfErrorPresent("close file", raw.Close)
+	defer func() {
+		_ = raw.Close()
+	}()
 	return c.UploadFile(ctx, raw, key)
 }
 
@@ -118,7 +115,7 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 	file, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, "", 0, ErrorNotFound
+			return nil, "", 0, storageerr.ErrorNotFound
 		}
 		return nil, "", 0, err
 	}
@@ -150,7 +147,7 @@ func (c *Client) removeBeforeOverwrite(path string, overwrite bool) error {
 		return err
 	}
 	if !overwrite {
-		return ErrorDistExisted
+		return storageerr.ErrorDistExisted
 	}
 	err = os.Remove(path)
 	if err != nil {
@@ -172,7 +169,7 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 		return e
 	}
 	if _, e := os.Stat(sourcePath); os.IsNotExist(e) {
-		return ErrorNotFound
+		return storageerr.ErrorNotFound
 	}
 	if e := c.removeBeforeOverwrite(destinationPath, overwrite); e != nil {
 		return e
@@ -200,14 +197,18 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	}
 	srcFile, err := os.Open(sourcePath)
 	if err != nil {
-		return ErrorNotFound
+		return storageerr.ErrorNotFound
 	}
-	defer safe.IfErrorPresent("close file", srcFile.Close)
+	defer func() {
+		_ = srcFile.Close()
+	}()
 	dstFile, err := os.Create(destinationPath)
 	if err != nil {
 		return err
 	}
-	defer safe.IfErrorPresent("close file", dstFile.Close)
+	defer func() {
+		_ = dstFile.Close()
+	}()
 	_, err = io.Copy(dstFile, srcFile)
 	if err != nil {
 		return err

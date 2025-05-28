@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/TBXark/sphere/storage"
-	"github.com/TBXark/sphere/utils/safe"
 	"github.com/gin-gonic/gin"
 )
 
@@ -43,7 +42,9 @@ func RegisterFileDownloader(route gin.IRouter, storage storage.Storage, options 
 			abortWithError(ctx, http.StatusNotFound, err)
 			return
 		}
-		defer safe.IfErrorPresent("close reader", reader.Close)
+		defer func() {
+			_ = reader.Close
+		}()
 		headers := maps.Clone(sharedHeaders)
 		ctx.DataFromReader(200, size, mime, reader, headers)
 	})
@@ -63,7 +64,9 @@ func RegisterFormFileUploader(route gin.IRouter, storage storage.Storage, keyBui
 			abortWithError(ctx, http.StatusInternalServerError, err)
 			return
 		}
-		defer safe.IfErrorPresent("close reader", read.Close)
+		defer func() {
+			_ = read.Close
+		}()
 		filename := keyBuilder(ctx, file.Filename)
 		result, err := storage.UploadFile(ctx, read, filename)
 		if err != nil {

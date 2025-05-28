@@ -3,20 +3,16 @@ package kvcache
 import (
 	"bytes"
 	"context"
-	"errors"
+	"github.com/TBXark/sphere/storage/storageerr"
 	"io"
 	"mime"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/TBXark/sphere/cache"
 	"github.com/TBXark/sphere/storage/urlhandler"
-)
-
-var (
-	ErrorNotFound    = errors.New("key not found")
-	ErrorDistExisted = errors.New("destination key existed")
 )
 
 type Config struct {
@@ -45,7 +41,12 @@ func NewClient(config *Config, cache cache.ByteCache) (*Client, error) {
 	}, nil
 }
 
+func (c *Client) keyPreprocess(key string) string {
+	return strings.TrimPrefix(key, "/")
+}
+
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
+	key = c.keyPreprocess(key)
 	all, err := io.ReadAll(file)
 	if err != nil {
 		return "", err
@@ -58,6 +59,7 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 }
 
 func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
+	key = c.keyPreprocess(key)
 	raw, err := os.ReadFile(file)
 	if err != nil {
 		return "", err
@@ -70,6 +72,7 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 }
 
 func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
+	key = c.keyPreprocess(key)
 	data, err := c.cache.Get(ctx, key)
 	if err != nil {
 		return false, err
@@ -78,6 +81,7 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 }
 
 func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+	key = c.keyPreprocess(key)
 	data, err := c.cache.Get(ctx, key)
 	if err != nil {
 		return nil, "", 0, err
@@ -89,6 +93,7 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 }
 
 func (c *Client) DeleteFile(ctx context.Context, key string) error {
+	key = c.keyPreprocess(key)
 	err := c.cache.Del(ctx, key)
 	if err != nil {
 		return err
@@ -97,6 +102,8 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 }
 
 func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	sourceKey = c.keyPreprocess(sourceKey)
+	destinationKey = c.keyPreprocess(destinationKey)
 	err := c.CopyFile(ctx, sourceKey, destinationKey, overwrite)
 	if err != nil {
 		return err
@@ -109,10 +116,12 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 }
 
 func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	sourceKey = c.keyPreprocess(sourceKey)
+	destinationKey = c.keyPreprocess(destinationKey)
 	if !overwrite {
 		value, err := c.cache.Get(ctx, destinationKey)
 		if err == nil && value != nil {
-			return ErrorDistExisted
+			return storageerr.ErrorDistExisted
 		}
 	}
 	value, err := c.cache.Get(ctx, sourceKey)
@@ -120,7 +129,7 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 		return err
 	}
 	if value == nil {
-		return ErrorNotFound
+		return storageerr.ErrorNotFound
 	}
 	err = c.cache.Set(ctx, destinationKey, *value, c.config.Expires)
 	if err != nil {

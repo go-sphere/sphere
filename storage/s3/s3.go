@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
-	"errors"
+	"github.com/TBXark/sphere/storage/storageerr"
 	"io"
 	"path"
 	"strings"
@@ -13,11 +13,6 @@ import (
 	"github.com/TBXark/sphere/storage/urlhandler"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-)
-
-var (
-	ErrorNotFound    = errors.New("object not found")
-	ErrorDistExisted = errors.New("destination object existed")
 )
 
 type Config struct {
@@ -62,12 +57,16 @@ func NewClient(config *Config) (*Client, error) {
 	}, nil
 }
 
+func (s *Client) keyPreprocess(key string) string {
+	return strings.TrimPrefix(key, "/")
+}
+
 func (s *Client) GenerateUploadToken(ctx context.Context, fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
 	nameMd5 := hex.EncodeToString(sum[:])
 	key := nameBuilder(nameMd5+fileExt, dir)
-	key = strings.TrimPrefix(key, "/")
+	key = s.keyPreprocess(key)
 
 	preSignedURL, err := s.client.PresignedPutObject(ctx,
 		s.config.Bucket,
@@ -84,6 +83,7 @@ func (s *Client) GenerateUploadToken(ctx context.Context, fileName string, dir s
 }
 
 func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
+	key = s.keyPreprocess(key)
 	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, -1, minio.PutObjectOptions{})
 	if err != nil {
 		return "", err
@@ -92,6 +92,7 @@ func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 }
 
 func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
+	key = s.keyPreprocess(key)
 	info, err := s.client.FPutObject(ctx, s.config.Bucket, key, file, minio.PutObjectOptions{})
 	if err != nil {
 		return "", err
@@ -100,10 +101,11 @@ func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 }
 
 func (s *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
+	key = s.keyPreprocess(key)
 	_, err := s.client.StatObject(ctx, s.config.Bucket, key, minio.StatObjectOptions{})
 	if err != nil {
 		if minio.ToErrorResponse(err).Code == "NoSuchKey" {
-			return false, ErrorNotFound
+			return false, nil
 		}
 		return false, err
 	}
@@ -111,6 +113,7 @@ func (s *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 }
 
 func (s *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+	key = s.keyPreprocess(key)
 	object, err := s.client.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, "", 0, err
@@ -123,6 +126,7 @@ func (s *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 }
 
 func (s *Client) DeleteFile(ctx context.Context, key string) error {
+	key = s.keyPreprocess(key)
 	err := s.client.RemoveObject(ctx, s.config.Bucket, key, minio.RemoveObjectOptions{})
 	if err != nil {
 		return err
@@ -131,10 +135,12 @@ func (s *Client) DeleteFile(ctx context.Context, key string) error {
 }
 
 func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	sourceKey = s.keyPreprocess(sourceKey)
+	destinationKey = s.keyPreprocess(destinationKey)
 	if !overwrite {
 		_, err := s.client.StatObject(ctx, s.config.Bucket, destinationKey, minio.StatObjectOptions{})
 		if err == nil {
-			return ErrorDistExisted
+			return storageerr.ErrorDistExisted
 		}
 	}
 	_, err := s.client.CopyObject(ctx, minio.CopyDestOptions{
@@ -156,10 +162,12 @@ func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 }
 
 func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	sourceKey = s.keyPreprocess(sourceKey)
+	destinationKey = s.keyPreprocess(destinationKey)
 	if !overwrite {
 		_, err := s.client.StatObject(ctx, s.config.Bucket, destinationKey, minio.StatObjectOptions{})
 		if err == nil {
-			return ErrorDistExisted
+			return storageerr.ErrorDistExisted
 		}
 	}
 	_, err := s.client.CopyObject(ctx, minio.CopyDestOptions{
