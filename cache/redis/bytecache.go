@@ -9,9 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var (
-	ErrorType = fmt.Errorf("type error")
-)
+var ErrorType = fmt.Errorf("type error")
 
 type ByteCache struct {
 	Client *redis.Client

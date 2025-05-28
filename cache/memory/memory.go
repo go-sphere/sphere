@@ -8,9 +8,7 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
-var (
-	ErrorType = fmt.Errorf("type error")
-)
+var ErrorType = fmt.Errorf("type error")
 
 type Cache[T any] struct {
 	cache *cache.Cache
