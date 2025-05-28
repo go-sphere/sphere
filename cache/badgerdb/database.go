@@ -2,6 +2,7 @@ package badgerdb
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -49,6 +50,9 @@ func (d *Database) Get(ctx context.Context, key string) (*[]byte, error) {
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &val, nil
@@ -81,6 +85,9 @@ func (d *Database) MultiGet(ctx context.Context, keys []string) (map[string][]by
 		for _, key := range keys {
 			item, err := txn.Get([]byte(key))
 			if err != nil {
+				if errors.Is(err, badger.ErrKeyNotFound) {
+					continue // Key not found, skip it
+				}
 				return err
 			}
 			val, err := item.ValueCopy(nil)

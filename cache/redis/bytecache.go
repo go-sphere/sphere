@@ -2,13 +2,16 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
-var ErrorType = fmt.Errorf("type error")
+var (
+	ErrorType = fmt.Errorf("type error")
+)
 
 type ByteCache struct {
 	Client *redis.Client
@@ -25,6 +28,9 @@ func (c *ByteCache) Set(ctx context.Context, key string, val []byte, expiration 
 func (c *ByteCache) Get(ctx context.Context, key string) (*[]byte, error) {
 	val, err := c.Client.Get(ctx, key).Bytes()
 	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil // Key does not exist
+		}
 		return nil, err
 	}
 	return &val, nil
