@@ -44,8 +44,8 @@ func (m *Manager) SendCode(number string) error {
 	return nil
 }
 
-func (m *Manager) Verify(number, code string) error {
-	return m.Verify(number, code)
+func (m *Manager) Verify(number, code string) bool {
+	return m.verification.Verify(number, code)
 }
 
 func (m *Manager) Identifier() string {
