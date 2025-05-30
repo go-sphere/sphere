@@ -14,27 +14,28 @@ Alternatively, you can import this project in go mod and implement your own busi
 ```
 Sphere build tool. Usage: make [target]
 
-  init                Init all dependencies
-  install             Install dependencies tools
-  gen-proto           Generate proto files and run protoc plugins
-  gen-ent             Generate ent code
-  gen-docs            Generate swagger docs
-  gen-ts-docs         Generate swagger typescript docs
-  gen-wire            Generate wire code
-  gen-conf            Generate example config
-  gen-all             Generate both ent, docs and wire
-  clean               Clean gen code and build files
-  dash                Build dash
-  build               Build binary
-  build-linux-amd64   Build linux amd64 binary
-  build-linux-arm64   Build linux arm64 binary
-  build-all           Build all arch binary
-  deploy              Deploy binary
-  lint                Run linter
-  fmt                 Run formatter
-  build-docker        Build docker image
-  build-x-docker      Build multi-arch docker image
-  help                Show this help message
+  build                Build binary
+  build/linux/amd64    Build linux amd64 binary
+  build/linux/arm64    Build linux arm64 binary
+  build/all            Build all arch binary
+  build/assets         Build assets
+  gen/dts              Generate swagger typescript docs
+  gen/proto            Generate proto files and run protoc plugins
+  gen/db               Generate ent code
+  gen/docs             Generate swagger docs
+  gen/wire             Generate wire code
+  gen/conf             Generate example config
+  clean                Clean gen code and build files
+  gen/all              Generate both ent, docs and wire
+  build/docker         Build docker image
+  build/multi-docker   Build multi-arch docker image
+  run                  Run the application
+  deploy               Deploy binary
+  install              Install dependencies tools
+  lint                 Run linter
+  fmt                  Run formatter
+  init                 Init all dependencies
+  help                 Show this help message
 ```
 
 ## Project Structure
