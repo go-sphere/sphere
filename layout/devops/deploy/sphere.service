@@ -1,0 +1,18 @@
+[Unit]
+Description=Sphere Application
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/sphere/app
+WorkingDirectory=/opt/sphere
+User=nobody
+Group=nobody
+Restart=always
+RestartSec=5
+Environment="APP_ENV=production"
+EnvironmentFile=/opt/sphere/.env
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

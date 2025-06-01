@@ -112,8 +112,8 @@ run: ## Run the application
 	$(GO_RUN) $(MODULE)/cmd/app
 
 .PHONY: delpoy
-deploy: build/linux/amd64 ## Deploy binary
-	ansible-playbook -i devops/ansible/hosts/inventory.ini devops/ansible/deploy.yml
+deploy: ## Deploy binary
+	./devops/deploy/deploy.sh deploy
 
 .PHONY: lint
 lint: ## Run linter

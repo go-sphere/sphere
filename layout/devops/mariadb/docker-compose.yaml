@@ -6,7 +6,7 @@ services:
     restart: always
     hostname: mariadb
     environment:
-      MARIADB_DATABASE: "${MARIADB_DATABASE:-go-base}"
+      MARIADB_DATABASE: "${MARIADB_DATABASE:-sphere}"
       MARIADB_USER: "${MARIADB_USER:-api}"
       MARIADB_PASSWORD: "${MARIADB_PASSWORD:-password}"
       MARIADB_RANDOM_ROOT_PASSWORD: "yes"
