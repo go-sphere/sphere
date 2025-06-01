@@ -2,10 +2,11 @@
 
 > This project is under development. APIs may change at any time. Please use it with caution.
 
-**Sphere** is a multiserver application template. **Sphere** aims to provide a simple, fast, and maintainable
-multiserver application template. All modules are replaceable, and you can replace modules according to your needs. You
-can customize your own microservice framework without being limited.
-
+**Sphere** is a Monolithic Architecture (MA) application template that can be used to develop microservices.
+It is designed to be a simple, fast, and maintainable codebase that can be easily extended and replaced.
+Sphere uses `ent` as the database structure definition and `proto` as the interface definition.
+It also provides a series of code and document generation tools, including `proto` files, `Swagger` documents,
+`TypeScript` clients, etc.
 
 ## Features
 
@@ -14,6 +15,8 @@ can customize your own microservice framework without being limited.
 - **Maintainable**: Clear code structure that is easy to extend.
 - **Replaceable**: All modules are replaceable.
 - **Code Generator**: One-click code generation. The generator automatically generates code, including proto files, Swagger documents, TypeScript clients, and more.
+- **Deployment By One file**: The entire project can be deployed with a single file, making it easy to deploy and
+  manage.
 
 
 ## Core Dependencies
