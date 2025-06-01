@@ -13,12 +13,12 @@ import (
 var _ {{.ServicePackage}}.{{.ServiceName}}ServiceHTTPServer = (*Service)(nil)
 
 func (s *Service) {{.ServiceName}}Create(ctx context.Context, req *{{.ServicePackage}}.{{.ServiceName}}CreateRequest) (*{{.ServicePackage}}.{{.ServiceName}}CreateResponse, error) {
-	entity, err := render.Create{{.ServiceName}}(s.db.{{.ServiceName}}.Create(), req.{{.ServiceName}}).Save(ctx)
+	item, err := render.Create{{.ServiceName}}(s.db.{{.ServiceName}}.Create(), req.{{.ServiceName}}).Save(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &{{.ServicePackage}}.{{.ServiceName}}CreateResponse{
-		{{.ServiceName}}: s.render.{{.ServiceName}}(entity),
+		{{.ServiceName}}: s.render.{{.ServiceName}}(item),
 	}, nil
 }
 
@@ -62,7 +62,7 @@ func (s *Service) {{.ServiceName}}List(ctx context.Context, req *{{.ServicePacka
 }
 
 func (s *Service) {{.ServiceName}}Update(ctx context.Context, req *{{.ServicePackage}}.{{.ServiceName}}UpdateRequest) (*{{.ServicePackage}}.{{.ServiceName}}UpdateResponse, error) {
-	u, err := render.UpdateOne{{.ServiceName}}(
+	item, err := render.UpdateOne{{.ServiceName}}(
 		s.db.{{.ServiceName}}.UpdateOneID(int(req.{{.ServiceName}}.Id)),
 		req.{{.ServiceName}},
 	).Save(ctx)
@@ -70,6 +70,6 @@ func (s *Service) {{.ServiceName}}Update(ctx context.Context, req *{{.ServicePac
 		return nil, err
 	}
 	return &{{.ServicePackage}}.{{.ServiceName}}UpdateResponse{
-		{{.ServiceName}}: s.render.{{.ServiceName}}(u),
+		{{.ServiceName}}: s.render.{{.ServiceName}}(item),
 	}, nil
 }
