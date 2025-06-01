@@ -20,5 +20,4 @@ fmt: ## Format code
 	cd contrib/ent-template-gen && go mod tidy
 	cd contrib/protoc-gen-route && go mod tidy
 	cd contrib/protoc-gen-sphere && go mod tidy
-	cd contrib/README.md && go mod tidy
 	cd contrib/sphere-cli && go mod tidy
