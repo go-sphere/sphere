@@ -23,7 +23,7 @@ func (s *Service) {{.ServiceName}}Create(ctx context.Context, req *{{.ServicePac
 }
 
 func (s *Service) {{.ServiceName}}Delete(ctx context.Context, req *{{.ServicePackage}}.{{.ServiceName}}DeleteRequest) (*{{.ServicePackage}}.{{.ServiceName}}DeleteResponse, error) {
-	err := s.db.{{.ServiceName}}.DeleteOneID(req.ID).Exec(ctx)
+	err := s.db.{{.ServiceName}}.DeleteOneID(int(req.Id)).Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func (s *Service) {{.ServiceName}}Delete(ctx context.Context, req *{{.ServicePac
 }
 
 func (s *Service) {{.ServiceName}}Detail(ctx context.Context, req *{{.ServicePackage}}.{{.ServiceName}}DetailRequest) (*{{.ServicePackage}}.{{.ServiceName}}DetailResponse, error) {
-	item, err := s.db.{{.ServiceName}}.Get(ctx, req.Id)
+	item, err := s.db.{{.ServiceName}}.Get(ctx, int(req.Id))
 	if err != nil {
 		return nil, err
 	}
@@ -62,8 +62,8 @@ func (s *Service) {{.ServiceName}}List(ctx context.Context, req *{{.ServicePacka
 }
 
 func (s *Service) {{.ServiceName}}Update(ctx context.Context, req *{{.ServicePackage}}.{{.ServiceName}}UpdateRequest) (*{{.ServicePackage}}.{{.ServiceName}}UpdateResponse, error) {
-	u, err := render.UpdateOneAdmin(
-		s.db.{{.ServiceName}}.UpdateOneID(req.{{.ServiceName}}.Id),
+	u, err := render.UpdateOne{{.ServiceName}}(
+		s.db.{{.ServiceName}}.UpdateOneID(int(req.{{.ServiceName}}.Id)),
 		req.{{.ServiceName}},
 	).Save(ctx)
 	if err != nil {
