@@ -6,10 +6,10 @@ require (
 	entgo.io/contrib v0.6.0
 	entgo.io/ent v0.14.4
 	github.com/google/uuid v1.6.0
-	github.com/jhump/protoreflect v1.10.1
+	github.com/jhump/protoreflect v1.17.0
 	github.com/mitchellh/mapstructure v1.5.0
-	go.uber.org/multierr v1.9.0
-	google.golang.org/protobuf v1.34.2
+	go.uber.org/multierr v1.11.0
+	google.golang.org/protobuf v1.36.6
 )
 
 require (

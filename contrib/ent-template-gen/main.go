@@ -3,6 +3,7 @@ package main
 import (
 	_ "embed"
 	"flag"
+	"fmt"
 	"log"
 	"strings"
 	"text/template"
@@ -13,8 +14,14 @@ import (
 func main() {
 	pkg := flag.String("pkg", "dash.v1", "package name")
 	name := flag.String("name", "Admin", "proto name")
-	file := flag.String("file", "go", "generated file type, supports: proto, go")
+	file := flag.String("file", "proto", "generated file type, supports: proto, go")
+	help := flag.Bool("help", false, "show help message")
 	flag.Parse()
+
+	if *help {
+		flag.Usage()
+		return
+	}
 
 	generators := map[string]func(name, pkg string) (string, error){
 		"proto": createProto,
@@ -25,11 +32,11 @@ func main() {
 	if !ok {
 		log.Panicf("Unsupported file type: %s, supported types are: %v", *file, []string{"proto", "go"})
 	}
-	proto, err := genFunc(*name, *pkg)
+	res, err := genFunc(*name, *pkg)
 	if err != nil {
 		log.Panic("Failed to create proto:", err)
 	}
-	log.Println("Generated Proto:\n", proto)
+	fmt.Print(res)
 }
 
 type ProtoConf struct {
