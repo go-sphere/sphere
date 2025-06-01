@@ -1,14 +1,12 @@
 package create
 
 import (
-	"flag"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"github.com/TBXark/sphere/contrib/sphere-cli/internal/command"
 	"github.com/TBXark/sphere/contrib/sphere-cli/internal/renamer"
 	"github.com/TBXark/sphere/contrib/sphere-cli/internal/zip"
 )
@@ -19,20 +17,7 @@ const (
 	defaultProjectLayoutModName = "github.com/TBXark/sphere/layout"
 )
 
-func NewCommand() *command.Command {
-	fs := flag.NewFlagSet("create", flag.ExitOnError)
-	name := fs.String("name", "", "project name")
-	mod := fs.String("mod", "", "go module name")
-	return command.NewCommand(fs, func() error {
-		if *name == "" || *mod == "" {
-			fs.Usage()
-			return nil
-		}
-		return createProject(*name, *mod)
-	})
-}
-
-func createProject(name, mod string) error {
+func Project(name, mod string) error {
 	tempDir, err := cloneLayoutDir(defaultProjectLayout)
 	if err != nil {
 		return err

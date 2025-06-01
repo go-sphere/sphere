@@ -16,8 +16,6 @@ fmt: ## Format code
 	go fmt ./...
 	go mod tidy
 	cd layout && go mod tidy
-	cd contrib/ent-gen-proto && go mod tidy
-	cd contrib/ent-template-gen && go mod tidy
 	cd contrib/protoc-gen-route && go mod tidy
 	cd contrib/protoc-gen-sphere && go mod tidy
 	cd contrib/sphere-cli && go mod tidy

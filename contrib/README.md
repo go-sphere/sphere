@@ -1,6 +1,7 @@
 # contrib
 
-[ent-gen-proto](./ent-gen-proto/README.md): This is a tool to generate proto files from ent schema. 
+~~[ent-gen-proto](./sphere-cli/README.md): This is a tool to generate proto files from ent schema.~~
+> Breaking change: The `ent-gen-proto` tool has been deprecated and replaced by the `sphere-cli ent2proto` command.
 
 [protoc-gen-sphere](./protoc-gen-sphere/README.md): This is a protoc plugin to generate sphere code from proto files
 

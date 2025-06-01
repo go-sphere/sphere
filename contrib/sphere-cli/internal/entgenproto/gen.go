@@ -7,6 +7,7 @@ import (
 	"path"
 	"reflect"
 	"sort"
+	"strings"
 	_ "unsafe"
 
 	"entgo.io/contrib/entproto"
@@ -350,4 +351,20 @@ func injectProtoPackages(pkg []ProtoPackage) {
 			wktsPaths[p.Pkg+"."+t] = p.Path
 		}
 	}
+}
+
+func ParseProtoPackages(raw string) []ProtoPackage {
+	res := make([]ProtoPackage, 0)
+	for _, pkg := range strings.Split(raw, ";") {
+		parts := strings.Split(pkg, ",")
+		if len(parts) < 3 {
+			continue
+		}
+		res = append(res, ProtoPackage{
+			Path:  parts[0],
+			Pkg:   parts[1],
+			Types: parts[2:],
+		})
+	}
+	return res
 }
