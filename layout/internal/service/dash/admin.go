@@ -60,12 +60,23 @@ func (s *Service) AdminDetail(ctx context.Context, req *dashv1.AdminDetailReques
 }
 
 func (s *Service) AdminList(ctx context.Context, req *dashv1.AdminListRequest) (*dashv1.AdminListResponse, error) {
-	all, err := s.db.Admin.Query().All(ctx)
+	query := s.db.Admin.Query()
+	if req.PageSize == 0 {
+		req.PageSize = mapper.DefaultPageSize
+	}
+	count, err := query.Clone().Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	page := mapper.Page(count, int(req.PageSize), mapper.DefaultPageSize)
+	all, err := query.Clone().All(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &dashv1.AdminListResponse{
-		Admins: mapper.Map(all, s.render.AdminFull),
+		Admins:    mapper.Map(all, s.render.AdminFull),
+		TotalSize: int64(count),
+		TotalPage: int64(page),
 	}, nil
 }
 

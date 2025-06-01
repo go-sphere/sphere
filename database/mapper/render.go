@@ -5,6 +5,8 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
+const DefaultPageSize = 20
+
 func Map[S any, T any](source []S, mapper func(S) T) []T {
 	result := make([]T, len(source))
 	for i, s := range source {
