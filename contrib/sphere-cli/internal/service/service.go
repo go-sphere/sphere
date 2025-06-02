@@ -2,6 +2,7 @@ package service
 
 import (
 	_ "embed"
+	"go/format"
 	"strings"
 	"text/template"
 
@@ -34,11 +35,15 @@ func GenServiceGolang(name, pkg string) (string, error) {
 		return "", err
 	}
 
-	var sb strings.Builder
-	err = tmpl.Execute(&sb, conf)
+	var file strings.Builder
+	err = tmpl.Execute(&file, conf)
 	if err != nil {
 		return "", err
 	}
 
-	return sb.String(), nil
+	source, err := format.Source([]byte(file.String()))
+	if err != nil {
+		return "", err
+	}
+	return string(source), nil
 }

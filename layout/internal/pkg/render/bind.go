@@ -4,12 +4,17 @@ package render
 import (
 	"github.com/TBXark/sphere/database/bind"
 	"github.com/TBXark/sphere/layout/api/entpb"
+	sharedv1 "github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/keyvaluestore"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/user"
 )
 
 const (
 	_ = admin.Label
+	_ = user.Label
+	_ = keyvaluestore.Label
 )
 
 func CreateAdmin(source *ent.AdminCreate, target *entpb.Admin, options ...bind.Option) *ent.AdminCreate {
@@ -72,6 +77,96 @@ func UpdateOneAdmin(source *ent.AdminUpdateOne, target *entpb.Admin, options ...
 	if option.CanSetField("roles") {
 		if !option.IgnoreSetZero("roles") || !(target.Roles == nil) {
 			source.SetRoles(target.Roles)
+		}
+	}
+	return source
+}
+
+func CreateUser(source *ent.UserCreate, target *sharedv1.User, options ...bind.Option) *ent.UserCreate {
+	option := bind.NewBindOptions(options...)
+	if option.CanSetField("id") {
+		if !option.IgnoreSetZero("id") || !(target.Id == 0) {
+			source.SetID(target.Id)
+		}
+	}
+	if option.CanSetField("username") {
+		if !option.IgnoreSetZero("username") || !(target.Username == "") {
+			source.SetUsername(target.Username)
+		}
+	}
+	if option.CanSetField("avatar") {
+		if !option.IgnoreSetZero("avatar") || !(target.Avatar == "") {
+			source.SetAvatar(target.Avatar)
+		}
+	}
+	if option.CanSetField("phone") {
+		if !option.IgnoreSetZero("phone") || !(target.Phone == "") {
+			source.SetPhone(target.Phone)
+		}
+	}
+	return source
+}
+
+func UpdateOneUser(source *ent.UserUpdateOne, target *sharedv1.User, options ...bind.Option) *ent.UserUpdateOne {
+	option := bind.NewBindOptions(options...)
+	if option.CanSetField("username") {
+		if !option.IgnoreSetZero("username") || !(target.Username == "") {
+			source.SetUsername(target.Username)
+		}
+	}
+	if option.CanSetField("avatar") {
+		if !option.IgnoreSetZero("avatar") || !(target.Avatar == "") {
+			source.SetAvatar(target.Avatar)
+		}
+	}
+	if option.CanSetField("phone") {
+		if !option.IgnoreSetZero("phone") || !(target.Phone == "") {
+			source.SetPhone(target.Phone)
+		}
+	}
+	return source
+}
+
+func CreateKeyValueStore(source *ent.KeyValueStoreCreate, target *entpb.KeyValueStore, options ...bind.Option) *ent.KeyValueStoreCreate {
+	option := bind.NewBindOptions(options...)
+	if option.CanSetField("key") {
+		if !option.IgnoreSetZero("key") || !(target.Key == "") {
+			source.SetKey(target.Key)
+		}
+	}
+	if option.CanSetField("value") {
+		if !option.IgnoreSetZero("value") || !(target.Value == nil) {
+			source.SetValue(target.Value)
+		}
+	}
+	return source
+}
+
+func UpdateOneKeyValueStore(source *ent.KeyValueStoreUpdateOne, target *entpb.KeyValueStore, options ...bind.Option) *ent.KeyValueStoreUpdateOne {
+	option := bind.NewBindOptions(options...)
+	if option.CanSetField("key") {
+		if !option.IgnoreSetZero("key") || !(target.Key == "") {
+			source.SetKey(target.Key)
+		}
+	}
+	if option.CanSetField("value") {
+		if !option.IgnoreSetZero("value") || !(target.Value == nil) {
+			source.SetValue(target.Value)
+		}
+	}
+	return source
+}
+
+func UpsertOneKeyValueStore(source *ent.KeyValueStoreUpsertOne, target *entpb.KeyValueStore, options ...bind.Option) *ent.KeyValueStoreUpsertOne {
+	option := bind.NewBindOptions(options...)
+	if option.CanSetField("key") {
+		if !option.IgnoreSetZero("key") || !(target.Key == "") {
+			source.SetKey(target.Key)
+		}
+	}
+	if option.CanSetField("value") {
+		if !option.IgnoreSetZero("value") || !(target.Value == nil) {
+			source.SetValue(target.Value)
 		}
 	}
 	return source

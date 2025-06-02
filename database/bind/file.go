@@ -2,17 +2,23 @@ package bind
 
 import (
 	_ "embed"
+	"go/format"
 	"strings"
 	"text/template"
 )
 
 type GenFileConf struct {
+	ExtraImports [][]string
+	Entities     []GenFileEntityConf
+}
+
+type GenFileEntityConf struct {
 	Entity        any
 	Actions       []any
 	ConfigBuilder func(act any) *GenFuncConf
 }
 
-func GenFile(mod string, items []GenFileConf) (string, error) {
+func GenFile(mod string, config *GenFileConf) (string, error) {
 	tmpl, err := template.New("header").Funcs(template.FuncMap{
 		"lower": strings.ToLower,
 	}).Parse(bindHeaderTmpl)
@@ -22,8 +28,12 @@ func GenFile(mod string, items []GenFileConf) (string, error) {
 
 	var file strings.Builder
 	var body strings.Builder
-	header := &headerContext{PackageBase: mod, Entities: make([]string, 0)}
-	for _, item := range items {
+	header := &headerContext{
+		PackageBase:  mod,
+		Entities:     make([]string, 0),
+		ExtraImports: config.ExtraImports,
+	}
+	for _, item := range config.Entities {
 		header.Entities = append(header.Entities, getStructName(item.Entity))
 		for _, act := range item.Actions {
 			body.WriteString(GenBindFunc(item.ConfigBuilder(act)))
@@ -34,12 +44,18 @@ func GenFile(mod string, items []GenFileConf) (string, error) {
 		return "", err
 	}
 	file.WriteString(body.String())
-	return file.String(), nil
+
+	source, err := format.Source([]byte(file.String()))
+	if err != nil {
+		return "", err
+	}
+	return string(source), nil
 }
 
 type headerContext struct {
-	PackageBase string
-	Entities    []string
+	PackageBase  string
+	Entities     []string
+	ExtraImports [][]string
 }
 
 const bindHeaderTmpl = `
@@ -53,6 +69,9 @@ import (
 	"{{$pkgBase}}/internal/pkg/database/ent"
 {{- range .Entities}}
 	"{{$pkgBase}}/internal/pkg/database/ent/{{. | lower}}"
+{{- end}}
+{{- range .ExtraImports}}
+	{{if eq (len .) 2}}{{index . 1}} {{end}}"{{index . 0}}"
 {{- end}}
 )
 
