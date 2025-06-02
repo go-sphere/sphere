@@ -75,7 +75,7 @@ You can define the database structure in the `/internal/database/ent/schema` dir
 When you have finished defining the database structure, you can run the following command to generate the database structure code and proto files.
 
 ```bash
-make gen-ent
+make gen/db
 ```
 
 
@@ -86,7 +86,7 @@ You can define the http server interface in the `/proto` directory. For details,
 When you have finished defining the http server interface, you can run the following command to generate the http server code and swagger docs.
 
 ```bash
-make gen-docs
+make gen/docs
 ```
 
 There are some rules for defining the http server interface:
