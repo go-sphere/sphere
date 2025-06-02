@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+const (
+	NeverExpire time.Duration = -1
+)
+
 type Cache[S any] interface {
 	// Set sets the value for the given key with an expiration time, if expiration is -1, never expires
 	Set(ctx context.Context, key string, val S, expiration time.Duration) error
