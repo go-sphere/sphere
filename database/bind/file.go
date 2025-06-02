@@ -22,14 +22,14 @@ func GenFile(mod string, items []GenFileConf) (string, error) {
 
 	var file strings.Builder
 	var body strings.Builder
-	headerData := &headerContext{PackageBase: mod, Entities: make([]string, 0)}
+	header := &headerContext{PackageBase: mod, Entities: make([]string, 0)}
 	for _, item := range items {
-		for i, act := range item.Actions {
-			headerData.addEntity(item.Entity, i)
+		header.Entities = append(header.Entities, getStructName(item.Entity))
+		for _, act := range item.Actions {
 			body.WriteString(GenBindFunc(item.ConfigBuilder(act)))
 		}
 	}
-	err = tmpl.Execute(&file, headerData)
+	err = tmpl.Execute(&file, header)
 	if err != nil {
 		return "", err
 	}
@@ -40,13 +40,6 @@ func GenFile(mod string, items []GenFileConf) (string, error) {
 type headerContext struct {
 	PackageBase string
 	Entities    []string
-}
-
-func (h *headerContext) addEntity(obj any, flag int) {
-	if flag != 0 {
-		return
-	}
-	h.Entities = append(h.Entities, getStructName(obj))
 }
 
 const bindHeaderTmpl = `

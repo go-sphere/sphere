@@ -43,7 +43,6 @@ func bindItems() []bind.GenFileConf {
 			Actions: []any{ent.AdminCreate{}, ent.AdminUpdateOne{}},
 			ConfigBuilder: func(act any) *bind.GenFuncConf {
 				return bind.NewGenFuncConf(ent.Admin{}, entpb.Admin{}, act).
-					WithTargetPkgName("entpb").
 					WithIgnoreFields(admin.FieldCreatedAt, admin.FieldUpdatedAt)
 			},
 		},
