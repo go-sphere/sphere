@@ -25,13 +25,15 @@ Use "sphere-cli [command] --help" for more information about a command.
 ### `sphere-cli create`
 
 ```
+Create a new Sphere project with the specified name and optional template.
+
 Usage:
   sphere-cli create [flags]
 
 Flags:
   -h, --help            help for create
-  -m, --module string   Go module name for the project (optional)
-  -n, --name string     Name of the new Sphere project
+      --module string   Go module name for the project (optional)
+      --name string     Name of the new Sphere project
 ```
 
 ### `sphere-cli ent2proto`
@@ -43,17 +45,17 @@ Usage:
   sphere-cli ent2proto [flags]
 
 Flags:
-  -a, --all-fields-required             Treat all fields as required in Protobuf (default true)
-  -A, --auto-add-annotation             Automatically add annotations to the schema (default true)
-  -e, --enum-use-raw-type               Use raw type for enums in Protobuf (default true)
+      --all_fields_required             ignore optional, use zero value instead (default true)
+      --auto_annotation                 auto add annotation to the schema (default true)
+      --enum_raw_type                   use string for enum (default true)
   -h, --help                            help for ent2proto
-  -i, --import-proto string             Import Protobuf definitions, format: path1,package1,type1,type2;path2,package2,type3,type4; (default "google/protobuf/any.proto,google.protobuf,Any;")
-  -p, --proto string                    Path to the output Protobuf directory (default "./proto")
-  -s, --schema string                   Path to the Ent schema directory (default "./schema")
-  -k, --skip-unsupported                Skip unsupported types in Protobuf generation (default true)
-  -t, --time-proto-type string          Protobuf type for time.Time (options: int64, string, google.protobuf.Timestamp) (default "int64")
-  -x, --unsupported-proto-type string   Protobuf type for unsupported types (options: google.protobuf.Any, google.protobuf.Struct, bytes) (default "google.protobuf.Any")
-  -u, --uuid-proto-type string          Protobuf type for uuid.UUID (options: string, bytes) (default "string")
+      --import_proto string             import proto, format: path1,package1,type1,type2;path2,package2,type3,type4; (default "google/protobuf/any.proto,google.protobuf,Any;")
+      --path string                     path to schema directory (default "./schema")
+      --proto string                    path to proto directory (default "./proto")
+      --skip_unsupported                skip unsupported types, when unsupportedProtoType is not set (default true)
+      --time_proto_type string          use proto type for time.Time, one of int64, string, google.protobuf.Timestamp (default "int64")
+      --unsupported_proto_type string   use proto type for unsupported types, one of google.protobuf.Any, google.protobuf.Struct, bytes (default "google.protobuf.Any")
+      --uuid_proto_type string          use proto type for uuid.UUID, one of string, bytes (default "string")
 ```
 
 ### `sphere-cli rename`
@@ -65,9 +67,10 @@ Usage:
   sphere-cli rename [flags]
 
 Flags:
-  -h, --help         help for rename
-  -n, --new string   New Go module name
-  -o, --old string   Old Go module name
+  -h, --help            help for rename
+      --new string      New Go module name
+      --old string      Old Go module name
+      --target string   Target directory to rename the module in (default ".")
 ```
 
 ### `sphere-cli service`
