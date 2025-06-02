@@ -64,7 +64,7 @@ Although you use `sphere-cli` to create the project, you are free to modify the 
 
 ```bash
 go install github.com/TBXark/sphere/contrib/sphere-cli@latest
-sphere-cli create -name myproject -mod github.com/TBXark/myproject
+sphere-cli create --name myproject --mod github.com/TBXark/myproject
 ```
 
 

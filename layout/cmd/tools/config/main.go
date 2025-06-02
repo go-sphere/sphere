@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/TBXark/sphere/layout/cmd/cli/config/cmd"
+	"github.com/TBXark/sphere/layout/cmd/tools/config/cmd"
 )
 
 func main() {
