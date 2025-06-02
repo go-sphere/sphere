@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/opt/sphere/app
+ExecStart=/opt/sphere/app --config /opt/sphere/config.json
 WorkingDirectory=/opt/sphere
 User=nobody
 Group=nobody
