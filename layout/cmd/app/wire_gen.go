@@ -43,11 +43,11 @@ func NewApplication(conf *config.Config) (*boot.Application, error) {
 	daoDao := dao.NewDao(entClient)
 	wechatConfig := conf.WxMini
 	wechatWechat := wechat.NewWechat(wechatConfig)
-	cache := memory.NewByteCache()
-	service := dash.NewService(daoDao, wechatWechat, cache, v2)
+	v3 := memory.NewByteCache()
+	service := dash.NewService(daoDao, wechatWechat, v3, v2)
 	web := dash2.NewWebServer(dashConfig, v2, service)
 	apiConfig := conf.API
-	apiService := api.NewService(daoDao, wechatWechat, cache, v2)
+	apiService := api.NewService(daoDao, wechatWechat, v3, v2)
 	apiWeb := api2.NewWebServer(apiConfig, v2, apiService)
 	botConfig := conf.Bot
 	botService := bot.NewService()

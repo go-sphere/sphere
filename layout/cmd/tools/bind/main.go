@@ -2,16 +2,16 @@ package main
 
 import (
 	"flag"
-	sharedv1 "github.com/TBXark/sphere/layout/api/shared/v1"
-	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/keyvaluestore"
-	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/user"
 	"log"
 	"os"
 
 	"github.com/TBXark/sphere/database/bind"
 	"github.com/TBXark/sphere/layout/api/entpb"
+	sharedv1 "github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/keyvaluestore"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/user"
 )
 
 func main() {

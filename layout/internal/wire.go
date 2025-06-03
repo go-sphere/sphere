@@ -16,7 +16,7 @@ import (
 
 var cacheSet = wire.NewSet(
 	memory.NewByteCache,
-	wire.Bind(new(cache.ByteCache), new(*memory.Cache[[]byte])),
+	wire.Bind(new(cache.ByteCache), new(*memory.ByteCache)),
 )
 
 var storageSet = wire.NewSet(

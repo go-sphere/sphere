@@ -1,10 +1,10 @@
 package ratelimiter
 
 import (
-	"github.com/TBXark/sphere/cache/memory"
 	"net/http"
 	"time"
 
+	"github.com/TBXark/sphere/cache/memory"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
 )
