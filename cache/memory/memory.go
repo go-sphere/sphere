@@ -3,14 +3,15 @@ package memory
 import (
 	"context"
 	"errors"
-	"github.com/dgraph-io/ristretto/v2"
 	"time"
+
+	"github.com/dgraph-io/ristretto/v2"
 )
 
 type Cache[T any] struct {
+	calculateCost    bool
 	allowAsyncWrites bool
-
-	cache *ristretto.Cache[string, T]
+	cache            *ristretto.Cache[string, T]
 }
 
 func NewMemoryCache[T any]() *Cache[T] {
@@ -20,15 +21,30 @@ func NewMemoryCache[T any]() *Cache[T] {
 		BufferItems: 64,
 	})
 	return &Cache[T]{
-		cache: cache,
+		cache:         cache,
+		calculateCost: false,
 	}
 }
 
-// UpdateMaxCacheCount In memory.Cache, `cost` always equals 1, it doesn't care about the size of the item.
+func NewMemoryCacheWithCost[T any](cost func(T) int64) *Cache[T] {
+	cache, _ := ristretto.NewCache[string, T](&ristretto.Config[string, T]{
+		NumCounters: 1e7,
+		MaxCost:     1 << 10,
+		BufferItems: 64,
+		Cost:        cost,
+	})
+	return &Cache[T]{
+		cache:         cache,
+		calculateCost: true,
+	}
+}
+
+// UpdateMaxCost  In memory.Cache, By default, `calculateCost` is False, so `cost` will be 1.
+// It doesn't care about the size of the item.
 // Calculating cost is too complex and not necessary for most use cases.
 // If you want to limit the number of items in the cache, you use this method to set the maximum number of items.
-// If you want to limit the size of the items in the cache, you can use `ristretto` directly.
-func (m *Cache[T]) UpdateMaxCacheCount(maxItem int64) {
+// If you want to limit the size of the items in the cache, you can use NewMemoryCacheWithCost
+func (m *Cache[T]) UpdateMaxCost(maxItem int64) {
 	if maxItem > 0 {
 		m.cache.UpdateMaxCost(maxItem)
 	}
@@ -45,10 +61,14 @@ func (m *Cache[T]) SetAllowAsyncWrites(allow bool) {
 // If expiration is less than zero, the value will not expire.
 func (m *Cache[T]) Set(ctx context.Context, key string, val T, expiration time.Duration) error {
 	var success bool
+	var cost int64 = 1
+	if m.calculateCost {
+		cost = 0
+	}
 	if expiration < 0 {
-		success = m.cache.Set(key, val, 1)
+		success = m.cache.Set(key, val, cost)
 	} else {
-		success = m.cache.SetWithTTL(key, val, 1, expiration)
+		success = m.cache.SetWithTTL(key, val, cost, expiration)
 	}
 	if !success {
 		return errors.New("cache set failed")
@@ -118,6 +138,10 @@ func (m *Cache[T]) Close() error {
 	return nil
 }
 
-func NewByteCache() *Cache[[]byte] {
-	return NewMemoryCache[[]byte]()
+type ByteCache = Cache[[]byte]
+
+func NewByteCache() *ByteCache {
+	return NewMemoryCacheWithCost[[]byte](func(bytes []byte) int64 {
+		return int64(len(bytes))
+	})
 }
