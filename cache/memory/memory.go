@@ -39,6 +39,21 @@ func NewMemoryCacheWithCost[T any](cost func(T) int64) *Cache[T] {
 	}
 }
 
+func NewMemoryCacheWithRistretto[T any](cache *ristretto.Cache[string, T], calculateCost, allowAsyncWrites bool) *Cache[T] {
+	if cache == nil {
+		cache, _ = ristretto.NewCache[string, T](&ristretto.Config[string, T]{
+			NumCounters: 1e7,
+			MaxCost:     1 << 10,
+			BufferItems: 64,
+		})
+	}
+	return &Cache[T]{
+		calculateCost:    calculateCost,
+		allowAsyncWrites: allowAsyncWrites,
+		cache:            cache,
+	}
+}
+
 // UpdateMaxCost  In memory.Cache, By default, `calculateCost` is False, so `cost` will be 1.
 // It doesn't care about the size of the item.
 // Calculating cost is too complex and not necessary for most use cases.

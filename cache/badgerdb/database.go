@@ -26,6 +26,22 @@ func NewDatabase(config *Config) (*Database, error) {
 	}, nil
 }
 
+func NewDatabaseWithBadger(db *badger.DB) *Database {
+	return &Database{
+		db: db,
+	}
+}
+
+func NewDatabaseWithOptions(opts badger.Options) (*Database, error) {
+	db, err := badger.Open(opts)
+	if err != nil {
+		return nil, err
+	}
+	return &Database{
+		db: db,
+	}, nil
+}
+
 func (d *Database) Set(ctx context.Context, key string, val []byte, expiration time.Duration) error {
 	return d.db.Update(func(txn *badger.Txn) error {
 		entry := badger.NewEntry([]byte(key), val)
