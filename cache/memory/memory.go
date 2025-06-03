@@ -2,52 +2,66 @@ package memory
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
-	"github.com/patrickmn/go-cache"
+	"github.com/dgraph-io/ristretto/v2"
 )
 
-var ErrorType = fmt.Errorf("type error")
-
 type Cache[T any] struct {
-	cache *cache.Cache
+	cache *ristretto.Cache[string, T]
 }
 
 func NewMemoryCache[T any]() *Cache[T] {
+	cache, _ := ristretto.NewCache[string, T](&ristretto.Config[string, T]{
+		NumCounters: 1e7,
+		MaxCost:     1 << 30,
+		BufferItems: 64,
+	})
 	return &Cache[T]{
-		cache: cache.New(cache.NoExpiration, cache.NoExpiration),
+		cache: cache,
+	}
+}
+
+func (m *Cache[T]) UpdateMaxCost(maxCost int64) {
+	if maxCost > 0 {
+		m.cache.UpdateMaxCost(maxCost)
 	}
 }
 
 func (m *Cache[T]) Set(ctx context.Context, key string, val T, expiration time.Duration) error {
-	m.cache.Set(key, val, expiration)
+	success := m.cache.SetWithTTL(key, val, 1, expiration)
+	if !success {
+		return errors.New("cache set failed")
+	}
+	m.cache.Wait()
 	return nil
 }
 
 func (m *Cache[T]) Get(ctx context.Context, key string) (*T, error) {
-	v, exist := m.cache.Get(key)
-	if !exist {
+	val, found := m.cache.Get(key)
+	if !found {
 		return nil, nil
-	}
-	val, ok := v.(T)
-	if !ok {
-		return nil, ErrorType
 	}
 	return &val, nil
 }
 
 func (m *Cache[T]) Del(ctx context.Context, key string) error {
-	m.cache.Delete(key)
+	m.cache.Del(key)
 	return nil
 }
 
 func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T, expiration time.Duration) error {
+	var errs []error
 	for k, v := range valMap {
-		err := m.Set(ctx, k, v, expiration)
-		if err != nil {
-			return err
+		success := m.cache.SetWithTTL(k, v, 1, expiration)
+		if !success {
+			errs = append(errs, errors.New("cache set failed for key: "+k))
 		}
+	}
+	m.cache.Wait()
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 	return nil
 }
@@ -68,20 +82,20 @@ func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, e
 
 func (m *Cache[T]) MultiDel(ctx context.Context, keys []string) error {
 	for _, key := range keys {
-		err := m.Del(ctx, key)
-		if err != nil {
-			return err
-		}
+		m.cache.Del(key)
 	}
+	m.cache.Wait()
 	return nil
 }
 
 func (m *Cache[T]) DelAll(ctx context.Context) error {
-	m.cache.Flush()
+	m.cache.Clear()
+	m.cache.Wait()
 	return nil
 }
 
 func (m *Cache[T]) Close() error {
+	m.cache.Close()
 	return nil
 }
 

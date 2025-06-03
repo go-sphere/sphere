@@ -10,6 +10,7 @@ require (
 	entgo.io/ent v0.14.4
 	github.com/TBXark/jsoncompressor v0.0.1
 	github.com/dgraph-io/badger/v4 v4.7.0
+	github.com/dgraph-io/ristretto/v2 v2.2.0
 	github.com/gin-contrib/cors v1.7.5
 	github.com/gin-contrib/pprof v1.5.3
 	github.com/gin-contrib/zap v1.1.5
@@ -21,7 +22,6 @@ require (
 	github.com/iancoleman/strcase v0.3.0
 	github.com/meilisearch/meilisearch-go v0.32.0
 	github.com/minio/minio-go/v7 v7.0.92
-	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/qiniu/go-sdk/v7 v7.25.3
 	github.com/redis/go-redis/v9 v9.9.0
 	github.com/swaggo/files v1.0.1
@@ -91,7 +91,6 @@ require (
 	github.com/dave/dst v0.27.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/denis-tingaikin/go-header v0.5.0 // indirect
-	github.com/dgraph-io/ristretto/v2 v2.2.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

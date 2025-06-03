@@ -1,25 +1,30 @@
 package ratelimiter
 
 import (
+	"github.com/TBXark/sphere/cache/memory"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/patrickmn/go-cache"
 	"golang.org/x/time/rate"
 )
 
 func NewRateLimiter(key func(*gin.Context) string, createLimiter func(*gin.Context) (*rate.Limiter, time.Duration), abort func(*gin.Context)) gin.HandlerFunc {
-	limiterSet := cache.New(5*time.Minute, 10*time.Minute)
+	limiterSet := memory.NewMemoryCache[*rate.Limiter]()
 	return func(ctx *gin.Context) {
 		k := key(ctx)
-		limiter, ok := limiterSet.Get(k)
-		if !ok {
+		limiter, _ := limiterSet.Get(ctx, k)
+		if limiter == nil || *limiter == nil {
 			var expire time.Duration
-			limiter, expire = createLimiter(ctx)
-			limiterSet.Set(k, limiter, expire)
+			newLimiter, expire := createLimiter(ctx)
+			err := limiterSet.Set(ctx, k, newLimiter, expire)
+			if err != nil {
+				abort(ctx)
+				return
+			}
+			limiter = &newLimiter
 		}
-		ok = limiter.(*rate.Limiter).Allow()
+		ok := (*limiter).Allow()
 		if !ok {
 			abort(ctx)
 			return
