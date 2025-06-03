@@ -15,9 +15,11 @@ import (
 const cacheFileKeyForReverseProxyBody = "X-Cache-ReverseProxy-Body"
 
 type Cache interface {
+	Exists(ctx context.Context, key string) (bool, error)
 	Delete(ctx context.Context, key string) error
 	Save(ctx context.Context, key string, header http.Header, reader io.Reader) error
 	Load(ctx context.Context, key string) (http.Header, io.Reader, error)
+	Header(ctx context.Context, key string) (http.Header, error)
 }
 
 type CommonCache struct {
@@ -34,13 +36,20 @@ func NewByteCache(expiration time.Duration, cache cache.ByteCache, storage stora
 	}
 }
 
-func (c *CommonCache) Delete(ctx context.Context, key string) error {
-	headerRaw, err := c.cache.Get(ctx, key)
+func (c *CommonCache) Exists(ctx context.Context, key string) (bool, error) {
+	header, err := c.Header(ctx, key)
 	if err != nil {
-		return err
+		return false, err
 	}
-	header := http.Header{}
-	err = json.Unmarshal(*headerRaw, &header)
+	cacheFileKey := header.Get(cacheFileKeyForReverseProxyBody)
+	if cacheFileKey == "" {
+		return false, errors.New("no cache file found")
+	}
+	return c.storage.IsFileExists(ctx, cacheFileKey)
+}
+
+func (c *CommonCache) Delete(ctx context.Context, key string) error {
+	header, err := c.Header(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -73,15 +82,7 @@ func (c *CommonCache) Save(ctx context.Context, key string, header http.Header, 
 }
 
 func (c *CommonCache) Load(ctx context.Context, key string) (http.Header, io.Reader, error) {
-	headerRaw, err := c.cache.Get(ctx, key)
-	if err != nil {
-		return nil, nil, err
-	}
-	if headerRaw == nil {
-		return nil, nil, errors.New("no cache found")
-	}
-	header := http.Header{}
-	err = json.Unmarshal(*headerRaw, &header)
+	header, err := c.Header(ctx, key)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -95,4 +96,20 @@ func (c *CommonCache) Load(ctx context.Context, key string) (http.Header, io.Rea
 		return nil, nil, err
 	}
 	return header, reader, nil
+}
+
+func (c *CommonCache) Header(ctx context.Context, key string) (http.Header, error) {
+	headerRaw, err := c.cache.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	if headerRaw == nil {
+		return nil, errors.New("no cache found")
+	}
+	header := http.Header{}
+	err = json.Unmarshal(*headerRaw, &header)
+	if err != nil {
+		return nil, err
+	}
+	return header, nil
 }

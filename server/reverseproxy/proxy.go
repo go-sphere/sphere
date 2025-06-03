@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 )
 
 type (
@@ -100,6 +101,7 @@ func CreateCacheReverseProxy(cache Cache, options ...ConfigOption) (*httputil.Re
 		}
 	}
 
+	cacheFlags := sync.Map{}
 	proxy.ModifyResponse = func(resp *http.Response) error {
 		if !conf.checker(resp) {
 			return nil
@@ -108,13 +110,15 @@ func CreateCacheReverseProxy(cache Cache, options ...ConfigOption) (*httputil.Re
 		if key == "" {
 			return nil // no cache key, do not cache
 		}
-
+		if _, ok := cacheFlags.Load(key); ok {
+			return nil // already cached, do not cache again
+		}
+		cacheFlags.Store(key, struct{}{})
 		clientPipeReader, clientPipeWriter := io.Pipe()
 		cachePipeReader, cachePipeWriter := io.Pipe()
 
 		originalBody := resp.Body
 		resp.Body = clientPipeReader
-
 		go func() {
 			defer ignoreCloseError(originalBody.Close)
 			defer ignoreCloseError(clientPipeWriter.Close)
@@ -123,6 +127,7 @@ func CreateCacheReverseProxy(cache Cache, options ...ConfigOption) (*httputil.Re
 			_, _ = io.Copy(multiWriter, originalBody)
 		}()
 		go func() {
+			defer cacheFlags.Delete(key)
 			defer ignoreCloseError(cachePipeReader.Close)
 			_ = cache.Save(context.Background(), key, resp.Header, cachePipeReader)
 		}()
