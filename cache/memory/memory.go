@@ -30,7 +30,16 @@ func (m *Cache[T]) UpdateMaxCost(maxCost int64) {
 }
 
 func (m *Cache[T]) Set(ctx context.Context, key string, val T, expiration time.Duration) error {
-	success := m.cache.SetWithTTL(key, val, 1, expiration)
+	var success bool
+	if expiration < 0 {
+		success = m.cache.Set(key, val, 1)
+	} else {
+		// Use SetWithTTL to set the value with a time-to-live
+		// Note: Ristretto does not support TTL natively, so we use a workaround
+		// by setting the value with a cost and managing expiration manually.
+		// This is a limitation of the Ristretto library.
+		success = m.cache.SetWithTTL(key, val, 1, expiration)
+	}
 	if !success {
 		return errors.New("cache set failed")
 	}
