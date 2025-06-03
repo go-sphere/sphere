@@ -3,19 +3,20 @@ package memory
 import (
 	"context"
 	"errors"
-	"time"
-
 	"github.com/dgraph-io/ristretto/v2"
+	"time"
 )
 
 type Cache[T any] struct {
+	allowAsyncWrites bool
+
 	cache *ristretto.Cache[string, T]
 }
 
 func NewMemoryCache[T any]() *Cache[T] {
 	cache, _ := ristretto.NewCache[string, T](&ristretto.Config[string, T]{
 		NumCounters: 1e7,
-		MaxCost:     1 << 30,
+		MaxCost:     1 << 10,
 		BufferItems: 64,
 	})
 	return &Cache[T]{
@@ -23,27 +24,38 @@ func NewMemoryCache[T any]() *Cache[T] {
 	}
 }
 
-func (m *Cache[T]) UpdateMaxCost(maxCost int64) {
-	if maxCost > 0 {
-		m.cache.UpdateMaxCost(maxCost)
+// UpdateMaxCacheCount In memory.Cache, `cost` always equals 1, it doesn't care about the size of the item.
+// Calculating cost is too complex and not necessary for most use cases.
+// If you want to limit the number of items in the cache, you use this method to set the maximum number of items.
+// If you want to limit the size of the items in the cache, you can use `ristretto` directly.
+func (m *Cache[T]) UpdateMaxCacheCount(maxItem int64) {
+	if maxItem > 0 {
+		m.cache.UpdateMaxCost(maxItem)
 	}
 }
 
+// SetAllowAsyncWrites In memory.Cache asynchronous writes are disabled by default.
+// If asynchronous writes are enabled, the cache will not block the Set method
+// But it will not guarantee that the value is written to the cache immediately.
+func (m *Cache[T]) SetAllowAsyncWrites(allow bool) {
+	m.allowAsyncWrites = allow
+}
+
+// Set sets a value in the cache with an optional expiration time.
+// If expiration is less than zero, the value will not expire.
 func (m *Cache[T]) Set(ctx context.Context, key string, val T, expiration time.Duration) error {
 	var success bool
 	if expiration < 0 {
 		success = m.cache.Set(key, val, 1)
 	} else {
-		// Use SetWithTTL to set the value with a time-to-live
-		// Note: Ristretto does not support TTL natively, so we use a workaround
-		// by setting the value with a cost and managing expiration manually.
-		// This is a limitation of the Ristretto library.
 		success = m.cache.SetWithTTL(key, val, 1, expiration)
 	}
 	if !success {
 		return errors.New("cache set failed")
 	}
-	m.cache.Wait()
+	if !m.allowAsyncWrites {
+		m.cache.Wait()
+	}
 	return nil
 }
 
@@ -93,13 +105,11 @@ func (m *Cache[T]) MultiDel(ctx context.Context, keys []string) error {
 	for _, key := range keys {
 		m.cache.Del(key)
 	}
-	m.cache.Wait()
 	return nil
 }
 
 func (m *Cache[T]) DelAll(ctx context.Context) error {
 	m.cache.Clear()
-	m.cache.Wait()
 	return nil
 }
 
