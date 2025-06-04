@@ -22,6 +22,7 @@ func IsNotFound(err error) bool {
 
 // Set stores a value in the cache with the given key and expiration.
 // If expiration is NeverExpire, the value will not expire.
+// If value is nil, it deletes the key from the cache.
 func Set[T any](ctx context.Context, c Cache[T], key string, value *T, expiration time.Duration) error {
 	if value == nil {
 		return c.Del(ctx, key)
@@ -34,7 +35,11 @@ func Set[T any](ctx context.Context, c Cache[T], key string, value *T, expiratio
 
 // SetObject stores a value in the cache with the given key and expiration.
 // If expiration is NeverExpire, the value will not expire.
+// If value is nil, it deletes the key from the cache.
 func SetObject[T any, E Encoder](ctx context.Context, c ByteCache, e E, key string, value *T, expiration time.Duration) error {
+	if value == nil {
+		return c.Del(ctx, key)
+	}
 	data, err := e.Marshal(value)
 	if err != nil {
 		return err
@@ -48,6 +53,7 @@ func SetObject[T any, E Encoder](ctx context.Context, c ByteCache, e E, key stri
 
 // SetJson stores a value in the cache as JSON with the given key and expiration.
 // If expiration is NeverExpire, the value will not expire.
+// If value is nil, it deletes the key from the cache.
 func SetJson[T any](ctx context.Context, c ByteCache, key string, value *T, expiration time.Duration) error {
 	return SetObject[T, EncoderFunc](ctx, c, json.Marshal, key, value, expiration)
 }
