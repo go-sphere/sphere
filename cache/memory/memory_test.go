@@ -10,7 +10,7 @@ func TestCache_SetAndGet(t *testing.T) {
 	ctx := context.Background()
 	cache := NewMemoryCache[string]()
 
-	err := cache.Set(ctx, "key1", "value1", time.Minute)
+	err := cache.SetWithTTL(ctx, "key1", "value1", time.Minute)
 	if err != nil {
 		t.Errorf("Set failed: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestCache_Del(t *testing.T) {
 	ctx := context.Background()
 	cache := NewMemoryCache[string]()
 
-	err := cache.Set(ctx, "key2", "value2", time.Minute)
+	err := cache.SetWithTTL(ctx, "key2", "value2", time.Minute)
 	if err != nil {
 		t.Errorf("Set failed: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestCache_MultiSetAndGet(t *testing.T) {
 		"key3": "value3",
 		"key4": "value4",
 	}
-	err := cache.MultiSet(ctx, valMap, time.Minute)
+	err := cache.MultiSetWithTTL(ctx, valMap, time.Minute)
 	if err != nil {
 		t.Errorf("MultiSet failed: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestCache_MultiDel(t *testing.T) {
 		"key5": "value5",
 		"key6": "value6",
 	}
-	err := cache.MultiSet(ctx, valMap, time.Minute)
+	err := cache.MultiSetWithTTL(ctx, valMap, time.Minute)
 	if err != nil {
 		t.Errorf("MultiSet failed: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestCache_DelAll(t *testing.T) {
 	ctx := context.Background()
 	cache := NewMemoryCache[string]()
 
-	err := cache.Set(ctx, "key7", "value7", time.Minute)
+	err := cache.SetWithTTL(ctx, "key7", "value7", time.Minute)
 	if err != nil {
 		t.Errorf("Set failed: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestCache_Expiration(t *testing.T) {
 	ctx := context.Background()
 	cache := NewMemoryCache[string]()
 
-	err := cache.Set(ctx, "expiring", "value", 50*time.Millisecond)
+	err := cache.SetWithTTL(ctx, "expiring", "value", 50*time.Millisecond)
 	if err != nil {
 		t.Errorf("Set failed: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestCache_TypeSafety(t *testing.T) {
 	ctx := context.Background()
 	// Create a cache of different type
 	intCache := NewMemoryCache[int]()
-	err := intCache.Set(ctx, "int", 123, time.Minute)
+	err := intCache.SetWithTTL(ctx, "int", 123, time.Minute)
 	if err != nil {
 		t.Errorf("Set failed: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestCache_ByteCache(t *testing.T) {
 	byteCache := NewByteCache()
 	data := []byte("test data")
 
-	err := byteCache.Set(ctx, "bytes", data, time.Minute)
+	err := byteCache.SetWithTTL(ctx, "bytes", data, time.Minute)
 	if err != nil {
 		t.Errorf("Set failed: %v", err)
 	}

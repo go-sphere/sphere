@@ -41,7 +41,7 @@ func (a *S3Adapter) createFileKey(ctx context.Context, filename string, expirati
 	if err != nil {
 		return "", err
 	}
-	err = a.cache.Set(ctx, id.String(), []byte(filename), expiration)
+	err = a.cache.SetWithTTL(ctx, id.String(), []byte(filename), expiration)
 	if err != nil {
 		return "", err
 	}

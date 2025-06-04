@@ -60,7 +60,7 @@ func NewApplication(conf *config.Config) (*boot.Application, error) {
 	docsConfig := conf.Docs
 	docsWeb := docs.NewWebServer(docsConfig)
 	dashInitialize := dashinit.NewDashInitialize(daoDao)
-	connectCleaner := conncleaner.NewConnectCleaner(entClient)
+	connectCleaner := conncleaner.NewConnectCleaner(entClient, v3)
 	application := newApplication(web, apiWeb, botBot, fileWeb, docsWeb, dashInitialize, connectCleaner)
 	return application, nil
 }

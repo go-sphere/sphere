@@ -42,13 +42,39 @@ func NewDatabaseWithOptions(opts badger.Options) (*Database, error) {
 	}, nil
 }
 
-func (d *Database) Set(ctx context.Context, key string, val []byte, expiration time.Duration) error {
+func (d *Database) Set(ctx context.Context, key string, val []byte) error {
 	return d.db.Update(func(txn *badger.Txn) error {
-		entry := badger.NewEntry([]byte(key), val)
-		if expiration > 0 {
-			entry.WithTTL(expiration)
+		return txn.SetEntry(badger.NewEntry([]byte(key), val))
+	})
+}
+
+func (d *Database) SetWithTTL(ctx context.Context, key string, val []byte, expiration time.Duration) error {
+	return d.db.Update(func(txn *badger.Txn) error {
+		return txn.SetEntry(badger.NewEntry([]byte(key), val).WithTTL(expiration))
+	})
+}
+
+func (d *Database) MultiSet(ctx context.Context, valMap map[string][]byte) error {
+	return d.db.Update(func(txn *badger.Txn) error {
+		for k, v := range valMap {
+			err := txn.SetEntry(badger.NewEntry([]byte(k), v))
+			if err != nil {
+				return err
+			}
 		}
-		return txn.SetEntry(entry)
+		return nil
+	})
+}
+
+func (d *Database) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
+	return d.db.Update(func(txn *badger.Txn) error {
+		for k, v := range valMap {
+			err := txn.SetEntry(badger.NewEntry([]byte(k), v).WithTTL(expiration))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
@@ -72,27 +98,6 @@ func (d *Database) Get(ctx context.Context, key string) (*[]byte, error) {
 		return nil, err
 	}
 	return &val, nil
-}
-
-func (d *Database) Del(ctx context.Context, key string) error {
-	return d.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte(key))
-	})
-}
-
-func (d *Database) MultiSet(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
-	return d.db.Update(func(txn *badger.Txn) error {
-		for k, v := range valMap {
-			entry := badger.NewEntry([]byte(k), v)
-			if expiration > 0 {
-				entry.WithTTL(expiration)
-			}
-			if err := txn.SetEntry(entry); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
 }
 
 func (d *Database) MultiGet(ctx context.Context, keys []string) (map[string][]byte, error) {
@@ -120,10 +125,16 @@ func (d *Database) MultiGet(ctx context.Context, keys []string) (map[string][]by
 	return res, nil
 }
 
+func (d *Database) Del(ctx context.Context, key string) error {
+	return d.db.Update(func(txn *badger.Txn) error {
+		return txn.Delete([]byte(key))
+	})
+}
+
 func (d *Database) MultiDel(ctx context.Context, keys []string) error {
 	return d.db.Update(func(txn *badger.Txn) error {
 		for _, key := range keys {
-			err := d.Del(ctx, key)
+			err := txn.Delete([]byte(key))
 			if err != nil {
 				return err
 			}
@@ -134,6 +145,10 @@ func (d *Database) MultiDel(ctx context.Context, keys []string) error {
 
 func (d *Database) DelAll(ctx context.Context) error {
 	return d.db.DropAll()
+}
+
+func (d *Database) Sync() error {
+	return d.db.Sync()
 }
 
 func (d *Database) Close() error {

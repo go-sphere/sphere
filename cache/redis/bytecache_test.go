@@ -40,7 +40,7 @@ func TestByteCache_Set_Get(t *testing.T) {
 	value := []byte("test_value")
 
 	// Test Set
-	if err := cache.Set(ctx, key, value, time.Minute); err != nil {
+	if err := cache.SetWithTTL(ctx, key, value, time.Minute); err != nil {
 		t.Errorf("Set failed: %v", err)
 	}
 
@@ -74,7 +74,7 @@ func TestByteCache_Del(t *testing.T) {
 	value := []byte("test_value")
 
 	// Set up test data
-	if err := cache.Set(ctx, key, value, time.Minute); err != nil {
+	if err := cache.SetWithTTL(ctx, key, value, time.Minute); err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
 
@@ -105,7 +105,7 @@ func TestByteCache_MultiSet_MultiGet(t *testing.T) {
 	}
 
 	// Test MultiSet
-	if err := cache.MultiSet(ctx, valMap, time.Minute); err != nil {
+	if err := cache.MultiSetWithTTL(ctx, valMap, time.Minute); err != nil {
 		t.Errorf("MultiSet failed: %v", err)
 	}
 
@@ -141,7 +141,7 @@ func TestByteCache_MultiDel(t *testing.T) {
 	}
 
 	// Set up test data
-	if err := cache.MultiSet(ctx, valMap, time.Minute); err != nil {
+	if err := cache.MultiSetWithTTL(ctx, valMap, time.Minute); err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
 
@@ -180,7 +180,7 @@ func TestByteCache_DelAll(t *testing.T) {
 	}
 
 	// Set up test data
-	if err := cache.MultiSet(ctx, valMap, time.Minute); err != nil {
+	if err := cache.MultiSetWithTTL(ctx, valMap, time.Minute); err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
 

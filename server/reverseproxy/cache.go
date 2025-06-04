@@ -74,7 +74,7 @@ func (c *CommonCache) Save(ctx context.Context, key string, header http.Header, 
 	if err != nil {
 		return err
 	}
-	err = c.cache.Set(ctx, key, headerRaw, c.expiration)
+	err = c.cache.SetWithTTL(ctx, key, headerRaw, c.expiration)
 	if err != nil {
 		return err
 	}

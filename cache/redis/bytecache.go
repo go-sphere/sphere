@@ -19,8 +19,26 @@ func NewByteCache(client *redis.Client) *ByteCache {
 	return &ByteCache{Client: client}
 }
 
-func (c *ByteCache) Set(ctx context.Context, key string, val []byte, expiration time.Duration) error {
+func (c *ByteCache) Set(ctx context.Context, key string, val []byte) error {
+	return c.SetWithTTL(ctx, key, val, redis.KeepTTL)
+
+}
+
+func (c *ByteCache) SetWithTTL(ctx context.Context, key string, val []byte, expiration time.Duration) error {
 	return c.Client.Set(ctx, key, val, expiration).Err()
+}
+
+func (c *ByteCache) MultiSet(ctx context.Context, valMap map[string][]byte) error {
+	return c.Client.MSet(ctx, valMap).Err()
+}
+
+func (c *ByteCache) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
+	pipe := c.Client.Pipeline()
+	for k, v := range valMap {
+		pipe.Set(ctx, k, v, expiration)
+	}
+	_, err := pipe.Exec(ctx)
+	return err
 }
 
 func (c *ByteCache) Get(ctx context.Context, key string) (*[]byte, error) {
@@ -32,19 +50,6 @@ func (c *ByteCache) Get(ctx context.Context, key string) (*[]byte, error) {
 		return nil, err
 	}
 	return &val, nil
-}
-
-func (c *ByteCache) Del(ctx context.Context, key string) error {
-	return c.Client.Del(ctx, key).Err()
-}
-
-func (c *ByteCache) MultiSet(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
-	pipe := c.Client.Pipeline()
-	for k, v := range valMap {
-		pipe.Set(ctx, k, v, expiration)
-	}
-	_, err := pipe.Exec(ctx)
-	return err
 }
 
 func (c *ByteCache) MultiGet(ctx context.Context, keys []string) (map[string][]byte, error) {
@@ -64,6 +69,10 @@ func (c *ByteCache) MultiGet(ctx context.Context, keys []string) (map[string][]b
 		}
 	}
 	return result, nil
+}
+
+func (c *ByteCache) Del(ctx context.Context, key string) error {
+	return c.Client.Del(ctx, key).Err()
 }
 
 func (c *ByteCache) MultiDel(ctx context.Context, keys []string) error {

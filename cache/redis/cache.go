@@ -24,12 +24,44 @@ func NewCache[T any](client *redis.Client, codec Codec) *Cache[T] {
 	}
 }
 
-func (m *Cache[T]) Set(ctx context.Context, key string, val T, expiration time.Duration) error {
+func (m *Cache[T]) Set(ctx context.Context, key string, val T) error {
 	raw, err := m.codec.Marshal(val)
 	if err != nil {
 		return err
 	}
-	return m.cache.Set(ctx, key, raw, expiration)
+	return m.cache.Set(ctx, key, raw)
+}
+
+func (m *Cache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration time.Duration) error {
+	raw, err := m.codec.Marshal(val)
+	if err != nil {
+		return err
+	}
+	return m.cache.SetWithTTL(ctx, key, raw, expiration)
+}
+
+func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
+	rawMap := make(map[string][]byte, len(valMap))
+	for k, v := range valMap {
+		raw, err := m.codec.Marshal(v)
+		if err != nil {
+			return err
+		}
+		rawMap[k] = raw
+	}
+	return m.cache.MultiSet(ctx, rawMap)
+}
+
+func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, expiration time.Duration) error {
+	rawMap := make(map[string][]byte, len(valMap))
+	for k, v := range valMap {
+		raw, err := m.codec.Marshal(v)
+		if err != nil {
+			return err
+		}
+		rawMap[k] = raw
+	}
+	return m.cache.MultiSetWithTTL(ctx, rawMap, expiration)
 }
 
 func (m *Cache[T]) Get(ctx context.Context, key string) (*T, error) {
@@ -48,20 +80,6 @@ func (m *Cache[T]) Get(ctx context.Context, key string) (*T, error) {
 	return &val, nil
 }
 
-func (m *Cache[T]) Del(ctx context.Context, key string) error {
-	return m.cache.Del(ctx, key)
-}
-
-func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T, expiration time.Duration) error {
-	for k, v := range valMap {
-		err := m.Set(ctx, k, v, expiration)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, error) {
 	result := make(map[string]T)
 	for _, key := range keys {
@@ -74,6 +92,10 @@ func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, e
 		}
 	}
 	return result, nil
+}
+
+func (m *Cache[T]) Del(ctx context.Context, key string) error {
+	return m.cache.Del(ctx, key)
 }
 
 func (m *Cache[T]) MultiDel(ctx context.Context, keys []string) error {

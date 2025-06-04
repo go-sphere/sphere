@@ -17,7 +17,7 @@ func NewRateLimiter(key func(*gin.Context) string, createLimiter func(*gin.Conte
 		if limiter == nil || *limiter == nil {
 			var expire time.Duration
 			newLimiter, expire := createLimiter(ctx)
-			err := limiterSet.Set(ctx, k, newLimiter, expire)
+			err := limiterSet.SetWithTTL(ctx, k, newLimiter, expire)
 			if err != nil {
 				abort(ctx)
 				return

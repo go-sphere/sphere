@@ -51,7 +51,7 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	if err != nil {
 		return "", err
 	}
-	err = c.cache.Set(ctx, key, all, c.config.Expires)
+	err = c.cache.SetWithTTL(ctx, key, all, c.config.Expires)
 	if err != nil {
 		return "", err
 	}
@@ -64,7 +64,7 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	if err != nil {
 		return "", err
 	}
-	err = c.cache.Set(ctx, key, raw, c.config.Expires)
+	err = c.cache.SetWithTTL(ctx, key, raw, c.config.Expires)
 	if err != nil {
 		return "", err
 	}
@@ -131,7 +131,7 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if value == nil {
 		return storageerr.ErrorNotFound
 	}
-	err = c.cache.Set(ctx, destinationKey, *value, c.config.Expires)
+	err = c.cache.SetWithTTL(ctx, destinationKey, *value, c.config.Expires)
 	if err != nil {
 		return err
 	}

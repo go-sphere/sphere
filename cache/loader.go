@@ -12,6 +12,8 @@ import (
 
 var ErrNotFound = fmt.Errorf("not found")
 
+const NeverExpire = time.Duration(-1)
+
 type Encoder interface {
 	Marshal(val any) ([]byte, error)
 }
@@ -52,7 +54,11 @@ func Save[T any, E Encoder](ctx context.Context, c ByteCache, e E, key string, v
 	if err != nil {
 		return err
 	}
-	return c.Set(ctx, key, data, expiration)
+	if expiration == NeverExpire {
+		return c.Set(ctx, key, data)
+	} else {
+		return c.SetWithTTL(ctx, key, data, expiration)
+	}
 }
 
 func LoadEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, d D, e E, sf *singleflight.Group, key string, expiration time.Duration, builder func() (obj *T, err error)) (*T, error) {
@@ -107,7 +113,13 @@ func Get[T any](ctx context.Context, c Cache[T], key string) (*T, error) {
 }
 
 func Set[T any](ctx context.Context, c Cache[T], key string, value *T, expiration time.Duration) error {
-	return c.Set(ctx, key, *value, expiration)
+	if value == nil {
+		return c.Del(ctx, key)
+	} else if expiration == NeverExpire {
+		return c.Set(ctx, key, *value)
+	} else {
+		return c.SetWithTTL(ctx, key, *value, expiration)
+	}
 }
 
 func GetEx[T any](ctx context.Context, c Cache[T], sf *singleflight.Group, key string, expiration time.Duration, builder func() (obj *T, err error)) (*T, error) {

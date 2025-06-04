@@ -8,6 +8,12 @@ import (
 	"github.com/dgraph-io/ristretto/v2"
 )
 
+const (
+	defaultMaxCost     = 1 << 30 // 1GB
+	defaultNumCounters = 1e7
+	defaultBufferItems = 64
+)
+
 type Cache[T any] struct {
 	calculateCost    bool
 	allowAsyncWrites bool
@@ -16,9 +22,9 @@ type Cache[T any] struct {
 
 func NewMemoryCache[T any]() *Cache[T] {
 	cache, _ := ristretto.NewCache[string, T](&ristretto.Config[string, T]{
-		NumCounters: 1e7,
-		MaxCost:     1 << 10,
-		BufferItems: 64,
+		NumCounters: defaultNumCounters,
+		MaxCost:     defaultMaxCost,
+		BufferItems: defaultBufferItems,
 	})
 	return &Cache[T]{
 		cache:         cache,
@@ -28,9 +34,9 @@ func NewMemoryCache[T any]() *Cache[T] {
 
 func NewMemoryCacheWithCost[T any](cost func(T) int64) *Cache[T] {
 	cache, _ := ristretto.NewCache[string, T](&ristretto.Config[string, T]{
-		NumCounters: 1e7,
-		MaxCost:     1 << 10,
-		BufferItems: 64,
+		NumCounters: defaultNumCounters,
+		MaxCost:     defaultMaxCost,
+		BufferItems: defaultBufferItems,
 		Cost:        cost,
 	})
 	return &Cache[T]{
@@ -40,13 +46,6 @@ func NewMemoryCacheWithCost[T any](cost func(T) int64) *Cache[T] {
 }
 
 func NewMemoryCacheWithRistretto[T any](cache *ristretto.Cache[string, T], calculateCost, allowAsyncWrites bool) *Cache[T] {
-	if cache == nil {
-		cache, _ = ristretto.NewCache[string, T](&ristretto.Config[string, T]{
-			NumCounters: 1e7,
-			MaxCost:     1 << 10,
-			BufferItems: 64,
-		})
-	}
 	return &Cache[T]{
 		calculateCost:    calculateCost,
 		allowAsyncWrites: allowAsyncWrites,
@@ -72,24 +71,68 @@ func (m *Cache[T]) SetAllowAsyncWrites(allow bool) {
 	m.allowAsyncWrites = allow
 }
 
-// Set sets a value in the cache with an optional expiration time.
-// If expiration is less than zero, the value will not expire.
-func (m *Cache[T]) Set(ctx context.Context, key string, val T, expiration time.Duration) error {
-	var success bool
+func (m *Cache[T]) Set(ctx context.Context, key string, val T) error {
 	var cost int64 = 1
 	if m.calculateCost {
 		cost = 0
 	}
-	if expiration < 0 {
-		success = m.cache.Set(key, val, cost)
-	} else {
-		success = m.cache.SetWithTTL(key, val, cost, expiration)
-	}
-	if !success {
+	if !m.cache.Set(key, val, cost) {
 		return errors.New("cache set failed")
 	}
 	if !m.allowAsyncWrites {
 		m.cache.Wait()
+	}
+	return nil
+}
+
+func (m *Cache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration time.Duration) error {
+	var cost int64 = 1
+	if m.calculateCost {
+		cost = 0
+	}
+	if !m.cache.SetWithTTL(key, val, cost, expiration) {
+		return errors.New("cache set failed")
+	}
+	if !m.allowAsyncWrites {
+		m.cache.Wait()
+	}
+	return nil
+}
+
+func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
+	var errs []error
+	for k, v := range valMap {
+		var cost int64 = 1
+		if m.calculateCost {
+			cost = 0
+		}
+		success := m.cache.Set(k, v, cost)
+		if !success {
+			errs = append(errs, errors.New("cache set failed for key: "+k))
+		}
+	}
+	m.cache.Wait()
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
+}
+
+func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, expiration time.Duration) error {
+	var errs []error
+	for k, v := range valMap {
+		var cost int64 = 1
+		if m.calculateCost {
+			cost = 0
+		}
+		success := m.cache.SetWithTTL(k, v, cost, expiration)
+		if !success {
+			errs = append(errs, errors.New("cache set failed for key: "+k))
+		}
+	}
+	m.cache.Wait()
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 	return nil
 }
@@ -102,38 +145,20 @@ func (m *Cache[T]) Get(ctx context.Context, key string) (*T, error) {
 	return &val, nil
 }
 
-func (m *Cache[T]) Del(ctx context.Context, key string) error {
-	m.cache.Del(key)
-	return nil
-}
-
-func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T, expiration time.Duration) error {
-	var errs []error
-	for k, v := range valMap {
-		success := m.cache.SetWithTTL(k, v, 1, expiration)
-		if !success {
-			errs = append(errs, errors.New("cache set failed for key: "+k))
-		}
-	}
-	m.cache.Wait()
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-	return nil
-}
-
 func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, error) {
 	result := make(map[string]T)
 	for _, key := range keys {
-		val, err := m.Get(ctx, key)
-		if err != nil {
-			return nil, err
-		}
-		if val != nil {
-			result[key] = *val
+		val, found := m.cache.Get(key)
+		if found {
+			result[key] = val
 		}
 	}
 	return result, nil
+}
+
+func (m *Cache[T]) Del(ctx context.Context, key string) error {
+	m.cache.Del(key)
+	return nil
 }
 
 func (m *Cache[T]) MultiDel(ctx context.Context, keys []string) error {
