@@ -21,7 +21,6 @@ func NewByteCache(client *redis.Client) *ByteCache {
 
 func (c *ByteCache) Set(ctx context.Context, key string, val []byte) error {
 	return c.SetWithTTL(ctx, key, val, redis.KeepTTL)
-
 }
 
 func (c *ByteCache) SetWithTTL(ctx context.Context, key string, val []byte, expiration time.Duration) error {
