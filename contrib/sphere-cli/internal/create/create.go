@@ -15,42 +15,44 @@ const (
 	sphereModule                = "github.com/TBXark/sphere"
 	defaultProjectLayout        = "https://github.com/TBXark/sphere/archive/refs/heads/master.zip"
 	defaultProjectLayoutModName = "github.com/TBXark/sphere/layout"
+	defaultLayoutPath           = "sphere-master/layout"
 )
 
 func Project(name, mod string) error {
-	tempDir, err := cloneLayoutDir(defaultProjectLayout)
+	targetDir, err := filepath.Abs(filepath.Join(".", name))
+	if err != nil {
+		return err
+	}
+
+	// download and unzip the default project layout
+	tempDir, err := zip.DownloadAndUnzip(defaultProjectLayout)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		_ = os.RemoveAll(tempDir)
 	}()
-	tempLayout := filepath.Join(tempDir, "sphere-master", "layout")
-	err = initGitRepo(tempLayout)
-	if err != nil {
-		return err
-	}
-	err = renameGoModule(defaultProjectLayoutModName, mod, tempLayout)
-	if err != nil {
-		return err
-	}
-	target, err := filepath.Abs(filepath.Join(".", name))
-	if err != nil {
-		return err
-	}
-	err = moveTempDirToTarget(tempLayout, target)
-	if err != nil {
-		return err
-	}
-	return nil
-}
+	layoutDir := filepath.Join(tempDir, defaultLayoutPath)
 
-func cloneLayoutDir(uri string) (string, error) {
-	tempDir, err := zip.UnzipToTemp(uri)
+	// init git repository
+	err = initGitRepo(layoutDir)
 	if err != nil {
-		return "", err
+		return err
 	}
-	return tempDir, nil
+
+	// rename the Go module name
+	err = renameGoModule(defaultProjectLayoutModName, mod, layoutDir)
+	if err != nil {
+		return err
+	}
+
+	// Move the layout to the target directory
+	err = moveTempDirToTarget(layoutDir, targetDir)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func moveTempDirToTarget(source, target string) error {
