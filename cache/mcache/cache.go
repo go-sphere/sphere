@@ -6,20 +6,20 @@ import (
 	"time"
 )
 
-type Map[S any] struct {
+type Map[K comparable, S any] struct {
 	rw         sync.RWMutex
-	store      map[string]S
-	expiration map[string]time.Time
+	store      map[K]S
+	expiration map[K]time.Time
 }
 
-func NewMapCache[S any]() *Map[S] {
-	return &Map[S]{
+func NewMapCache[S any]() *Map[string, S] {
+	return &Map[string, S]{
 		store:      make(map[string]S),
 		expiration: make(map[string]time.Time),
 	}
 }
 
-func (t *Map[S]) Set(ctx context.Context, key string, val S) error {
+func (t *Map[K, S]) Set(ctx context.Context, key K, val S) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -28,7 +28,7 @@ func (t *Map[S]) Set(ctx context.Context, key string, val S) error {
 	return nil
 }
 
-func (t *Map[S]) SetWithTTL(ctx context.Context, key string, val S, expiration time.Duration) error {
+func (t *Map[K, S]) SetWithTTL(ctx context.Context, key K, val S, expiration time.Duration) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -41,7 +41,7 @@ func (t *Map[S]) SetWithTTL(ctx context.Context, key string, val S, expiration t
 	return nil
 }
 
-func (t *Map[S]) MultiSet(ctx context.Context, valMap map[string]S) error {
+func (t *Map[K, S]) MultiSet(ctx context.Context, valMap map[K]S) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -52,7 +52,7 @@ func (t *Map[S]) MultiSet(ctx context.Context, valMap map[string]S) error {
 	return nil
 }
 
-func (t *Map[S]) MultiSetWithTTL(ctx context.Context, valMap map[string]S, expiration time.Duration) error {
+func (t *Map[K, S]) MultiSetWithTTL(ctx context.Context, valMap map[K]S, expiration time.Duration) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -68,28 +68,25 @@ func (t *Map[S]) MultiSetWithTTL(ctx context.Context, valMap map[string]S, expir
 	return nil
 }
 
-func (t *Map[S]) Get(ctx context.Context, key string) (*S, error) {
+func (t *Map[K, S]) Get(ctx context.Context, key K) (S, bool, error) {
 	t.rw.RLock()
 	defer t.rw.RUnlock()
 
 	if exp, ok := t.expiration[key]; ok && time.Now().After(exp) {
 		delete(t.store, key)
 		delete(t.expiration, key)
-		return nil, nil
+		var zeroValue S
+		return zeroValue, false, nil
 	}
-
 	val, ok := t.store[key]
-	if !ok {
-		return nil, nil
-	}
-	return &val, nil
+	return val, ok, nil
 }
 
-func (t *Map[S]) MultiGet(ctx context.Context, keys []string) (map[string]S, error) {
+func (t *Map[K, S]) MultiGet(ctx context.Context, keys []K) (map[K]S, error) {
 	t.rw.RLock()
 	defer t.rw.RUnlock()
 
-	result := make(map[string]S)
+	result := make(map[K]S, len(keys))
 	now := time.Now()
 
 	for _, key := range keys {
@@ -107,7 +104,7 @@ func (t *Map[S]) MultiGet(ctx context.Context, keys []string) (map[string]S, err
 	return result, nil
 }
 
-func (t *Map[S]) Del(ctx context.Context, key string) error {
+func (t *Map[K, S]) Del(ctx context.Context, key K) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -116,7 +113,7 @@ func (t *Map[S]) Del(ctx context.Context, key string) error {
 	return nil
 }
 
-func (t *Map[S]) MultiDel(ctx context.Context, keys []string) error {
+func (t *Map[K, S]) MultiDel(ctx context.Context, keys []K) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -127,16 +124,16 @@ func (t *Map[S]) MultiDel(ctx context.Context, keys []string) error {
 	return nil
 }
 
-func (t *Map[S]) DelAll(ctx context.Context) error {
+func (t *Map[K, S]) DelAll(ctx context.Context) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
-	t.store = make(map[string]S)
-	t.expiration = make(map[string]time.Time)
+	t.store = make(map[K]S)
+	t.expiration = make(map[K]time.Time)
 	return nil
 }
 
-func (t *Map[S]) Trim() {
+func (t *Map[K, S]) Trim() {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -149,6 +146,6 @@ func (t *Map[S]) Trim() {
 	}
 }
 
-func (t *Map[S]) Close() error {
+func (t *Map[K, S]) Close() error {
 	return nil
 }

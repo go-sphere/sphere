@@ -64,31 +64,37 @@ func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, exp
 	return m.cache.MultiSetWithTTL(ctx, rawMap, expiration)
 }
 
-func (m *Cache[T]) Get(ctx context.Context, key string) (*T, error) {
-	raw, err := m.cache.Get(ctx, key)
-	if err != nil {
-		return nil, err
-	}
-	if raw == nil {
-		return nil, nil
-	}
+func (m *Cache[T]) Get(ctx context.Context, key string) (T, bool, error) {
+	raw, found, err := m.cache.Get(ctx, key)
 	var val T
-	err = m.codec.Unmarshal(*raw, &val)
 	if err != nil {
-		return nil, err
+		return val, false, err
 	}
-	return &val, nil
+	if !found {
+		return val, false, nil
+	}
+	err = m.codec.Unmarshal(raw, &val)
+	if err != nil {
+		return val, false, err
+	}
+	return val, true, nil
 }
 
 func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, error) {
+	rawMap, err := m.cache.MultiGet(ctx, keys)
+	if err != nil {
+		return nil, err
+	}
 	result := make(map[string]T)
 	for _, key := range keys {
-		val, err := m.Get(ctx, key)
+		raw, ok := rawMap[key]
+		if !ok {
+			continue
+		}
+		var val T
+		err = m.codec.Unmarshal(raw, &val)
 		if err != nil {
 			return nil, err
-		}
-		if val != nil {
-			result[key] = *val
 		}
 	}
 	return result, nil

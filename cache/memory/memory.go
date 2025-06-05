@@ -137,12 +137,9 @@ func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, exp
 	return nil
 }
 
-func (m *Cache[T]) Get(ctx context.Context, key string) (*T, error) {
+func (m *Cache[T]) Get(ctx context.Context, key string) (T, bool, error) {
 	val, found := m.cache.Get(key)
-	if !found {
-		return nil, nil
-	}
-	return &val, nil
+	return val, found, nil
 }
 
 func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, error) {

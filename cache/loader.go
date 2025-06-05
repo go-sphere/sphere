@@ -4,199 +4,181 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"reflect"
 	"time"
 
 	"golang.org/x/sync/singleflight"
 )
 
-// ErrNotFound is returned when a cache entry is not found, typically when a key does not exist in the cache.
-// For use by other packages that implement the Cache interface
-var ErrNotFound = fmt.Errorf("not found")
+const neverExpire = time.Duration(-1)
 
-// NeverExpire is a special value for expiration that indicates the cache entry should never expire.
-// Only used when calling functions such as Get, Set, GetObject, SetObject, etc., of the current package
-const NeverExpire = time.Duration(-1)
-
-func IsNotFound(err error) bool {
-	return errors.Is(err, ErrNotFound)
-}
-
-func Zero[T any]() T {
+func IsZero[T any](t T) bool {
 	var zero T
-	return zero
+	return reflect.DeepEqual(t, zero)
 }
 
-// Set stores a value in the cache with the given key and expiration.
-// If expiration is NeverExpire, the value will not expire.
-// If value is nil, it deletes the key from the cache.
-func Set[T any](ctx context.Context, c Cache[T], key string, value *T, expiration time.Duration) error {
-	if value == nil {
-		return c.Del(ctx, key)
-	} else if expiration == NeverExpire {
-		return c.Set(ctx, key, *value)
+type Options struct {
+	expiration   time.Duration
+	singleflight *singleflight.Group
+}
+
+func newOptions(options ...Option) *Options {
+	opt := &Options{
+		expiration:   neverExpire,
+		singleflight: nil,
+	}
+	for _, option := range options {
+		option(opt)
+	}
+	return opt
+}
+
+type Option func(o *Options)
+
+func WithExpiration(expiration time.Duration) Option {
+	return func(o *Options) {
+		o.expiration = expiration
+	}
+}
+
+func WithNeverExpire() Option {
+	return func(o *Options) {
+		o.expiration = neverExpire
+	}
+}
+
+func WithSingleflight(single *singleflight.Group) Option {
+	return func(o *Options) {
+		o.singleflight = single
+	}
+}
+
+func Set[T any](ctx context.Context, c Cache[T], key string, value T, options ...Option) error {
+	opts := newOptions(options...)
+	if opts.expiration == neverExpire {
+		return c.Set(ctx, key, value)
 	} else {
-		return c.SetWithTTL(ctx, key, *value, expiration)
+		return c.SetWithTTL(ctx, key, value, opts.expiration)
 	}
 }
 
-// SetObject stores a value in the cache with the given key and expiration.
-// If expiration is NeverExpire, the value will not expire.
-// If value is nil, it deletes the key from the cache.
-func SetObject[T any, E Encoder](ctx context.Context, c ByteCache, e E, key string, value *T, expiration time.Duration) error {
-	if value == nil {
-		return c.Del(ctx, key)
-	}
+func SetObject[T any, E Encoder](ctx context.Context, c ByteCache, e E, key string, value T, options ...Option) error {
 	data, err := e.Marshal(value)
 	if err != nil {
 		return err
 	}
-	if expiration == NeverExpire {
-		return c.Set(ctx, key, data)
-	} else {
-		return c.SetWithTTL(ctx, key, data, expiration)
-	}
+	return Set(ctx, c, key, data, options...)
 }
 
-// SetJson stores a value in the cache as JSON with the given key and expiration.
-// If expiration is NeverExpire, the value will not expire.
-// If value is nil, it deletes the key from the cache.
-func SetJson[T any](ctx context.Context, c ByteCache, key string, value *T, expiration time.Duration) error {
-	return SetObject[T, EncoderFunc](ctx, c, json.Marshal, key, value, expiration)
+func SetJson[T any](ctx context.Context, c ByteCache, key string, value T, options ...Option) error {
+	return SetObject[T, EncoderFunc](ctx, c, json.Marshal, key, value, options...)
 }
 
-// Get retrieves a value from the cache by key. If the key does not exist, it returns (nil, nil).
-func Get[T any](ctx context.Context, c Cache[T], key string) (*T, error) {
-	data, err := c.Get(ctx, key)
-	if err != nil {
-		return nil, err
-	}
-	if data == nil {
-		return nil, nil
-	}
-	return data, nil
-}
-
-// GetX retrieves a value from the cache by key and returns it as a type T. Ignoring errors. Only returns (zero, false) if the key does not exist.
-func GetX[T any](ctx context.Context, c Cache[T], key string) (T, bool) {
-	data, err := c.Get(ctx, key)
-	if err != nil {
-		return Zero[T](), false
-	}
-	if data == nil {
-		return Zero[T](), false
-	}
-	return *data, true
-}
-
-// GetObject retrieves a value from the cache by key and decodes it using the provided decoder. If the value does not exist, it returns (nil, nil).
-func GetObject[T any, D Decoder](ctx context.Context, c ByteCache, d D, key string) (*T, error) {
-	data, err := c.Get(ctx, key)
-	if err != nil {
-		return nil, err
-	}
-	if data == nil {
-		return nil, nil
-	}
+func GetObject[T any, D Decoder](ctx context.Context, c ByteCache, d D, key string) (T, bool, error) {
+	data, found, err := c.Get(ctx, key)
 	var value T
-	err = d.Unmarshal(*data, &value)
 	if err != nil {
-		return nil, err
+		return value, false, err
 	}
-	return &value, nil
+	if !found {
+		return value, false, nil
+	}
+	err = d.Unmarshal(data, &value)
+	if err != nil {
+		return value, false, err
+	}
+	return value, true, nil
 }
 
-// GetObjectEx retrieves a value from the cache by key and decodes it using the provided decoder.
-// If the value does not exist, it calls the builder function to create the value,
-// stores it in the cache, and returns it.
-// It uses singleflight to prevent duplicate builds for concurrent requests.
-// Notes:
-// - If builder returns nil, nothing will be stored in the cache
-// - If expiration is NeverExpire, the value will persist indefinitely
-// - Never returns ErrNotFound - will always attempt to build if not found
-// Returns:
-// - The cached/built value (or nil)
-// - Any error that occurred during retrieval or building (NotFound is not returned, but other errors are)
-func GetObjectEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, d D, e E, sf *singleflight.Group, key string, expiration time.Duration, builder func() (obj *T, err error)) (*T, error) {
-	obj, err := GetObject[T, D](ctx, c, d, key)
-	if err == nil && obj != nil {
-		return obj, nil // If the object is found in the cache, return it directly
-	}
-	if err != nil && !IsNotFound(err) {
-		return nil, err // If it's not a NotFound error, return it directly
-	}
-	build, err, _ := sf.Do(key, func() (interface{}, error) {
-		nObj, nErr := builder()
-		if nErr != nil {
-			return nil, nErr
-		}
-		if nObj == nil {
-			return nil, nil
-		}
-		nErr = SetObject[T, E](ctx, c, e, key, nObj, expiration)
-		if nErr != nil {
-			return nObj, nErr
-		}
-		return nObj, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if build == nil {
-		return nil, nil
-	}
-	return build.(*T), nil
-}
-
-// GetJson is a convenience function for GetObject that uses JSON decoding.
-func GetJson[T any](ctx context.Context, c ByteCache, key string) (*T, error) {
+func GetJson[T any](ctx context.Context, c ByteCache, key string, options ...Option) (T, bool, error) {
 	return GetObject[T, DecoderFunc](ctx, c, json.Unmarshal, key)
 }
 
-// GetJsonEx is a convenience function for GetObjectEx that uses JSON encoding and decoding.
-func GetJsonEx[T any](ctx context.Context, c ByteCache, sf *singleflight.Group, key string, expiration time.Duration, builder func() (obj *T, err error)) (*T, error) {
-	return GetObjectEx[T, DecoderFunc, EncoderFunc](ctx, c, json.Unmarshal, json.Marshal, sf, key, expiration, builder)
+func GetEx[T any](ctx context.Context, c Cache[T], key string, builder func() (obj *T, err error), options ...Option) (T, bool, error) {
+	return load[T](
+		ctx,
+		key,
+		c.Get,
+		func(ctx context.Context, k string, v T, opts ...Option) error {
+			return Set[T](ctx, c, k, v, opts...)
+		},
+		builder,
+		options...,
+	)
 }
 
-// GetEx retrieves a value from the cache. If the value doesn't exist,
-// it calls the builder function to create the value, stores it in the cache, and returns it.
-//
-// Notes:
-// - If builder returns nil, nothing will be stored in the cache
-// - If expiration is NeverExpire, the value will persist indefinitely
-// - Never returns ErrNotFound - will always attempt to build if not found
-// - Uses singleflight to prevent duplicate builds for concurrent requests
-//
-// Returns:
-// - The cached/built value (or nil)
-// - Any error that occurred during retrieval or building (NotFound is not returned, but other errors are)
-func GetEx[T any](ctx context.Context, c Cache[T], sf *singleflight.Group, key string, expiration time.Duration, builder func() (obj *T, err error)) (*T, error) {
-	obj, err := Get[T](ctx, c, key)
-	if err == nil && obj != nil {
-		return obj, nil // If the object is found in the cache, return it directly
+func GetObjectEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, d D, e E, key string, builder func() (*T, error), options ...Option) (T, bool, error) {
+	return load[T](
+		ctx,
+		key,
+		func(ctx context.Context, k string) (T, bool, error) {
+			return GetObject[T, D](ctx, c, d, k)
+		},
+		func(ctx context.Context, k string, v T, opts ...Option) error {
+			return SetObject[T, E](ctx, c, e, k, v, opts...)
+		},
+		builder,
+		options...,
+	)
+}
+
+func GetJsonEx[T any](ctx context.Context, c ByteCache, key string, builder func() (obj *T, err error), options ...Option) (T, bool, error) {
+	return GetObjectEx[T, DecoderFunc, EncoderFunc](ctx, c, json.Unmarshal, json.Marshal, key, builder, options...)
+}
+
+func load[T any](
+	ctx context.Context,
+	key string,
+	getter func(context.Context, string) (T, bool, error),
+	setter func(context.Context, string, T, ...Option) error,
+	builder func() (*T, error),
+	options ...Option,
+) (T, bool, error) {
+	opts := newOptions(options...)
+	obj, found, cErr := getter(ctx, key)
+	if cErr != nil {
+		var zero T
+		return zero, false, cErr
 	}
-	if err != nil && !IsNotFound(err) {
-		return nil, err // If it's not a NotFound error, return it directly
+	if found {
+		return obj, true, nil
 	}
-	build, err, _ := sf.Do(key, func() (interface{}, error) {
-		nObj, nErr := builder()
-		if nErr != nil {
-			return nil, nErr
+	if builder == nil {
+		var zero T
+		return zero, false, nil
+	}
+	build := func() (*T, error) {
+		nObj, err := builder()
+		if err != nil {
+			return nil, err
 		}
 		if nObj == nil {
 			return nil, nil
 		}
-		nErr = Set[T](ctx, c, key, nObj, expiration)
-		if nErr != nil {
-			return nObj, nErr // SetObject the object error, but build succeeded, return it
+		return nObj, setter(ctx, key, *nObj, options...)
+	}
+	if opts.singleflight != nil {
+		originBuild := build
+		build = func() (*T, error) {
+			val, err, _ := opts.singleflight.Do(key, func() (interface{}, error) {
+				return originBuild()
+			})
+			if val == nil {
+				return nil, err
+			}
+			nObj, ok := val.(*T)
+			if !ok {
+				return nil, errors.New("cast value failed")
+			}
+			return nObj, err
 		}
-		return nObj, nil
-	})
-	if err != nil {
-		return nil, err
 	}
-	if build == nil {
-		return nil, nil
+	newObj, err := build()
+	if newObj != nil {
+		obj = *newObj
+		return obj, true, err
+	} else {
+		var zero T
+		return zero, false, err
 	}
-	return build.(*T), nil
 }

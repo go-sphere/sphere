@@ -78,7 +78,7 @@ func (d *Database) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte
 	})
 }
 
-func (d *Database) Get(ctx context.Context, key string) (*[]byte, error) {
+func (d *Database) Get(ctx context.Context, key string) ([]byte, bool, error) {
 	var val []byte
 	err := d.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(key))
@@ -93,11 +93,11 @@ func (d *Database) Get(ctx context.Context, key string) (*[]byte, error) {
 	})
 	if err != nil {
 		if errors.Is(err, badger.ErrKeyNotFound) {
-			return nil, nil
+			return nil, false, nil
 		}
-		return nil, err
+		return nil, false, err
 	}
-	return &val, nil
+	return val, true, nil
 }
 
 func (d *Database) MultiGet(ctx context.Context, keys []string) (map[string][]byte, error) {

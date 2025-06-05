@@ -99,15 +99,15 @@ func (c *CommonCache) Load(ctx context.Context, key string) (http.Header, io.Rea
 }
 
 func (c *CommonCache) Header(ctx context.Context, key string) (http.Header, error) {
-	headerRaw, err := c.cache.Get(ctx, key)
+	headerRaw, found, err := c.cache.Get(ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	if headerRaw == nil {
+	if !found {
 		return nil, errors.New("no cache found")
 	}
 	header := http.Header{}
-	err = json.Unmarshal(*headerRaw, &header)
+	err = json.Unmarshal(headerRaw, &header)
 	if err != nil {
 		return nil, err
 	}

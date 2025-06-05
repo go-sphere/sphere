@@ -72,12 +72,12 @@ func (a *S3Adapter) RegisterPutFileUploader(route gin.IRouter) {
 			abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key is required"))
 			return
 		}
-		filename, err := a.cache.Get(ctx, key)
+		filename, found, err := a.cache.Get(ctx, key)
 		if err != nil {
 			abortWithError(ctx, http.StatusBadRequest, err)
 			return
 		}
-		if filename == nil {
+		if !found {
 			abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key expires or not found"))
 			return
 		}
@@ -91,7 +91,7 @@ func (a *S3Adapter) RegisterPutFileUploader(route gin.IRouter) {
 			abortWithError(ctx, http.StatusInternalServerError, err)
 			return
 		}
-		uploadKey, err := a.UploadFile(ctx, bytes.NewReader(data), string(*filename))
+		uploadKey, err := a.UploadFile(ctx, bytes.NewReader(data), string(filename))
 		if err != nil {
 			abortWithError(ctx, http.StatusInternalServerError, err)
 			return

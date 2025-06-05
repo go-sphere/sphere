@@ -73,23 +73,20 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 
 func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	key = c.keyPreprocess(key)
-	data, err := c.cache.Get(ctx, key)
-	if err != nil {
-		return false, err
-	}
-	return data != nil, nil
+	_, found, err := c.cache.Get(ctx, key)
+	return found, err
 }
 
 func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
 	key = c.keyPreprocess(key)
-	data, err := c.cache.Get(ctx, key)
+	data, found, err := c.cache.Get(ctx, key)
 	if err != nil {
 		return nil, "", 0, err
 	}
-	if data == nil {
+	if !found {
 		return nil, "", 0, err
 	}
-	return io.NopCloser(bytes.NewReader(*data)), mime.TypeByExtension(filepath.Ext(key)), int64(len(*data)), nil
+	return io.NopCloser(bytes.NewReader(data)), mime.TypeByExtension(filepath.Ext(key)), int64(len(data)), nil
 }
 
 func (c *Client) DeleteFile(ctx context.Context, key string) error {
@@ -119,19 +116,22 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	sourceKey = c.keyPreprocess(sourceKey)
 	destinationKey = c.keyPreprocess(destinationKey)
 	if !overwrite {
-		value, err := c.cache.Get(ctx, destinationKey)
-		if err == nil && value != nil {
+		_, found, err := c.cache.Get(ctx, destinationKey)
+		if err != nil {
+			return err
+		}
+		if !found {
 			return storageerr.ErrorDistExisted
 		}
 	}
-	value, err := c.cache.Get(ctx, sourceKey)
+	value, found, err := c.cache.Get(ctx, sourceKey)
 	if err != nil {
 		return err
 	}
-	if value == nil {
+	if !found {
 		return storageerr.ErrorNotFound
 	}
-	err = c.cache.SetWithTTL(ctx, destinationKey, *value, c.config.Expires)
+	err = c.cache.SetWithTTL(ctx, destinationKey, value, c.config.Expires)
 	if err != nil {
 		return err
 	}

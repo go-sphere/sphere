@@ -12,8 +12,7 @@ type Cache[S any] interface {
 	MultiSet(ctx context.Context, valMap map[string]S) error
 	MultiSetWithTTL(ctx context.Context, valMap map[string]S, expiration time.Duration) error
 
-	// Get retrieves the value for the given key, returns (nil, nil) if the key does not exist
-	Get(ctx context.Context, key string) (*S, error)
+	Get(ctx context.Context, key string) (S, bool, error)
 	MultiGet(ctx context.Context, keys []string) (map[string]S, error)
 
 	Del(ctx context.Context, key string) error

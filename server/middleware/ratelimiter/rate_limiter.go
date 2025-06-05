@@ -16,7 +16,7 @@ func NewRateLimiter(key func(*gin.Context) string, createLimiter func(*gin.Conte
 	limiterSet := mcache.NewMapCache[*rate.Limiter]()
 	return func(ctx *gin.Context) {
 		k := key(ctx)
-		limiter, gErr := limiterSet.Get(ctx, k)
+		limiter, _, gErr := limiterSet.Get(ctx, k)
 		if gErr != nil {
 			abort(ctx)
 			return
@@ -35,11 +35,9 @@ func NewRateLimiter(key func(*gin.Context) string, createLimiter func(*gin.Conte
 				abort(ctx)
 				return
 			}
-			newLimiter := value.(*rate.Limiter)
-			limiter = &newLimiter
+			limiter = value.(*rate.Limiter)
 		}
-		rateLimiter := *limiter
-		ok := rateLimiter.Allow()
+		ok := limiter.Allow()
 		if !ok {
 			abort(ctx)
 			return

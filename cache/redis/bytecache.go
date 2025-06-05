@@ -40,15 +40,15 @@ func (c *ByteCache) MultiSetWithTTL(ctx context.Context, valMap map[string][]byt
 	return err
 }
 
-func (c *ByteCache) Get(ctx context.Context, key string) (*[]byte, error) {
+func (c *ByteCache) Get(ctx context.Context, key string) ([]byte, bool, error) {
 	val, err := c.Client.Get(ctx, key).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			return nil, nil // Key does not exist
+			return nil, false, nil
 		}
-		return nil, err
+		return nil, false, err
 	}
-	return &val, nil
+	return val, true, nil
 }
 
 func (c *ByteCache) MultiGet(ctx context.Context, keys []string) (map[string][]byte, error) {
