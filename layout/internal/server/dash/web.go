@@ -54,7 +54,7 @@ func (w *Web) Start(ctx context.Context) error {
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
 	authMiddleware := auth.NewAuthMiddleware[int64](jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, true)
-	rateLimiter := ratelimiter.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
+	rateLimiter := ratelimiter.NewNewRateLimiterByClientIP(time.Second, 5, time.Hour)
 
 	engine := gin.New()
 	engine.Use(loggerMiddleware, recoveryMiddleware)
@@ -92,7 +92,7 @@ func (w *Web) Start(ctx context.Context) error {
 				),
 			),
 			rateLimiter,
-		),
+		)...,
 	)
 	authRoute.GET("/api/get-async-routes", ginx.WithJson(func(ctx *gin.Context) ([]struct{}, error) {
 		return []struct{}{}, nil

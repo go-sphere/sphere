@@ -54,16 +54,18 @@ func NewLogicalAndMatcher(matchers ...Matcher) Matcher {
 	})
 }
 
-func NewSelectorMiddleware(matcher Matcher, middlewares ...gin.HandlerFunc) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		if matcher.Match(ctx) {
-			for _, m := range middlewares {
-				m(ctx)
-				if ctx.IsAborted() {
-					return
-				}
-			}
+func NewSelectorMiddleware(matcher Matcher, middlewares ...gin.HandlerFunc) gin.HandlersChain {
+	chain := make(gin.HandlersChain, 0, len(middlewares))
+	for _, middleware := range middlewares {
+		if matcher.Match == nil {
+			continue
 		}
-		ctx.Next()
+		chain = append(chain, func(ctx *gin.Context) {
+			if matcher.Match(ctx) {
+				middleware(ctx)
+			}
+			ctx.Next()
+		})
 	}
+	return chain
 }
