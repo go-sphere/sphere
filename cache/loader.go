@@ -22,6 +22,11 @@ func IsNotFound(err error) bool {
 	return errors.Is(err, ErrNotFound)
 }
 
+func Zero[T any]() T {
+	var zero T
+	return zero
+}
+
 // Set stores a value in the cache with the given key and expiration.
 // If expiration is NeverExpire, the value will not expire.
 // If value is nil, it deletes the key from the cache.
@@ -74,13 +79,12 @@ func Get[T any](ctx context.Context, c Cache[T], key string) (*T, error) {
 
 // GetX retrieves a value from the cache by key and returns it as a type T. Ignoring errors. Only returns (zero, false) if the key does not exist.
 func GetX[T any](ctx context.Context, c Cache[T], key string) (T, bool) {
-	var zero T
 	data, err := c.Get(ctx, key)
 	if err != nil {
-		return zero, false
+		return Zero[T](), false
 	}
 	if data == nil {
-		return zero, false
+		return Zero[T](), false
 	}
 	return *data, true
 }
