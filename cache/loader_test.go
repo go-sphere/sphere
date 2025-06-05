@@ -55,7 +55,7 @@ func TestGet(t *testing.T) {
 				expiration: time.Minute,
 			},
 			want:    nil,
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 

@@ -122,7 +122,7 @@ func GetObjectEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, 
 	if err == nil && obj != nil {
 		return obj, nil // If the object is found in the cache, return it directly
 	}
-	if !IsNotFound(err) {
+	if err != nil && !IsNotFound(err) {
 		return nil, err // If it's not a NotFound error, return it directly
 	}
 	build, err, _ := sf.Do(key, func() (interface{}, error) {
@@ -175,7 +175,7 @@ func GetEx[T any](ctx context.Context, c Cache[T], sf *singleflight.Group, key s
 	if err == nil && obj != nil {
 		return obj, nil // If the object is found in the cache, return it directly
 	}
-	if !IsNotFound(err) {
+	if err != nil && !IsNotFound(err) {
 		return nil, err // If it's not a NotFound error, return it directly
 	}
 	build, err, _ := sf.Do(key, func() (interface{}, error) {
