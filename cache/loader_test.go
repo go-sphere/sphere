@@ -72,6 +72,56 @@ func TestGet(t *testing.T) {
 	}
 }
 
+func TestGetX(t *testing.T) {
+	cache := testcache.NewTestCache[string]()
+	_ = cache.Set(context.Background(), "testKey", "testValue")
+
+	type args[T any] struct {
+		ctx context.Context
+		c   Cache[T]
+		key string
+	}
+	type testCase[T any] struct {
+		name  string
+		args  args[T]
+		want  T
+		want1 bool
+	}
+	tests := []testCase[string]{
+		{
+			name: "GetX existing key",
+			args: args[string]{
+				ctx: context.Background(),
+				c:   cache,
+				key: "testKey",
+			},
+			want:  "testValue",
+			want1: true,
+		},
+		{
+			name: "GetX non-existing key",
+			args: args[string]{
+				ctx: context.Background(),
+				c:   cache,
+				key: "testKeyNotFound",
+			},
+			want:  "",
+			want1: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1 := GetX(tt.args.ctx, tt.args.c, tt.args.key)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetX() got = %v, want %v", got, tt.want)
+			}
+			if got1 != tt.want1 {
+				t.Errorf("GetX() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
+}
+
 func TestGetEx(t *testing.T) {
 	cache := testcache.NewTestCache[string]()
 	_ = cache.Set(context.Background(), "testKey", "testValue")

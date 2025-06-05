@@ -10,10 +10,12 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-// ErrNotFound is returned when a cache entry is not found, Only used for GetObject and Get methods.
+// ErrNotFound is returned when a cache entry is not found, typically when a key does not exist in the cache.
+// For use by other packages that implement the Cache interface
 var ErrNotFound = fmt.Errorf("not found")
 
 // NeverExpire is a special value for expiration that indicates the cache entry should never expire.
+// Only used when calling functions such as Get, Set, GetObject, SetObject, etc., of the current package
 const NeverExpire = time.Duration(-1)
 
 func IsNotFound(err error) bool {
@@ -58,26 +60,39 @@ func SetJson[T any](ctx context.Context, c ByteCache, key string, value *T, expi
 	return SetObject[T, EncoderFunc](ctx, c, json.Marshal, key, value, expiration)
 }
 
-// Get retrieves a value from the cache by key. If the key does not exist, it returns ErrNotFound.
+// Get retrieves a value from the cache by key. If the key does not exist, it returns (nil, nil).
 func Get[T any](ctx context.Context, c Cache[T], key string) (*T, error) {
 	data, err := c.Get(ctx, key)
 	if err != nil {
 		return nil, err
 	}
 	if data == nil {
-		return nil, ErrNotFound
+		return nil, nil
 	}
 	return data, nil
 }
 
-// GetObject retrieves a value from the cache by key and decodes it using the provided decoder.
+// GetX retrieves a value from the cache by key and returns it as a type T. Ignoring errors. Only returns (zero, false) if the key does not exist.
+func GetX[T any](ctx context.Context, c Cache[T], key string) (T, bool) {
+	var zero T
+	data, err := c.Get(ctx, key)
+	if err != nil {
+		return zero, false
+	}
+	if data == nil {
+		return zero, false
+	}
+	return *data, true
+}
+
+// GetObject retrieves a value from the cache by key and decodes it using the provided decoder. If the value does not exist, it returns (nil, nil).
 func GetObject[T any, D Decoder](ctx context.Context, c ByteCache, d D, key string) (*T, error) {
 	data, err := c.Get(ctx, key)
 	if err != nil {
 		return nil, err
 	}
 	if data == nil {
-		return nil, ErrNotFound
+		return nil, nil
 	}
 	var value T
 	err = d.Unmarshal(*data, &value)
@@ -100,8 +115,8 @@ func GetObject[T any, D Decoder](ctx context.Context, c ByteCache, d D, key stri
 // - Any error that occurred during retrieval or building (NotFound is not returned, but other errors are)
 func GetObjectEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, d D, e E, sf *singleflight.Group, key string, expiration time.Duration, builder func() (obj *T, err error)) (*T, error) {
 	obj, err := GetObject[T, D](ctx, c, d, key)
-	if err == nil {
-		return obj, nil
+	if err == nil && obj != nil {
+		return obj, nil // If the object is found in the cache, return it directly
 	}
 	if !IsNotFound(err) {
 		return nil, err // If it's not a NotFound error, return it directly
@@ -153,8 +168,8 @@ func GetJsonEx[T any](ctx context.Context, c ByteCache, sf *singleflight.Group, 
 // - Any error that occurred during retrieval or building (NotFound is not returned, but other errors are)
 func GetEx[T any](ctx context.Context, c Cache[T], sf *singleflight.Group, key string, expiration time.Duration, builder func() (obj *T, err error)) (*T, error) {
 	obj, err := Get[T](ctx, c, key)
-	if err == nil {
-		return obj, nil
+	if err == nil && obj != nil {
+		return obj, nil // If the object is found in the cache, return it directly
 	}
 	if !IsNotFound(err) {
 		return nil, err // If it's not a NotFound error, return it directly
