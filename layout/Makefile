@@ -65,7 +65,7 @@ gen/proto: ## Generate proto files and run protoc plugins
 	go tool sphere-cli ent2proto --path=./internal/pkg/database/schema
 	go tool buf generate
 	go tool protoc-go-inject-tag -input="./api/*/*/*.pb.go" -remove_tag_comment
-	go run ./cmd/tools/bind --file ./internal/pkg/render/bind.go --mod $(MODULE)
+	go run ./cmd/tools/bind
 
 gen/db: ## Generate ent code
 	go generate ./internal/pkg/database/generate.go

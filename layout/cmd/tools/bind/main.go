@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime/debug"
 
 	"github.com/TBXark/sphere/database/bind"
 	"github.com/TBXark/sphere/layout/api/entpb"
@@ -17,7 +18,7 @@ import (
 
 func main() {
 	file := flag.String("file", "./internal/pkg/render/bind.go", "file path")
-	mod := flag.String("mod", "", "go module path")
+	mod := flag.String("mod", currentModule(), "go module path")
 	flag.Parse()
 	if *file == "" {
 		log.Fatal("file is required")
@@ -33,6 +34,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("write file failed: %v", err)
 	}
+}
+
+func currentModule() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	return info.Main.Path
 }
 
 func bindItems(mod string) *bind.GenFileConf {
