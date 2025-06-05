@@ -8,7 +8,7 @@ import (
 	"github.com/TBXark/sphere/telegram"
 )
 
-type Config telegram.Config
+type Config = telegram.Config
 
 type Bot struct {
 	bot     *telegram.Bot
@@ -16,7 +16,7 @@ type Bot struct {
 }
 
 func NewApp(conf *Config, botService *service.Service) (*Bot, error) {
-	app, err := telegram.NewApp((*telegram.Config)(conf))
+	app, err := telegram.NewApp(conf)
 	if err != nil {
 		return nil, err
 	}
