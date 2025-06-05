@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
@@ -24,7 +25,7 @@ func main() {
 	if *mod == "" {
 		log.Fatal("mod is required")
 	}
-	content, err := bind.GenFile(*mod, bindItems())
+	content, err := bind.GenFile(*mod, bindItems(*mod))
 	if err != nil {
 		log.Fatalf("generate bind code failed: %v", err)
 	}
@@ -34,10 +35,10 @@ func main() {
 	}
 }
 
-func bindItems() *bind.GenFileConf {
+func bindItems(mod string) *bind.GenFileConf {
 	return &bind.GenFileConf{
 		ExtraImports: [][]string{
-			{"github.com/TBXark/sphere/layout/api/shared/v1", "sharedv1"},
+			{fmt.Sprintf("%s/api/shared/v1", mod), "sharedv1"},
 		},
 		Entities: []bind.GenFileEntityConf{
 			{
