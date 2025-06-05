@@ -22,3 +22,12 @@ func init() {
 func NextId() int64 {
 	return idgen.NextId()
 }
+
+func NewIdGenerator(workerID uint16) func() int64 {
+	options := idgen.NewIdGeneratorOptions(workerID)
+	options.BaseTime = time.Date(2024, 1, 1, 0, 0, 0, 0, time.Local).UnixMilli()
+	generator := idgen.NewDefaultIdGenerator(options)
+	return func() int64 {
+		return generator.NewLong()
+	}
+}
