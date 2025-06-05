@@ -57,9 +57,6 @@ func NewLogicalAndMatcher(matchers ...Matcher) Matcher {
 func NewSelectorMiddleware(matcher Matcher, middlewares ...gin.HandlerFunc) gin.HandlersChain {
 	chain := make(gin.HandlersChain, 0, len(middlewares))
 	for _, middleware := range middlewares {
-		if matcher.Match == nil {
-			continue
-		}
 		chain = append(chain, func(ctx *gin.Context) {
 			if matcher.Match(ctx) {
 				middleware(ctx)

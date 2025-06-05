@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/TBXark/sphere/cache/mcache"
-	"golang.org/x/sync/singleflight"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/TBXark/sphere/cache/mcache"
+	"golang.org/x/sync/singleflight"
 )
 
 func ptr[T any](v T) *T {
@@ -216,7 +217,6 @@ func TestGetEx(t *testing.T) {
 }
 
 func TestGetObjectEx(t *testing.T) {
-
 	type Example struct {
 		Value string `json:"value"`
 	}
