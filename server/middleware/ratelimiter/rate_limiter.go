@@ -1,30 +1,45 @@
 package ratelimiter
 
 import (
+	"context"
+	"github.com/TBXark/sphere/cache/mcache"
+	"golang.org/x/sync/singleflight"
 	"net/http"
 	"time"
 
-	"github.com/TBXark/sphere/cache/memory"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
 )
 
 func NewRateLimiter(key func(*gin.Context) string, createLimiter func(*gin.Context) (*rate.Limiter, time.Duration), abort func(*gin.Context)) gin.HandlerFunc {
-	limiterSet := memory.NewMemoryCache[*rate.Limiter]()
+	sf := singleflight.Group{}
+	limiterSet := mcache.NewMapCache[*rate.Limiter]()
 	return func(ctx *gin.Context) {
 		k := key(ctx)
-		limiter, _ := limiterSet.Get(ctx, k)
-		if limiter == nil || *limiter == nil {
-			var expire time.Duration
-			newLimiter, expire := createLimiter(ctx)
-			err := limiterSet.SetWithTTL(ctx, k, newLimiter, expire)
-			if err != nil {
+		limiter, gErr := limiterSet.Get(ctx, k)
+		if gErr != nil {
+			abort(ctx)
+			return
+		}
+		if limiter == nil {
+			value, nErr, _ := sf.Do(k, func() (interface{}, error) {
+				newLimiter, expire := createLimiter(ctx)
+				err := limiterSet.SetWithTTL(context.WithoutCancel(ctx), k, newLimiter, expire)
+				if err != nil {
+					return nil, err
+				}
+				limiterSet.Trim()
+				return newLimiter, nil
+			})
+			if nErr != nil {
 				abort(ctx)
 				return
 			}
+			newLimiter := value.(*rate.Limiter)
 			limiter = &newLimiter
 		}
-		ok := (*limiter).Allow()
+		rateLimiter := *limiter
+		ok := rateLimiter.Allow()
 		if !ok {
 			abort(ctx)
 			return
