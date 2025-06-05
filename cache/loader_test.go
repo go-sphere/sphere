@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/TBXark/sphere/cache/testcache"
+	"github.com/TBXark/sphere/cache/mcache"
 	"golang.org/x/sync/singleflight"
 	"reflect"
 	"testing"
@@ -16,7 +16,7 @@ func ptr[T any](v T) *T {
 }
 
 func TestGet(t *testing.T) {
-	cache := testcache.NewTestCache[string]()
+	cache := mcache.NewMapCache[string]()
 	_ = cache.Set(context.Background(), "testKey", "testValue")
 
 	type args[T any] struct {
@@ -73,7 +73,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestGetX(t *testing.T) {
-	cache := testcache.NewTestCache[string]()
+	cache := mcache.NewMapCache[string]()
 	_ = cache.Set(context.Background(), "testKey", "testValue")
 
 	type args[T any] struct {
@@ -123,7 +123,7 @@ func TestGetX(t *testing.T) {
 }
 
 func TestGetEx(t *testing.T) {
-	cache := testcache.NewTestCache[string]()
+	cache := mcache.NewMapCache[string]()
 	_ = cache.Set(context.Background(), "testKey", "testValue")
 
 	type args[T any] struct {
@@ -222,7 +222,7 @@ func TestGetObjectEx(t *testing.T) {
 	}
 	val, _ := json.Marshal(Example{Value: "testValue"})
 
-	cache := testcache.NewTestCache[[]byte]()
+	cache := mcache.NewMapCache[[]byte]()
 	_ = cache.Set(context.Background(), "testKey", val)
 
 	type args[D Decoder, E Encoder, T any] struct {

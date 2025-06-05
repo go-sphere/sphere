@@ -1,4 +1,4 @@
-package testcache
+package mcache
 
 import (
 	"context"
@@ -6,20 +6,20 @@ import (
 	"time"
 )
 
-type TestCache[S any] struct {
+type Map[S any] struct {
 	rw         sync.RWMutex
 	store      map[string]S
 	expiration map[string]time.Time
 }
 
-func NewTestCache[S any]() *TestCache[S] {
-	return &TestCache[S]{
+func NewMapCache[S any]() *Map[S] {
+	return &Map[S]{
 		store:      make(map[string]S),
 		expiration: make(map[string]time.Time),
 	}
 }
 
-func (t *TestCache[S]) Set(ctx context.Context, key string, val S) error {
+func (t *Map[S]) Set(ctx context.Context, key string, val S) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -28,7 +28,7 @@ func (t *TestCache[S]) Set(ctx context.Context, key string, val S) error {
 	return nil
 }
 
-func (t *TestCache[S]) SetWithTTL(ctx context.Context, key string, val S, expiration time.Duration) error {
+func (t *Map[S]) SetWithTTL(ctx context.Context, key string, val S, expiration time.Duration) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -41,7 +41,7 @@ func (t *TestCache[S]) SetWithTTL(ctx context.Context, key string, val S, expira
 	return nil
 }
 
-func (t *TestCache[S]) MultiSet(ctx context.Context, valMap map[string]S) error {
+func (t *Map[S]) MultiSet(ctx context.Context, valMap map[string]S) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -52,7 +52,7 @@ func (t *TestCache[S]) MultiSet(ctx context.Context, valMap map[string]S) error 
 	return nil
 }
 
-func (t *TestCache[S]) MultiSetWithTTL(ctx context.Context, valMap map[string]S, expiration time.Duration) error {
+func (t *Map[S]) MultiSetWithTTL(ctx context.Context, valMap map[string]S, expiration time.Duration) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -68,7 +68,7 @@ func (t *TestCache[S]) MultiSetWithTTL(ctx context.Context, valMap map[string]S,
 	return nil
 }
 
-func (t *TestCache[S]) Get(ctx context.Context, key string) (*S, error) {
+func (t *Map[S]) Get(ctx context.Context, key string) (*S, error) {
 	t.rw.RLock()
 	defer t.rw.RUnlock()
 
@@ -85,7 +85,7 @@ func (t *TestCache[S]) Get(ctx context.Context, key string) (*S, error) {
 	return &val, nil
 }
 
-func (t *TestCache[S]) MultiGet(ctx context.Context, keys []string) (map[string]S, error) {
+func (t *Map[S]) MultiGet(ctx context.Context, keys []string) (map[string]S, error) {
 	t.rw.RLock()
 	defer t.rw.RUnlock()
 
@@ -107,7 +107,7 @@ func (t *TestCache[S]) MultiGet(ctx context.Context, keys []string) (map[string]
 	return result, nil
 }
 
-func (t *TestCache[S]) Del(ctx context.Context, key string) error {
+func (t *Map[S]) Del(ctx context.Context, key string) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -116,7 +116,7 @@ func (t *TestCache[S]) Del(ctx context.Context, key string) error {
 	return nil
 }
 
-func (t *TestCache[S]) MultiDel(ctx context.Context, keys []string) error {
+func (t *Map[S]) MultiDel(ctx context.Context, keys []string) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -127,7 +127,7 @@ func (t *TestCache[S]) MultiDel(ctx context.Context, keys []string) error {
 	return nil
 }
 
-func (t *TestCache[S]) DelAll(ctx context.Context) error {
+func (t *Map[S]) DelAll(ctx context.Context) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -136,6 +136,19 @@ func (t *TestCache[S]) DelAll(ctx context.Context) error {
 	return nil
 }
 
-func (t *TestCache[S]) Close() error {
+func (t *Map[S]) Trim() {
+	t.rw.Lock()
+	defer t.rw.Unlock()
+
+	now := time.Now()
+	for key, exp := range t.expiration {
+		if now.After(exp) {
+			delete(t.store, key)
+			delete(t.expiration, key)
+		}
+	}
+}
+
+func (t *Map[S]) Close() error {
 	return nil
 }
