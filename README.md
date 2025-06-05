@@ -27,7 +27,9 @@ It also provides a series of code and document generation tools, including `prot
 
 ## Getting Started
 
-You can use the recommended [layout](layout/README.md) directory structure to develop your project, or you can customize the directory structure according to your needs.
+Use the [`sphere-cli`](./contrib/sphere-cli/README.md) command-line tool to generate a project with
+the [standard layout](./layout/README.md).
+Full standard layout documentation is available in the [layout](./layout/README.md) directory.
 
 ## License
 
