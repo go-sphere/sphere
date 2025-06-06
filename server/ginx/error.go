@@ -2,10 +2,11 @@ package ginx
 
 import (
 	"errors"
+	"github.com/TBXark/sphere/server/statuserr"
 	"net/http"
 )
 
-var internalServerError = NewError(http.StatusInternalServerError, 500, "Internal Server Error")
+var internalServerError = statuserr.NewError(http.StatusInternalServerError, 0, "Internal Server Error")
 
 type statusError interface {
 	error
@@ -15,32 +16,6 @@ type statusError interface {
 type codeError interface {
 	error
 	Code() int
-}
-
-type Error struct {
-	status  int
-	code    int
-	message string
-}
-
-func NewError(status, code int, message string) error {
-	return &Error{
-		status:  status,
-		code:    code,
-		message: message,
-	}
-}
-
-func (e *Error) Error() string {
-	return e.message
-}
-
-func (e *Error) Status() int {
-	return e.status
-}
-
-func (e *Error) Code() int {
-	return e.code
 }
 
 func ParseError(err error) (code int, status int, message string) {

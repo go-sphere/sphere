@@ -42,7 +42,7 @@ func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMin
 		return nil, err
 	}
 	if number.PhoneInfo.CountryCode != "86" {
-		return nil, statuserr.NewError(400, "只支持中国大陆手机号")
+		return nil, statuserr.BadRequestError("only support China phone number")
 	}
 	err = dao.WithTxEx(ctx, s.db.Client, func(ctx context.Context, client *ent.Client) error {
 		exist, e := client.User.Query().Where(user.PhoneEQ(number.PhoneInfo.PhoneNumber)).Only(ctx)
@@ -54,7 +54,7 @@ func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMin
 			return e
 		}
 		if exist.ID != userId {
-			return statuserr.NewError(400, "手机号已被绑定")
+			return statuserr.BadRequestError("phone number has been bound to another account")
 		}
 		return nil
 	})

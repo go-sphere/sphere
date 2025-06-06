@@ -8,7 +8,6 @@ import (
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
 	"github.com/TBXark/sphere/server/auth/authorizer"
-	"github.com/TBXark/sphere/server/ginx"
 	"github.com/TBXark/sphere/server/statuserr"
 	"github.com/TBXark/sphere/utils/secure"
 )
@@ -21,7 +20,7 @@ const (
 	AuthExpiresTimeFormat     = "2006/01/02 15:04:05"
 )
 
-var ErrPasswordNotMatch = statuserr.NewError(400, "password not match")
+var ErrPasswordNotMatch = statuserr.NewError(400, 0, "password not match")
 
 type AdminToken struct {
 	Admin        *ent.Admin
@@ -29,8 +28,6 @@ type AdminToken struct {
 	RefreshToken string
 	Expires      string
 }
-
-type AdminLoginResponseWrapper = ginx.DataResponse[AdminToken]
 
 func renderClaims(admin *ent.Admin, duration time.Duration) *authorizer.RBACClaims[int64] {
 	return authorizer.NewRBACClaims(admin.ID, admin.Username, admin.Roles, time.Now().Add(duration))
