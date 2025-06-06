@@ -147,10 +147,24 @@ func (d *Database) DelAll(ctx context.Context) error {
 	return d.db.DropAll()
 }
 
-func (d *Database) Sync() error {
-	return d.db.Sync()
+func (d *Database) Exists(ctx context.Context, key string) (bool, error) {
+	err := d.db.View(func(txn *badger.Txn) error {
+		_, err := txn.Get([]byte(key))
+		return err
+	})
+	if err != nil {
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func (d *Database) Close() error {
 	return d.db.Close()
+}
+
+func (d *Database) Sync() error {
+	return d.db.Sync()
 }

@@ -118,6 +118,10 @@ func (m *Cache[T]) DelAll(ctx context.Context) error {
 	return m.cache.DelAll(ctx)
 }
 
+func (m *Cache[T]) Exists(ctx context.Context, key string) (bool, error) {
+	return m.cache.Exists(ctx, key)
+}
+
 func (m *Cache[T]) Close() error {
 	return nil
 }

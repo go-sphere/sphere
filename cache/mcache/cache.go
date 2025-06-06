@@ -146,6 +146,11 @@ func (t *Map[K, S]) Trim() {
 	}
 }
 
+func (t *Map[K, S]) Exists(ctx context.Context, key K) (bool, error) {
+	_, ok, err := t.Get(ctx, key)
+	return ok, err
+}
+
 func (t *Map[K, S]) Close() error {
 	return nil
 }

@@ -19,6 +19,8 @@ type Cache[S any] interface {
 	MultiDel(ctx context.Context, keys []string) error
 	DelAll(ctx context.Context) error
 
+	Exists(ctx context.Context, key string) (bool, error)
+
 	io.Closer
 }
 

@@ -28,7 +28,7 @@ func (c *ByteCache) SetWithTTL(ctx context.Context, key string, val []byte, expi
 }
 
 func (c *ByteCache) MultiSet(ctx context.Context, valMap map[string][]byte) error {
-	return c.Client.MSet(ctx, valMap).Err()
+	return c.MultiSetWithTTL(ctx, valMap, redis.KeepTTL)
 }
 
 func (c *ByteCache) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
@@ -80,6 +80,14 @@ func (c *ByteCache) MultiDel(ctx context.Context, keys []string) error {
 
 func (c *ByteCache) DelAll(ctx context.Context) error {
 	return c.Client.FlushAll(ctx).Err()
+}
+
+func (c *ByteCache) Exists(ctx context.Context, key string) (bool, error) {
+	exists, err := c.Client.Exists(ctx, key).Result()
+	if err != nil {
+		return false, err
+	}
+	return exists > 0, nil
 }
 
 func (c *ByteCache) Close() error {
