@@ -13,15 +13,14 @@ import (
 	"github.com/TBXark/sphere/layout/internal/config"
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/client"
-	"github.com/TBXark/sphere/layout/internal/pkg/file"
 	api2 "github.com/TBXark/sphere/layout/internal/server/api"
 	bot2 "github.com/TBXark/sphere/layout/internal/server/bot"
 	dash2 "github.com/TBXark/sphere/layout/internal/server/dash"
 	"github.com/TBXark/sphere/layout/internal/server/docs"
-	file2 "github.com/TBXark/sphere/layout/internal/server/file"
 	"github.com/TBXark/sphere/layout/internal/service/api"
 	"github.com/TBXark/sphere/layout/internal/service/bot"
 	"github.com/TBXark/sphere/layout/internal/service/dash"
+	"github.com/TBXark/sphere/server/service/file"
 	"github.com/TBXark/sphere/utils/boot"
 	"github.com/TBXark/sphere/wechat"
 )
@@ -30,8 +29,8 @@ import (
 
 func NewApplication(conf *config.Config) (*boot.Application, error) {
 	dashConfig := conf.Dash
-	v := conf.Storage
-	v2, err := file.NewFileService(v)
+	localConfig := conf.Storage
+	s3Adapter, err := file.NewLocalFileService(localConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -43,24 +42,24 @@ func NewApplication(conf *config.Config) (*boot.Application, error) {
 	daoDao := dao.NewDao(entClient)
 	wechatConfig := conf.WxMini
 	wechatWechat := wechat.NewWechat(wechatConfig)
-	v3 := memory.NewByteCache()
-	service := dash.NewService(daoDao, wechatWechat, v3, v2)
-	web := dash2.NewWebServer(dashConfig, v2, service)
+	v := memory.NewByteCache()
+	service := dash.NewService(daoDao, wechatWechat, v, s3Adapter)
+	web := dash2.NewWebServer(dashConfig, s3Adapter, service)
 	apiConfig := conf.API
-	apiService := api.NewService(daoDao, wechatWechat, v3, v2)
-	apiWeb := api2.NewWebServer(apiConfig, v2, apiService)
-	botConfig := conf.Bot
+	apiService := api.NewService(daoDao, wechatWechat, v, s3Adapter)
+	apiWeb := api2.NewWebServer(apiConfig, s3Adapter, apiService)
+	v2 := conf.Bot
 	botService := bot.NewService()
-	botBot, err := bot2.NewApp(botConfig, botService)
+	botBot, err := bot2.NewApp(v2, botService)
 	if err != nil {
 		return nil, err
 	}
 	fileConfig := conf.File
-	fileWeb := file2.NewWebServer(fileConfig, v2)
+	fileWeb := file.NewWebServer(fileConfig, s3Adapter)
 	docsConfig := conf.Docs
 	docsWeb := docs.NewWebServer(docsConfig)
 	dashInitialize := dashinit.NewDashInitialize(daoDao)
-	connectCleaner := conncleaner.NewConnectCleaner(entClient, v3)
+	connectCleaner := conncleaner.NewConnectCleaner(entClient, v)
 	application := newApplication(web, apiWeb, botBot, fileWeb, docsWeb, dashInitialize, connectCleaner)
 	return application, nil
 }

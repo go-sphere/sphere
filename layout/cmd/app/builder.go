@@ -7,7 +7,7 @@ import (
 	"github.com/TBXark/sphere/layout/internal/server/bot"
 	"github.com/TBXark/sphere/layout/internal/server/dash"
 	"github.com/TBXark/sphere/layout/internal/server/docs"
-	"github.com/TBXark/sphere/layout/internal/server/file"
+	"github.com/TBXark/sphere/server/service/file"
 	"github.com/TBXark/sphere/utils/boot"
 )
 

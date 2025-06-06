@@ -3,13 +3,13 @@ package config
 import (
 	"github.com/TBXark/confstore"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/client"
-	storage "github.com/TBXark/sphere/layout/internal/pkg/file"
 	"github.com/TBXark/sphere/layout/internal/server/api"
 	"github.com/TBXark/sphere/layout/internal/server/bot"
 	"github.com/TBXark/sphere/layout/internal/server/dash"
 	"github.com/TBXark/sphere/layout/internal/server/docs"
-	"github.com/TBXark/sphere/layout/internal/server/file"
 	"github.com/TBXark/sphere/log"
+	"github.com/TBXark/sphere/server/service/file"
+	"github.com/TBXark/sphere/storage/local"
 	"github.com/TBXark/sphere/utils/secure"
 	"github.com/TBXark/sphere/wechat"
 )
@@ -24,7 +24,7 @@ type Config struct {
 	API          *api.Config       `json:"api" yaml:"api"`
 	File         *file.Config      `json:"file" yaml:"file"`
 	Docs         *docs.Config      `json:"docs" yaml:"docs"`
-	Storage      *storage.Config   `json:"storage" yaml:"storage"`
+	Storage      *local.Config     `json:"storage" yaml:"storage"`
 	Bot          *bot.Config       `json:"bot" yaml:"bot"`
 	WxMini       *wechat.Config    `json:"wx_mini" yaml:"wx_mini"`
 }
@@ -70,7 +70,7 @@ func NewEmptyConfig() *Config {
 				Dash: "http://localhost:8800",
 			},
 		},
-		Storage: &storage.Config{
+		Storage: &local.Config{
 			RootDir:    "./var/file",
 			PublicBase: "http://localhost:9900",
 		},
