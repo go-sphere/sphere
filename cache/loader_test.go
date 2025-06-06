@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/TBXark/sphere/cache/mcache"
 	"reflect"
 	"testing"
+
+	"github.com/TBXark/sphere/cache/mcache"
 )
 
 func TestGetObjectEx(t *testing.T) {
@@ -24,7 +25,7 @@ func TestGetObjectEx(t *testing.T) {
 		d       D
 		e       E
 		key     string
-		builder func() (obj *T, err error)
+		builder func() (obj T, err error)
 	}
 	type testCase[D Decoder, E Encoder, T any] struct {
 		name      string
@@ -33,10 +34,10 @@ func TestGetObjectEx(t *testing.T) {
 		wantFound bool
 		wantErr   bool
 	}
-	tests := []testCase[DecoderFunc, EncoderFunc, Example]{
+	tests := []testCase[DecoderFunc, EncoderFunc, *Example]{
 		{
 			name: "GetObjectEx existing key",
-			args: args[DecoderFunc, EncoderFunc, Example]{
+			args: args[DecoderFunc, EncoderFunc, *Example]{
 				ctx:     context.Background(),
 				c:       cache,
 				d:       json.Unmarshal,
@@ -44,13 +45,13 @@ func TestGetObjectEx(t *testing.T) {
 				key:     "testKey",
 				builder: nil,
 			},
-			want:      Example{Value: "testValue"},
+			want:      &Example{Value: "testValue"},
 			wantFound: true,
 			wantErr:   false,
 		},
 		{
 			name: "GetObjectEx non-existing key with builder",
-			args: args[DecoderFunc, EncoderFunc, Example]{
+			args: args[DecoderFunc, EncoderFunc, *Example]{
 				ctx: context.Background(),
 				c:   cache,
 				d:   json.Unmarshal,
@@ -60,13 +61,13 @@ func TestGetObjectEx(t *testing.T) {
 					return &Example{Value: "newValue"}, nil
 				},
 			},
-			want:      Example{Value: "newValue"},
+			want:      &Example{Value: "newValue"},
 			wantFound: true,
 			wantErr:   false,
 		},
 		{
 			name: "GetObjectEx with error in builder",
-			args: args[DecoderFunc, EncoderFunc, Example]{
+			args: args[DecoderFunc, EncoderFunc, *Example]{
 				ctx: context.Background(),
 				c:   cache,
 				d:   json.Unmarshal,
@@ -76,13 +77,13 @@ func TestGetObjectEx(t *testing.T) {
 					return nil, errors.New("test error")
 				},
 			},
-			want:      Example{},
+			want:      nil,
 			wantFound: false,
 			wantErr:   true,
 		},
 		{
 			name: "GetObjectEx with nil builder",
-			args: args[DecoderFunc, EncoderFunc, Example]{
+			args: args[DecoderFunc, EncoderFunc, *Example]{
 				ctx: context.Background(),
 				c:   cache,
 				d:   json.Unmarshal,
@@ -92,8 +93,8 @@ func TestGetObjectEx(t *testing.T) {
 					return nil, nil // Simulating a nil builder
 				},
 			},
-			want:      Example{},
-			wantFound: false,
+			want:      nil,
+			wantFound: true,
 			wantErr:   false, // Expect no error when builder returns nil
 		},
 	}

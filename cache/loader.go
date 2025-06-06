@@ -3,7 +3,6 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"reflect"
 	"time"
 
@@ -94,7 +93,18 @@ func GetJson[T any](ctx context.Context, c ByteCache, key string, options ...Opt
 	return GetObject[T, DecoderFunc](ctx, c, json.Unmarshal, key)
 }
 
-func GetEx[T any](ctx context.Context, c Cache[T], key string, builder func() (obj *T, err error), options ...Option) (T, bool, error) {
+// FetchCached is a function type that defines a builder for fetching cached objects.
+// It should return the object of type T and an error if any occurs during the fetching process.
+// If error is nil, it indicates that the object was successfully fetched or built. So cache can be set.
+// If the object is not found or cannot be built, it should return a zero value of type T and an error.
+// Then the cache will not be set.
+type FetchCached[T any] = func() (obj T, err error)
+
+// GetEx retrieves an object from the cache using the provided key.
+// And returns the object, a boolean indicating if it was found, and an error if any occurred.
+// If the object is not found, it uses the builder function to create the object.
+// When the builder returns an error, the cache will not be set. and found will be false.
+func GetEx[T any](ctx context.Context, c Cache[T], key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return load[T](
 		ctx,
 		key,
@@ -107,7 +117,9 @@ func GetEx[T any](ctx context.Context, c Cache[T], key string, builder func() (o
 	)
 }
 
-func GetObjectEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, d D, e E, key string, builder func() (*T, error), options ...Option) (T, bool, error) {
+// GetObjectEx retrieves an object from the cache using the provided key.
+// Something like GetEx, but for ByteCache.
+func GetObjectEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, d D, e E, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return load[T](
 		ctx,
 		key,
@@ -122,7 +134,9 @@ func GetObjectEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, 
 	)
 }
 
-func GetJsonEx[T any](ctx context.Context, c ByteCache, key string, builder func() (obj *T, err error), options ...Option) (T, bool, error) {
+// GetJsonEx retrieves a JSON object from the cache using the provided key.
+// Similar to GetObjectEx, but specifically for JSON data.
+func GetJsonEx[T any](ctx context.Context, c ByteCache, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return GetObjectEx[T, DecoderFunc, EncoderFunc](ctx, c, json.Unmarshal, json.Marshal, key, builder, options...)
 }
 
@@ -131,14 +145,14 @@ func load[T any](
 	key string,
 	getter func(context.Context, string) (T, bool, error),
 	setter func(context.Context, string, T, ...Option) error,
-	builder func() (*T, error),
+	builder FetchCached[T],
 	options ...Option,
 ) (T, bool, error) {
 	opts := newOptions(options...)
-	obj, found, cErr := getter(ctx, key)
-	if cErr != nil {
+	obj, found, gErr := getter(ctx, key)
+	if gErr != nil {
 		var zero T
-		return zero, false, cErr
+		return zero, false, gErr
 	}
 	if found {
 		return obj, true, nil
@@ -147,38 +161,22 @@ func load[T any](
 		var zero T
 		return zero, false, nil
 	}
-	build := func() (*T, error) {
+	build := func() (T, error) {
 		nObj, err := builder()
-		if err != nil {
-			return nil, err
+		if err == nil {
+			_ = setter(ctx, key, nObj, options...)
 		}
-		if nObj == nil {
-			return nil, nil
-		}
-		return nObj, setter(ctx, key, *nObj, options...)
+		return nObj, err
 	}
 	if opts.singleflight != nil {
 		originBuild := build
-		build = func() (*T, error) {
+		build = func() (T, error) {
 			val, err, _ := opts.singleflight.Do(key, func() (interface{}, error) {
 				return originBuild()
 			})
-			if val == nil {
-				return nil, err
-			}
-			nObj, ok := val.(*T)
-			if !ok {
-				return nil, errors.New("cast value failed")
-			}
-			return nObj, err
+			return val.(T), err
 		}
 	}
 	newObj, err := build()
-	if newObj != nil {
-		obj = *newObj
-		return obj, true, err
-	} else {
-		var zero T
-		return zero, false, err
-	}
+	return newObj, err == nil, err
 }
