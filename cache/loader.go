@@ -9,21 +9,21 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-const neverExpire = time.Duration(-1)
-
 func IsZero[T any](t T) bool {
 	var zero T
 	return reflect.DeepEqual(t, zero)
 }
 
 type Options struct {
+	hasTTL       bool
 	expiration   time.Duration
 	singleflight *singleflight.Group
 }
 
 func newOptions(options ...Option) *Options {
 	opt := &Options{
-		expiration:   neverExpire,
+		hasTTL:       false,
+		expiration:   -1,
 		singleflight: nil,
 	}
 	for _, option := range options {
@@ -36,13 +36,15 @@ type Option func(o *Options)
 
 func WithExpiration(expiration time.Duration) Option {
 	return func(o *Options) {
+		o.hasTTL = true
 		o.expiration = expiration
 	}
 }
 
 func WithNeverExpire() Option {
 	return func(o *Options) {
-		o.expiration = neverExpire
+		o.hasTTL = false
+		o.expiration = -1
 	}
 }
 
@@ -54,10 +56,10 @@ func WithSingleflight(single *singleflight.Group) Option {
 
 func Set[T any](ctx context.Context, c Cache[T], key string, value T, options ...Option) error {
 	opts := newOptions(options...)
-	if opts.expiration == neverExpire {
-		return c.Set(ctx, key, value)
-	} else {
+	if opts.hasTTL {
 		return c.SetWithTTL(ctx, key, value, opts.expiration)
+	} else {
+		return c.Set(ctx, key, value)
 	}
 }
 
