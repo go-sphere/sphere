@@ -3,8 +3,8 @@ package boot
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
+	"github.com/TBXark/sphere/utils/task"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,70 +14,63 @@ import (
 	"github.com/TBXark/sphere/log/logfields"
 )
 
-const DefaultTimezone = "Asia/Shanghai"
-
-var versionPrinter = func(version string) {
-	fmt.Println(version)
+type Options struct {
+	shutdownTimeout time.Duration
+	beforeStart     []func()
+	beforeStop      []func()
 }
 
-func init() {
-	_ = InitTimezone(DefaultTimezone)
-}
-
-func InitTimezone(zone string) error {
-	defaultLoc := "Asia/Shanghai"
-	loc, err := time.LoadLocation(defaultLoc)
-	if err != nil {
-		return err
+func newOptions(opts ...Option) *Options {
+	opt := &Options{
+		shutdownTimeout: 30 * time.Second,
 	}
-	time.Local = loc
-	return os.Setenv("TZ", defaultLoc)
+	for _, o := range opts {
+		o(opt)
+	}
+	return opt
 }
 
-func InitVersionPrinter(printer func(string)) {
-	versionPrinter = printer
+type Option func(*Options)
+
+func WithShutdownTimeout(d time.Duration) Option {
+	return func(o *Options) {
+		o.shutdownTimeout = d
+	}
 }
 
-func DefaultConfigParser[T any](ver string, parser func(string) (*T, error)) *T {
-	path := flag.String("config", "config.json", "config file path")
-	version := flag.Bool("version", false, "show version")
-	help := flag.Bool("help", false, "show help")
-	flag.Parse()
-
-	if *version {
-		versionPrinter(ver)
-		os.Exit(0)
+func WithBeforeStart(f func()) Option {
+	return func(o *Options) {
+		o.beforeStart = append(o.beforeStart, f)
 	}
-
-	if *help {
-		flag.Usage()
-		os.Exit(0)
-	}
-
-	conf, err := parser(*path)
-	if err != nil {
-		fmt.Println("load config error: ", err)
-		os.Exit(1)
-	}
-	return conf
 }
 
-func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Application, error)) error {
-	// Init logger
-	log.Init(logConf, logfields.String("version", ver))
-	log.Info("Start application", logfields.String("version", ver))
-	defer func() {
-		_ = log.Sync()
-	}()
+func WithBeforeStop(f func()) Option {
+	return func(o *Options) {
+		o.beforeStop = append(o.beforeStop, f)
+	}
+}
 
-	// Create application
-	app, err := builder(conf)
-	if err != nil {
-		return fmt.Errorf("failed to build application: %w", err)
+func WithLoggerInit(ver string, conf *log.Options) Option {
+	return func(o *Options) {
+		o.beforeStart = append(o.beforeStart, func() {
+			log.Init(conf, logfields.String("version", ver))
+		})
+		o.beforeStop = append(o.beforeStop, func() {
+			_ = log.Sync()
+		})
+	}
+}
+
+func run(ctx context.Context, task task.Task, options ...Option) error {
+	opts := newOptions(options...)
+
+	// Execute before start hooks
+	for _, f := range opts.beforeStart {
+		f()
 	}
 
 	// Create root context
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// Listen for shutdown signal
@@ -88,7 +81,7 @@ func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Ap
 	// Start application
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- app.Start(ctx)
+		errChan <- task.Start(ctx)
 	}()
 
 	// Wait for shutdown signal or application error
@@ -97,21 +90,35 @@ func Run[T any](ver string, conf *T, logConf *log.Options, builder func(*T) (*Ap
 	case sig := <-quit:
 		log.Infof("Received shutdown signal: %v", sig)
 		cancel() // Trigger application shutdown
-	case e := <-errChan:
-		if e != nil {
-			log.Error("Application error", logfields.Error(e))
-			errs = append(errs, fmt.Errorf("application error: %w", e))
+	case err := <-errChan:
+		if err != nil {
+			log.Error("Application error", logfields.Error(err))
+			errs = append(errs, fmt.Errorf("application error: %w", err))
 			cancel() // Ensure context is canceled
 		}
 	}
 
-	// Graceful shutdown with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer shutdownCancel()
+	// Execute before stop hooks
+	for _, f := range opts.beforeStop {
+		f()
+	}
 
-	err = app.Stop(shutdownCtx)
-	if err != nil {
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), opts.shutdownTimeout)
+	defer shutdownCancel()
+	if err := task.Stop(shutdownCtx); err != nil {
 		errs = append(errs, fmt.Errorf("shutdown error: %w", err))
 	}
 	return errors.Join(errs...)
+}
+
+func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Option) error {
+	// Create application
+	app, err := builder(conf)
+	if err != nil {
+		return fmt.Errorf("failed to build application: %w", err)
+	}
+
+	// Run application
+	return run(context.Background(), app, options...)
 }

@@ -10,7 +10,7 @@ import (
 
 func Execute(app func(*config.Config) (*boot.Application, error)) {
 	conf := boot.DefaultConfigParser(config.BuildVersion, config.NewConfig)
-	err := boot.Run(config.BuildVersion, conf, conf.Log, app)
+	err := boot.Run(conf, app, boot.WithLoggerInit(config.BuildVersion, conf.Log))
 	if err != nil {
 		fmt.Printf("Boot error: %v", err)
 		os.Exit(1)

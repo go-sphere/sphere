@@ -1,13 +1,11 @@
-package boot
+package task
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -28,19 +26,19 @@ func NewManager() *Manager {
 	}
 }
 
-type StartOptions struct {
+type Options struct {
 	stopGroupOnError bool
 }
 
-type StartOption = func(*StartOptions)
+type Option = func(*Options)
 
-func WithStopGroupOnError() StartOption {
-	return func(opts *StartOptions) {
+func WithStopGroupOnError() Option {
+	return func(opts *Options) {
 		opts.stopGroupOnError = true
 	}
 }
 
-func (m *Manager) StartTask(ctx context.Context, name string, task Task, options ...StartOption) error {
+func (m *Manager) StartTask(ctx context.Context, name string, task Task, options ...Option) error {
 	m.mu.Lock()
 	if _, ok := m.tasks[name]; ok {
 		m.mu.Unlock()
@@ -48,10 +46,12 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task, options
 	}
 	m.tasks[name] = task
 	m.mu.Unlock()
-	opts := &StartOptions{}
+
+	opts := &Options{}
 	for _, opt := range options {
 		opt(opts)
 	}
+
 	m.runningGroup.Go(func() error {
 		log.Infof("<Manager> %s starting", name)
 		err := execute(ctx, name, task, func(ctx context.Context, task Task) error {
@@ -96,8 +96,8 @@ func (m *Manager) StopAll(ctx context.Context) error {
 	}
 	m.mu.Unlock()
 
-	var stopGroup sync.WaitGroup
 	var stopErrs ErrCollection
+	var stopGroup sync.WaitGroup
 	for name, task := range tasks {
 		stopGroup.Add(1)
 		go func() {
@@ -121,18 +121,6 @@ func (m *Manager) StopAll(ctx context.Context) error {
 	)
 }
 
-func (m *Manager) Identifier() string {
-	return "task_manager"
-}
-
-func (m *Manager) Start(ctx context.Context) error {
-	return nil
-}
-
-func (m *Manager) Stop(ctx context.Context) error {
-	return m.StopAll(ctx)
-}
-
 func (m *Manager) Wait() error {
 	return m.runningGroup.Wait()
 }
@@ -142,58 +130,4 @@ func (m *Manager) IsRunning(name string) bool {
 	defer m.mu.RUnlock()
 	_, ok := m.tasks[name]
 	return ok
-}
-
-type ErrCollection struct {
-	mu   sync.Mutex
-	errs []error
-}
-
-func (ec *ErrCollection) Add(err error) {
-	if err == nil {
-		return
-	}
-	ec.mu.Lock()
-	defer ec.mu.Unlock()
-	ec.errs = append(ec.errs, err)
-}
-
-func (ec *ErrCollection) Err() error {
-	ec.mu.Lock()
-	defer ec.mu.Unlock()
-	if len(ec.errs) == 0 {
-		return nil
-	}
-	return errors.Join(ec.errs...)
-}
-
-func execute(ctx context.Context, name string, task Task, run func(ctx context.Context, task Task) error) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			logTaskPanic(task, name, r)
-			err = fmt.Errorf("%s panic: %v", name, r)
-		}
-	}()
-	err = run(ctx, task)
-	if err != nil {
-		logTaskError(task, name, err)
-		return
-	}
-	return
-}
-
-func logTaskPanic(task Task, name string, reason any) {
-	log.Errorw(
-		fmt.Sprintf("%s panic", name),
-		logfields.String("task", task.Identifier()),
-		logfields.Any("recover", reason),
-	)
-}
-
-func logTaskError(task Task, name string, err error) {
-	log.Errorw(
-		fmt.Sprintf("%s error", name),
-		logfields.String("task", task.Identifier()),
-		logfields.Error(err),
-	)
 }
