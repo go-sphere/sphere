@@ -5,18 +5,24 @@ import (
 	"github.com/TBXark/sphere/log/logfields"
 )
 
-func Go(id string, fn func()) {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Errorw(
-					"goroutine panic",
-					logfields.String("module", "safe"),
-					logfields.String("id", id),
-					logfields.Any("error", r),
-				)
-			}
-		}()
-		fn()
-	}()
+func Recover(onError ...func(err any)) {
+	if r := recover(); r != nil {
+		log.Errorw(
+			"goroutine panic",
+			logfields.String("module", "safe"),
+			logfields.Any("error", r),
+		)
+		for _, fn := range onError {
+			fn(r)
+		}
+	}
+}
+
+func Go(fn func()) {
+	go Run(fn)
+}
+
+func Run(fn func()) {
+	defer Recover()
+	fn()
 }
