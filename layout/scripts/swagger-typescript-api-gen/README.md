@@ -2,10 +2,11 @@
 
 ### Adapter for PureAdmin
 
-```js
-import { Api, HttpClient } from "@/api/swagger/Api";
+```typescript
+import {Api, type GinxErrorResponse, HttpClient} from "@/api/swagger/Api";
 import { http } from "@/utils/http";
 import type { AxiosInstance, AxiosResponse } from "axios";
+import type {PureHttpError} from "@/utils/http/types";
 
 interface PureHTTP {
     axiosInstance: AxiosInstance;
@@ -32,9 +33,7 @@ function createNewAPI(): AdapterAPI<unknown> {
         (err: PureHttpError) => {
             if (!err.isCancelRequest) {
                 if (err.response?.data) {
-                    const {code, message} = err.response.data
-                    as
-                    GinxErrorResponse;
+                    const {code, message} = err.response.data as GinxErrorResponse;
                     err.message = message;
                     err["errCode"] = code;
                 }
@@ -47,5 +46,4 @@ function createNewAPI(): AdapterAPI<unknown> {
 }
 
 export const API = createNewAPI();
-
 ```

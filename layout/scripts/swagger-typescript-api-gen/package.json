@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
-    "swagger-typescript-api": "^13.0.28"
+    "swagger-typescript-api": "^13.2.0"
   },
   "scripts": {
     "gen": "node main.js"
