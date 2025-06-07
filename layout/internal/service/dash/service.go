@@ -5,8 +5,8 @@ import (
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/render"
 	"github.com/TBXark/sphere/server/auth/authorizer"
+	"github.com/TBXark/sphere/social/wechat"
 	"github.com/TBXark/sphere/storage"
-	"github.com/TBXark/sphere/wechat"
 	"github.com/alitto/pond/v2"
 )
 

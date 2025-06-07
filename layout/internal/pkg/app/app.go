@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/TBXark/sphere/core/boot"
 	"github.com/TBXark/sphere/layout/internal/config"
-	"github.com/TBXark/sphere/utils/boot"
 )
 
 func Execute(app func(*config.Config) (*boot.Application, error)) {

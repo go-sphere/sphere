@@ -9,9 +9,9 @@ import (
 	"github.com/TBXark/sphere/layout/internal/server/docs"
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/server/service/file"
+	"github.com/TBXark/sphere/social/wechat"
 	"github.com/TBXark/sphere/storage/local"
 	"github.com/TBXark/sphere/utils/secure"
-	"github.com/TBXark/sphere/wechat"
 )
 
 var BuildVersion = "dev"

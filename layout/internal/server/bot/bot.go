@@ -5,7 +5,7 @@ import (
 
 	botv1 "github.com/TBXark/sphere/layout/api/bot/v1"
 	service "github.com/TBXark/sphere/layout/internal/service/bot"
-	"github.com/TBXark/sphere/telegram"
+	"github.com/TBXark/sphere/social/telegram"
 )
 
 type Config = telegram.Config

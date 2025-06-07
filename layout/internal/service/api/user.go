@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TBXark/sphere/core/safe"
 	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/user"
 	"github.com/TBXark/sphere/server/statuserr"
+	"github.com/TBXark/sphere/social/wechat"
 	"github.com/TBXark/sphere/storage"
-	"github.com/TBXark/sphere/utils/safe"
-	"github.com/TBXark/sphere/wechat"
 )
 
 var _ apiv1.UserServiceHTTPServer = (*Service)(nil)

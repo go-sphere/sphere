@@ -4,7 +4,7 @@ import (
 	"context"
 
 	botv1 "github.com/TBXark/sphere/layout/api/bot/v1"
-	"github.com/TBXark/sphere/telegram"
+	"github.com/TBXark/sphere/social/telegram"
 )
 
 var _ botv1.MenuServiceBotCodec = &MenuServiceBotCodec{}

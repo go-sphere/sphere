@@ -2,13 +2,13 @@ package file
 
 import (
 	"context"
-	"github.com/TBXark/sphere/cache/memory"
-	"github.com/TBXark/sphere/storage/local"
 	"net/http"
 
+	"github.com/TBXark/sphere/cache/memory"
 	"github.com/TBXark/sphere/server/ginx"
 	"github.com/TBXark/sphere/server/route/cors"
 	"github.com/TBXark/sphere/storage/fileserver"
+	"github.com/TBXark/sphere/storage/local"
 	"github.com/gin-gonic/gin"
 )
 

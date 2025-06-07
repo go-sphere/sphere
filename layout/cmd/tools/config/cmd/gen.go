@@ -4,8 +4,8 @@ import (
 	"os"
 
 	"github.com/TBXark/confstore"
+	"github.com/TBXark/sphere/core/safe"
 	"github.com/TBXark/sphere/layout/internal/config"
-	"github.com/TBXark/sphere/utils/safe"
 	"github.com/spf13/cobra"
 )
 

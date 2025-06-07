@@ -3,18 +3,19 @@ package boot
 import (
 	"context"
 	"fmt"
-	"github.com/TBXark/sphere/utils/task"
+
+	task2 "github.com/TBXark/sphere/core/task"
 )
 
 type Application struct {
-	tasks   []task.Task
-	manager *task.Manager
+	tasks   []task2.Task
+	manager *task2.Manager
 }
 
-func NewApplication(tasks ...task.Task) *Application {
+func NewApplication(tasks ...task2.Task) *Application {
 	return &Application{
 		tasks:   tasks,
-		manager: task.NewManager(),
+		manager: task2.NewManager(),
 	}
 }
 
@@ -28,7 +29,7 @@ func (a *Application) Start(ctx context.Context) error {
 			ctx,
 			fmt.Sprintf("%d:%s", i, act.Identifier()),
 			act,
-			task.WithStopGroupOnError(),
+			task2.WithStopGroupOnError(),
 		)
 		if err != nil {
 			return err

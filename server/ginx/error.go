@@ -2,8 +2,9 @@ package ginx
 
 import (
 	"errors"
-	"github.com/TBXark/sphere/server/statuserr"
 	"net/http"
+
+	"github.com/TBXark/sphere/server/statuserr"
 )
 
 var internalServerError = statuserr.NewError(http.StatusInternalServerError, 0, "Internal Server Error")

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/TBXark/sphere/core/boot"
 	"github.com/TBXark/sphere/layout/internal/biz/task/conncleaner"
 	"github.com/TBXark/sphere/layout/internal/biz/task/dashinit"
 	"github.com/TBXark/sphere/layout/internal/server/api"
@@ -8,7 +9,6 @@ import (
 	"github.com/TBXark/sphere/layout/internal/server/dash"
 	"github.com/TBXark/sphere/layout/internal/server/docs"
 	"github.com/TBXark/sphere/server/service/file"
-	"github.com/TBXark/sphere/utils/boot"
 )
 
 func newApplication(

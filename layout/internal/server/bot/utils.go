@@ -1,6 +1,6 @@
 package bot
 
-import "github.com/TBXark/sphere/telegram"
+import "github.com/TBXark/sphere/social/telegram"
 
 func NewButton[T any](text, query string, data T) telegram.Button {
 	return telegram.NewButton(text, query, data)

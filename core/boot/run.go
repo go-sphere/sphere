@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/TBXark/sphere/utils/task"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/TBXark/sphere/core/task"
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
 )
@@ -18,6 +18,7 @@ type Options struct {
 	shutdownTimeout time.Duration
 	beforeStart     []func()
 	beforeStop      []func()
+	afterStop       []func()
 }
 
 func newOptions(opts ...Option) *Options {
@@ -38,15 +39,21 @@ func WithShutdownTimeout(d time.Duration) Option {
 	}
 }
 
-func WithBeforeStart(f func()) Option {
+func AddBeforeStart(f func()) Option {
 	return func(o *Options) {
 		o.beforeStart = append(o.beforeStart, f)
 	}
 }
 
-func WithBeforeStop(f func()) Option {
+func AddBeforeStop(f func()) Option {
 	return func(o *Options) {
 		o.beforeStop = append(o.beforeStop, f)
+	}
+}
+
+func AddAfterStop(f func()) Option {
+	return func(o *Options) {
+		o.afterStop = append(o.afterStop, f)
 	}
 }
 
@@ -55,9 +62,15 @@ func WithLoggerInit(ver string, conf *log.Options) Option {
 		o.beforeStart = append(o.beforeStart, func() {
 			log.Init(conf, logfields.String("version", ver))
 		})
-		o.beforeStop = append(o.beforeStop, func() {
+		o.afterStop = append(o.beforeStop, func() {
 			_ = log.Sync()
 		})
+	}
+}
+
+func runHooks(hooks []func()) {
+	for _, f := range hooks {
+		f()
 	}
 }
 
@@ -65,9 +78,7 @@ func run(ctx context.Context, task task.Task, options ...Option) error {
 	opts := newOptions(options...)
 
 	// Execute before start hooks
-	for _, f := range opts.beforeStart {
-		f()
-	}
+	runHooks(opts.beforeStart)
 
 	// Create root context
 	ctx, cancel := context.WithCancel(ctx)
@@ -99,9 +110,7 @@ func run(ctx context.Context, task task.Task, options ...Option) error {
 	}
 
 	// Execute before stop hooks
-	for _, f := range opts.beforeStop {
-		f()
-	}
+	runHooks(opts.beforeStop)
 
 	// Graceful shutdown with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), opts.shutdownTimeout)
@@ -109,6 +118,9 @@ func run(ctx context.Context, task task.Task, options ...Option) error {
 	if err := task.Stop(shutdownCtx); err != nil {
 		errs = append(errs, fmt.Errorf("shutdown error: %w", err))
 	}
+
+	// Execute after stop hooks
+	runHooks(opts.afterStop)
 	return errors.Join(errs...)
 }
 

@@ -8,6 +8,7 @@ package main
 
 import (
 	"github.com/TBXark/sphere/cache/memory"
+	"github.com/TBXark/sphere/core/boot"
 	"github.com/TBXark/sphere/layout/internal/biz/task/conncleaner"
 	"github.com/TBXark/sphere/layout/internal/biz/task/dashinit"
 	"github.com/TBXark/sphere/layout/internal/config"
@@ -21,8 +22,7 @@ import (
 	"github.com/TBXark/sphere/layout/internal/service/bot"
 	"github.com/TBXark/sphere/layout/internal/service/dash"
 	"github.com/TBXark/sphere/server/service/file"
-	"github.com/TBXark/sphere/utils/boot"
-	"github.com/TBXark/sphere/wechat"
+	"github.com/TBXark/sphere/social/wechat"
 )
 
 // Injectors from wire.go:

@@ -9,9 +9,9 @@ import (
 	"github.com/TBXark/sphere/layout/internal/server"
 	"github.com/TBXark/sphere/layout/internal/service"
 	"github.com/TBXark/sphere/server/service/file"
+	"github.com/TBXark/sphere/social/wechat"
 	"github.com/TBXark/sphere/storage"
 	"github.com/TBXark/sphere/storage/fileserver"
-	"github.com/TBXark/sphere/wechat"
 	"github.com/google/wire"
 )
 

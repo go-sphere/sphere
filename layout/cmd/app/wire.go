@@ -4,9 +4,9 @@
 package main
 
 import (
+	"github.com/TBXark/sphere/core/boot"
 	"github.com/TBXark/sphere/layout/internal"
 	"github.com/TBXark/sphere/layout/internal/config"
-	"github.com/TBXark/sphere/utils/boot"
 	"github.com/google/wire"
 )
 

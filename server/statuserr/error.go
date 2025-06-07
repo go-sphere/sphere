@@ -14,7 +14,7 @@ type Error struct {
 func NewError(status, code int, message string) Error {
 	return Error{
 		status:  status,
-		code:    0,
+		code:    code,
 		Message: message,
 	}
 }
@@ -45,6 +45,7 @@ func ForbiddenError(message string) error {
 func NotFoundError(message string) error {
 	return NewError(http.StatusNotFound, 0, message)
 }
+
 func InternalServerError(message string) error {
 	return NewError(http.StatusInternalServerError, 0, message)
 }
