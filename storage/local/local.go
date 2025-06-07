@@ -197,7 +197,7 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	}
 	srcFile, err := os.Open(sourcePath)
 	if err != nil {
-		return storageerr.ErrorNotFound
+		return err
 	}
 	defer func() {
 		_ = srcFile.Close()
