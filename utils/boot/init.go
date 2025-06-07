@@ -17,13 +17,12 @@ func init() {
 }
 
 func InitTimezone(zone string) error {
-	defaultLoc := "Asia/Shanghai"
-	loc, err := time.LoadLocation(defaultLoc)
+	loc, err := time.LoadLocation(zone)
 	if err != nil {
 		return err
 	}
 	time.Local = loc
-	return os.Setenv("TZ", defaultLoc)
+	return os.Setenv("TZ", zone)
 }
 
 func InitVersionPrinter(printer func(string)) {
