@@ -50,11 +50,17 @@ func (s *Service) GetMinePlatform(ctx context.Context, request *apiv1.GetMinePla
 	if err != nil {
 		return nil, err
 	}
+	me, err := s.db.User.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 	plat, err := s.db.UserPlatform.Query().Where(userplatform.UserIDEQ(id)).All(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var res apiv1.GetMinePlatformResponse
+	res := apiv1.GetMinePlatformResponse{
+		Username: me.Username,
+	}
 	for _, p := range plat {
 		switch p.Platform {
 		case auth.PlatformWechatMini:

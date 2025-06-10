@@ -51,8 +51,9 @@ message GetMinePlatformRequest {
 }
 
 message GetMinePlatformResponse {
-  string wechat_mini = 1;
-  string phone = 2;
+  string username = 1;
+  string wechat_mini = 2;
+  string phone = 3;
 }
 
 message BindPhoneWxMiniRequest {
