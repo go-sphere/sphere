@@ -7,12 +7,17 @@ import "shared/v1/user.proto";
 
 
 service UserService {
-  rpc Me(MeRequest) returns (MeResponse) {
+  rpc GetMineInfo(GetMineInfoRequest) returns (GetMineInfoResponse) {
     option (google.api.http) = {
       get: "/api/user/me"
     };
   }
-  rpc Update(UpdateRequest) returns (UpdateResponse) {
+  rpc GetMinePlatform(GetMinePlatformRequest) returns (GetMinePlatformResponse) {
+    option (google.api.http) = {
+      get: "/api/user/platforms"
+    };
+  }
+  rpc UpdateMineInfo(UpdateMineInfoRequest) returns (UpdateMineInfoResponse) {
     option (google.api.http) = {
       post: "/api/user/update"
       body: "*"
@@ -26,20 +31,28 @@ service UserService {
   }
 }
 
-message MeRequest {
+message GetMineInfoRequest {
 }
 
-message MeResponse {
+message GetMineInfoResponse {
   shared.v1.User user = 1;
 }
 
-message UpdateRequest {
+message UpdateMineInfoRequest {
   string username = 1;
   string avatar = 2;
 }
 
-message UpdateResponse {
+message UpdateMineInfoResponse {
   shared.v1.User user = 1;
+}
+
+message GetMinePlatformRequest {
+}
+
+message GetMinePlatformResponse {
+  string wechat_mini = 1;
+  string phone = 2;
 }
 
 message BindPhoneWxMiniRequest {

@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"github.com/TBXark/sphere/layout/internal/pkg/auth"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -12,6 +11,8 @@ import (
 
 	"github.com/TBXark/sphere/core/safe"
 	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
+	"github.com/TBXark/sphere/layout/internal/pkg/auth"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/userplatform"
 	"github.com/TBXark/sphere/server/statuserr"
 	"github.com/TBXark/sphere/social/wechat"
 	"github.com/TBXark/sphere/storage"
@@ -29,6 +30,63 @@ var (
 	ErrImageSizeExceed     = fmt.Errorf("image size exceed")
 	ErrImageHostNotAllowed = fmt.Errorf("image host not allowed")
 )
+
+func (s *Service) GetMineInfo(ctx context.Context, req *apiv1.GetMineInfoRequest) (*apiv1.GetMineInfoResponse, error) {
+	id, err := s.GetCurrentID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	me, err := s.db.User.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &apiv1.GetMineInfoResponse{
+		User: s.render.Me(me),
+	}, nil
+}
+
+func (s *Service) GetMinePlatform(ctx context.Context, request *apiv1.GetMinePlatformRequest) (*apiv1.GetMinePlatformResponse, error) {
+	id, err := s.GetCurrentID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	plat, err := s.db.UserPlatform.Query().Where(userplatform.UserIDEQ(id)).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var res apiv1.GetMinePlatformResponse
+	for _, p := range plat {
+		switch p.Platform {
+		case auth.PlatformWechatMini:
+			res.WechatMini = p.PlatformID
+		case auth.PlatformPhone:
+			res.Phone = p.PlatformID
+		}
+	}
+	return &res, nil
+}
+
+func (s *Service) UpdateMineInfo(ctx context.Context, req *apiv1.UpdateMineInfoRequest) (*apiv1.UpdateMineInfoResponse, error) {
+	id, err := s.GetCurrentID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	req.Avatar, err = s.uploadRemoteImage(ctx, req.Avatar)
+	if err != nil {
+		return nil, err
+	}
+	req.Avatar = s.storage.ExtractKeyFromURL(req.Avatar)
+	up, err := s.db.User.UpdateOneID(id).
+		SetUsername(req.Username).
+		SetAvatar(req.Avatar).
+		Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &apiv1.UpdateMineInfoResponse{
+		User: s.render.Me(up),
+	}, nil
+}
 
 func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMiniRequest) (*apiv1.BindPhoneWxMiniResponse, error) {
 	userId, err := s.GetCurrentID(ctx)
@@ -51,42 +109,6 @@ func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMin
 		return nil, err
 	}
 	return &apiv1.BindPhoneWxMiniResponse{}, nil
-}
-
-func (s *Service) Me(ctx context.Context, req *apiv1.MeRequest) (*apiv1.MeResponse, error) {
-	id, err := s.GetCurrentID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	me, err := s.db.User.Get(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return &apiv1.MeResponse{
-		User: s.render.Me(me),
-	}, nil
-}
-
-func (s *Service) Update(ctx context.Context, req *apiv1.UpdateRequest) (*apiv1.UpdateResponse, error) {
-	id, err := s.GetCurrentID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	req.Avatar, err = s.uploadRemoteImage(ctx, req.Avatar)
-	if err != nil {
-		return nil, err
-	}
-	req.Avatar = s.storage.ExtractKeyFromURL(req.Avatar)
-	up, err := s.db.User.UpdateOneID(id).
-		SetUsername(req.Username).
-		SetAvatar(req.Avatar).
-		Save(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &apiv1.UpdateResponse{
-		User: s.render.Me(up),
-	}, nil
 }
 
 func (s *Service) uploadRemoteImage(ctx context.Context, uri string) (string, error) {
