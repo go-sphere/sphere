@@ -99,11 +99,6 @@ func CreateUser(source *ent.UserCreate, target *sharedv1.User, options ...bind.O
 			source.SetAvatar(target.Avatar)
 		}
 	}
-	if option.CanSetField("phone") {
-		if !option.IgnoreSetZero("phone") || !(target.Phone == "") {
-			source.SetPhone(target.Phone)
-		}
-	}
 	return source
 }
 
@@ -117,11 +112,6 @@ func UpdateOneUser(source *ent.UserUpdateOne, target *sharedv1.User, options ...
 	if option.CanSetField("avatar") {
 		if !option.IgnoreSetZero("avatar") || !(target.Avatar == "") {
 			source.SetAvatar(target.Avatar)
-		}
-	}
-	if option.CanSetField("phone") {
-		if !option.IgnoreSetZero("phone") || !(target.Phone == "") {
-			source.SetPhone(target.Phone)
 		}
 	}
 	return source

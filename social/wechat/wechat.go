@@ -47,9 +47,15 @@ func NewWechat(config *Config) *Wechat {
 	}
 }
 
-func loadSuccessResponse[T any](resp *resty.Response, check func(*T) error) (*T, error) {
+func loadSuccessResponse[T any](resp *resty.Response, manualParse bool, check func(*T) error) (*T, error) {
 	if resp.IsError() {
 		result := resp.Error().(*EmptyResponse)
+		if manualParse {
+			err := json.Unmarshal(resp.Bytes(), result)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if result.ErrCode != 0 {
 			return nil, checkResponseError(result.ErrCode, result.ErrMsg)
 		}
@@ -57,6 +63,12 @@ func loadSuccessResponse[T any](resp *resty.Response, check func(*T) error) (*T,
 	}
 	if resp.IsSuccess() {
 		result := resp.Result().(*T)
+		if manualParse {
+			err := json.Unmarshal(resp.Bytes(), result)
+			if err != nil {
+				return nil, err
+			}
+		}
 		err := check(result)
 		if err != nil {
 			return nil, err
@@ -66,22 +78,48 @@ func loadSuccessResponse[T any](resp *resty.Response, check func(*T) error) (*T,
 	return nil, fmt.Errorf("unknown error: %s", resp.Status())
 }
 
-func (w *Wechat) Auth(ctx context.Context, code string) (*AuthResponse, error) {
+func (w *Wechat) JsCode2Session(ctx context.Context, code string) (*JsCode2SessionResponse, error) {
 	resp, err := w.client.R().
 		Clone(ctx).
+		SetHeader("Accept", "application/json").
 		SetQueryParams(map[string]string{
 			"appid":      w.config.AppID,
 			"secret":     w.config.AppSecret,
 			"js_code":    code,
 			"grant_type": "authorization_code",
 		}).
-		SetResult(&AuthResponse{}).
-		SetError(&EmptyResponse{}).
+		SetResult(JsCode2SessionResponse{}).
+		SetError(EmptyResponse{}).
 		Get("/sns/jscode2session")
 	if err != nil {
 		return nil, err
 	}
-	result, err := loadSuccessResponse[AuthResponse](resp, func(a *AuthResponse) error {
+	result, err := loadSuccessResponse[JsCode2SessionResponse](resp, true, func(a *JsCode2SessionResponse) error {
+		return checkResponseError(a.ErrCode, a.ErrMsg)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (w *Wechat) SnsOauth2(ctx context.Context, code string) (*JsCode2SessionResponse, error) {
+	resp, err := w.client.R().
+		Clone(ctx).
+		SetHeader("Accept", "application/json").
+		SetQueryParams(map[string]string{
+			"appid":      w.config.AppID,
+			"secret":     w.config.AppSecret,
+			"code":       code,
+			"grant_type": "authorization_code",
+		}).
+		SetResult(JsCode2SessionResponse{}).
+		SetError(EmptyResponse{}).
+		Get("/sns/oauth2/access_token")
+	if err != nil {
+		return nil, err
+	}
+	result, err := loadSuccessResponse[JsCode2SessionResponse](resp, true, func(a *JsCode2SessionResponse) error {
 		return checkResponseError(a.ErrCode, a.ErrMsg)
 	})
 	if err != nil {
@@ -101,13 +139,13 @@ func (w *Wechat) GetAccessToken(ctx context.Context, reload bool) (string, error
 			"appid":      w.config.AppID,
 			"secret":     w.config.AppSecret,
 		}).
-		SetResult(&AccessTokenResponse{}).
-		SetError(&EmptyResponse{}).
+		SetResult(AccessTokenResponse{}).
+		SetError(EmptyResponse{}).
 		Get("/cgi-bin/token")
 	if err != nil {
 		return "", err
 	}
-	result, err := loadSuccessResponse[AccessTokenResponse](resp, func(a *AccessTokenResponse) error {
+	result, err := loadSuccessResponse[AccessTokenResponse](resp, true, func(a *AccessTokenResponse) error {
 		return checkResponseError(a.ErrCode, a.ErrMsg)
 	})
 	if err != nil {
@@ -162,7 +200,7 @@ func (w *Wechat) GetQrCode(ctx context.Context, code QrCodeRequest, options ...R
 			"access_token": token,
 		}).
 		SetBody(code).
-		SetError(&EmptyResponse{}).
+		SetError(EmptyResponse{}).
 		Post("/wxa/getwxacodeunlimit")
 	if err != nil {
 		return nil, err
@@ -214,13 +252,13 @@ func (w *Wechat) SendMessage(ctx context.Context, msg SubscribeMessageRequest, o
 			"access_token": token,
 		}).
 		SetBody(msg).
-		SetResult(&EmptyResponse{}).
-		SetError(&EmptyResponse{}).
+		SetResult(EmptyResponse{}).
+		SetError(EmptyResponse{}).
 		Post("/cgi-bin/message/subscribe/send")
 	if err != nil {
 		return err
 	}
-	_, err = loadSuccessResponse[EmptyResponse](resp, func(a *EmptyResponse) error {
+	_, err = loadSuccessResponse[EmptyResponse](resp, true, func(a *EmptyResponse) error {
 		return checkResponseError(a.ErrCode, a.ErrMsg)
 	})
 	if err != nil {
@@ -269,13 +307,13 @@ func (w *Wechat) GetUserPhoneNumber(ctx context.Context, code string, options ..
 			"access_token": token,
 		}).
 		SetBody(map[string]string{"code": code}).
-		SetResult(&GetUserPhoneNumberResponse{}).
-		SetError(&EmptyResponse{}).
+		SetResult(GetUserPhoneNumberResponse{}).
+		SetError(EmptyResponse{}).
 		Post("/wxa/business/getuserphonenumber")
 	if err != nil {
 		return nil, err
 	}
-	result, err := loadSuccessResponse[GetUserPhoneNumberResponse](resp, func(a *GetUserPhoneNumberResponse) error {
+	result, err := loadSuccessResponse[GetUserPhoneNumberResponse](resp, true, func(a *GetUserPhoneNumberResponse) error {
 		return checkResponseError(a.ErrCode, a.ErrMsg)
 	})
 	if err != nil {

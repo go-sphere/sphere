@@ -13,7 +13,6 @@ func (r *Render) Me(u *ent.User) *sharedv1.User {
 		Id:       u.ID,
 		Username: u.Username,
 		Avatar:   r.storage.GenerateURL(u.Avatar),
-		Phone:    u.Phone,
 	}
 }
 

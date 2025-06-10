@@ -52,12 +52,22 @@ type EmptyResponse struct {
 	ErrMsg  string `json:"errmsg"`
 }
 
-type AuthResponse struct {
+type JsCode2SessionResponse struct {
 	OpenID     string `json:"openid"`
 	SessionKey string `json:"session_key"`
 	UnionID    string `json:"unionid"`
 	ErrCode    int    `json:"errcode"`
 	ErrMsg     string `json:"errmsg"`
+}
+
+type SnsOauth2Response struct {
+	AccessToken    string `json:"access_token"`
+	ExpiresIn      int    `json:"expires_in"`
+	RefreshToken   string `json:"refresh_token"`
+	Openid         string `json:"openid"`
+	Scope          string `json:"scope"`
+	IsSnapshotUser int    `json:"is_snapshotuser"`
+	Unionid        string `json:"unionid"`
 }
 
 type AccessTokenResponse struct {
