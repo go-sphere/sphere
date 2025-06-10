@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -25,6 +26,7 @@ func (e MiniAppEnv) String() string {
 type Config struct {
 	AppID     string     `json:"app_id" yaml:"app_id"`
 	AppSecret string     `json:"app_secret" yaml:"app_secret"`
+	Proxy     string     `json:"proxy" yaml:"proxy"`
 	Env       MiniAppEnv `json:"env" yaml:"env"`
 }
 
@@ -39,15 +41,20 @@ func NewWechat(config *Config) *Wechat {
 	if config.Env == "" {
 		config.Env = MiniAppEnvRelease
 	}
+	client := resty.New().
+		SetTimeout(time.Second * 30).
+		SetBaseURL("https://api.weixin.qq.com")
+	if config.Proxy != "" {
+		client = client.SetProxy(config.Proxy)
+	}
 	return &Wechat{
 		config: config,
-		client: resty.New().
-			SetTimeout(time.Second * 30).
-			SetBaseURL("https://api.weixin.qq.com"),
+		client: client,
 	}
 }
 
-func loadSuccessResponse[T any](resp *resty.Response, manualParse bool, check func(*T) error) (*T, error) {
+func loadSuccessResponse[T any](resp *resty.Response, check func(*T) error) (*T, error) {
+	manualParse := !strings.Contains(resp.Header().Get("Content-Type"), "json")
 	if resp.IsError() {
 		result := resp.Error().(*EmptyResponse)
 		if manualParse {
@@ -94,7 +101,7 @@ func (w *Wechat) JsCode2Session(ctx context.Context, code string) (*JsCode2Sessi
 	if err != nil {
 		return nil, err
 	}
-	result, err := loadSuccessResponse[JsCode2SessionResponse](resp, true, func(a *JsCode2SessionResponse) error {
+	result, err := loadSuccessResponse[JsCode2SessionResponse](resp, func(a *JsCode2SessionResponse) error {
 		return checkResponseError(a.ErrCode, a.ErrMsg)
 	})
 	if err != nil {
@@ -119,7 +126,7 @@ func (w *Wechat) SnsOauth2(ctx context.Context, code string) (*JsCode2SessionRes
 	if err != nil {
 		return nil, err
 	}
-	result, err := loadSuccessResponse[JsCode2SessionResponse](resp, true, func(a *JsCode2SessionResponse) error {
+	result, err := loadSuccessResponse[JsCode2SessionResponse](resp, func(a *JsCode2SessionResponse) error {
 		return checkResponseError(a.ErrCode, a.ErrMsg)
 	})
 	if err != nil {
@@ -145,7 +152,7 @@ func (w *Wechat) GetAccessToken(ctx context.Context, reload bool) (string, error
 	if err != nil {
 		return "", err
 	}
-	result, err := loadSuccessResponse[AccessTokenResponse](resp, true, func(a *AccessTokenResponse) error {
+	result, err := loadSuccessResponse[AccessTokenResponse](resp, func(a *AccessTokenResponse) error {
 		return checkResponseError(a.ErrCode, a.ErrMsg)
 	})
 	if err != nil {
@@ -258,7 +265,7 @@ func (w *Wechat) SendMessage(ctx context.Context, msg SubscribeMessageRequest, o
 	if err != nil {
 		return err
 	}
-	_, err = loadSuccessResponse[EmptyResponse](resp, true, func(a *EmptyResponse) error {
+	_, err = loadSuccessResponse[EmptyResponse](resp, func(a *EmptyResponse) error {
 		return checkResponseError(a.ErrCode, a.ErrMsg)
 	})
 	if err != nil {
@@ -313,7 +320,7 @@ func (w *Wechat) GetUserPhoneNumber(ctx context.Context, code string, options ..
 	if err != nil {
 		return nil, err
 	}
-	result, err := loadSuccessResponse[GetUserPhoneNumberResponse](resp, true, func(a *GetUserPhoneNumberResponse) error {
+	result, err := loadSuccessResponse[GetUserPhoneNumberResponse](resp, func(a *GetUserPhoneNumberResponse) error {
 		return checkResponseError(a.ErrCode, a.ErrMsg)
 	})
 	if err != nil {
