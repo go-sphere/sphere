@@ -5,6 +5,7 @@ import (
 
 	_ "github.com/TBXark/sphere/database/sqlite"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/migrate"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -19,8 +20,13 @@ func NewDataBaseClient(config *Config) (*ent.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	if e := client.Schema.Create(context.Background()); e != nil {
-		return nil, e
+	err = client.Schema.Create(
+		context.Background(),
+		migrate.WithDropIndex(true),
+		migrate.WithDropColumn(true),
+	)
+	if err != nil {
+		return nil, err
 	}
 	if config.Debug {
 		client = client.Debug()
