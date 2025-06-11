@@ -38,6 +38,7 @@ func AbortWithJsonError(ctx *gin.Context, err error) {
 	}
 	ctx.AbortWithStatusJSON(status, ErrorResponse{
 		Code:    code,
+		Error:   err.Error(),
 		Message: message,
 	})
 }

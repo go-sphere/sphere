@@ -61,6 +61,9 @@ func (e Error) Message() string {
 }
 
 func (e Error) Error() string {
+	if e.error == nil {
+		return ""
+	}
 	return e.error.Error()
 }
 
