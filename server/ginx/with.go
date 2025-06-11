@@ -33,6 +33,9 @@ func Value[T any](key string, ctx *gin.Context) (*T, bool) {
 
 func AbortWithJsonError(ctx *gin.Context, err error) {
 	code, status, message := defaultErrorParser(err)
+	if status < 100 || status > 599 {
+		status = http.StatusInternalServerError
+	}
 	ctx.AbortWithStatusJSON(status, ErrorResponse{
 		Code:    code,
 		Message: message,

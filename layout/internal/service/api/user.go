@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -104,7 +105,7 @@ func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMin
 		return nil, err
 	}
 	if number.PhoneInfo.CountryCode != "86" {
-		return nil, statuserr.BadRequestError("only support China phone number")
+		return nil, statuserr.BadRequestError(errors.New("only support China phone number"), "仅支持中国大陆手机号")
 	}
 	err = s.db.UserPlatform.Create().
 		SetUserID(userId).
