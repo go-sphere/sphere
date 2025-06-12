@@ -99,46 +99,11 @@ func withAccessToken[T any](ctx context.Context, w *Wechat, task func(ctx contex
 	resp, err := task(ctx, token)
 	if err != nil {
 		if opts.retryable && isNeedRetryError(err) {
-			return withAccessToken[T](ctx, w, task, WithClone(opts), WithRetryable(false))
+			opts.retryable = false
+			opts.reloadAccessToken = true
+			return withAccessToken[T](ctx, w, task, WithClone(opts))
 		}
 		return nil, err
 	}
 	return resp, nil
-}
-
-type RequestOptions struct {
-	retryable         bool
-	reloadAccessToken bool
-}
-
-func newRequestOptions(options ...RequestOption) *RequestOptions {
-	opts := &RequestOptions{
-		retryable:         false,
-		reloadAccessToken: false,
-	}
-	for _, opt := range options {
-		opt(opts)
-	}
-	return opts
-}
-
-type RequestOption = func(*RequestOptions)
-
-func WithRetryable(retryable bool) RequestOption {
-	return func(opts *RequestOptions) {
-		opts.retryable = retryable
-	}
-}
-
-func WithReloadAccessToken(reload bool) RequestOption {
-	return func(opts *RequestOptions) {
-		opts.reloadAccessToken = reload
-	}
-}
-
-func WithClone(opts *RequestOptions) RequestOption {
-	return func(o *RequestOptions) {
-		o.retryable = opts.retryable
-		o.reloadAccessToken = opts.reloadAccessToken
-	}
 }

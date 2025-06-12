@@ -88,7 +88,7 @@ func (w *Wechat) SendMessage(ctx context.Context, msg *SubscribeMessageRequest, 
 			return nil, err
 		}
 		return nil, nil
-	})
+	}, options...)
 	return err
 }
 
