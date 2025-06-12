@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"os"
+	"time"
 
 	"github.com/TBXark/confstore"
 	"github.com/TBXark/sphere/core/safe"
 	"github.com/TBXark/sphere/layout/internal/config"
+	"github.com/go-sql-driver/mysql"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +29,19 @@ func init() {
 		switch *database {
 		case "mysql":
 			conf.Database.Type = "mysql"
-			conf.Database.Path = "api:password@tcp(localhost:3306)/sphere?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s"
+			dsn := mysql.Config{
+				User:                 "example",
+				Passwd:               "password",
+				Net:                  "tcp",
+				Addr:                 "127.0.0.1:3306",
+				DBName:               "sphere",
+				Loc:                  time.Local,
+				Timeout:              time.Second * 10,
+				ParseTime:            true,
+				AllowNativePasswords: true,
+			}
+			_ = dsn.Apply(mysql.Charset("utf8mb4", "utf8mb4_unicode_ci"))
+			conf.Database.Path = dsn.FormatDSN()
 		case "sqlite":
 			conf.Database.Type = "sqlite3"
 			conf.Database.Path = "file:./var/data.db?cache=shared&mode=rwc"
