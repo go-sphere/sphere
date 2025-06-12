@@ -18,10 +18,8 @@ func (s *Service) AuthWxMini(ctx context.Context, req *apiv1.AuthWxMiniRequest) 
 		return nil, err
 	}
 	res, err := auth.Auth(
-		ctx,
-		s.db,
-		data.OpenID,
-		auth.PlatformWechatMini,
+		ctx, s.db, data.OpenID, auth.PlatformWechatMini,
+		auth.WithAuthMode(auth.CreateWithoutCheck),
 		auth.WithOnCreateUser(func(user *ent.UserCreate) *ent.UserCreate {
 			return user.SetUsername(fmt.Sprintf("wx_%d", idgenerator.NextId()))
 		}),
