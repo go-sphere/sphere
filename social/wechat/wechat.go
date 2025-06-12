@@ -2,12 +2,10 @@ package wechat
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"strings"
 	"time"
-	"unicode/utf8"
 
+	"github.com/TBXark/sphere/cache/mcache"
+	"golang.org/x/sync/singleflight"
 	"resty.dev/v3"
 )
 
@@ -31,10 +29,10 @@ type Config struct {
 }
 
 type Wechat struct {
-	config            *Config
-	accessToken       string
-	accessTokenExpire time.Time
-	client            *resty.Client
+	config *Config
+	sf     singleflight.Group
+	cache  *mcache.Map[string, string]
+	client *resty.Client
 }
 
 func NewWechat(config *Config) *Wechat {
@@ -49,123 +47,79 @@ func NewWechat(config *Config) *Wechat {
 	}
 	return &Wechat{
 		config: config,
+		cache:  mcache.NewMapCache[string](),
 		client: client,
 	}
 }
 
-func loadSuccessResponse[T any](resp *resty.Response, check func(*T) error) (*T, error) {
-	manualParse := !strings.Contains(resp.Header().Get("Content-Type"), "json")
-	if resp.IsError() {
-		result := resp.Error().(*EmptyResponse)
-		if manualParse {
-			err := json.Unmarshal(resp.Bytes(), result)
-			if err != nil {
-				return nil, err
-			}
-		}
-		if result.ErrCode != 0 {
-			return nil, checkResponseError(result.ErrCode, result.ErrMsg)
-		}
-		return nil, fmt.Errorf("unknown error: %s", resp.Status())
-	}
-	if resp.IsSuccess() {
-		result := resp.Result().(*T)
-		if manualParse {
-			err := json.Unmarshal(resp.Bytes(), result)
-			if err != nil {
-				return nil, err
-			}
-		}
-		err := check(result)
-		if err != nil {
-			return nil, err
-		}
-		return result, nil
-	}
-	return nil, fmt.Errorf("unknown error: %s", resp.Status())
-}
-
-func (w *Wechat) JsCode2Session(ctx context.Context, code string) (*JsCode2SessionResponse, error) {
-	resp, err := w.client.R().
-		Clone(ctx).
-		SetHeader("Accept", "application/json").
-		SetQueryParams(map[string]string{
-			"appid":      w.config.AppID,
-			"secret":     w.config.AppSecret,
-			"js_code":    code,
-			"grant_type": "authorization_code",
-		}).
-		SetResult(JsCode2SessionResponse{}).
-		SetError(EmptyResponse{}).
-		Get("/sns/jscode2session")
-	if err != nil {
-		return nil, err
-	}
-	result, err := loadSuccessResponse[JsCode2SessionResponse](resp, func(a *JsCode2SessionResponse) error {
-		return checkResponseError(a.ErrCode, a.ErrMsg)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (w *Wechat) SnsOauth2(ctx context.Context, code string) (*JsCode2SessionResponse, error) {
-	resp, err := w.client.R().
-		Clone(ctx).
-		SetHeader("Accept", "application/json").
-		SetQueryParams(map[string]string{
-			"appid":      w.config.AppID,
-			"secret":     w.config.AppSecret,
-			"code":       code,
-			"grant_type": "authorization_code",
-		}).
-		SetResult(JsCode2SessionResponse{}).
-		SetError(EmptyResponse{}).
-		Get("/sns/oauth2/access_token")
-	if err != nil {
-		return nil, err
-	}
-	result, err := loadSuccessResponse[JsCode2SessionResponse](resp, func(a *JsCode2SessionResponse) error {
-		return checkResponseError(a.ErrCode, a.ErrMsg)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
 func (w *Wechat) GetAccessToken(ctx context.Context, reload bool) (string, error) {
-	if !reload && w.accessToken != "" && time.Now().Before(w.accessTokenExpire) {
-		return w.accessToken, nil
+	key := "AccessToken"
+	if !reload {
+		token, exist, err := w.cache.Get(ctx, key)
+		if err != nil {
+			return "", err
+		}
+		if exist {
+			return token, nil
+		}
 	}
-	resp, err := w.client.R().
-		Clone(ctx).
-		SetQueryParams(map[string]string{
-			"grant_type": "client_credential",
-			"appid":      w.config.AppID,
-			"secret":     w.config.AppSecret,
-		}).
-		SetResult(AccessTokenResponse{}).
-		SetError(EmptyResponse{}).
-		Get("/cgi-bin/token")
-	if err != nil {
-		return "", err
-	}
-	result, err := loadSuccessResponse[AccessTokenResponse](resp, func(a *AccessTokenResponse) error {
-		return checkResponseError(a.ErrCode, a.ErrMsg)
+	token, err, _ := w.sf.Do(key, func() (interface{}, error) {
+		resp, err := w.client.R().
+			Clone(ctx).
+			SetQueryParams(map[string]string{
+				"grant_type": "client_credential",
+				"appid":      w.config.AppID,
+				"secret":     w.config.AppSecret,
+			}).
+			Get("/cgi-bin/token")
+		if err != nil {
+			return "", err
+		}
+		result, err := loadSuccessResponse(resp, func(a *AccessTokenResponse) error {
+			return checkResponseError(a.ErrCode, a.ErrMsg)
+		})
+		if err != nil {
+			return "", err
+		}
+		_ = w.cache.SetWithTTL(ctx, "AccessToken", result.AccessToken, time.Duration(result.ExpiresIn-2)*time.Second) // 提前2秒过期，避免在过期时请求失败
+		return result.AccessToken, nil
 	})
 	if err != nil {
 		return "", err
 	}
-	w.accessToken = result.AccessToken
-	w.accessTokenExpire = time.Now().Add(time.Duration(result.ExpiresIn)*time.Second - 10*time.Second)
-	return w.accessToken, nil
+	return token.(string), nil
+}
+
+func withAccessToken[T any](ctx context.Context, w *Wechat, task func(ctx context.Context, accessToken string) (*T, error), options ...RequestOption) (*T, error) {
+	opts := newRequestOptions(options...)
+	token, err := w.GetAccessToken(ctx, opts.reloadAccessToken)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := task(ctx, token)
+	if err != nil {
+		if opts.retryable && isNeedRetryError(err) {
+			return withAccessToken[T](ctx, w, task, WithClone(opts), WithRetryable(false))
+		}
+		return nil, err
+	}
+	return resp, nil
 }
 
 type RequestOptions struct {
 	retryable         bool
 	reloadAccessToken bool
+}
+
+func newRequestOptions(options ...RequestOption) *RequestOptions {
+	opts := &RequestOptions{
+		retryable:         false,
+		reloadAccessToken: false,
+	}
+	for _, opt := range options {
+		opt(opts)
+	}
+	return opts
 }
 
 type RequestOption = func(*RequestOptions)
@@ -187,170 +141,4 @@ func WithClone(opts *RequestOptions) RequestOption {
 		o.retryable = opts.retryable
 		o.reloadAccessToken = opts.reloadAccessToken
 	}
-}
-
-func (w *Wechat) GetQrCode(ctx context.Context, code QrCodeRequest, options ...RequestOption) ([]byte, error) {
-	opts := &RequestOptions{}
-	for _, opt := range options {
-		opt(opts)
-	}
-	token, err := w.GetAccessToken(ctx, opts.reloadAccessToken)
-	if err != nil {
-		return nil, err
-	}
-	if code.EnvVersion == "" {
-		code.EnvVersion = w.config.Env.String()
-	}
-	resp, err := w.client.R().
-		Clone(ctx).
-		SetQueryParams(map[string]string{
-			"access_token": token,
-		}).
-		SetBody(code).
-		SetError(EmptyResponse{}).
-		Post("/wxa/getwxacodeunlimit")
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode() == 200 {
-		return resp.Bytes(), nil
-	}
-	var result EmptyResponse
-	err = json.Unmarshal(resp.Bytes(), &result)
-	if err != nil {
-		return nil, err
-	}
-	err = checkResponseError(result.ErrCode, result.ErrMsg)
-	if err != nil {
-		if opts.retryable && isNeedRetryError(err) {
-			return w.GetQrCode(ctx, code,
-				WithClone(opts),
-				WithReloadAccessToken(true),
-				WithRetryable(false),
-			)
-		}
-		return nil, err
-	}
-	return nil, fmt.Errorf("get qr code error: %s", resp.Status())
-}
-
-func (w *Wechat) SendMessage(ctx context.Context, msg SubscribeMessageRequest, options ...RequestOption) error {
-	opts := &RequestOptions{}
-	for _, opt := range options {
-		opt(opts)
-	}
-	token, err := w.GetAccessToken(ctx, opts.reloadAccessToken)
-	if err != nil {
-		return err
-	}
-	if msg.MiniprogramState == "" {
-		switch w.config.Env {
-		case "release":
-			msg.MiniprogramState = "formal"
-		case "trial":
-			msg.MiniprogramState = "trial"
-		case "develop":
-			msg.MiniprogramState = "developer"
-		}
-	}
-	resp, err := w.client.R().
-		Clone(ctx).
-		SetQueryParams(map[string]string{
-			"access_token": token,
-		}).
-		SetBody(msg).
-		SetResult(EmptyResponse{}).
-		SetError(EmptyResponse{}).
-		Post("/cgi-bin/message/subscribe/send")
-	if err != nil {
-		return err
-	}
-	_, err = loadSuccessResponse[EmptyResponse](resp, func(a *EmptyResponse) error {
-		return checkResponseError(a.ErrCode, a.ErrMsg)
-	})
-	if err != nil {
-		if opts.retryable && isNeedRetryError(err) {
-			return w.SendMessage(ctx, msg,
-				WithClone(opts),
-				WithReloadAccessToken(true),
-				WithRetryable(false),
-			)
-		}
-		return err
-	}
-	return nil
-}
-
-func (w *Wechat) SendMessageWithTemplate(ctx context.Context, temp *PushTemplateConfig, values []any, toUser string) error {
-	data := make(map[string]any, len(temp.TemplateKeys))
-	for i, k := range temp.TemplateKeys {
-		if i < len(values) {
-			data[k] = map[string]any{"value": values[i]}
-		}
-	}
-	msg := SubscribeMessageRequest{
-		TemplateID:       temp.TemplateId,
-		Page:             temp.Page,
-		ToUser:           toUser,
-		Data:             data,
-		MiniprogramState: w.config.Env.String(),
-		Lang:             "zh_CN",
-	}
-	return w.SendMessage(ctx, msg, WithRetryable(true))
-}
-
-func (w *Wechat) GetUserPhoneNumber(ctx context.Context, code string, options ...RequestOption) (*GetUserPhoneNumberResponse, error) {
-	opts := &RequestOptions{}
-	for _, opt := range options {
-		opt(opts)
-	}
-	token, err := w.GetAccessToken(ctx, opts.reloadAccessToken)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := w.client.R().
-		Clone(ctx).
-		SetQueryParams(map[string]string{
-			"access_token": token,
-		}).
-		SetBody(map[string]string{"code": code}).
-		SetResult(GetUserPhoneNumberResponse{}).
-		SetError(EmptyResponse{}).
-		Post("/wxa/business/getuserphonenumber")
-	if err != nil {
-		return nil, err
-	}
-	result, err := loadSuccessResponse[GetUserPhoneNumberResponse](resp, func(a *GetUserPhoneNumberResponse) error {
-		return checkResponseError(a.ErrCode, a.ErrMsg)
-	})
-	if err != nil {
-		if opts.retryable && isNeedRetryError(err) {
-			return w.GetUserPhoneNumber(ctx, code,
-				WithClone(opts),
-				WithReloadAccessToken(true),
-				WithRetryable(false),
-			)
-		}
-		return nil, err
-	}
-	return result, nil
-}
-
-func TruncateString(s string, maxChars int) string {
-	if maxChars <= 0 {
-		return ""
-	}
-	if utf8.RuneCountInString(s) <= maxChars {
-		return s
-	}
-	truncated := ""
-	count := 0
-	for _, runeValue := range s {
-		if count >= maxChars {
-			break
-		}
-		truncated += string(runeValue)
-		count++
-	}
-	return truncated
 }

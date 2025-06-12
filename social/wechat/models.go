@@ -1,7 +1,11 @@
 package wechat
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+
+	"resty.dev/v3"
 )
 
 const (
@@ -42,22 +46,52 @@ func checkResponseError(errCode int, errMsg string) error {
 		return ErrorInvalidAccessToken
 	}
 	if errCode != 0 {
-		return errors.New(errMsg)
+		return ErrResponse{
+			ErrCode: errCode,
+			ErrMsg:  errMsg,
+		}
 	}
 	return nil
 }
 
-type EmptyResponse struct {
+func loadSuccessResponse[T any](resp *resty.Response, check func(*T) error) (*T, error) {
+	if resp.IsError() {
+		var result ErrResponse
+		err := json.Unmarshal(resp.Bytes(), &result)
+		if err != nil {
+			return nil, err
+		}
+		return nil, result
+	}
+	if resp.IsSuccess() {
+		var result T
+		err := json.Unmarshal(resp.Bytes(), &result)
+		if err != nil {
+			return nil, err
+		}
+		err = check(&result)
+		if err != nil {
+			return nil, err
+		}
+		return &result, nil
+	}
+	return nil, fmt.Errorf("unknown error: %s", resp.Status())
+}
+
+type ErrResponse struct {
 	ErrCode int    `json:"errcode"`
 	ErrMsg  string `json:"errmsg"`
 }
 
+func (e ErrResponse) Error() string {
+	return e.ErrMsg
+}
+
 type JsCode2SessionResponse struct {
+	ErrResponse
 	OpenID     string `json:"openid"`
 	SessionKey string `json:"session_key"`
 	UnionID    string `json:"unionid"`
-	ErrCode    int    `json:"errcode"`
-	ErrMsg     string `json:"errmsg"`
 }
 
 type SnsOauth2Response struct {
@@ -71,10 +105,9 @@ type SnsOauth2Response struct {
 }
 
 type AccessTokenResponse struct {
+	ErrResponse
 	AccessToken string `json:"access_token"`
 	ExpiresIn   int    `json:"expires_in"`
-	ErrCode     int    `json:"errcode"`
-	ErrMsg      string `json:"errmsg"`
 }
 
 type QrCodeRequest struct {
@@ -100,13 +133,12 @@ type SubscribeMessageRequest struct {
 	Page             string         `json:"page"`              // 点击模板卡片后的跳转页面，仅限本小程序内的页面。支持带参数,（示例index?foo=bar）。该字段不填则模板无跳转
 	ToUser           string         `json:"touser"`            // 接收者（用户）的 openid
 	Data             map[string]any `json:"data"`              // 模板内容，格式形如 { "key1": { "value": any }, "key2": { "value": any } }的object
-	MiniprogramState string         `json:"miniprogram_state"` // developer(开发版)、trial(体验版)、formal(正式版)
+	MiniProgramState string         `json:"miniprogram_state"` // developer(开发版)、trial(体验版)、formal(正式版)
 	Lang             string         `json:"lang"`              // zh_CN(简体中文)、en_US(英文)、zh_HK(繁体中文)、zh_TW(繁体中文)
 }
 
 type GetUserPhoneNumberResponse struct {
-	ErrCode   int    `json:"errcode"`
-	ErrMsg    string `json:"errmsg"`
+	ErrResponse
 	PhoneInfo struct {
 		PhoneNumber     string `json:"phoneNumber"`
 		PurePhoneNumber string `json:"purePhoneNumber"`
