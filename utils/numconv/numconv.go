@@ -2,6 +2,7 @@ package numconv
 
 import (
 	"fmt"
+	"math/rand/v2"
 )
 
 const (
@@ -69,4 +70,26 @@ func Base32ToInt64(s string) (int64, error) {
 
 func Base62ToInt64(s string) (int64, error) {
 	return toInt64(s, base62Map)
+}
+
+func RandomBase32(length int) string {
+	if length <= 0 {
+		return ""
+	}
+	result := make([]rune, length)
+	for i := 0; i < length; i++ {
+		result[i] = rune(base32Chars[rand.IntN(len(base32Chars))])
+	}
+	return string(result)
+}
+
+func RandomBase62(length int) string {
+	if length <= 0 {
+		return ""
+	}
+	result := make([]rune, length)
+	for i := 0; i < length; i++ {
+		result[i] = rune(base62Chars[rand.IntN(len(base62Chars))])
+	}
+	return string(result)
 }
