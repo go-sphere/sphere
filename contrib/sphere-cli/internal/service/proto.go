@@ -23,7 +23,7 @@ func GenServiceProto(name, pkg string) (string, error) {
 		PackageName: pkg,
 		ServiceName: strcase.ToCamel(name),
 		RouteName:   strcase.ToKebab(name),
-		EntityName:  strcase.ToLowerCamel(name),
+		EntityName:  strcase.ToSnake(name),
 	}
 
 	tmpl := template.New("proto")
