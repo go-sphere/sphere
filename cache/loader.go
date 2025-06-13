@@ -15,9 +15,10 @@ func IsZero[T any](t T) bool {
 }
 
 type Options struct {
-	hasTTL       bool
-	expiration   time.Duration
-	singleflight *singleflight.Group
+	hasTTL        bool
+	expiration    time.Duration
+	singleflight  *singleflight.Group
+	ttlCalculator func(value any) (bool, time.Duration)
 }
 
 func newOptions(options ...Option) *Options {
@@ -54,8 +55,22 @@ func WithSingleflight(single *singleflight.Group) Option {
 	}
 }
 
+// WithDynamicTTL allows setting a dynamic TTL based on the value type T.
+// The calculator function should return a boolean indicating whether the TTL is set,
+// and the duration for which the value should be cached.
+func WithDynamicTTL[T any](calculator func(value T) (bool, time.Duration)) Option {
+	return func(o *Options) {
+		o.ttlCalculator = func(value any) (bool, time.Duration) {
+			return calculator(value.(T))
+		}
+	}
+}
+
 func Set[T any](ctx context.Context, c Cache[T], key string, value T, options ...Option) error {
 	opts := newOptions(options...)
+	if opts.ttlCalculator != nil {
+		opts.hasTTL, opts.expiration = opts.ttlCalculator(value)
+	}
 	if opts.hasTTL {
 		return c.SetWithTTL(ctx, key, value, opts.expiration)
 	} else {
