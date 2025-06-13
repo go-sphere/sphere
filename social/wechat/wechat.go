@@ -90,6 +90,45 @@ func (w *Wechat) GetAccessToken(ctx context.Context, reload bool) (string, error
 	return token.(string), nil
 }
 
+func (w *Wechat) GetJsTicket(ctx context.Context, reload bool) (string, error) {
+	key := "JsTicket"
+	if !reload {
+		token, exist, err := w.cache.Get(ctx, key)
+		if err != nil {
+			return "", err
+		}
+		if exist {
+			return token, nil
+		}
+	}
+	ticket, err, _ := w.sf.Do(key, func() (interface{}, error) {
+		ticket, err := withAccessToken[JsTicketResponse](ctx, w, func(ctx context.Context, accessToken string) (*JsTicketResponse, error) {
+			resp, err := w.client.R().
+				Clone(ctx).
+				SetQueryParams(map[string]string{
+					"access_token": accessToken,
+					"type":         "jsapi",
+				}).
+				Get("/cgi-bin/ticket/getticket")
+			if err != nil {
+				return nil, err
+			}
+			return loadSuccessResponse(resp, func(a *JsTicketResponse) error {
+				return checkResponseError(a.ErrCode, a.ErrMsg)
+			})
+		})
+		if err != nil {
+			return nil, err
+		}
+		_ = w.cache.SetWithTTL(ctx, key, ticket.Ticket, time.Duration(ticket.ExpiresIn-2)*time.Second) // 提前2秒过期，避免在过期时请求失败
+		return ticket, nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return ticket.(*JsTicketResponse).Ticket, nil
+}
+
 func withAccessToken[T any](ctx context.Context, w *Wechat, task func(ctx context.Context, accessToken string) (*T, error), options ...RequestOption) (*T, error) {
 	opts := newRequestOptions(options...)
 	token, err := w.GetAccessToken(ctx, opts.reloadAccessToken)

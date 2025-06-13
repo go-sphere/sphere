@@ -98,16 +98,22 @@ type SnsOauth2Response struct {
 	AccessToken    string `json:"access_token"`
 	ExpiresIn      int    `json:"expires_in"`
 	RefreshToken   string `json:"refresh_token"`
-	Openid         string `json:"openid"`
+	OpenID         string `json:"openid"`
 	Scope          string `json:"scope"`
 	IsSnapshotUser int    `json:"is_snapshotuser"`
-	Unionid        string `json:"unionid"`
+	UnionID        string `json:"unionid"`
 }
 
 type AccessTokenResponse struct {
 	ErrResponse
 	AccessToken string `json:"access_token"`
 	ExpiresIn   int    `json:"expires_in"`
+}
+
+type JsTicketResponse struct {
+	ErrResponse
+	Ticket    string `json:"ticket"`
+	ExpiresIn int    `json:"expires_in"`
 }
 
 type QrCodeRequest struct {
@@ -148,4 +154,11 @@ type GetUserPhoneNumberResponse struct {
 			Appid     string `json:"appid"`
 		} `json:"watermark"`
 	} `json:"phone_info"`
+}
+
+type JsSDKConfigResponse struct {
+	AppId     string `json:"appId"`
+	Timestamp string `json:"timestamp"`
+	NonceStr  string `json:"nonceStr"`
+	Signature string `json:"signature"`
 }

@@ -1,6 +1,14 @@
 package wechat
 
-import "context"
+import (
+	"context"
+	"crypto/sha1"
+	"fmt"
+	"github.com/TBXark/sphere/utils/numconv"
+	"sort"
+	"strings"
+	"time"
+)
 
 func (w *Wechat) SnsOauth2(ctx context.Context, code string) (*SnsOauth2Response, error) {
 	resp, err := w.client.R().
@@ -19,4 +27,38 @@ func (w *Wechat) SnsOauth2(ctx context.Context, code string) (*SnsOauth2Response
 	return loadSuccessResponse(resp, func(a *SnsOauth2Response) error {
 		return nil
 	})
+}
+
+func (w *Wechat) GetJsSDKConfig(ctx context.Context, url string) (*JsSDKConfigResponse, error) {
+	ticket, err := w.GetJsTicket(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	timestamp := fmt.Sprintf("%d", time.Now().Unix())
+	nonce := numconv.RandomBase62(16)
+	params := map[string]string{
+		"noncestr":     nonce,
+		"jsapi_ticket": ticket,
+		"timestamp":    timestamp,
+		"url":          url,
+	}
+	signature := generateSignature(params)
+	return &JsSDKConfigResponse{
+		AppId:     w.config.AppID,
+		Timestamp: timestamp,
+		NonceStr:  nonce,
+		Signature: signature,
+	}, nil
+}
+
+func generateSignature(params map[string]string) string {
+	var pairs []string
+	for k, v := range params {
+		pairs = append(pairs, fmt.Sprintf("%s=%s", k, v))
+	}
+	sort.Strings(pairs)
+	string1 := strings.Join(pairs, "&")
+	hash := sha1.New()
+	hash.Write([]byte(string1))
+	return fmt.Sprintf("%x", hash.Sum(nil))
 }
