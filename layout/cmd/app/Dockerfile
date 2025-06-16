@@ -1,13 +1,18 @@
-FROM golang:1.23 AS builder
+FROM golang:1.24.4 AS builder
 WORKDIR /app
+
 ARG BUILD_VERSION
 ENV BUILD_VERSION=${BUILD_VERSION}
 #ENV GOPROXY=https://goproxy.io
+
 COPY go.mod go.sum ./
-RUN go mod edit -dropreplace github.com/TBXark/sphere # remove this when create by cli
+# remove this when create by cli
+RUN go mod edit -dropreplace github.com/TBXark/sphere
 RUN go mod download
+
 COPY . .
-RUN go mod edit -dropreplace github.com/TBXark/sphere # remove this when create by cli
+# remove this when create by cli
+RUN go mod edit -dropreplace github.com/TBXark/sphere
 RUN make init && make build
 
 FROM gcr.io/distroless/static

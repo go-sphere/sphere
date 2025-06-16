@@ -19,11 +19,11 @@ tool (
 require (
 	entgo.io/ent v0.14.4
 	github.com/TBXark/confstore v0.0.4
-	github.com/TBXark/sphere v0.0.0-20250607134823-87846aff8002
+	github.com/TBXark/sphere v0.0.0-20250613092415-5b67df1311c7
 	github.com/alitto/pond/v2 v2.3.4
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.10.1
-	github.com/go-sql-driver/mysql v1.9.2
+	github.com/go-sql-driver/mysql v1.9.3
 	github.com/google/wire v0.6.0
 	github.com/spf13/cobra v1.9.1
 	github.com/swaggo/swag v1.16.4
@@ -318,7 +318,7 @@ require (
 	github.com/tomarrell/wrapcheck/v2 v2.11.0 // indirect
 	github.com/tommy-muehle/go-mnd/v2 v2.5.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
-	github.com/ugorji/go/codec v1.2.14 // indirect
+	github.com/ugorji/go/codec v1.3.0 // indirect
 	github.com/ultraware/funlen v0.2.0 // indirect
 	github.com/ultraware/whitespace v0.2.0 // indirect
 	github.com/urfave/cli/v2 v2.3.0 // indirect
