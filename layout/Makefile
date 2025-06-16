@@ -52,7 +52,7 @@ else
 	@echo "Skipping dash build - DASH_DIR does not exist"
 endif
 
-gen/dts: gen/dts ## Generate swagger typescript docs
+gen/dts: gen/docs ## Generate swagger typescript docs
 	cd scripts/swagger-typescript-api-gen && npm run gen
 ifneq ($(wildcard $(DASH_DIR)),)
 	mkdir -p $(DASH_DIR)/src/api/swagger
@@ -61,14 +61,14 @@ ifneq ($(wildcard $(DASH_DIR)),)
 endif
 
 # ---------- Generate Tools ----------
-gen/proto: ## Generate proto files and run protoc plugins
+gen/db: ## Generate ent code
+	go generate ./internal/pkg/database/generate.go
+
+gen/proto: gen/db ## Generate proto files and run protoc plugins
 	go tool sphere-cli ent2proto --path=./internal/pkg/database/schema
 	go tool buf generate
 	go tool protoc-go-inject-tag -input="./api/*/*/*.pb.go" -remove_tag_comment
 	go run ./cmd/tools/bind
-
-gen/db: ## Generate ent code
-	go generate ./internal/pkg/database/generate.go
 
 gen/docs: gen/proto ## Generate swagger docs
 	go generate docs.go
@@ -86,16 +86,28 @@ clean: ## Clean gen code and build files
 	rm -rf ./internal/pkg/database/ent
 
 gen/all: clean ## Generate both ent, docs and wire
-	$(MAKE) gen/db
 	$(MAKE) gen/docs
 	$(MAKE) gen/wire
 
 # ---------- Build Docker ----------
 build/docker: ## Build docker image
-	docker build -t $(DOCKER_IMAGE) . -f $(DOCKER_FILE) --provenance=false --build-arg BUILD_VERSION=$(BUILD_VER)
+	docker build \
+		-t $(DOCKER_IMAGE) \
+		. \
+		-f $(DOCKER_FILE) \
+		--provenance=false \
+		--build-arg \
+		BUILD_VERSION=$(BUILD_VER)
 
 build/multi-docker: ## Build multi-arch docker image
-	docker buildx build --platform=linux/amd64,linux/arm64 -t $(DOCKER_IMAGE) . -f $(DOCKER_FILE) --push --provenance=false --build-arg BUILD_VERSION=$(BUILD_VER)
+	docker buildx build \
+		--platform=linux/amd64,linux/arm64 \
+		-t $(DOCKER_IMAGE) \
+		. \
+		-f $(DOCKER_FILE) \
+		--push \
+		--provenance=false \
+		--build-arg BUILD_VERSION=$(BUILD_VER)
 
 # ---------- Tools ----------
 run: ## Run the application
