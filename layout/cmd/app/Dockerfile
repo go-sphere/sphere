@@ -6,11 +6,11 @@ ENV BUILD_VERSION=${BUILD_VERSION}
 #ENV GOPROXY=https://goproxy.io
 
 COPY go.mod go.sum ./
-RUN go mod edit -dropreplace github.com/TBXark/sphere
+RUN go mod edit -dropreplace github.com/TBXark/sphere && go mod tidy # Delete this line from the new project created by sphere-cli
 RUN go mod download
 
 COPY . .
-RUN go mod edit -dropreplace github.com/TBXark/sphere
+RUN go mod edit -dropreplace github.com/TBXark/sphere && go mod tidy # Delete this line from the new project created by sphere-cli
 RUN make init && make build
 
 FROM gcr.io/distroless/static
