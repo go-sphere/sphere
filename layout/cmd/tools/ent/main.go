@@ -4,7 +4,6 @@
 package main
 
 import (
-	"entgo.io/ent/schema/field"
 	"flag"
 	"log"
 	"path"
@@ -12,6 +11,7 @@ import (
 
 	"entgo.io/ent/entc"
 	"entgo.io/ent/entc/gen"
+	"entgo.io/ent/schema/field"
 )
 
 func main() {

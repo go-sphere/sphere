@@ -4,10 +4,11 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
-	"github.com/TBXark/sphere/utils/numconv"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/TBXark/sphere/utils/numconv"
 )
 
 func (w *Wechat) SnsOauth2(ctx context.Context, code string) (*SnsOauth2Response, error) {

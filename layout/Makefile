@@ -77,7 +77,7 @@ gen/wire: ## Generate wire code
 	go generate ./cmd/...
 
 gen/conf: ## Generate example config
-	go run ./cmd/tools/config gen
+	go run -tags spheratools ./cmd/tools/config gen
 
 clean: ## Clean gen code and build files
 	rm -rf ./build
