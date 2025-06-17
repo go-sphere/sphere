@@ -1,3 +1,6 @@
+//go:build spheratools
+// +build spheratools
+
 package main
 
 import (
