@@ -7,7 +7,6 @@ toolchain go1.24.2
 replace github.com/TBXark/sphere => ../
 
 tool (
-	entgo.io/ent/cmd/ent
 	github.com/TBXark/sphere/contrib/sphere-cli
 	github.com/bufbuild/buf/cmd/buf
 	github.com/favadi/protoc-go-inject-tag

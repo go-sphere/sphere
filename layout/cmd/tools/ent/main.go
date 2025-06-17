@@ -4,6 +4,7 @@
 package main
 
 import (
+	"entgo.io/ent/schema/field"
 	"flag"
 	"log"
 	"path"
@@ -19,6 +20,7 @@ func main() {
 	flag.Parse()
 	err := entc.Generate(*schema, &gen.Config{
 		Target:  *target,
+		IDType:  &field.TypeInfo{Type: field.TypeInt64},
 		Package: path.Join(currentModule(), *target),
 		Features: []gen.Feature{
 			gen.FeatureModifier,
