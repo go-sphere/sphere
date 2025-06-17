@@ -6,12 +6,10 @@ ENV BUILD_VERSION=${BUILD_VERSION}
 #ENV GOPROXY=https://goproxy.io
 
 COPY go.mod go.sum ./
-# remove this when create by cli
 RUN go mod edit -dropreplace github.com/TBXark/sphere
 RUN go mod download
 
 COPY . .
-# remove this when create by cli
 RUN go mod edit -dropreplace github.com/TBXark/sphere
 RUN make init && make build
 
