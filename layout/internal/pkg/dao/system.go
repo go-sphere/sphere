@@ -3,12 +3,13 @@ package dao
 import (
 	"context"
 	"encoding/json"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/keyvaluestore"
 )
 
-func GetKeyValueStore[T any](ctx context.Context, dao *Dao, key string) (*T, error) {
-	value, err := dao.KeyValueStore.Query().Where(keyvaluestore.KeyEQ(key)).Only(ctx)
+func GetKeyValueStore[T any](ctx context.Context, client *ent.Client, key string) (*T, error) {
+	value, err := client.KeyValueStore.Query().Where(keyvaluestore.KeyEQ(key)).Only(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -20,12 +21,12 @@ func GetKeyValueStore[T any](ctx context.Context, dao *Dao, key string) (*T, err
 	return &res, nil
 }
 
-func SetSystemConfig[T any](ctx context.Context, dao *Dao, key string, value *T) error {
+func SetSystemConfig[T any](ctx context.Context, client *ent.Client, key string, value *T) error {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
-	err = dao.KeyValueStore.Create().
+	err = client.KeyValueStore.Create().
 		SetKey(key).
 		SetValue(data).
 		OnConflictColumns(keyvaluestore.FieldKey).
@@ -41,9 +42,9 @@ type SystemConfig struct {
 const SystemConfigKey = "system_config"
 
 func (d *Dao) GetSystemConfig(ctx context.Context) (*SystemConfig, error) {
-	return GetKeyValueStore[SystemConfig](ctx, d, SystemConfigKey)
+	return GetKeyValueStore[SystemConfig](ctx, d.Client, SystemConfigKey)
 }
 
 func (d *Dao) SetSystemConfig(ctx context.Context, config *SystemConfig) error {
-	return SetSystemConfig(ctx, d, SystemConfigKey, config)
+	return SetSystemConfig(ctx, d.Client, SystemConfigKey, config)
 }
