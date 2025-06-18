@@ -133,7 +133,7 @@ func (t *Map[K, S]) DelAll(ctx context.Context) error {
 	return nil
 }
 
-func (t *Map[K, S]) Trim() int {
+func (t *Map[K, S]) Count() int {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -145,6 +145,10 @@ func (t *Map[K, S]) Trim() int {
 		}
 	}
 	return len(t.store)
+}
+
+func (t *Map[K, S]) Trim() {
+	_ = t.Count()
 }
 
 func (t *Map[K, S]) Exists(ctx context.Context, key K) (bool, error) {

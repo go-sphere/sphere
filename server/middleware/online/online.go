@@ -27,5 +27,5 @@ func (l *Online) Middleware(keygen func(ctx *gin.Context) string, ttl time.Durat
 }
 
 func (l *Online) OnlineCount() int {
-	return l.cache.Trim()
+	return l.cache.Count()
 }
