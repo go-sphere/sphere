@@ -22,7 +22,12 @@ const (
 )
 
 func RenderClaims(user *ent.User, pla *ent.UserPlatform, duration time.Duration) *authorizer.RBACClaims[int64] {
-	return authorizer.NewRBACClaims(user.ID, user.Username, []string{}, time.Now().Add(duration))
+	return authorizer.NewRBACClaims(
+		user.ID,
+		pla.Platform+":"+pla.PlatformID,
+		[]string{},
+		time.Now().Add(duration),
+	)
 }
 
 type Response struct {
