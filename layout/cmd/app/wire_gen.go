@@ -17,7 +17,6 @@ import (
 	api2 "github.com/TBXark/sphere/layout/internal/server/api"
 	bot2 "github.com/TBXark/sphere/layout/internal/server/bot"
 	dash2 "github.com/TBXark/sphere/layout/internal/server/dash"
-	"github.com/TBXark/sphere/layout/internal/server/docs"
 	"github.com/TBXark/sphere/layout/internal/service/api"
 	"github.com/TBXark/sphere/layout/internal/service/bot"
 	"github.com/TBXark/sphere/layout/internal/service/dash"
@@ -56,10 +55,8 @@ func NewApplication(conf *config.Config) (*boot.Application, error) {
 	}
 	fileConfig := conf.File
 	fileWeb := file.NewWebServer(fileConfig, s3Adapter)
-	docsConfig := conf.Docs
-	docsWeb := docs.NewWebServer(docsConfig)
 	dashInitialize := dashinit.NewDashInitialize(daoDao)
 	connectCleaner := conncleaner.NewConnectCleaner(entClient, v)
-	application := newApplication(web, apiWeb, botBot, fileWeb, docsWeb, dashInitialize, connectCleaner)
+	application := newApplication(web, apiWeb, botBot, fileWeb, dashInitialize, connectCleaner)
 	return application, nil
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/TBXark/sphere/layout/internal/server/api"
 	"github.com/TBXark/sphere/layout/internal/server/bot"
 	"github.com/TBXark/sphere/layout/internal/server/dash"
-	"github.com/TBXark/sphere/layout/internal/server/docs"
 	"github.com/TBXark/sphere/server/service/file"
 )
 
@@ -16,7 +15,6 @@ func newApplication(
 	api *api.Web,
 	bot *bot.Bot,
 	file *file.Web,
-	docs *docs.Web,
 	initialize *dashinit.DashInitialize,
 	cleaner *conncleaner.ConnectCleaner,
 ) *boot.Application {
@@ -25,7 +23,6 @@ func newApplication(
 		api,
 		bot,
 		file,
-		docs,
 		initialize,
 		cleaner,
 	)

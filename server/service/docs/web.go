@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/TBXark/sphere/server/ginx"
@@ -75,7 +76,7 @@ func setup(spec *swag.Spec, router gin.IRouter, target string) error {
 	route := router.Group("/" + strings.ToLower(spec.InstanceName()))
 
 	spec.Host = ""
-	spec.BasePath = fmt.Sprintf("/%s/api", route.BasePath())
+	spec.BasePath = path.Join(route.BasePath(), "api")
 	if spec.Description == "" {
 		spec.Description = fmt.Sprintf(" | proxy for %s", target)
 	}

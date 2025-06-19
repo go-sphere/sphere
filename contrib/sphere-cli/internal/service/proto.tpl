@@ -37,8 +37,12 @@ service {{.ServiceName}}Service {
 }
 
 message {{.ServiceName}}ListRequest {
-  int64 page = 1;
-  int64 page_size = 2;
+  int64 page = 1 [
+    (buf.validate.field).int64.gte = 0
+  ];
+  int64 page_size = 2 [
+    (buf.validate.field).int64.gte = 0
+  ];
 }
 
 message {{.ServiceName}}ListResponse {
