@@ -3,13 +3,14 @@ package dao
 import (
 	"context"
 
+	"github.com/TBXark/sphere/database/mapper"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/user"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/userplatform"
 )
 
 func (d *Dao) GetUsers(ctx context.Context, ids []int64) (map[int64]*ent.User, error) {
-	users, err := d.User.Query().Where(user.IDIn(RemoveDuplicateAndZero(ids)...)).All(ctx)
+	users, err := d.User.Query().Where(user.IDIn(mapper.UniqueSorted(ids)...)).All(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -21,7 +22,7 @@ func (d *Dao) GetUsers(ctx context.Context, ids []int64) (map[int64]*ent.User, e
 }
 
 func (d *Dao) GetUserPlatforms(ctx context.Context, ids []int64) (map[int64][]*ent.UserPlatform, error) {
-	userPlatforms, err := d.UserPlatform.Query().Where(userplatform.UserIDIn(RemoveDuplicateAndZero(ids)...)).All(ctx)
+	userPlatforms, err := d.UserPlatform.Query().Where(userplatform.UserIDIn(mapper.UniqueSorted(ids)...)).All(ctx)
 	if err != nil {
 		return nil, err
 	}

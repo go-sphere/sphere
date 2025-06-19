@@ -2,8 +2,9 @@ package mapper
 
 import (
 	"encoding/json"
-	"golang.org/x/exp/constraints"
 	"testing"
+
+	"golang.org/x/exp/constraints"
 )
 
 func TestMapStruct(t *testing.T) {

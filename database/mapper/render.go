@@ -1,6 +1,9 @@
 package mapper
 
 import (
+	"cmp"
+	"slices"
+
 	"github.com/go-viper/mapstructure/v2"
 	"golang.org/x/exp/constraints"
 )
@@ -36,19 +39,44 @@ func MapStruct[S any, T any](source *S) *T {
 	return &target
 }
 
+type Pager[P constraints.Integer] func(total, pageSize P) P
+
+func NewPager[P constraints.Integer](defaultSize P) Pager[P] {
+	return func(total, pageSize P) P {
+		if total == 0 {
+			return 0
+		}
+		if pageSize == 0 {
+			pageSize = defaultSize
+		}
+		if pageSize == 0 {
+			return total
+		}
+		page := total / pageSize
+		if total%pageSize != 0 {
+			page++
+		}
+		return page
+	}
+}
+
 func Page[P constraints.Integer](total, pageSize, defaultSize P) P {
-	if total == 0 {
-		return 0
+	return NewPager(defaultSize)(total, pageSize)
+}
+
+func UniqueSorted[T cmp.Ordered](origin []T) []T {
+	var zero T
+	seen := make(map[T]struct{})
+	result := make([]T, 0, len(origin))
+	for _, v := range origin {
+		if v == zero {
+			continue
+		}
+		if _, ok := seen[v]; !ok {
+			seen[v] = struct{}{}
+			result = append(result, v)
+		}
 	}
-	if pageSize == 0 {
-		pageSize = defaultSize
-	}
-	if pageSize == 0 {
-		return total
-	}
-	page := total / pageSize
-	if total%pageSize != 0 {
-		page++
-	}
-	return page
+	slices.Sort(result)
+	return slices.Clone(result)
 }

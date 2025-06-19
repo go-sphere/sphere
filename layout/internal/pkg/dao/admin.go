@@ -3,12 +3,13 @@ package dao
 import (
 	"context"
 
+	"github.com/TBXark/sphere/database/mapper"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
 )
 
 func (d *Dao) GetAdmins(ctx context.Context, ids []int64) (map[int64]*ent.Admin, error) {
-	admins, err := d.Client.Admin.Query().Where(admin.IDIn(RemoveDuplicateAndZero(ids)...)).All(ctx)
+	admins, err := d.Client.Admin.Query().Where(admin.IDIn(mapper.UniqueSorted(ids)...)).All(ctx)
 	if err != nil {
 		return nil, err
 	}
