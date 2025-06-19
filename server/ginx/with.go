@@ -47,7 +47,7 @@ func WithRecover(message string, handler func(ctx *gin.Context)) gin.HandlerFunc
 	return func(ctx *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Warnw(
+				log.Errorf(
 					message,
 					logfields.Any("error", err),
 				)
