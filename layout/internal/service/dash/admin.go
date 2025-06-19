@@ -67,7 +67,7 @@ func (s *Service) AdminList(ctx context.Context, req *dashv1.AdminListRequest) (
 		return nil, err
 	}
 	page, size := mapper.Page(count, int(req.PageSize), mapper.DefaultPageSize)
-	all, err := query.Clone().Limit(size).Offset(size * page).All(ctx)
+	all, err := query.Clone().Limit(size).Offset(size * int(req.Page)).All(ctx)
 	if err != nil {
 		return nil, err
 	}

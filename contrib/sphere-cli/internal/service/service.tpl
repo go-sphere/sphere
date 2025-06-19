@@ -47,7 +47,7 @@ func (s *Service) {{.ServiceName}}List(ctx context.Context, req *{{.ServicePacka
 		return nil, err
 	}
 	page, size := mapper.Page(count, int(req.PageSize), mapper.DefaultPageSize)
-	all, err := query.Clone().Limit(size).Offset(size * page).All(ctx)
+	all, err := query.Clone().Limit(size).Offset(size * int(req.Page)).All(ctx)
 	if err != nil {
 		return nil, err
 	}
