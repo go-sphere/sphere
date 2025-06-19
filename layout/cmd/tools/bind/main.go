@@ -5,9 +5,9 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
+	"path"
 	"runtime/debug"
 
 	"github.com/TBXark/sphere/database/bind"
@@ -50,7 +50,7 @@ func currentModule() string {
 func bindItems(mod string) *bind.GenFileConf {
 	return &bind.GenFileConf{
 		ExtraImports: [][]string{
-			{fmt.Sprintf("%s/api/shared/v1", mod), "sharedv1"},
+			{path.Join(mod, "/api/shared/v1"), "sharedv1"},
 		},
 		Entities: []bind.GenFileEntityConf{
 			{

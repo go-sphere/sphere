@@ -15,6 +15,15 @@ func Map[S any, T any](source []S, mapper func(S) T) []T {
 	return result
 }
 
+func Group[S any, K comparable](source []S, keyFunc func(S) K) map[K]S {
+	result := make(map[K]S, len(source))
+	for _, s := range source {
+		key := keyFunc(s)
+		result[key] = s
+	}
+	return result
+}
+
 func MapStruct[S any, T any](source *S) *T {
 	if source == nil {
 		return nil
