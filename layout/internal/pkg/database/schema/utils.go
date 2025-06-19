@@ -12,6 +12,10 @@ func TimestampDefaultFunc() int64 {
 	return time.Now().Unix()
 }
 
+// DefaultTimeFields returns the default fields for created_at and updated_at.
+// If TimeMixin is used directly, the generated proto file will place these two fields at the very beginning.
+// This is a bit strange, so we manually create these two fields and insert them where needed.
+// This way, the generated proto file can place these two fields in the desired position.
 func DefaultTimeFields() [2]ent.Field {
 	return [2]ent.Field{
 		field.Int64("created_at").
