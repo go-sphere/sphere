@@ -39,29 +39,18 @@ func MapStruct[S any, T any](source *S) *T {
 	return &target
 }
 
-type Pager[P constraints.Integer] func(total, pageSize P) P
-
-func NewPager[P constraints.Integer](defaultSize P) Pager[P] {
-	return func(total, pageSize P) P {
-		if total == 0 {
-			return 0
-		}
-		if pageSize == 0 {
-			pageSize = defaultSize
-		}
-		if pageSize == 0 {
-			return total
-		}
-		page := total / pageSize
-		if total%pageSize != 0 {
-			page++
-		}
-		return page
+func Page[P constraints.Integer](total, pageSize, defaultSize P) (page P, size P) {
+	if pageSize <= 0 {
+		pageSize = max(1, defaultSize)
 	}
-}
-
-func Page[P constraints.Integer](total, pageSize, defaultSize P) P {
-	return NewPager(defaultSize)(total, pageSize)
+	if total == 0 {
+		return 0, pageSize
+	}
+	page = total / pageSize
+	if total%pageSize != 0 {
+		page++
+	}
+	return page, pageSize
 }
 
 func UniqueSorted[T cmp.Ordered](origin []T) []T {

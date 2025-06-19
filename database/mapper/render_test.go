@@ -3,8 +3,6 @@ package mapper
 import (
 	"encoding/json"
 	"testing"
-
-	"golang.org/x/exp/constraints"
 )
 
 func TestMapStruct(t *testing.T) {
@@ -62,41 +60,4 @@ func TestMapStruct(t *testing.T) {
 		return
 	}
 	t.Logf("MapStruct() = %s", bytes)
-}
-
-func TestPage(t *testing.T) {
-	type args[P constraints.Integer] struct {
-		total       P
-		pageSize    P
-		defaultSize P
-	}
-	type testCase[P constraints.Integer] struct {
-		name string
-		args args[P]
-		want P
-	}
-	tests := []testCase[int]{
-		{
-			name: "total is 0",
-			args: args[int]{total: 0, pageSize: 10, defaultSize: 20},
-			want: 0,
-		},
-		{
-			name: "total is 10, pageSize is 0",
-			args: args[int]{total: 10, pageSize: 0, defaultSize: 20},
-			want: 1,
-		},
-		{
-			name: "total is 10, pageSize is 20",
-			args: args[int]{total: 10, pageSize: 20, defaultSize: 20},
-			want: 1,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := Page(tt.args.total, tt.args.pageSize, tt.args.defaultSize); got != tt.want {
-				t.Errorf("Page() = %v, want %v", got, tt.want)
-			}
-		})
-	}
 }

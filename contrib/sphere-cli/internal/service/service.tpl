@@ -42,20 +42,17 @@ func (s *Service) {{.ServiceName}}Detail(ctx context.Context, req *{{.ServicePac
 
 func (s *Service) {{.ServiceName}}List(ctx context.Context, req *{{.ServicePackage}}.{{.ServiceName}}ListRequest) (*{{.ServicePackage}}.{{.ServiceName}}ListResponse, error) {
 	query := s.db.{{.ServiceName}}.Query()
-	if req.PageSize == 0 {
-		req.PageSize = mapper.DefaultPageSize
-	}
 	count, err := query.Clone().Count(ctx)
 	if err != nil {
 		return nil, err
 	}
-	page := mapper.Page(count, int(req.PageSize), mapper.DefaultPageSize)
-	all, err := query.Clone().All(ctx)
+	page, size := mapper.Page(count, int(req.PageSize), mapper.DefaultPageSize)
+	all, err := query.Clone().Limit(size).Offset(size * page).All(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &{{.ServicePackage}}.{{.ServiceName}}ListResponse{
-		{{.ServiceName}}s:    mapper.Map(all, s.render.{{.ServiceName}}),
+		{{.ServiceName}}s: mapper.Map(all, s.render.{{.ServiceName}}),
 		TotalSize: int64(count),
 		TotalPage: int64(page),
 	}, nil
