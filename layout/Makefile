@@ -62,13 +62,13 @@ endif
 
 # ---------- Generate Tools ----------
 gen/db: ## Generate ent code
-	go run -tags spheratools ./cmd/tools/ent
+	go run -tags spheretools ./cmd/tools/ent
 
 gen/proto: gen/db ## Generate proto files and run protoc plugins
 	go tool sphere-cli ent2proto --path=./internal/pkg/database/schema
 	go tool buf generate
 	go tool protoc-go-inject-tag -input="./api/*/*/*.pb.go" -remove_tag_comment
-	go run -tags spheratools ./cmd/tools/bind
+	go run -tags spheretools ./cmd/tools/bind
 
 gen/docs: gen/proto ## Generate swagger docs
 	go generate docs.go
@@ -77,7 +77,7 @@ gen/wire: ## Generate wire code
 	go generate ./cmd/...
 
 gen/conf: ## Generate example config
-	go run -tags spheratools ./cmd/tools/config gen
+	go run -tags spheretools ./cmd/tools/config gen
 
 clean: ## Clean gen code and build files
 	rm -rf ./build

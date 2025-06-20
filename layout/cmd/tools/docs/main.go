@@ -1,5 +1,5 @@
-//go:build spheratools
-// +build spheratools
+//go:build spheretools
+// +build spheretools
 
 package main
 
