@@ -2,8 +2,8 @@ package telegram
 
 import (
 	"context"
-	"github.com/TBXark/sphere/utils/metadata"
 
+	"github.com/TBXark/sphere/utils/metadata"
 	"github.com/go-telegram/bot/models"
 )
 

@@ -1,12 +1,10 @@
 package ginx
 
 import (
-	"io"
-	"net/http"
-
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
 	"github.com/gin-gonic/gin"
+	"net/http"
 )
 
 type (
@@ -86,32 +84,5 @@ func WithText(handler func(ctx *gin.Context) (string, error)) gin.HandlerFunc {
 func WithHandler(h http.Handler) func(ctx *gin.Context) {
 	return WithRecover("WithHandler panic", func(ctx *gin.Context) {
 		h.ServeHTTP(ctx.Writer, ctx.Request)
-	})
-}
-
-func WithFormFileReader[T any](handler func(ctx *gin.Context, file io.Reader, filename string) (*T, error)) gin.HandlerFunc {
-	return WithJson(func(ctx *gin.Context) (*T, error) {
-		file, err := ctx.FormFile("file")
-		if err != nil {
-			return nil, err
-		}
-		read, err := file.Open()
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			_ = read.Close()
-		}()
-		return handler(ctx, read, file.Filename)
-	})
-}
-
-func WithFormFileBytes[T any](handler func(ctx *gin.Context, file []byte, filename string) (*T, error)) gin.HandlerFunc {
-	return WithFormFileReader(func(ctx *gin.Context, file io.Reader, filename string) (*T, error) {
-		all, err := io.ReadAll(file)
-		if err != nil {
-			return nil, err
-		}
-		return handler(ctx, all, filename)
 	})
 }
