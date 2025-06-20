@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/TBXark/sphere/server/auth/jwtauth"
 	"net/http"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 	"github.com/TBXark/sphere/storage"
 )
 
-type TokenAuthorizer = authorizer.TokenAuthorizer[authorizer.RBACClaims[int64]]
+type TokenAuthorizer = authorizer.TokenAuthorizer[int64, *jwtauth.RBACClaims[int64]]
 
 type Service struct {
 	authorizer.ContextUtils[int64]

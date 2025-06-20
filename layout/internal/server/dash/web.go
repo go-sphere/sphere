@@ -12,7 +12,6 @@ import (
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
 	"github.com/TBXark/sphere/server/auth/acl"
-	"github.com/TBXark/sphere/server/auth/authorizer"
 	"github.com/TBXark/sphere/server/auth/jwtauth"
 	"github.com/TBXark/sphere/server/ginx"
 	"github.com/TBXark/sphere/server/middleware/auth"
@@ -47,8 +46,8 @@ func (w *Web) Identifier() string {
 }
 
 func (w *Web) Start(ctx context.Context) error {
-	jwtAuthorizer := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.AuthJWT)
-	jwtRefresher := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.RefreshJWT)
+	jwtAuthorizer := jwtauth.NewJwtAuth[jwtauth.RBACClaims[int64]](w.config.AuthJWT)
+	jwtRefresher := jwtauth.NewJwtAuth[jwtauth.RBACClaims[int64]](w.config.RefreshJWT)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "dash"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)

@@ -71,6 +71,14 @@ func (e Error) Unwrap() error {
 	return e.error
 }
 
+func BadRequestError(err error, message string) error {
+	return JoinError(http.StatusBadRequest, message, err)
+}
+
+func UnauthorizedError(err error, message string) error {
+	return JoinError(http.StatusUnauthorized, message, err)
+}
+
 func ForbiddenError(err error, message string) error {
 	return JoinError(http.StatusForbidden, message, err)
 }
@@ -81,8 +89,4 @@ func NotFoundError(err error, message string) error {
 
 func InternalServerError(err error, message string) error {
 	return JoinError(http.StatusInternalServerError, message, err)
-}
-
-func BadRequestError(err error, message string) error {
-	return JoinError(http.StatusBadRequest, message, err)
 }

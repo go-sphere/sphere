@@ -10,7 +10,6 @@ import (
 	"github.com/TBXark/sphere/layout/internal/service/shared"
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
-	"github.com/TBXark/sphere/server/auth/authorizer"
 	"github.com/TBXark/sphere/server/auth/jwtauth"
 	"github.com/TBXark/sphere/server/ginx"
 	"github.com/TBXark/sphere/server/middleware/auth"
@@ -40,12 +39,12 @@ func (w *Web) Identifier() string {
 }
 
 func (w *Web) Start(ctx context.Context) error {
-	jwtAuthorizer := jwtauth.NewJwtAuth[authorizer.RBACClaims[int64]](w.config.JWT)
+	jwtAuthorizer := jwtauth.NewJwtAuth[jwtauth.RBACClaims[int64]](w.config.JWT)
 
 	zapLogger := log.ZapLogger().With(logfields.String("module", "api"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
-	authMiddleware := auth.NewAuthMiddleware[int64](jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, false)
+	authMiddleware := auth.NewAuthMiddleware[int64, *jwtauth.RBACClaims[int64]](jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, false)
 	// rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
 
 	engine := gin.New()

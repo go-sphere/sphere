@@ -32,18 +32,14 @@ func (s *Service) AdminCreate(ctx context.Context, req *dashv1.AdminCreateReques
 }
 
 func (s *Service) AdminDelete(ctx context.Context, req *dashv1.AdminDeleteRequest) (*dashv1.AdminDeleteResponse, error) {
-	adm, err := s.db.Admin.Get(ctx, req.Id)
+	value, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	value, err := s.GetCurrentUsername(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if adm.Username == value {
+	if value == req.Id {
 		return nil, statuserr.BadRequestError(errors.New("can't delete admin"), "不能删除当前登录的管理员账号")
 	}
-	err = s.db.Admin.DeleteOneID(adm.ID).Exec(ctx)
+	err = s.db.Admin.DeleteOneID(req.Id).Exec(ctx)
 	if err != nil {
 		return nil, err
 	}

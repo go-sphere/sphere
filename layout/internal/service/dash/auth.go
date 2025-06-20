@@ -2,12 +2,12 @@ package dash
 
 import (
 	"context"
+	"github.com/TBXark/sphere/server/auth/jwtauth"
 	"time"
 
 	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
-	"github.com/TBXark/sphere/server/auth/authorizer"
 	"github.com/TBXark/sphere/server/statuserr"
 	"github.com/TBXark/sphere/utils/secure"
 )
@@ -29,8 +29,8 @@ type AdminToken struct {
 	Expires      string
 }
 
-func renderClaims(admin *ent.Admin, duration time.Duration) *authorizer.RBACClaims[int64] {
-	return authorizer.NewRBACClaims(admin.ID, admin.Username, admin.Roles, time.Now().Add(duration))
+func renderClaims(admin *ent.Admin, duration time.Duration) *jwtauth.RBACClaims[int64] {
+	return jwtauth.NewRBACClaims(admin.ID, admin.Username, admin.Roles, time.Now().Add(duration))
 }
 
 func (s *Service) createToken(ctx context.Context, administrator *ent.Admin) (*AdminToken, error) {

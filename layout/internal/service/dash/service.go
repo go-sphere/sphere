@@ -5,6 +5,7 @@ import (
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/render"
 	"github.com/TBXark/sphere/server/auth/authorizer"
+	"github.com/TBXark/sphere/server/auth/jwtauth"
 	"github.com/TBXark/sphere/social/wechat"
 	"github.com/TBXark/sphere/storage"
 	"github.com/alitto/pond/v2"
@@ -15,7 +16,7 @@ const (
 	PermissionAdmin = "admin"
 )
 
-type TokenAuthorizer = authorizer.TokenAuthorizer[authorizer.RBACClaims[int64]]
+type TokenAuthorizer = authorizer.TokenAuthorizer[int64, *jwtauth.RBACClaims[int64]]
 
 type Service struct {
 	authorizer.ContextUtils[int64]

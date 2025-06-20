@@ -3,13 +3,13 @@ package auth
 import (
 	"context"
 	"errors"
+	"github.com/TBXark/sphere/server/auth/jwtauth"
 	"time"
 
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/predicate"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/userplatform"
-	"github.com/TBXark/sphere/server/auth/authorizer"
 )
 
 const (
@@ -21,8 +21,8 @@ const (
 	AppTokenValidDuration = time.Hour * 24 * 7
 )
 
-func RenderClaims(user *ent.User, pla *ent.UserPlatform, duration time.Duration) *authorizer.RBACClaims[int64] {
-	return authorizer.NewRBACClaims(
+func RenderClaims(user *ent.User, pla *ent.UserPlatform, duration time.Duration) *jwtauth.RBACClaims[int64] {
+	return jwtauth.NewRBACClaims(
 		user.ID,
 		pla.Platform+":"+pla.PlatformID,
 		[]string{},

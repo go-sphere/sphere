@@ -6,14 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TBXark/sphere/server/auth/authorizer"
 	"github.com/golang-jwt/jwt/v5"
 )
 
 func TestJwtAuth_ParseToken(t *testing.T) {
 	ctx := context.Background()
-	auth := NewJwtAuth[authorizer.RBACClaims[int64]]("secret")
-	info := authorizer.NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(time.Hour))
+	auth := NewJwtAuth[RBACClaims[int64]]("secret")
+	info := NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(time.Hour))
 	token, err := auth.GenerateToken(ctx, info)
 	if err != nil {
 		t.Error(err)
@@ -31,7 +30,7 @@ func TestJwtAuth_ParseToken(t *testing.T) {
 	if claims1.UID != 1 {
 		t.Error("uid not match")
 	}
-	info = authorizer.NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(-time.Hour))
+	info = NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(-time.Hour))
 	token, err = auth.GenerateToken(ctx, info)
 	if err != nil {
 		t.Error(err)
@@ -69,12 +68,12 @@ func TestJwtAuth_JSON(t *testing.T) {
 
 	// jwt.Claims is an interface. The claims value you pass into the parser needs to be a concrete type. It's essentially passed directly through to the standard library JSON parser and will follow that behavior.
 
-	info := authorizer.NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(time.Hour))
+	info := NewRBACClaims[int64](1, "username", []string{"admin"}, time.Now().Add(time.Hour))
 	raw, err := json.Marshal(info)
 	if err != nil {
 		t.Error(err)
 	}
-	claims, err := parseClaimsV1[authorizer.RBACClaims[int64]](raw)
+	claims, err := parseClaimsV1[RBACClaims[int64]](raw)
 	if err != nil {
 		t.Error(err)
 	}
@@ -82,7 +81,7 @@ func TestJwtAuth_JSON(t *testing.T) {
 		t.Error("subject not match")
 	}
 
-	var claimsV2 authorizer.RBACClaims[int64]
+	var claimsV2 RBACClaims[int64]
 	_, err = parseClaimsV2(claimsV2, raw)
 	if err != nil {
 		t.Log(err)

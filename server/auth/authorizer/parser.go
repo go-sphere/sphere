@@ -1,16 +1,29 @@
 package authorizer
 
-import "context"
+import (
+	"context"
+	"golang.org/x/exp/constraints"
+)
 
-type Parser[T any] interface {
-	ParseToken(ctx context.Context, token string) (*T, error)
+type UID interface {
+	constraints.Integer | string
 }
 
-type Generator[T any] interface {
-	GenerateToken(ctx context.Context, claims *T) (string, error)
+type Claims[T UID] interface {
+	GetUID() (T, error)
+	GetSubject() (string, error)
+	GetRoles() ([]string, error)
 }
 
-type TokenAuthorizer[T any] interface {
-	Parser[T]
-	Generator[T]
+type Parser[I UID, T Claims[I]] interface {
+	ParseToken(ctx context.Context, token string) (T, error)
+}
+
+type Generator[I UID, T Claims[I]] interface {
+	GenerateToken(ctx context.Context, claims T) (string, error)
+}
+
+type TokenAuthorizer[I UID, T Claims[I]] interface {
+	Parser[I, T]
+	Generator[I, T]
 }

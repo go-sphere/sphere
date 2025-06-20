@@ -2,13 +2,14 @@ package dash
 
 import (
 	"encoding/json"
+	"github.com/TBXark/sphere/server/auth/jwtauth"
 
 	"github.com/TBXark/sphere/server/auth/authorizer"
 	"github.com/TBXark/sphere/server/middleware/auth"
 	"github.com/gin-gonic/gin"
 )
 
-func NewPureAdminCookieAuthMiddleware[T authorizer.UID](authParser authorizer.Parser[authorizer.RBACClaims[T]]) gin.HandlerFunc {
+func NewPureAdminCookieAuthMiddleware[T authorizer.UID](authParser authorizer.Parser[T, jwtauth.RBACClaims[T]]) gin.HandlerFunc {
 	return auth.NewCookieAuthMiddleware("authorized-token", func(raw string) (string, error) {
 		var token struct {
 			AccessToken string `json:"accessToken"`
