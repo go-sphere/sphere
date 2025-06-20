@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"github.com/TBXark/sphere/utils/metadata"
 
 	"github.com/go-telegram/bot/models"
 )
@@ -23,7 +24,7 @@ func NewAuthMiddleware(auth AuthExtractor) MiddlewareFunc {
 			if err != nil {
 				return err
 			}
-			c := NewContext(ctx)
+			c := metadata.NewContext(ctx)
 			for k, v := range info {
 				c.SetValue(k, v)
 			}
