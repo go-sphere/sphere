@@ -93,9 +93,7 @@ func (w *Web) Start(ctx context.Context) error {
 			rateLimiter,
 		)...,
 	)
-	authRoute.GET("/api/get-async-routes", ginx.WithJson(func(ctx *gin.Context) ([]struct{}, error) {
-		return []struct{}{}, nil
-	}))
+	RegisterPureRute(authRoute)
 	dashv1.RegisterAuthServiceHTTPServer(authRoute, w.service)
 
 	adminRoute := needAuthRoute.Group("/", w.withPermission(dash.PermissionAdmin))
