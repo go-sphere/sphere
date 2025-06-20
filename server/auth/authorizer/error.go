@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"errors"
+
 	"github.com/TBXark/sphere/server/statuserr"
 )
 

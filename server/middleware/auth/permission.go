@@ -1,9 +1,10 @@
 package auth
 
 import (
+	"net/http"
+
 	"github.com/TBXark/sphere/server/auth/authorizer"
 	"github.com/gin-gonic/gin"
-	"net/http"
 )
 
 type AccessControl interface {

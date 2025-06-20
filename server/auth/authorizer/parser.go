@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"context"
+
 	"golang.org/x/exp/constraints"
 )
 

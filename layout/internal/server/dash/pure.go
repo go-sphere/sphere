@@ -2,9 +2,9 @@ package dash
 
 import (
 	"encoding/json"
-	"github.com/TBXark/sphere/server/auth/jwtauth"
 
 	"github.com/TBXark/sphere/server/auth/authorizer"
+	"github.com/TBXark/sphere/server/auth/jwtauth"
 	"github.com/TBXark/sphere/server/middleware/auth"
 	"github.com/gin-gonic/gin"
 )

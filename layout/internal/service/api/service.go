@@ -1,7 +1,6 @@
 package api
 
 import (
-	"github.com/TBXark/sphere/server/auth/jwtauth"
 	"net/http"
 	"time"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/render"
 	"github.com/TBXark/sphere/server/auth/authorizer"
+	"github.com/TBXark/sphere/server/auth/jwtauth"
 	"github.com/TBXark/sphere/social/wechat"
 	"github.com/TBXark/sphere/storage"
 )

@@ -3,13 +3,13 @@ package auth
 import (
 	"context"
 	"errors"
-	"github.com/TBXark/sphere/server/auth/jwtauth"
 	"time"
 
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/predicate"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/userplatform"
+	"github.com/TBXark/sphere/server/auth/jwtauth"
 )
 
 const (

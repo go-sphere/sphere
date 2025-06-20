@@ -1,9 +1,9 @@
 package jwtauth
 
 import (
-	"github.com/TBXark/sphere/server/auth/authorizer"
 	"time"
 
+	"github.com/TBXark/sphere/server/auth/authorizer"
 	"github.com/golang-jwt/jwt/v5"
 )
 
