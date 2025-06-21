@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TBXark/sphere/core/errors/statuserr"
 	"github.com/TBXark/sphere/core/safe"
 	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/auth"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/userplatform"
-	"github.com/TBXark/sphere/server/statuserr"
 	"github.com/TBXark/sphere/social/wechat"
 	"github.com/TBXark/sphere/storage"
 )

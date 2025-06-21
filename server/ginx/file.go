@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/TBXark/sphere/server/statuserr"
+	"github.com/TBXark/sphere/core/errors/statuserr"
 	"github.com/gin-gonic/gin"
 )
 

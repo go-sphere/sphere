@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/TBXark/sphere/server/statuserr"
+	"github.com/TBXark/sphere/core/errors/statuserr"
 )
 
 var internalServerError = statuserr.NewError(http.StatusInternalServerError, 0, "internal Server Error")

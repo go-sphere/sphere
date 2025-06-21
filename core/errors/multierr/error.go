@@ -1,16 +1,16 @@
-package task
+package multierr
 
 import (
 	"errors"
 	"sync"
 )
 
-type ErrCollection struct {
+type Error struct {
 	mu   sync.RWMutex
 	errs []error
 }
 
-func (e *ErrCollection) Add(err error) {
+func (e *Error) Add(err error) {
 	if err == nil {
 		return
 	}
@@ -19,7 +19,11 @@ func (e *ErrCollection) Add(err error) {
 	e.errs = append(e.errs, err)
 }
 
-func (e *ErrCollection) Err() error {
+func (e *Error) Errors() string {
+	return e.Unwrap().Error()
+}
+
+func (e *Error) Unwrap() error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if len(e.errs) == 0 {

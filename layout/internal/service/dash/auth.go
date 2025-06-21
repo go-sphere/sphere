@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/TBXark/sphere/core/errors/statuserr"
 	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
 	"github.com/TBXark/sphere/server/auth/jwtauth"
-	"github.com/TBXark/sphere/server/statuserr"
 	"github.com/TBXark/sphere/utils/secure"
 )
 

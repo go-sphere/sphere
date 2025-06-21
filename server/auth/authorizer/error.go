@@ -3,7 +3,7 @@ package authorizer
 import (
 	"errors"
 
-	"github.com/TBXark/sphere/server/statuserr"
+	"github.com/TBXark/sphere/core/errors/statuserr"
 )
 
 var (

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/TBXark/sphere/core/errors/multierr"
 	"github.com/TBXark/sphere/log"
 	"golang.org/x/sync/errgroup"
 )
@@ -96,7 +97,7 @@ func (m *Manager) StopAll(ctx context.Context) error {
 	}
 	m.mu.Unlock()
 
-	var stopErrs ErrCollection
+	var stopErrs multierr.Error
 	var stopGroup sync.WaitGroup
 	for name, task := range tasks {
 		stopGroup.Add(1)
@@ -116,7 +117,7 @@ func (m *Manager) StopAll(ctx context.Context) error {
 	stopGroup.Wait()
 
 	return errors.Join(
-		stopErrs.Err(),
+		stopErrs.Unwrap(),
 		m.runningGroup.Wait(),
 	)
 }
