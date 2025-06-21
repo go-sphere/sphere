@@ -7,7 +7,7 @@
 {{$newExtraDataFunc := .NewExtraDataFunc}}
 
 {{$handlerType := printf "func(ctx context.Context, request *%s) error" $requestType}}
-{{$senderType := printf "func(ctx context.Context, request *%s, msg *%s) error" $requestType $responseType}}
+{{$renderType := printf "func(ctx context.Context, request *%s, msg *%s) error" $requestType $responseType}}
 
 {{- range .MethodSets}}
 const Operation{{$optionsKey}}{{$svrType}}{{.OriginalName}} = "/{{$svrName}}/{{.OriginalName}}"
@@ -60,7 +60,7 @@ type {{.ServiceType}}{{$optionsKey}}Codec interface {
 }
 
 {{range .Methods}}
-func _{{$svrType}}_{{.Name}}{{.Num}}_{{$optionsKey}}_Handler(srv {{$svrType}}{{$optionsKey}}Server, codec {{$svrType}}{{$optionsKey}}Codec, sender {{$senderType}}) {{$handlerType}} {
+func _{{$svrType}}_{{.Name}}{{.Num}}_{{$optionsKey}}_Handler(srv {{$svrType}}{{$optionsKey}}Server, codec {{$svrType}}{{$optionsKey}}Codec, render {{$renderType}}) {{$handlerType}} {
     return func(ctx context.Context, request *{{$requestType}}) error {
     		req, err := codec.Decode{{.Name}}Request(ctx, request)
     		if err != nil {
@@ -74,15 +74,15 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_{{$optionsKey}}_Handler(srv {{$svrType}}{{$
     		if err != nil {
     			return err
     		}
-    		return sender(ctx, request, msg)
+    		return render(ctx, request, msg)
     }
 }
 {{end}}
 
-func Register{{.ServiceType}}{{$optionsKey}}Server(srv {{.ServiceType}}{{$optionsKey}}Server, codec {{.ServiceType}}{{$optionsKey}}Codec, sender {{$senderType}}) map[string]{{$handlerType}} {
+func Register{{.ServiceType}}{{$optionsKey}}Server(srv {{.ServiceType}}{{$optionsKey}}Server, codec {{.ServiceType}}{{$optionsKey}}Codec, render {{$renderType}}) map[string]{{$handlerType}} {
 	handlers := make(map[string]{{$handlerType}})
 {{- range .Methods}}
-    handlers[Operation{{$optionsKey}}{{$svrType}}{{.OriginalName}}] = _{{$svrType}}_{{.Name}}{{.Num}}_{{$optionsKey}}_Handler(srv, codec, sender)
+    handlers[Operation{{$optionsKey}}{{$svrType}}{{.OriginalName}}] = _{{$svrType}}_{{.Name}}{{.Num}}_{{$optionsKey}}_Handler(srv, codec, render)
 {{- end}}
     return handlers
 }
