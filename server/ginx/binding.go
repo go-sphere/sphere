@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/gin/binding"
 )
 
 // Errors
@@ -71,7 +70,7 @@ func (u *UniverseBinding) Name() string {
 	return "universe"
 }
 
-func (u *UniverseBinding) Bind(c *gin.Context, obj interface{}) error {
+func (u *UniverseBinding) Bind(c *gin.Context, obj any) error {
 	value := reflect.ValueOf(obj)
 	if value.Kind() != reflect.Ptr {
 		return ErrBindingElementMustBePointer
@@ -98,10 +97,7 @@ func (u *UniverseBinding) Bind(c *gin.Context, obj interface{}) error {
 			return err
 		}
 	}
-	if binding.Validator == nil {
-		return nil
-	}
-	return binding.Validator.ValidateStruct(obj)
+	return nil
 }
 
 /// fieldInfo
@@ -186,31 +182,31 @@ var (
 
 /// Public functions
 
-func ShouldBindUri(c *gin.Context, obj interface{}) error {
+func ShouldBindUri(c *gin.Context, obj any) error {
 	return uriBinding.Bind(c, obj)
 }
 
-func ShouldBindQuery(c *gin.Context, obj interface{}) error {
+func ShouldBindQuery(c *gin.Context, obj any) error {
 	return queryBinding.Bind(c, obj)
 }
 
-func ShouldBindJSON(c *gin.Context, obj interface{}) error {
+func ShouldBindJSON(c *gin.Context, obj any) error {
 	return c.ShouldBindJSON(obj)
 }
 
-func ShouldBind(ctx *gin.Context, obj interface{}, uri, query, body bool) error {
+func ShouldBind(ctx *gin.Context, obj any, uri, query, body bool) error {
 	if body {
 		if err := ShouldBindJSON(ctx, obj); err != nil {
 			return err
 		}
 	}
-	if query {
-		if err := ShouldBindQuery(ctx, obj); err != nil {
+	if uri {
+		if err := ShouldBindUri(ctx, obj); err != nil {
 			return err
 		}
 	}
-	if uri {
-		if err := ShouldBindUri(ctx, obj); err != nil {
+	if query {
+		if err := ShouldBindQuery(ctx, obj); err != nil {
 			return err
 		}
 	}
