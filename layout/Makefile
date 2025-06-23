@@ -40,27 +40,19 @@ build/linux/arm64: ## Build linux arm64 binary
 
 build/all: build build/linux/amd64 ## Build all arch binary
 
-# ---------- Assets Tools ----------
-build/assets: ## Build assets
-ifneq ($(wildcard $(DASH_DIR)),)
-	# You can `git clone https://github.com/pure-admin/vue-pure-admin.git $(DASH_DIR)` to get the dash project
-	mkdir -p $(DASH_DIST)
-	cd $(DASH_DIR) && pnpm build
-	rm -rf $(DASH_DIST)/*
-	cp -r $(DASH_DIR)/dist/* $(DASH_DIST)
-else
-	@echo "Skipping dash build - DASH_DIR does not exist"
-endif
-
-gen/dts: gen/docs ## Generate swagger typescript docs
-	cd scripts/swagger-typescript-api-gen && npm run gen
-ifneq ($(wildcard $(DASH_DIR)),)
-	mkdir -p $(DASH_DIR)/src/api/swagger
-	rm -rf $(DASH_DIR)/src/api/swagger/*
-	cp -r swagger/dash/typescript/* $(DASH_DIR)/src/api/swagger
-endif
-
 # ---------- Generate Tools ----------
+clean: ## Clean gen code and build files
+	rm -rf ./build
+	rm -rf ./swagger
+	rm -rf ./api
+	rm -rf ./internal/pkg/database/ent
+
+gen/wire: ## Generate wire code
+	go generate ./cmd/...
+
+gen/conf: ## Generate example config
+	go run -tags spheretools ./cmd/tools/config gen
+
 gen/db: ## Generate ent code
 	go run -tags spheretools ./cmd/tools/ent
 
@@ -73,21 +65,29 @@ gen/proto: gen/db ## Generate proto files and run protoc plugins
 gen/docs: gen/proto ## Generate swagger docs
 	go generate docs.go
 
-gen/wire: ## Generate wire code
-	go generate ./cmd/...
-
-gen/conf: ## Generate example config
-	go run -tags spheretools ./cmd/tools/config gen
-
-clean: ## Clean gen code and build files
-	rm -rf ./build
-	rm -rf ./swagger
-	rm -rf ./api
-	rm -rf ./internal/pkg/database/ent
-
 gen/all: clean ## Generate both ent, docs and wire
 	$(MAKE) gen/docs
 	$(MAKE) gen/wire
+
+# ---------- Assets Tools ----------
+gen/dts: gen/docs ## Generate swagger typescript docs
+	cd scripts/swagger-typescript-api-gen && npm run gen
+ifneq ($(wildcard $(DASH_DIR)),)
+	mkdir -p $(DASH_DIR)/src/api/swagger
+	rm -rf $(DASH_DIR)/src/api/swagger/*
+	cp -r swagger/dash/typescript/* $(DASH_DIR)/src/api/swagger
+endif
+
+build/assets: ## Build assets
+ifneq ($(wildcard $(DASH_DIR)),)
+	# You can `git clone https://github.com/pure-admin/vue-pure-admin.git $(DASH_DIR)` to get the dash project
+	mkdir -p $(DASH_DIST)
+	cd $(DASH_DIR) && pnpm build
+	rm -rf $(DASH_DIST)/*
+	cp -r $(DASH_DIR)/dist/* $(DASH_DIST)
+else
+	@echo "Skipping dash build - DASH_DIR does not exist"
+endif
 
 # ---------- Build Docker ----------
 build/docker: ## Build docker image
@@ -112,6 +112,9 @@ build/multi-docker: ## Build multi-arch docker image
 # ---------- Tools ----------
 run: ## Run the application
 	$(GO_RUN) $(MODULE)/cmd/app
+
+run/swag: ## Run the swagger server
+	$(GO_RUN) -tags spheretools $(MODULE)/cmd/tools/docs
 
 deploy: ## Deploy binary
 	./devops/deploy/deploy.sh deploy

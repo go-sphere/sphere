@@ -370,10 +370,10 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars [
 	}
 
 	builder.WriteString("// @Success 200 {object} " + conf.packageDesc.DataResponseType + "[" + m.Output.GoIdent.GoName + "]\n")
-	builder.WriteString("// @Success 400 {object} " + conf.packageDesc.ErrorResponseType + "\n")
-	builder.WriteString("// @Success 401 {object} " + conf.packageDesc.ErrorResponseType + "\n")
-	builder.WriteString("// @Success 403 {object} " + conf.packageDesc.ErrorResponseType + "\n")
-	builder.WriteString("// @Success 500 {object} " + conf.packageDesc.ErrorResponseType + "\n")
+	builder.WriteString("// @Failure 400 {object} " + conf.packageDesc.ErrorResponseType + "\n")
+	builder.WriteString("// @Failure 401 {object} " + conf.packageDesc.ErrorResponseType + "\n")
+	builder.WriteString("// @Failure 403 {object} " + conf.packageDesc.ErrorResponseType + "\n")
+	builder.WriteString("// @Failure 500 {object} " + conf.packageDesc.ErrorResponseType + "\n")
 
 	builder.WriteString("// @Router " + path + " [" + strings.ToLower(method) + "]\n")
 	return builder.String()

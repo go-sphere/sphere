@@ -18,22 +18,23 @@ Sphere build tool. Usage: make [target]
   build/linux/amd64    Build linux amd64 binary
   build/linux/arm64    Build linux arm64 binary
   build/all            Build all arch binary
-  build/assets         Build assets
-  gen/dts              Generate swagger typescript docs
-  gen/proto            Generate proto files and run protoc plugins
-  gen/db               Generate ent code
-  gen/docs             Generate swagger docs
+  clean                Clean gen code and build files
   gen/wire             Generate wire code
   gen/conf             Generate example config
-  clean                Clean gen code and build files
+  gen/db               Generate ent code
+  gen/proto            Generate proto files and run protoc plugins
+  gen/docs             Generate swagger docs
   gen/all              Generate both ent, docs and wire
+  gen/dts              Generate swagger typescript docs
+  build/assets         Build assets
   build/docker         Build docker image
   build/multi-docker   Build multi-arch docker image
   run                  Run the application
+  run/swag             Run the swagger server
   deploy               Deploy binary
-  install              Install dependencies tools
   lint                 Run linter
   fmt                  Run formatter
+  install              Install dependencies tools
   init                 Init all dependencies
   help                 Show this help message
 ```
