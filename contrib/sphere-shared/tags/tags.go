@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	rComment = regexp.MustCompile(`^//.*?@(?i:sphere?):\s*(.*)$`)
+	rComment = regexp.MustCompile(`^//.*?@(?i:sphere?)=\s*(.*)$`)
 	rTags    = regexp.MustCompile(`[\w_]+:"[^"]+"`)
 )
 
@@ -78,8 +78,8 @@ func NewSphereTagItems(raw, protoName string) Items {
 		if part == "" {
 			continue
 		}
-		if strings.Contains(part, ":") {
-			kvParts := strings.SplitN(part, ":", 2)
+		if strings.Contains(part, "=") {
+			kvParts := strings.SplitN(part, "=", 2)
 			if len(kvParts) != 2 {
 				continue
 			}
