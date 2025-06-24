@@ -15,60 +15,60 @@ import (
 
 var _ dashv1.AdminServiceHTTPServer = (*Service)(nil)
 
-func (s *Service) AdminCreate(ctx context.Context, req *dashv1.AdminCreateRequest) (*dashv1.AdminCreateResponse, error) {
-	if len(req.Admin.Password) > 8 {
-		req.Admin.Password = secure.CryptPassword(req.Admin.Password)
+func (s *Service) AdminCreate(ctx context.Context, request *dashv1.AdminCreateRequest) (*dashv1.AdminCreateResponse, error) {
+	if len(request.Admin.Password) > 8 {
+		request.Admin.Password = secure.CryptPassword(request.Admin.Password)
 	} else {
 		return nil, statuserr.BadRequestError(errors.New("password is too short"), "密码长度不能小于8位")
 	}
-	req.Admin.Avatar = s.storage.ExtractKeyFromURL(req.Admin.Avatar)
-	u, err := render.CreateAdmin(s.db.Admin.Create(), req.Admin).Save(ctx)
+	request.Admin.Avatar = s.storage.ExtractKeyFromURL(request.Admin.Avatar)
+	u, err := render.CreateAdmin(s.db.Admin.Create(), request.Admin).Save(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &dashv1.AdminCreateResponse{
-		Admin: s.render.AdminFull(u),
+		Admin: s.render.Admin(u),
 	}, nil
 }
 
-func (s *Service) AdminDelete(ctx context.Context, req *dashv1.AdminDeleteRequest) (*dashv1.AdminDeleteResponse, error) {
+func (s *Service) AdminDelete(ctx context.Context, request *dashv1.AdminDeleteRequest) (*dashv1.AdminDeleteResponse, error) {
 	value, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if value == req.Id {
+	if value == request.Id {
 		return nil, statuserr.BadRequestError(errors.New("can't delete admin"), "不能删除当前登录的管理员账号")
 	}
-	err = s.db.Admin.DeleteOneID(req.Id).Exec(ctx)
+	err = s.db.Admin.DeleteOneID(request.Id).Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &dashv1.AdminDeleteResponse{}, nil
 }
 
-func (s *Service) AdminDetail(ctx context.Context, req *dashv1.AdminDetailRequest) (*dashv1.AdminDetailResponse, error) {
-	adm, err := s.db.Admin.Get(ctx, req.Id)
+func (s *Service) AdminDetail(ctx context.Context, request *dashv1.AdminDetailRequest) (*dashv1.AdminDetailResponse, error) {
+	adm, err := s.db.Admin.Get(ctx, request.Id)
 	if err != nil {
 		return nil, err
 	}
 	return &dashv1.AdminDetailResponse{
-		Admin: s.render.AdminFull(adm),
+		Admin: s.render.Admin(adm),
 	}, nil
 }
 
-func (s *Service) AdminList(ctx context.Context, req *dashv1.AdminListRequest) (*dashv1.AdminListResponse, error) {
+func (s *Service) AdminList(ctx context.Context, request *dashv1.AdminListRequest) (*dashv1.AdminListResponse, error) {
 	query := s.db.Admin.Query()
 	count, err := query.Clone().Count(ctx)
 	if err != nil {
 		return nil, err
 	}
-	page, size := mapper.Page(count, int(req.PageSize), mapper.DefaultPageSize)
-	all, err := query.Clone().Limit(size).Offset(size * int(req.Page)).All(ctx)
+	page, size := mapper.Page(count, int(request.PageSize), mapper.DefaultPageSize)
+	all, err := query.Clone().Limit(size).Offset(size * int(request.Page)).All(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &dashv1.AdminListResponse{
-		Admins:    mapper.Map(all, s.render.AdminFull),
+		Admins:    mapper.Map(all, s.render.Admin),
 		TotalSize: int64(count),
 		TotalPage: int64(page),
 	}, nil
@@ -87,7 +87,7 @@ func (s *Service) AdminUpdate(ctx context.Context, req *dashv1.AdminUpdateReques
 		return nil, err
 	}
 	return &dashv1.AdminUpdateResponse{
-		Admin: s.render.AdminFull(u),
+		Admin: s.render.Admin(u),
 	}, nil
 }
 

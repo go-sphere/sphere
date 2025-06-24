@@ -15,6 +15,7 @@ import (
 	sharedv1 "github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/adminsession"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/keyvaluestore"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/user"
 )
@@ -59,6 +60,14 @@ func bindItems(mod string) *bind.GenFileConf {
 				ConfigBuilder: func(act any) *bind.GenFuncConf {
 					return bind.NewGenFuncConf(ent.Admin{}, entpb.Admin{}, act).
 						WithIgnoreFields(admin.FieldCreatedAt, admin.FieldUpdatedAt)
+				},
+			},
+			{
+				Entity:  ent.AdminSession{},
+				Actions: []any{ent.AdminSessionCreate{}, ent.AdminSessionUpdateOne{}},
+				ConfigBuilder: func(act any) *bind.GenFuncConf {
+					return bind.NewGenFuncConf(ent.AdminSession{}, entpb.AdminSession{}, act).
+						WithIgnoreFields(adminsession.FieldCreatedAt, adminsession.FieldUpdatedAt)
 				},
 			},
 			{

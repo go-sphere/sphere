@@ -79,7 +79,7 @@ func (w *Web) Start(ctx context.Context) error {
 	sharedv1.RegisterStorageServiceHTTPServer(needAuthRoute, w.sharedSvc)
 	sharedv1.RegisterTestServiceHTTPServer(api, w.sharedSvc)
 
-	authRoute := api.Group("/")
+	authRoute := api.Group("/", NewSessionMetaData())
 	// 根据元数据限定中间件作用范围
 	authRoute.Use(
 		selector.NewSelectorMiddleware(

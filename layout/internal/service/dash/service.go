@@ -2,6 +2,7 @@ package dash
 
 import (
 	"github.com/TBXark/sphere/cache"
+	"github.com/TBXark/sphere/cache/memory"
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/render"
 	"github.com/TBXark/sphere/server/auth/authorizer"
@@ -26,6 +27,7 @@ type Service struct {
 	render *render.Render
 
 	cache   cache.ByteCache
+	session cache.ByteCache
 	storage storage.CDNStorage
 	tasks   pond.ResultPool[string]
 
@@ -39,6 +41,7 @@ func NewService(db *dao.Dao, wechat *wechat.Wechat, cache cache.ByteCache, store
 		wechat:  wechat,
 		render:  render.NewRender(db, store, true),
 		cache:   cache,
+		session: memory.NewByteCache(),
 		storage: store,
 		tasks:   pond.NewResultPool[string](16),
 	}

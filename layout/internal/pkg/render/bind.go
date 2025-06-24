@@ -7,12 +7,14 @@ import (
 	sharedv1 "github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/admin"
+	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/adminsession"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/keyvaluestore"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/user"
 )
 
 const (
 	_ = admin.Label
+	_ = adminsession.Label
 	_ = user.Label
 	_ = keyvaluestore.Label
 )
@@ -77,6 +79,66 @@ func UpdateOneAdmin(source *ent.AdminUpdateOne, target *entpb.Admin, options ...
 	if option.CanSetField("roles") {
 		if !option.IgnoreSetZero("roles") || !(target.Roles == nil) {
 			source.SetRoles(target.Roles)
+		}
+	}
+	return source
+}
+
+func CreateAdminSession(source *ent.AdminSessionCreate, target *entpb.AdminSession, options ...bind.Option) *ent.AdminSessionCreate {
+	option := bind.NewBindOptions(options...)
+	if option.CanSetField("id") {
+		if !option.IgnoreSetZero("id") || !(target.Id == 0) {
+			source.SetID(target.Id)
+		}
+	}
+	if option.CanSetField("uid") {
+		if !option.IgnoreSetZero("uid") || !(target.Uid == 0) {
+			source.SetUID(target.Uid)
+		}
+	}
+	if option.CanSetField("session_key") {
+		if !option.IgnoreSetZero("session_key") || !(target.SessionKey == "") {
+			source.SetSessionKey(target.SessionKey)
+		}
+	}
+	if option.CanSetField("expires") {
+		if !option.IgnoreSetZero("expires") || !(target.Expires == 0) {
+			source.SetExpires(target.Expires)
+		}
+	}
+	if option.CanSetField("is_revoked") {
+		if !option.IgnoreSetZero("is_revoked") || !(!target.IsRevoked) {
+			source.SetIsRevoked(target.IsRevoked)
+		}
+	}
+	if option.CanSetField("device_info") {
+		if !option.IgnoreSetZero("device_info") || !(target.DeviceInfo == "") {
+			source.SetDeviceInfo(target.DeviceInfo)
+		}
+	}
+	if option.CanSetField("ip_address") {
+		if !option.IgnoreSetZero("ip_address") || !(target.IpAddress == "") {
+			source.SetIPAddress(target.IpAddress)
+		}
+	}
+	return source
+}
+
+func UpdateOneAdminSession(source *ent.AdminSessionUpdateOne, target *entpb.AdminSession, options ...bind.Option) *ent.AdminSessionUpdateOne {
+	option := bind.NewBindOptions(options...)
+	if option.CanSetField("is_revoked") {
+		if !option.IgnoreSetZero("is_revoked") || !(!target.IsRevoked) {
+			source.SetIsRevoked(target.IsRevoked)
+		}
+	}
+	if option.CanSetField("device_info") {
+		if !option.IgnoreSetZero("device_info") || !(target.DeviceInfo == "") {
+			source.SetDeviceInfo(target.DeviceInfo)
+		}
+	}
+	if option.CanSetField("ip_address") {
+		if !option.IgnoreSetZero("ip_address") || !(target.IpAddress == "") {
+			source.SetIPAddress(target.IpAddress)
 		}
 	}
 	return source

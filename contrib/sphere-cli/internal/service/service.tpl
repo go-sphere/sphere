@@ -12,8 +12,8 @@ import (
 
 var _ {{.ServicePackage}}.{{.ServiceName}}ServiceHTTPServer = (*Service)(nil)
 
-func (s *Service) {{.ServiceName}}Create(ctx context.Context, req *{{.ServicePackage}}.{{.ServiceName}}CreateRequest) (*{{.ServicePackage}}.{{.ServiceName}}CreateResponse, error) {
-	item, err := render.Create{{.ServiceName}}(s.db.{{.ServiceName}}.Create(), req.{{.ServiceName}}).Save(ctx)
+func (s *Service) {{.ServiceName}}Create(ctx context.Context, request *{{.ServicePackage}}.{{.ServiceName}}CreateRequest) (*{{.ServicePackage}}.{{.ServiceName}}CreateResponse, error) {
+	item, err := render.Create{{.ServiceName}}(s.db.{{.ServiceName}}.Create(), request.{{.ServiceName}}).Save(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -22,16 +22,16 @@ func (s *Service) {{.ServiceName}}Create(ctx context.Context, req *{{.ServicePac
 	}, nil
 }
 
-func (s *Service) {{.ServiceName}}Delete(ctx context.Context, req *{{.ServicePackage}}.{{.ServiceName}}DeleteRequest) (*{{.ServicePackage}}.{{.ServiceName}}DeleteResponse, error) {
-	err := s.db.{{.ServiceName}}.DeleteOneID(int(req.Id)).Exec(ctx)
+func (s *Service) {{.ServiceName}}Delete(ctx context.Context, request *{{.ServicePackage}}.{{.ServiceName}}DeleteRequest) (*{{.ServicePackage}}.{{.ServiceName}}DeleteResponse, error) {
+	err := s.db.{{.ServiceName}}.DeleteOneID(request.Id).Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &{{.ServicePackage}}.{{.ServiceName}}DeleteResponse{}, nil
 }
 
-func (s *Service) {{.ServiceName}}Detail(ctx context.Context, req *{{.ServicePackage}}.{{.ServiceName}}DetailRequest) (*{{.ServicePackage}}.{{.ServiceName}}DetailResponse, error) {
-	item, err := s.db.{{.ServiceName}}.Get(ctx, int(req.Id))
+func (s *Service) {{.ServiceName}}Detail(ctx context.Context, request *{{.ServicePackage}}.{{.ServiceName}}DetailRequest) (*{{.ServicePackage}}.{{.ServiceName}}DetailResponse, error) {
+	item, err := s.db.{{.ServiceName}}.Get(ctx, request.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -40,14 +40,14 @@ func (s *Service) {{.ServiceName}}Detail(ctx context.Context, req *{{.ServicePac
 	}, nil
 }
 
-func (s *Service) {{.ServiceName}}List(ctx context.Context, req *{{.ServicePackage}}.{{.ServiceName}}ListRequest) (*{{.ServicePackage}}.{{.ServiceName}}ListResponse, error) {
+func (s *Service) {{.ServiceName}}List(ctx context.Context, request *{{.ServicePackage}}.{{.ServiceName}}ListRequest) (*{{.ServicePackage}}.{{.ServiceName}}ListResponse, error) {
 	query := s.db.{{.ServiceName}}.Query()
 	count, err := query.Clone().Count(ctx)
 	if err != nil {
 		return nil, err
 	}
-	page, size := mapper.Page(count, int(req.PageSize), mapper.DefaultPageSize)
-	all, err := query.Clone().Limit(size).Offset(size * int(req.Page)).All(ctx)
+	page, size := mapper.Page(count, int(request.PageSize), mapper.DefaultPageSize)
+	all, err := query.Clone().Limit(size).Offset(size * int(request.Page)).All(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -58,10 +58,10 @@ func (s *Service) {{.ServiceName}}List(ctx context.Context, req *{{.ServicePacka
 	}, nil
 }
 
-func (s *Service) {{.ServiceName}}Update(ctx context.Context, req *{{.ServicePackage}}.{{.ServiceName}}UpdateRequest) (*{{.ServicePackage}}.{{.ServiceName}}UpdateResponse, error) {
+func (s *Service) {{.ServiceName}}Update(ctx context.Context, request *{{.ServicePackage}}.{{.ServiceName}}UpdateRequest) (*{{.ServicePackage}}.{{.ServiceName}}UpdateResponse, error) {
 	item, err := render.UpdateOne{{.ServiceName}}(
-		s.db.{{.ServiceName}}.UpdateOneID(int(req.{{.ServiceName}}.Id)),
-		req.{{.ServiceName}},
+		s.db.{{.ServiceName}}.UpdateOneID(request.{{.ServiceName}}.Id),
+		request.{{.ServiceName}},
 	).Save(ctx)
 	if err != nil {
 		return nil, err

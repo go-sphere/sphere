@@ -32,7 +32,7 @@ var (
 	ErrImageHostNotAllowed = fmt.Errorf("image host not allowed")
 )
 
-func (s *Service) GetMineInfo(ctx context.Context, req *apiv1.GetMineInfoRequest) (*apiv1.GetMineInfoResponse, error) {
+func (s *Service) GetMineInfo(ctx context.Context, request *apiv1.GetMineInfoRequest) (*apiv1.GetMineInfoResponse, error) {
 	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -42,7 +42,7 @@ func (s *Service) GetMineInfo(ctx context.Context, req *apiv1.GetMineInfoRequest
 		return nil, err
 	}
 	return &apiv1.GetMineInfoResponse{
-		User: s.render.Me(me),
+		User: s.render.UserFull(me),
 	}, nil
 }
 
@@ -73,34 +73,34 @@ func (s *Service) GetMinePlatform(ctx context.Context, request *apiv1.GetMinePla
 	return &res, nil
 }
 
-func (s *Service) UpdateMineInfo(ctx context.Context, req *apiv1.UpdateMineInfoRequest) (*apiv1.UpdateMineInfoResponse, error) {
+func (s *Service) UpdateMineInfo(ctx context.Context, request *apiv1.UpdateMineInfoRequest) (*apiv1.UpdateMineInfoResponse, error) {
 	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	req.Avatar, err = s.uploadRemoteImage(ctx, req.Avatar)
+	request.Avatar, err = s.uploadRemoteImage(ctx, request.Avatar)
 	if err != nil {
 		return nil, err
 	}
-	req.Avatar = s.storage.ExtractKeyFromURL(req.Avatar)
+	request.Avatar = s.storage.ExtractKeyFromURL(request.Avatar)
 	up, err := s.db.User.UpdateOneID(id).
-		SetUsername(req.Username).
-		SetAvatar(req.Avatar).
+		SetUsername(request.Username).
+		SetAvatar(request.Avatar).
 		Save(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &apiv1.UpdateMineInfoResponse{
-		User: s.render.Me(up),
+		User: s.render.UserFull(up),
 	}, nil
 }
 
-func (s *Service) BindPhoneWxMini(ctx context.Context, req *apiv1.BindPhoneWxMiniRequest) (*apiv1.BindPhoneWxMiniResponse, error) {
+func (s *Service) BindPhoneWxMini(ctx context.Context, request *apiv1.BindPhoneWxMiniRequest) (*apiv1.BindPhoneWxMiniResponse, error) {
 	userId, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	number, err := s.wechat.GetUserPhoneNumber(ctx, req.Code, wechat.WithRetryable(true))
+	number, err := s.wechat.GetUserPhoneNumber(ctx, request.Code, wechat.WithRetryable(true))
 	if err != nil {
 		return nil, err
 	}

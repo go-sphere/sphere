@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package dash.v1;
+
+import "entpb/entpb.proto";
+import "google/api/annotations.proto";
+import "buf/validate/validate.proto";
+
+service AdminSessionService {
+  rpc AdminSessionList(AdminSessionListRequest) returns (AdminSessionListResponse) {
+    option (google.api.http) = {
+      get: "/api/admin-session/list"
+    };
+  }
+  rpc AdminSessionDelete(AdminSessionDeleteRequest) returns (AdminSessionDeleteResponse) {
+    option (google.api.http) = {
+      delete: "/api/admin-session/delete/{id}"
+    };
+  }
+}
+
+message AdminSessionListRequest {
+  int64 page = 1 [
+    (buf.validate.field).required = false,
+    (buf.validate.field).int64.gte = 0
+  ]; // @gotags: json:"-",form:"page"
+  int64 page_size = 2 [
+    (buf.validate.field).int64.gte = 0
+  ]; // @gotags: json:"-",form:"page_size"
+}
+
+message AdminSessionListResponse {
+  repeated entpb.AdminSession admin_sessions = 1;
+  int64 total_size = 2;
+  int64 total_page = 3;
+}
+
+message AdminSessionDeleteRequest {
+  int64 id = 1; // @gotags: json:"-",uri:"id"
+}
+
+message AdminSessionDeleteResponse {
+}
