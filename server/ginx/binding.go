@@ -10,64 +10,78 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Errors
-
 var (
 	ErrBindingElementMustBePointer = errors.New("universe binding element must be a pointer")
 	ErrBindingElementMustBeStruct  = errors.New("universe binding element must be a struct")
 	ErrUnsupportedFieldType        = errors.New("unsupported field type")
 )
 
-// TagNameFunc
+var (
+	invalidTags = map[string]bool{
+		"":  true,
+		"-": true,
+	}
+)
+
+type ValueGetterFunc = func(ctx *gin.Context, name string) (string, bool)
 
 type TagNameGetter interface {
-	Get(f reflect.StructField) string
+	Get(f reflect.StructField) (string, bool)
 }
 
-type TagNameFunc func(f reflect.StructField) string
+type TagNameFunc func(f reflect.StructField) (string, bool)
 
-func (f TagNameFunc) Get(field reflect.StructField) string {
+func (f TagNameFunc) Get(field reflect.StructField) (string, bool) {
 	return f(field)
 }
 
 func simpleTagNameFunc(tag string) TagNameFunc {
-	return func(f reflect.StructField) string {
-		return strings.Split(f.Tag.Get(tag), ",")[0]
+	return func(f reflect.StructField) (string, bool) {
+		cmp := strings.Split(f.Tag.Get(tag), ",")
+		if len(cmp) == 0 {
+			return "", false
+		}
+		return cmp[0], true
 	}
 }
 
-func protobufTagNameFunc(f reflect.StructField) string {
+func protobufTagNameFunc(f reflect.StructField) (string, bool) {
 	cmp := strings.Split(f.Tag.Get("protobuf"), ",")
 	for _, s := range cmp {
 		if strings.HasPrefix(s, "name=") {
-			return strings.TrimPrefix(s, "name=")
+			return strings.TrimPrefix(s, "name="), true
 		}
 	}
-	return ""
+	return "", false
 }
 
 func multiTagNameFunc(fns ...TagNameFunc) TagNameFunc {
-	return func(f reflect.StructField) string {
+	return func(f reflect.StructField) (string, bool) {
 		for _, fn := range fns {
-			if name := fn.Get(f); name != "" && name != "-" {
-				return name
+			name, ok := fn.Get(f)
+			if ok && !invalidTags[name] {
+				return name, true
 			}
 		}
-		return ""
+		return "", false
 	}
 }
-
-// UniverseBinding
 
 type fieldInfo struct {
 	index int
 	tag   string
+	// isPtr    bool
+	// kind     reflect.Kind
+	// elemKind reflect.Kind
 }
+
 type UniverseBinding struct {
 	tagName     string
 	tagGetter   TagNameGetter
-	valueGetter func(ctx *gin.Context, name string) (string, bool)
-	cache       sync.Map
+	valueGetter ValueGetterFunc
+
+	cache      sync.RWMutex
+	fieldCache map[reflect.Type][]*fieldInfo
 }
 
 func (u *UniverseBinding) Name() string {
@@ -100,38 +114,57 @@ func (u *UniverseBinding) Bind(ctx *gin.Context, obj any) error {
 	return nil
 }
 
-func (u *UniverseBinding) getFieldInfo(typ reflect.Type) []fieldInfo {
-	if cached, ok := u.cache.Load(typ); ok {
-		return cached.([]fieldInfo)
+func (u *UniverseBinding) getFieldInfo(typ reflect.Type) []*fieldInfo {
+	u.cache.RLock()
+	if fields, ok := u.fieldCache[typ]; ok {
+		u.cache.RUnlock()
+		return fields
+	}
+	u.cache.RUnlock()
+
+	u.cache.Lock()
+	defer u.cache.Unlock()
+	if fields, ok := u.fieldCache[typ]; ok {
+		return fields
 	}
 	fields := u.analyzeFields(typ)
-	u.cache.Store(typ, fields)
+	u.fieldCache[typ] = fields
 	return fields
 }
 
-func (u *UniverseBinding) analyzeFields(typ reflect.Type) []fieldInfo {
-	var fields []fieldInfo
+func (u *UniverseBinding) analyzeFields(typ reflect.Type) []*fieldInfo {
+	numFields := typ.NumField()
+	fields := make([]*fieldInfo, 0, numFields)
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
-		tag := u.tagGetter.Get(field)
-		if tag == "" || tag == "-" {
+		tag, ok := u.tagGetter.Get(field)
+		if !ok || invalidTags[tag] {
 			continue
 		}
-		fields = append(fields, fieldInfo{index: i, tag: tag})
+		info := &fieldInfo{
+			index: i,
+			tag:   tag,
+			// kind:  field.Type.Kind(),
+			// isPtr: field.Type.Kind() == reflect.Ptr,
+		}
+		//if info.isPtr {
+		//	info.elemKind = field.Type.Elem().Kind()
+		//}
+		fields = append(fields, info)
 	}
 	return fields
 }
 
 func (u *UniverseBinding) setFieldValue(fieldValue reflect.Value, val string) error {
-	if fieldValue.Kind() == reflect.Ptr {
+	kind := fieldValue.Kind()
+	if kind == reflect.Ptr {
 		if fieldValue.IsNil() {
 			newVal := reflect.New(fieldValue.Type().Elem())
 			fieldValue.Set(newVal)
 		}
 		return u.setFieldValue(fieldValue.Elem(), val)
 	}
-
-	switch fieldValue.Kind() {
+	switch kind {
 	case reflect.String:
 		fieldValue.SetString(val)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -164,8 +197,6 @@ func (u *UniverseBinding) setFieldValue(fieldValue reflect.Value, val string) er
 	return nil
 }
 
-/// Predefined bindings
-
 var (
 	uriBinding = &UniverseBinding{
 		tagName:   "uri",
@@ -173,6 +204,7 @@ var (
 		valueGetter: func(ctx *gin.Context, name string) (string, bool) {
 			return ctx.Params.Get(name)
 		},
+		fieldCache: make(map[reflect.Type][]*fieldInfo, 32),
 	}
 	queryBinding = &UniverseBinding{
 		tagName:   "form",
@@ -180,10 +212,9 @@ var (
 		valueGetter: func(ctx *gin.Context, name string) (string, bool) {
 			return ctx.GetQuery(name)
 		},
+		fieldCache: make(map[reflect.Type][]*fieldInfo, 32),
 	}
 )
-
-/// Public functions
 
 func ShouldBindUri(ctx *gin.Context, obj any) error {
 	return uriBinding.Bind(ctx, obj)

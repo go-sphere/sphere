@@ -34,7 +34,10 @@ func TestShouldBind(t *testing.T) {
 		QueryTest1: "query",
 		QueryTest2: &queryTest2,
 	}
-	paramsRaw, err := json.Marshal(params)
+	paramsRaw, err := json.Marshal(map[string]interface{}{
+		"field_test1": params.FieldTest1,
+		"field_test2": params.FieldTest2,
+	})
 	if err != nil {
 		t.Fatalf("Failed to marshal params: %v", err)
 	}
