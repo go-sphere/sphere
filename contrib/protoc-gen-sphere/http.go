@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	validatepb "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
+	"github.com/TBXark/sphere/contrib/sphere-shared/tags"
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
@@ -294,32 +295,12 @@ func buildPathVars(path string) (map[string]*string, []string) {
 	return res, vars
 }
 
-var sphereTagsRegex = regexp.MustCompile(`^//.*?@(?i:sphere?):\s*(.*)$`)
-
 func findQueryParam(comment, defaultName string) string {
-	cmp := sphereTagsRegex.FindStringSubmatch(strings.TrimSpace(comment))
-	if len(cmp) != 2 {
-		return ""
-	}
-	tags := strings.Split(cmp[1], ",")
-	for _, part := range tags {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		if !strings.HasPrefix(part, "form") {
-			continue
-		}
-		if strings.Contains(part, "=") {
-			kvParts := strings.SplitN(part, "=", 2)
-			value := strings.TrimSpace(kvParts[1])
-			if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
-				value = value[1 : len(value)-1]
-				return value
-			}
-			return ""
-		} else {
-			return defaultName
+	items := tags.NewSphereTagItems(comment, defaultName)
+	for _, item := range items {
+		if item.Key != "form" {
+			value := strings.Trim(item.Value, " \"")
+			return strings.Split(value, ",")[0]
 		}
 	}
 	return ""
@@ -334,12 +315,12 @@ func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*st
 		}
 		formName := ""
 		if field.Comments.Leading.String() != "" {
-			if n := findQueryParam(field.Comments.Leading.String(), name); n != "" {
+			if n := findQueryParam(string(field.Comments.Leading), name); n != "" {
 				formName = n
 			}
 		}
 		if field.Comments.Trailing.String() != "" && formName == "" {
-			if n := findQueryParam(field.Comments.Trailing.String(), name); n != "" {
+			if n := findQueryParam(string(field.Comments.Trailing), name); n != "" {
 				formName = n
 			}
 		}

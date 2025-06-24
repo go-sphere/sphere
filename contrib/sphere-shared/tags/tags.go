@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	rComment = regexp.MustCompile(`^//.*?@(?i:sphere?)=\s*(.*)$`)
+	rComment = regexp.MustCompile(`^//.*?@(?i:sphere?):\s*(.*)$`)
 	rTags    = regexp.MustCompile(`[\w_]+:"[^"]+"`)
 )
 
