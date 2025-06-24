@@ -2,12 +2,10 @@ module github.com/TBXark/sphere/contrib/sphere-cli
 
 go 1.23.2
 
-replace github.com/TBXark/sphere/contrib/sphere-shared => ../sphere-shared
-
 require (
 	entgo.io/contrib v0.6.0
 	entgo.io/ent v0.14.4
-	github.com/TBXark/sphere/contrib/sphere-shared v0.0.0-20250624145222-d7e1cbf1b164
+	github.com/TBXark/sphere/contrib/sphere-shared v0.0.0-20250624152503-5169145a468c
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jhump/protoreflect v1.17.0
 	github.com/mitchellh/mapstructure v1.5.0

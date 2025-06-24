@@ -371,7 +371,7 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars [
 
 	// Add request body
 	if !(method == http.MethodGet || method == http.MethodDelete) {
-		builder.WriteString("// @Param request body " + m.Input.GoIdent.GoName + " true \"Request body\"\n")
+		builder.WriteString("// @Param request body " + m.Input.GoIdent.GoName + " true \"request body\"\n")
 	}
 
 	builder.WriteString("// @Success 200 {object} " + conf.packageDesc.DataResponseType + "[" + m.Output.GoIdent.GoName + "]\n")
