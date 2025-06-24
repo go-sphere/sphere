@@ -23,15 +23,16 @@ func TestShouldBind(t *testing.T) {
 		PathTest1  string `protobuf:"bytes,3,opt,name=path_test1,json=pathTest1,proto3" json:"path_test1,omitempty"`
 		PathTest2  int64  `protobuf:"varint,4,opt,name=path_test2,json=pathTest2,proto3" json:"-" uri:"path_test2"`
 		QueryTest1 string `protobuf:"bytes,5,opt,name=query_test1,json=queryTest1,proto3" json:"query_test1,omitempty"`
-		QueryTest2 int64  `protobuf:"varint,6,opt,name=query_test2,json=queryTest2,proto3" json:"-" form:"query_test2,omitempty"`
+		QueryTest2 *int64 `protobuf:"varint,6,opt,name=query_test2,json=queryTest2,proto3" json:"-" form:"query_test2,omitempty"`
 	}
+	queryTest2 := int64(789)
 	params := &Params{
 		FieldTest1: "field",
 		FieldTest2: 123,
 		PathTest1:  "path",
 		PathTest2:  456,
 		QueryTest1: "query",
-		QueryTest2: 789,
+		QueryTest2: &queryTest2,
 	}
 	paramsRaw, err := json.Marshal(params)
 	if err != nil {
@@ -48,6 +49,11 @@ func TestShouldBind(t *testing.T) {
 			assert.Equal(t, params.PathTest1, obj.PathTest1)
 			assert.Equal(t, params.PathTest2, obj.PathTest2)
 			assert.Equal(t, params.QueryTest1, obj.QueryTest1)
+			if params.QueryTest2 != nil {
+				assert.Equal(t, *params.QueryTest2, *obj.QueryTest2)
+			} else {
+				assert.Nil(t, obj.QueryTest2)
+			}
 			c.AbortWithStatus(200)
 		}
 	})
@@ -55,7 +61,7 @@ func TestShouldBind(t *testing.T) {
 	w := httptest.NewRecorder()
 	query := url.Values{}
 	query.Add("query_test1", params.QueryTest1)
-	query.Add("query_test2", fmt.Sprintf("%d", params.QueryTest2))
+	query.Add("query_test2", fmt.Sprintf("%d", *params.QueryTest2))
 	uri := fmt.Sprintf("/api/test/%s/second/%d?%s", params.PathTest1, params.PathTest2, query.Encode())
 	req, _ := http.NewRequest("GET", uri, bytes.NewReader(paramsRaw))
 	router.ServeHTTP(w, req)

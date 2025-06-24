@@ -13,8 +13,8 @@ import (
 // Errors
 
 var (
-	ErrBindingElementMustBePointer = errors.New("binding element must be a pointer")
-	ErrBindingElementMustBeStruct  = errors.New("binding element must be a struct")
+	ErrBindingElementMustBePointer = errors.New("universe binding element must be a pointer")
+	ErrBindingElementMustBeStruct  = errors.New("universe binding element must be a struct")
 	ErrUnsupportedFieldType        = errors.New("unsupported field type")
 )
 
@@ -59,10 +59,14 @@ func multiTagNameFunc(fns ...TagNameFunc) TagNameFunc {
 
 // UniverseBinding
 
+type fieldInfo struct {
+	index int
+	tag   string
+}
 type UniverseBinding struct {
 	tagName     string
 	tagGetter   TagNameGetter
-	valueGetter func(c *gin.Context, name string) (string, bool)
+	valueGetter func(ctx *gin.Context, name string) (string, bool)
 	cache       sync.Map
 }
 
@@ -70,7 +74,7 @@ func (u *UniverseBinding) Name() string {
 	return "universe"
 }
 
-func (u *UniverseBinding) Bind(c *gin.Context, obj any) error {
+func (u *UniverseBinding) Bind(ctx *gin.Context, obj any) error {
 	value := reflect.ValueOf(obj)
 	if value.Kind() != reflect.Ptr {
 		return ErrBindingElementMustBePointer
@@ -81,14 +85,10 @@ func (u *UniverseBinding) Bind(c *gin.Context, obj any) error {
 	}
 
 	typ := value.Type()
-	fields, ok := u.getFieldsFromCache(typ)
-	if !ok {
-		fields = u.analyzeFields(typ)
-		u.cache.Store(typ, fields)
-	}
+	fields := u.getFieldInfo(typ)
 
 	for _, field := range fields {
-		val, exist := u.valueGetter(c, field.tag)
+		val, exist := u.valueGetter(ctx, field.tag)
 		if !exist {
 			continue
 		}
@@ -100,18 +100,13 @@ func (u *UniverseBinding) Bind(c *gin.Context, obj any) error {
 	return nil
 }
 
-/// fieldInfo
-
-type fieldInfo struct {
-	index int
-	tag   string
-}
-
-func (u *UniverseBinding) getFieldsFromCache(typ reflect.Type) ([]fieldInfo, bool) {
+func (u *UniverseBinding) getFieldInfo(typ reflect.Type) []fieldInfo {
 	if cached, ok := u.cache.Load(typ); ok {
-		return cached.([]fieldInfo), true
+		return cached.([]fieldInfo)
 	}
-	return nil, false
+	fields := u.analyzeFields(typ)
+	u.cache.Store(typ, fields)
+	return fields
 }
 
 func (u *UniverseBinding) analyzeFields(typ reflect.Type) []fieldInfo {
@@ -128,6 +123,14 @@ func (u *UniverseBinding) analyzeFields(typ reflect.Type) []fieldInfo {
 }
 
 func (u *UniverseBinding) setFieldValue(fieldValue reflect.Value, val string) error {
+	if fieldValue.Kind() == reflect.Ptr {
+		if fieldValue.IsNil() {
+			newVal := reflect.New(fieldValue.Type().Elem())
+			fieldValue.Set(newVal)
+		}
+		return u.setFieldValue(fieldValue.Elem(), val)
+	}
+
 	switch fieldValue.Kind() {
 	case reflect.String:
 		fieldValue.SetString(val)
@@ -167,31 +170,31 @@ var (
 	uriBinding = &UniverseBinding{
 		tagName:   "uri",
 		tagGetter: multiTagNameFunc(simpleTagNameFunc("uri"), protobufTagNameFunc),
-		valueGetter: func(c *gin.Context, name string) (string, bool) {
-			return c.Params.Get(name)
+		valueGetter: func(ctx *gin.Context, name string) (string, bool) {
+			return ctx.Params.Get(name)
 		},
 	}
 	queryBinding = &UniverseBinding{
 		tagName:   "form",
 		tagGetter: multiTagNameFunc(simpleTagNameFunc("form"), protobufTagNameFunc),
-		valueGetter: func(c *gin.Context, name string) (string, bool) {
-			return c.GetQuery(name)
+		valueGetter: func(ctx *gin.Context, name string) (string, bool) {
+			return ctx.GetQuery(name)
 		},
 	}
 )
 
 /// Public functions
 
-func ShouldBindUri(c *gin.Context, obj any) error {
-	return uriBinding.Bind(c, obj)
+func ShouldBindUri(ctx *gin.Context, obj any) error {
+	return uriBinding.Bind(ctx, obj)
 }
 
-func ShouldBindQuery(c *gin.Context, obj any) error {
-	return queryBinding.Bind(c, obj)
+func ShouldBindQuery(ctx *gin.Context, obj any) error {
+	return queryBinding.Bind(ctx, obj)
 }
 
-func ShouldBindJSON(c *gin.Context, obj any) error {
-	return c.ShouldBindJSON(obj)
+func ShouldBindJSON(ctx *gin.Context, obj any) error {
+	return ctx.ShouldBindJSON(obj)
 }
 
 func ShouldBind(ctx *gin.Context, obj any, uri, query, body bool) error {
