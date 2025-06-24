@@ -22,6 +22,8 @@ Flags:
 Use "sphere-cli [command] --help" for more information about a command.
 ```
 
+---
+
 ### `sphere-cli create`
 
 ```
@@ -35,6 +37,8 @@ Flags:
       --module string   Go module name for the project (optional)
       --name string     Name of the new Sphere project
 ```
+
+---
 
 ### `sphere-cli ent2proto`
 
@@ -58,6 +62,8 @@ Flags:
       --uuid_proto_type string          use proto type for uuid.UUID, one of string, bytes (default "string")
 ```
 
+---
+
 ### `sphere-cli rename`
 
 ```
@@ -72,6 +78,8 @@ Flags:
       --old string      Old Go module name
       --target string   Target directory to rename the module in (default ".")
 ```
+
+---
 
 ### `sphere-cli service`
 
@@ -89,4 +97,33 @@ Flags:
   -h, --help   help for service
 
 Use "sphere-cli service [command] --help" for more information about a command.
+```
+
+#### `sphere-cli service golang`
+
+```
+Generate service Golang code for Sphere projects, including service interfaces and implementations in Go.
+
+Usage:
+  sphere-cli service golang [flags]
+
+Flags:
+  -h, --help             help for golang
+      --mod string       Go module path for the generated code (default "github.com/TBXark/sphere/layout")
+      --name string      Name of the service
+      --package string   Package name for the generated Go code (default "dash.v1")
+```
+
+#### `sphere-cli service proto`
+
+```
+Generate service proto code for Sphere projects, including proto definitions and gRPC service implementations.
+
+Usage:
+  sphere-cli service proto [flags]
+
+Flags:
+  -h, --help             help for proto
+      --name string      Name of the service
+      --package string   Package name for the generated proto code (default "dash.v1")
 ```

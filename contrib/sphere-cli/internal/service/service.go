@@ -20,12 +20,12 @@ type serviceConfig struct {
 //go:embed service.tpl
 var serviceTemplate string
 
-func GenServiceGolang(name, pkg string) (string, error) {
+func GenServiceGolang(name, pkg, mod string) (string, error) {
 	conf := serviceConfig{
 		ServiceName:     strcase.ToCamel(name),
 		PackagePath:     strings.Join(strings.Split(pkg, "."), "/"),
 		ServicePackage:  strings.ReplaceAll(pkg, ".", ""),
-		BizPackagePath:  "github.com/TBXark/sphere/layout",
+		BizPackagePath:  mod,
 		ServiceFileName: strings.ToLower(name),
 	}
 

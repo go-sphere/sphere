@@ -31,7 +31,7 @@ func init() {
 	{
 		flag := serviceProtoCmd.Flags()
 		name := flag.String("name", "", "Name of the service")
-		pkg := flag.String("package", "", "Package name for the generated proto code")
+		pkg := flag.String("package", "dash.v1", "Package name for the generated proto code")
 		serviceProtoCmd.RunE = func(cmd *cobra.Command, args []string) error {
 			if *name == "" || *pkg == "" {
 				return cmd.Usage()
@@ -47,12 +47,13 @@ func init() {
 	{
 		flag := serviceGolangCmd.Flags()
 		name := flag.String("name", "", "Name of the service")
-		pkg := flag.String("package", "", "Package name for the generated Go code")
+		pkg := flag.String("package", "dash.v1", "Package name for the generated Go code")
+		mod := flag.String("mod", "github.com/TBXark/sphere/layout", "Go module path for the generated code")
 		serviceGolangCmd.RunE = func(cmd *cobra.Command, args []string) error {
 			if *name == "" || *pkg == "" {
 				return cmd.Usage()
 			}
-			text, err := service.GenServiceGolang(*name, *pkg)
+			text, err := service.GenServiceGolang(*name, *pkg, *mod)
 			if err != nil {
 				return err
 			}
