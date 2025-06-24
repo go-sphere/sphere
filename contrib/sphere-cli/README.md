@@ -81,6 +81,22 @@ Flags:
 
 ---
 
+### `sphere-cli retags`
+
+```
+Refer to "favadi/protoc-go-inject-tag", which is specifically optimized for the sphere project.
+
+Usage:
+  sphere-cli retags [flags]
+
+Flags:
+  -h, --help                 help for retags
+      --input string         pattern to match input file(s) (default "./api/*/*/*.pb.go")
+      --remove_tag_comment   remove tag comment (default true)
+```
+
+---
+
 ### `sphere-cli service`
 
 ```

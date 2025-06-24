@@ -15,7 +15,7 @@ func init() {
 	rootCmd.AddCommand(retagsCmd)
 
 	flag := retagsCmd.Flags()
-	input := flag.String("input", "api", "pattern to match input file(s)")
+	input := flag.String("input", "./api/*/*/*.pb.go", "pattern to match input file(s)")
 	remove := flag.Bool("remove_tag_comment", true, "remove tag comment")
 
 	retagsCmd.RunE = func(cmd *cobra.Command, args []string) error {
