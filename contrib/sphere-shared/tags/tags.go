@@ -20,8 +20,8 @@ func FromComment(comment string) string {
 }
 
 type Item struct {
-	key   string
-	value string
+	Key   string
+	Value string
 }
 
 type Items []Item
@@ -29,7 +29,7 @@ type Items []Item
 func (t Items) Format() string {
 	var tags []string
 	for _, item := range t {
-		tags = append(tags, fmt.Sprintf(`%s:%s`, item.key, item.value))
+		tags = append(tags, fmt.Sprintf(`%s:%s`, item.Key, item.Value))
 	}
 	return strings.Join(tags, " ")
 }
@@ -39,7 +39,7 @@ func (t Items) Override(items Items) Items {
 	for i := range t {
 		dup := -1
 		for j := range items {
-			if t[i].key == items[j].key {
+			if t[i].Key == items[j].Key {
 				dup = j
 				break
 			}
@@ -60,8 +60,8 @@ func NewTagItems(tag string) Items {
 	for _, t := range split {
 		sepPos := strings.Index(t, ":")
 		items = append(items, Item{
-			key:   t[:sepPos],
-			value: t[sepPos+1:],
+			Key:   t[:sepPos],
+			Value: t[sepPos+1:],
 		})
 	}
 	return items
@@ -84,13 +84,13 @@ func NewSphereTagItems(raw, protoName string) Items {
 				continue
 			}
 			items = append(items, Item{
-				key:   kvParts[0],
-				value: strings.TrimSpace(kvParts[1]),
+				Key:   kvParts[0],
+				Value: strings.TrimSpace(kvParts[1]),
 			})
 		} else if protoName != "" {
 			items = append(items, Item{
-				key:   part,
-				value: fmt.Sprintf("\"%s\"", protoName),
+				Key:   part,
+				Value: fmt.Sprintf("\"%s\"", protoName),
 			})
 		}
 	}
@@ -99,10 +99,10 @@ func NewSphereTagItems(raw, protoName string) Items {
 
 func GetProtoTagName(tags Items) string {
 	for _, item := range tags {
-		if item.key != "protobuf" {
+		if item.Key != "protobuf" {
 			continue
 		}
-		cmp := strings.Split(item.value, ",")
+		cmp := strings.Split(item.Value, ",")
 		for _, c := range cmp {
 			if strings.HasPrefix(c, "name=") {
 				return strings.TrimPrefix(c, "name=")
