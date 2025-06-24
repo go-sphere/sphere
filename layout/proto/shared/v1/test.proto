@@ -3,6 +3,7 @@ syntax = "proto3";
 package shared.v1;
 
 import "google/api/annotations.proto";
+import "buf/validate/validate.proto";
 
 service TestService {
   rpc RunTest(RunTestRequest) returns (RunTestResponse) {
@@ -16,10 +17,12 @@ service TestService {
 message RunTestRequest {
   string field_test1 = 1;
   int64 field_test2 = 2;
-  string path_test1 = 3; // @gotags: json:"-" uri:"path_test1"
-  int64  path_test2 = 4; // @gotags: json:"-" uri:"path_test2"
-  string query_test1 = 5; // @gotags: json:"-" form:"query_test1"
-  int64  query_test2 = 6; // @gotags: json:"-" form:"query_test2,omitempty"
+  string path_test1 = 3; // @gotags: json:"-",uri:"path_test1"
+  int64  path_test2 = 4; // @gotags: json:"-",uri:"path_test2"
+  string query_test1 = 5 [
+    (buf.validate.field).required = true
+  ]; // @gotags: json:"-" form:"query_test1"
+  int64  query_test2 = 6; // @gotags: json:"-",form:"query_test2,omitempty"
 }
 
 message RunTestResponse {

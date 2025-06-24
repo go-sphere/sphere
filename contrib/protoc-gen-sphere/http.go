@@ -361,7 +361,8 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars [
 	// Add query parameters
 	for _, param := range queryVars {
 		paramType := buildSwaggerParamType(m.Input.Desc, param)
-		builder.WriteString(fmt.Sprintf("// @Param %s query %s false \"%s\"\n", param, paramType, param))
+		required := getFieldRequired(m.Input.Desc, param)
+		builder.WriteString(fmt.Sprintf("// @Param %s query %s %v \"%s\"\n", param, paramType, required, param))
 	}
 
 	// Add request body
@@ -405,6 +406,24 @@ func buildSwaggerParamType(messageDesc protoreflect.MessageDescriptor, fieldName
 	default:
 		return "any"
 	}
+}
+
+func getFieldRequired(messageDesc protoreflect.MessageDescriptor, fieldName string) bool {
+	field := messageDesc.Fields().ByName(protoreflect.Name(fieldName))
+	if field == nil {
+		return false
+	}
+	opts := field.Options()
+	if opts == nil {
+		return false
+	}
+	if proto.HasExtension(opts, validatepb.E_Field) {
+		fieldConstraints := proto.GetExtension(opts, validatepb.E_Field).(*validatepb.FieldRules)
+		if fieldConstraints != nil {
+			return fieldConstraints.GetRequired()
+		}
+	}
+	return false
 }
 
 func buildGinRoutePath(protoPath string) string {

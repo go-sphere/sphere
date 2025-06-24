@@ -2,7 +2,7 @@
 install: ## Install all dependencies
 	 cd contrib/protoc-gen-sphere && go mod tidy && go install .
 	 cd contrib/protoc-gen-route && go mod tidy && go install .
-	 #cd contrib/sphere-cli && go mod tidy && go install .
+	 cd contrib/sphere-cli && go mod tidy && go install .
 
 .PHONY: lint
 lint: ## Run linter

@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package {{.PackageName}};
 
-import "google/api/annotations.proto";
 import "entpb/entpb.proto";
-
+import "google/api/annotations.proto";
+import "buf/validate/validate.proto";
 
 service {{.ServiceName}}Service {
   rpc {{.ServiceName}}List({{.ServiceName}}ListRequest) returns ({{.ServiceName}}ListResponse) {
@@ -38,11 +38,12 @@ service {{.ServiceName}}Service {
 
 message {{.ServiceName}}ListRequest {
   int64 page = 1 [
+    (buf.validate.field).required = false,
     (buf.validate.field).int64.gte = 0
-  ];
+  ]; // @gotags: json:"-",form:"page"
   int64 page_size = 2 [
     (buf.validate.field).int64.gte = 0
-  ];
+  ]; // @gotags: json:"-",form:"page_size"
 }
 
 message {{.ServiceName}}ListResponse {
@@ -68,7 +69,7 @@ message {{.ServiceName}}UpdateResponse {
 }
 
 message {{.ServiceName}}DetailRequest {
-  int64 id = 1; // @gotags: json:"-"` uri:"id"`
+  int64 id = 1; // @gotags: json:"-",uri:"id"
 }
 
 message {{.ServiceName}}DetailResponse {
@@ -76,7 +77,7 @@ message {{.ServiceName}}DetailResponse {
 }
 
 message {{.ServiceName}}DeleteRequest {
-  int64 id = 1; // @gotags: json:"-"` uri:"id"`
+  int64 id = 1; // @gotags: json:"-",uri:"id"
 }
 
 message {{.ServiceName}}DeleteResponse {
