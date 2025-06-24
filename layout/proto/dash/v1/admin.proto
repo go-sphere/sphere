@@ -47,10 +47,10 @@ service AdminService {
 message AdminListRequest {
   int64 page = 1 [
     (buf.validate.field).int64.gte = 0
-  ]; // @gotags: json:"-",form:"page"
+  ]; // @sphere:form
   int64 page_size = 2 [
     (buf.validate.field).int64.gte = 0
-  ]; // @gotags: json:"-",form:"page_size"
+  ]; // @sphere:form
 }
 
 message AdminListResponse {
@@ -76,7 +76,7 @@ message AdminUpdateResponse {
 }
 
 message AdminDetailRequest {
-  int64 id = 1; // @gotags: json:"-",uri:"id"
+  int64 id = 1; // @sphere:uri
 }
 
 message AdminDetailResponse {
@@ -84,7 +84,7 @@ message AdminDetailResponse {
 }
 
 message AdminDeleteRequest {
-  int64 id = 1; // @gotags: json:"-",uri:"id"
+  int64 id = 1; // @sphere:uri
 }
 
 message AdminDeleteResponse {

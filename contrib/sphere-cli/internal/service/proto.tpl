@@ -40,10 +40,10 @@ message {{.ServiceName}}ListRequest {
   int64 page = 1 [
     (buf.validate.field).required = false,
     (buf.validate.field).int64.gte = 0
-  ]; // @gotags: json:"-",form:"page"
+  ]; // @sphere:form
   int64 page_size = 2 [
     (buf.validate.field).int64.gte = 0
-  ]; // @gotags: json:"-",form:"page_size"
+  ]; // @sphere:form
 }
 
 message {{.ServiceName}}ListResponse {
@@ -69,7 +69,7 @@ message {{.ServiceName}}UpdateResponse {
 }
 
 message {{.ServiceName}}DetailRequest {
-  int64 id = 1; // @gotags: json:"-",uri:"id"
+  int64 id = 1; // @sphere:uri
 }
 
 message {{.ServiceName}}DetailResponse {
@@ -77,7 +77,7 @@ message {{.ServiceName}}DetailResponse {
 }
 
 message {{.ServiceName}}DeleteRequest {
-  int64 id = 1; // @gotags: json:"-",uri:"id"
+  int64 id = 1; // @sphere:uri
 }
 
 message {{.ServiceName}}DeleteResponse {

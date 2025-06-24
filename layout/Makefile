@@ -19,6 +19,9 @@ LD_FLAGS      ?= -X $(MODULE)/internal/config.BuildVersion=$(BUILD_VER)
 GO_TAGS	   	  ?= jsoniter#,embed_dash
 GO_BUILD      ?= CGO_ENABLED=0 go build -trimpath -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
 GO_RUN        ?= CGO_ENABLED=0 go run -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
+# ---------- Go Tools ----------
+SPHERE_TOOLS ?= sphere-cli # go tool sphere-cli
+
 
 .PHONY: \
 	build build/linux/amd64 build/linux/arm64 build/all \
@@ -57,9 +60,9 @@ gen/db: ## Generate ent code
 	go run -tags spheretools ./cmd/tools/ent
 
 gen/proto: gen/db ## Generate proto files and run protoc plugins
-	go tool sphere-cli ent2proto --path=./internal/pkg/database/schema
+	$(SPHERE_TOOLS) ent2proto --path=./internal/pkg/database/schema
 	go tool buf generate
-	go tool protoc-go-inject-tag -input="./api/*/*/*.pb.go" -remove_tag_comment
+	$(SPHERE_TOOLS) retags --input="./api/*/*/*.pb.go" --remove_tag_comment
 	go run -tags spheretools ./cmd/tools/bind
 
 gen/docs: gen/proto ## Generate swagger docs

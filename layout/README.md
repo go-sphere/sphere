@@ -93,7 +93,7 @@ make gen/docs
 There are some rules for defining the http server interface:
 
 1. If it is a GET/DELETE request, the non-path field in the request message will be treated as a query parameter.
-2. For other requests, the non-path field in the request message will be treated as a body parameter, unless `@gotags: json:"-" uri:"path_test1"` is added in the message, in which case it will be treated as a path parameter. Or `@gotags: json:"-" form:"query_test1"` is added in the message, in which case it will be treated as a query parameter.
+2. For other requests, the non-path field in the request message will be treated as a body parameter, unless `@sphere:uri` is added in the message, in which case it will be treated as a path parameter. Or `@sphere:form` is added in the message, in which case it will be treated as a query parameter.
 3. It is not recommended to use pattern matching in the path parameter, such as `/api/test/{path_test1:.*}`, because it will cause routing conflicts. It is also not recommended to use pattern matching in the body parameter, such as `field_test1: .*`, because it will cause parameter parsing errors.
 
 

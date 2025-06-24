@@ -43,3 +43,8 @@ func Test_buildGinRoutePath(t *testing.T) {
 		}
 	}
 }
+
+func Test_findQueryParam(t *testing.T) {
+	name := findQueryParam("// @sphere:form=\"query_test2\"", "demo")
+	t.Logf("name: %s", name)
+}

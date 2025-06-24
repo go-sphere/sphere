@@ -294,29 +294,52 @@ func buildPathVars(path string) (map[string]*string, []string) {
 	return res, vars
 }
 
-func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*string) (res []string) {
-	r := regexp.MustCompile(`@gotags:.*form:"([^"^,]*).*"`)
-	findQueryParam := func(str string) string {
-		cmp := r.FindStringSubmatch(str)
-		if len(cmp) == 2 {
-			return cmp[1]
-		}
+var sphereTagsRegex = regexp.MustCompile(`^//.*?@(?i:sphere?):\s*(.*)$`)
+
+func findQueryParam(comment, defaultName string) string {
+	cmp := sphereTagsRegex.FindStringSubmatch(strings.TrimSpace(comment))
+	if len(cmp) != 2 {
 		return ""
 	}
+	tags := strings.Split(cmp[1], ",")
+	for _, part := range tags {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if !strings.HasPrefix(part, "form") {
+			continue
+		}
+		if strings.Contains(part, "=") {
+			kvParts := strings.SplitN(part, "=", 2)
+			value := strings.TrimSpace(kvParts[1])
+			if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
+				value = value[1 : len(value)-1]
+				return value
+			}
+			return ""
+		} else {
+			return defaultName
+		}
+	}
+	return ""
+}
+
+func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*string) []string {
+	var res []string
 	for _, field := range m.Input.Fields {
 		name := string(field.Desc.Name())
 		if _, ok := pathVars[name]; ok {
 			continue
 		}
-
 		formName := ""
 		if field.Comments.Leading.String() != "" {
-			if n := findQueryParam(field.Comments.Leading.String()); n != "" {
+			if n := findQueryParam(field.Comments.Leading.String(), name); n != "" {
 				formName = n
 			}
 		}
-		if field.Comments.Trailing.String() != "" {
-			if n := findQueryParam(field.Comments.Trailing.String()); n != "" {
+		if field.Comments.Trailing.String() != "" && formName == "" {
+			if n := findQueryParam(field.Comments.Trailing.String(), name); n != "" {
 				formName = n
 			}
 		}
@@ -328,7 +351,7 @@ func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*st
 			continue
 		}
 	}
-	return
+	return res
 }
 
 func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars []string, queryVars []string, conf *genConfig) string {
