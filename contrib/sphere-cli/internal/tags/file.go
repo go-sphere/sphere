@@ -9,15 +9,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
-)
 
-var (
-	rComment = regexp.MustCompile(`^//.*?@(?i:sphere?):\s*(.*)$`)
-	rInject  = regexp.MustCompile("`.+`$")
-	rTags    = regexp.MustCompile(`[\w_]+:"[^"]+"`)
-	rAll     = regexp.MustCompile(".*")
+	"github.com/TBXark/sphere/contrib/sphere-shared/tags"
 )
 
 type textArea struct {
@@ -64,7 +58,7 @@ func parseFile(inputPath string, src interface{}) ([]textArea, error) {
 				comments = append(comments, field.Comment.List...)
 			}
 			for _, comment := range comments {
-				tag := tagFromComment(comment.Text)
+				tag := tags.FromComment(comment.Text)
 				if tag == "" {
 					continue
 				}
