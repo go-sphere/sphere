@@ -163,3 +163,4 @@ fabric.properties
 /var/
 /api/
 /config.json
+/config_gen.json

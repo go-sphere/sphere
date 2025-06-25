@@ -49,10 +49,10 @@ build/all: build build/linux/amd64 ## Build all arch binary
 
 # ---------- Generate Tools ----------
 clean: ## Clean gen code and build files
-	rm -rf ./build
-	rm -rf ./swagger
-	rm -rf ./api
-	rm -rf ./internal/pkg/database/ent
+	rm -rf ./api/*
+	rm -rf ./build/*
+	rm -rf ./swagger/*
+	rm -rf ./internal/pkg/database/ent/*
 
 gen/wire: ## Generate wire code
 	$(GO) generate ./cmd/...
@@ -164,7 +164,7 @@ else
 endif
 
 init: ## Init all dependencies
-	go mod download
+	$(GO) mod download
 	$(MAKE) install
 	$(MAKE) gen/all
 	$(BUF_CLI) dep update
