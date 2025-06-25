@@ -27,6 +27,7 @@ BUF_CLI          ?= buf
 SWAG_CLI		 ?= swag
 SPHERE_CLI       ?= sphere-cli
 GOLANG_CI_LINT   ?= golangci-lint
+INTERNAL_TOOLS   ?= $(GO) run -tags spheretools
 
 .PHONY: \
 	build build/linux/amd64 build/linux/arm64 build/all clean\
@@ -58,16 +59,16 @@ gen/wire: ## Generate wire code
 	$(GO) generate ./cmd/...
 
 gen/conf: ## Generate example config
-	$(GO) run -tags spheretools ./cmd/tools/config gen
+	$(INTERNAL_TOOLS) ./cmd/tools/config gen
 
 gen/db: ## Generate ent code
-	$(GO) run -tags spheretools ./cmd/tools/ent
+	$(INTERNAL_TOOLS) ./cmd/tools/ent
 
 gen/proto: gen/db ## Generate proto files and run protoc plugins
 	$(SPHERE_CLI) entproto --path=./internal/pkg/database/schema
 	$(BUF_CLI) generate
 	$(SPHERE_CLI) retags --input="./api/*/*/*.pb.go" --remove_tag_comment
-	$(GO) run -tags spheretools ./cmd/tools/bind
+	$(INTERNAL_TOOLS) ./cmd/tools/bind
 
 gen/docs: gen/proto ## Generate swagger docs
 	$(SWAG_CLI) init \
@@ -132,7 +133,7 @@ run: ## Run the application
 	$(GO_RUN) $(MODULE)/cmd/app
 
 run/swag: ## Run the swagger server
-	$(GO) run -tags spheretools $(MODULE)/cmd/tools/docs
+	$(INTERNAL_TOOLS) $(MODULE)/cmd/tools/docs
 
 deploy: ## Deploy binary
 	./devops/deploy/deploy.sh deploy
