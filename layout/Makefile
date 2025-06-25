@@ -128,8 +128,8 @@ lint: ## Run linter
 	go tool buf lint
 
 fmt: ## Run formatter
-	go tool golangci-lint fmt
-	go tool golangci-lint run --fix
+	$(GOLANG_LINT) fmt
+	$(GOLANG_LINT) run --fix
 	go mod tidy
 	go fmt ./...
 	go tool buf format

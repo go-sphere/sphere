@@ -7,7 +7,7 @@ install: ## Install all dependencies
 	 cd cmd/sphere-cli && go mod tidy && go install .
 
 define fmt_mod
-	cd $1 && go mod tidy && go fmt ./... && $(GOLANG_LINT) fmt && $(GOLANG_LINT) run --fix
+	cd $1 && go mod tidy && go fmt ./... && go test ./... && $(GOLANG_LINT) fmt && $(GOLANG_LINT) run --fix
 endef
 
 .PHONY: fmt
