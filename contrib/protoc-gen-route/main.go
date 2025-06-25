@@ -14,13 +14,15 @@ import (
 var (
 	showVersion = flag.Bool("version", false, "print the version and exit")
 
-	optionsKey           = flag.String("options_key", "route", "options key in proto")
-	fileSuffix           = flag.String("file_suffix", "_route.pb.go", "generated file suffix")
-	requestModel         = flag.String("request_model", "", "request model")
-	responseModel        = flag.String("response_model", "", "response model")
-	extraDataModel       = flag.String("extra_data_model", "", "extra data model")
+	optionsKey   = flag.String("options_key", "route", "options key in proto")
+	fileSuffix   = flag.String("file_suffix", "_route.pb.go", "generated file suffix")
+	templateFile = flag.String("template_file", "", "template file, if not set, use default template")
+
+	requestModel   = flag.String("request_model", "", "request model")
+	responseModel  = flag.String("response_model", "", "response model")
+	extraDataModel = flag.String("extra_data_model", "", "extra data model")
+
 	extraDataConstructor = flag.String("extra_data_constructor", "", "extra data constructor, and return a pointer of extra data")
-	templateFile         = flag.String("template_file", "", "template file, if not set, use default template")
 )
 
 func main() {
@@ -37,9 +39,10 @@ func main() {
 			FileSuffix:   *fileSuffix,
 			TemplateFile: *templateFile,
 
-			RequestType:      goident.NewGoIdent(*requestModel),
-			ResponseType:     goident.NewGoIdent(*responseModel),
-			ExtraType:        goident.NewGoIdent(*extraDataModel),
+			RequestType:  goident.NewGoIdent(*requestModel),
+			ResponseType: goident.NewGoIdent(*responseModel),
+			ExtraType:    goident.NewGoIdent(*extraDataModel),
+
 			ExtraConstructor: goident.NewGoIdent(*extraDataConstructor, goident.IsFunc()),
 		}
 		if conf.RequestType == nil {

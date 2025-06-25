@@ -18,12 +18,12 @@ const (
 )
 
 var (
-	showVersion     = flag.Bool("version", false, "print the version and exit")
+	showVersion = flag.Bool("version", false, "print the version and exit")
+
 	omitempty       = flag.Bool("omitempty", true, "omit if google.api is empty")
 	omitemptyPrefix = flag.String("omitempty_prefix", "", "omit if google.api is empty")
 
-	templateFile = flag.String("template_file", "", "template file, if not set, use default template")
-
+	templateFile      = flag.String("template_file", "", "template file, if not set, use default template")
 	swaggerAuthHeader = flag.String("swagger_auth_header", swaggerAuthComment, "swagger auth header")
 
 	routerType    = flag.String("router_type", defaultGinPackage+";IRouter", "router type")
@@ -50,8 +50,9 @@ func main() {
 		conf := &http.Config{
 			Omitempty:       *omitempty,
 			OmitemptyPrefix: *omitemptyPrefix,
-			SwaggerAuth:     *swaggerAuthHeader,
-			TemplateFile:    *templateFile,
+
+			SwaggerAuth:  *swaggerAuthHeader,
+			TemplateFile: *templateFile,
 
 			RouterType:    goindent.NewGoIdent(*routerType),
 			ContextType:   goindent.NewGoIdent(*contextType),
