@@ -31,7 +31,7 @@ GO_INSTALL    ?= go install
 
 # ---------- Go Tools ----------
 BUF_CLI          ?= buf
-SWAG_CLI		 ?= swag
+SWAG_CLI         ?= swag
 SPHERE_CLI       ?= sphere-cli
 GOLANG_CI_LINT   ?= golangci-lint
 INTERNAL_TOOLS   ?= $(GO) run -tags spheretools
@@ -62,7 +62,7 @@ clean: ## Clean gen code and build files
 	rm -rf ./swagger/*
 	rm -rf ./internal/pkg/database/ent/*
 
-gen/wire: install ## Generate wire code
+gen/wire: ## Generate wire code
 	$(GO) generate ./cmd/...
 
 gen/conf: ## Generate example config

@@ -6,73 +6,22 @@
 
 ## Quick Start
 
-Follow these steps to get your project up and running.
-
-### 1. Create a New Project
-
-First, install the `sphere-cli` and use it to bootstrap your new application.
-
-```bash
-# Install the CLI tool
-go install github.com/TBXark/sphere/cmd/sphere-cli@latest
-
-# Create a new project
-sphere-cli create --name myproject --mod github.com/TBXark/myproject
-```
-
-`sphere` provides a flexible template. You are encouraged to modify the project structure to fit your specific needs without being locked into a rigid framework.
-
-### 2. Define Database Schema
-
-Define your database entities in the `/internal/pkg/database/ent/schema` directory using `ent`. For a detailed guide, see the [ent documentation](https://entgo.io/docs/getting-started).
-
-After defining your schemas, run the following command to generate the database models and corresponding Protobuf files:
-
-```bash
-make gen/db
-```
-
-### 3. Define API Interfaces
-
-Define your service's API endpoints in the `/proto` directory using `.proto` files. Sphere uses [gRPC-Gateway](https://grpc-ecosystem.github.io/grpc-gateway/) style annotations for HTTP/JSON transcoding. For more details, refer to the [Protobuf documentation](https://developers.google.com/protocol-buffers/docs/proto3) and [gRPC transcoding guide](https://cloud.google.com/endpoints/docs/grpc/transcoding).
-
-Once your API is defined, run the following command to generate the server code and Swagger/OpenAPI documentation:
-
-```bash
-make gen/docs
-```
-
-See the **API Definition Rules** section below for guidelines on structuring your requests.
-
-### 4. Implement Business Logic
-
-Write your business logic within the `/internal` directory, organizing it into `biz` (business), `service` (API implementation), and other relevant packages.
-
-### 5. Run the Server
-
-Create your application's main entry point in the `cmd` directory. Use [Google Wire](https://github.com/google/wire) for dependency injection to assemble your services and server.
-
-Finally, start the application:
-```bash
-make run
-```
+For a detailed walkthrough of setting up a new project, please see the [Quick Start Guide](docs/QUICK_START.md).
 
 ## Development Commands
 
 ```
 Sphere build tool. Usage: make [target]
 
-  build                Build binary
-  build/linux/amd64    Build linux amd64 binary
-  build/linux/arm64    Build linux arm64 binary
-  build/all            Build all arch binary
+  build                Build binary for current architecture
+  build/all            Build for all supported platforms
   clean                Clean gen code and build files
   gen/wire             Generate wire code
   gen/conf             Generate example config
   gen/db               Generate ent code
   gen/proto            Generate proto files and run protoc plugins
   gen/docs             Generate swagger docs
-  gen/all              Generate both ent, docs and wire
+  gen/all              Generate all code (ent, docs, wire)
   gen/dts              Generate swagger typescript docs
   build/assets         Build assets
   build/docker         Build docker image
@@ -81,7 +30,7 @@ Sphere build tool. Usage: make [target]
   run/swag             Run the swagger server
   deploy               Deploy binary
   lint                 Run linter
-  fmt                  Run formatter
+  fmt                  Run formatter and fix issues
   install              Install dependencies tools
   init                 Init all dependencies
   help                 Show this help message
@@ -111,13 +60,4 @@ Sphere build tool. Usage: make [target]
 
 ## API Definition Rules
 
-When defining HTTP transcoding rules in your `.proto` files, follow these guidelines:
-
-1.  **GET / DELETE**: Fields in the request message that are not part of the URL path are automatically treated as URL query parameters.
-2.  **POST / PUT / PATCH**:
-    *   By default, fields not in the URL path are part of the request body.
-    *   To bind a field to the URL path, use the `@sphere:uri` annotation.
-    *   To bind a field to URL query parameters, use the `@sphere:form` annotation.
-3.  **Path Matching**: Avoid using complex patterns like `/{path_test1:.*}` in path parameters, as it can lead to routing conflicts. Similarly, avoid patterns in the body (`body: "*"`) as it can cause parsing errors.
-
-For a complete example, see the [`test.proto`](./proto/shared/v1/test.proto) file.
+For detailed guidelines on defining API interfaces, including HTTP transcoding rules, path mapping, and field binding, please refer to the [API Definition Rules](docs/API_DEFINITIONS.md) documentation.

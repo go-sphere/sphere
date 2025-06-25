@@ -19,9 +19,17 @@ Sphere comes with powerful code generation tools to create `proto` files, `Swagg
 - **Dependency Injection**: Wire
 - **ORM**: Ent
 
-## Getting Started
+## Command line Tool
 
-Use the [`sphere-cli`](cmd/sphere-cli/README.md) tool to generate a new project from the [standard layout](./layout/README.md).
+- [`sphere-cli`](cmd/sphere-cli/README.md) - A command-line tool for `sphere` project management.
+- [`protoc-gen-sphere`](cmd/protoc-gen-sphere/README.md) - A plugin for generating HTTP server code from `.proto` files.
+- [`protoc-gen-route`](cmd/protoc-gen-route/README.md) - A plugin for generating routing code from `.proto` files.
+
+## Documentation
+
+- [Standard Layout](./layout/README.md). - Default sphere project template layout.
+- [Quick Start Guide](./layout/docs/QUICK_START.md) - A step-by-step guide to setting up a new Sphere project.
+- [API Definitions](./layout/docs/API_DEFINITIONS.md) - Guidelines for writing API definitions `.proto` files in Sphere.
 
 ## License
 
