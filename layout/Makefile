@@ -155,8 +155,8 @@ install: ## Install dependencies tools
 	$(GO_INSTALL) github.com/bufbuild/buf/cmd/buf@latest
 	$(GO_INSTALL) google.golang.org/protobuf/cmd/protoc-gen-go@latest
 	$(GO_INSTALL) github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-ifeq ($(IGNORE_INSTALL_SPHERE_CLI),1)
-	@echo "Skipping sphere tools installation as IGNORE_INSTALL_SPHERE_CLI=1"
+ifeq ($(IGNORE_INSTALL_SPHERE_TOOLS),1)
+	@echo "Skipping sphere tools installation as IGNORE_INSTALL_SPHERE_TOOLS=1"
 else
 	$(GO_INSTALL) github.com/TBXark/sphere/cmd/sphere-cli@latest
 	$(GO_INSTALL) github.com/TBXark/sphere/cmd/protoc-gen-sphere@latest
