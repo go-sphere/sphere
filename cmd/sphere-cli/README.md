@@ -47,13 +47,13 @@ Flags:
 
 ---
 
-### `sphere-cli ent2proto`
+### `sphere-cli entproto`
 
 ```
 Convert Ent schema to Protobuf definitions, generating .proto files from Ent schema definitions.
 
 Usage:
-  sphere-cli ent2proto [flags]
+  sphere-cli entproto [flags]
 
 Flags:
       --all_fields_required             ignore optional, use zero value instead (default true)
