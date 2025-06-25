@@ -1,8 +1,8 @@
 .PHONY: install
 install: ## Install all dependencies
-	 cd contrib/protoc-gen-sphere && go mod tidy && go install .
-	 cd contrib/protoc-gen-route && go mod tidy && go install .
-	 cd contrib/sphere-cli && go mod tidy && go install .
+	 cd cmd/protoc-gen-sphere && go mod tidy && go install .
+	 cd cmd/protoc-gen-route && go mod tidy && go install .
+	 cd cmd/sphere-cli && go mod tidy && go install .
 
 .PHONY: lint
 lint: ## Run linter
@@ -15,6 +15,6 @@ fmt: ## Format code
 	go fmt ./...
 	go mod tidy
 	cd layout && go mod tidy
-	cd contrib/protoc-gen-route && go mod tidy
-	cd contrib/protoc-gen-sphere && go mod tidy
-	cd contrib/sphere-cli && go mod tidy
+	cd cmd/protoc-gen-route && go mod tidy
+	cd cmd/protoc-gen-sphere && go mod tidy
+	cd cmd/sphere-cli && go mod tidy

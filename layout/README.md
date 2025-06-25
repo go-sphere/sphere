@@ -82,7 +82,7 @@ Sphere build tool. Usage: make [target]
 Although you use `sphere-cli` to create the project, you are free to modify the project structure subsequently. `sphere` just provides a template, and you are free to modify the project structure according to your own needs. This way you can freely develop your own projects without relying on any framework.
 
 ```bash
-go install github.com/TBXark/sphere/contrib/sphere-cli@latest
+go install github.com/TBXark/sphere/cmd/sphere-cli@latest
 sphere-cli create --name myproject --mod github.com/TBXark/myproject
 ```
 

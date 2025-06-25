@@ -139,8 +139,8 @@ install: ## Install dependencies tools
 ifeq ($(IGNORE_INSTALL_SPHERE_TOOLS),1)
 	@echo "Skipping sphere tools installation as IGNORE_INSTALL_SPHERE_TOOLS=1"
 else
-	go install github.com/TBXark/sphere/contrib/protoc-gen-sphere@latest
-	go install github.com/TBXark/sphere/contrib/protoc-gen-route@latest
+	go install github.com/TBXark/sphere/cmd/protoc-gen-sphere@latest
+	go install github.com/TBXark/sphere/cmd/protoc-gen-route@latest
 endif
 
 init: ## Init all dependencies
