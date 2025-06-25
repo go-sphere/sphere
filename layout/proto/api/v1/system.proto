@@ -6,15 +6,10 @@ import "google/api/annotations.proto";
 
 service SystemService {
   rpc Status(StatusRequest) returns (StatusResponse) {
-    option (google.api.http) = {
-      get: "/api/status"
-    };
+    option (google.api.http) = {get: "/api/status"};
   }
 }
 
-message StatusRequest {
-}
+message StatusRequest {}
 
-message StatusResponse {
-
-}
+message StatusResponse {}

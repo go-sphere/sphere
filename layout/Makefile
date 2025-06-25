@@ -1,20 +1,26 @@
 # ---------- Makefile for Sphere Project ----------
 MODULE         := $(shell go list -m)
 MODULE_NAME    ?= $(lastword $(subst /, ,$(MODULE)))
+
 # ---------- Build Config ----------
 GIT_TAG        ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 BUILD_TAG      ?= $(if $(BUILD_VERSION),$(BUILD_VERSION),$(GIT_TAG))
-BUILD_TIME	   ?= $(shell date +"%Y%m%d-%H%M%S")
+BUILD_TIME	   := $(shell date +"%Y%m%d-%H%M%S")
 BUILD_VER      ?= $(BUILD_TAG)@$(BUILD_TIME)
-# ---------- Current Arch  ----------
-CURRENT_OS     ?= $(shell uname | tr '[:upper:]' '[:lower:]')
-CURRENT_ARCH   ?= $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+
+# ---------- Arch Config ----------
+CURRENT_OS      := $(shell uname | tr '[:upper:]' '[:lower:]')
+CURRENT_ARCH    := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+BUILD_PLATFORMS ?= linux/amd64 linux/arm64
+
 # ---------- Docker Config ----------
 DOCKER_IMAGE  ?= ghcr.io/tbxark/$(MODULE_NAME)
 DOCKER_FILE   ?= cmd/app/Dockerfile
+
 # ---------- Dashboard Config ----------
 DASH_DIR      ?= ../sphere-dashboard
 DASH_DIST     ?= assets/dash/dashboard/dist
+
 # ---------- Go Build Config ----------
 LD_FLAGS      ?= -X $(MODULE)/internal/config.BuildVersion=$(BUILD_VER)
 GO            ?= go
@@ -22,6 +28,7 @@ GO_TAGS	   	  ?= jsoniter#,embed_dash
 GO_RUN        ?= CGO_ENABLED=0 go run -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
 GO_BUILD      ?= CGO_ENABLED=0 go build -trimpath -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
 GO_INSTALL    ?= go install
+
 # ---------- Go Tools ----------
 BUF_CLI          ?= buf
 SWAG_CLI		 ?= swag
@@ -30,23 +37,23 @@ GOLANG_CI_LINT   ?= golangci-lint
 INTERNAL_TOOLS   ?= $(GO) run -tags spheretools
 
 .PHONY: \
-	build build/linux/amd64 build/linux/arm64 build/all clean\
+	build build/all clean\
 	gen/wire gen/conf gen/db gen/proto gen/docs gen/all gen/dts\
 	build/assets build/docker build/multi-docker \
 	run run/swag deploy lint fmt \
 	install init help
 
 # ---------- Build Tools ----------
-build: ## Build binary
-	$(GO_BUILD) -o ./build/current_arch/ ./...
+build: ## Build binary for current architecture
+	$(GO_BUILD) -o ./build/$(CURRENT_OS)_$(CURRENT_ARCH)/ ./...
 
-build/linux/amd64: ## Build linux amd64 binary
-	GOOS=linux GOARCH=amd64 $(GO_BUILD) -o ./build/linux_amd64/ ./...
+build/%: 
+	$(eval PLATFORM = $(subst /, ,$*))
+	$(eval GOOS = $(word 1, $(PLATFORM)))
+	$(eval GOARCH = $(word 2, $(PLATFORM)))
+	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) -o ./build/$(subst /,_,$*)/ ./...
 
-build/linux/arm64: ## Build linux arm64 binary
-	GOOS=linux GOARCH=arm64 $(GO_BUILD) -o ./build/linux_arm64/ ./...
-
-build/all: build build/linux/amd64 ## Build all arch binary
+build/all: $(addprefix build/,$(BUILD_PLATFORMS)) ## Build for all supported platforms
 
 # ---------- Generate Tools ----------
 clean: ## Clean gen code and build files
@@ -55,7 +62,7 @@ clean: ## Clean gen code and build files
 	rm -rf ./swagger/*
 	rm -rf ./internal/pkg/database/ent/*
 
-gen/wire: ## Generate wire code
+gen/wire: install ## Generate wire code
 	$(GO) generate ./cmd/...
 
 gen/conf: ## Generate example config
@@ -84,9 +91,7 @@ gen/docs: gen/proto ## Generate swagger docs
 		-g docs.go \
 		--parseDependency
 
-gen/all: clean ## Generate both ent, docs and wire
-	$(MAKE) gen/docs
-	$(MAKE) gen/wire
+gen/all: clean gen/docs gen/wire ## Generate all code (ent, docs, wire)
 
 # ---------- Assets Tools ----------
 gen/dts: gen/docs ## Generate swagger typescript docs
@@ -142,10 +147,9 @@ lint: ## Run linter
 	$(GOLANG_CI_LINT) run
 	$(BUF_CLI) lint
 
-fmt: ## Run formatter
-	$(GOLANG_CI_LINT) fmt
+fmt: ## Run formatter and fix issues
 	$(GOLANG_CI_LINT) run --fix
-	$(BUF_CLI) format
+	$(BUF_CLI) format -w
 	$(GO) mod tidy
 	$(GO) fmt ./...
 

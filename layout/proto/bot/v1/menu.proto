@@ -7,11 +7,11 @@ import "tbxark/options/annotations.proto";
 service MenuService {
   rpc Start(StartRequest) returns (StartResponse) {
     option (tbxark.options.options) = {
-      key: "bot",
+      key: "bot"
       extra: [
         {
-          key: "command",
-          value: "start",
+          key: "command"
+          value: "start"
         }
       ]
     };

@@ -4,7 +4,6 @@ package dash.v1;
 
 import "google/api/annotations.proto";
 
-
 service SystemService {
   rpc CacheReset(CacheResetRequest) returns (CacheResetResponse) {
     option (google.api.http) = {
@@ -14,8 +13,6 @@ service SystemService {
   }
 }
 
-message CacheResetRequest {
-}
+message CacheResetRequest {}
 
-message CacheResetResponse {
-}
+message CacheResetResponse {}

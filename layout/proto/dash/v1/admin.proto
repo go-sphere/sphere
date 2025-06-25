@@ -2,16 +2,13 @@ syntax = "proto3";
 
 package dash.v1;
 
+import "buf/validate/validate.proto";
 import "entpb/entpb.proto";
 import "google/api/annotations.proto";
-import "buf/validate/validate.proto";
-
 
 service AdminService {
   rpc AdminList(AdminListRequest) returns (AdminListResponse) {
-    option (google.api.http) = {
-      get: "/api/admin/list"
-    };
+    option (google.api.http) = {get: "/api/admin/list"};
   }
   rpc AdminCreate(AdminCreateRequest) returns (AdminCreateResponse) {
     option (google.api.http) = {
@@ -26,31 +23,20 @@ service AdminService {
     };
   }
   rpc AdminDetail(AdminDetailRequest) returns (AdminDetailResponse) {
-    option (google.api.http) = {
-      get: "/api/admin/detail/{id}"
-    };
+    option (google.api.http) = {get: "/api/admin/detail/{id}"};
   }
   rpc AdminDelete(AdminDeleteRequest) returns (AdminDeleteResponse) {
-    option (google.api.http) = {
-      delete: "/api/admin/delete/{id}"
-    };
+    option (google.api.http) = {delete: "/api/admin/delete/{id}"};
   }
 
   rpc AdminRoleList(AdminRoleListRequest) returns (AdminRoleListResponse) {
-    option (google.api.http) = {
-      get: "/api/admin/role/list"
-    };
+    option (google.api.http) = {get: "/api/admin/role/list"};
   }
 }
 
-
 message AdminListRequest {
-  int64 page = 1 [
-    (buf.validate.field).int64.gte = 0
-  ]; // @sphere:form
-  int64 page_size = 2 [
-    (buf.validate.field).int64.gte = 0
-  ]; // @sphere:form
+  int64 page = 1 [(buf.validate.field).int64.gte = 0]; // @sphere:form
+  int64 page_size = 2 [(buf.validate.field).int64.gte = 0]; // @sphere:form
 }
 
 message AdminListResponse {
@@ -87,12 +73,9 @@ message AdminDeleteRequest {
   int64 id = 1; // @sphere:uri
 }
 
-message AdminDeleteResponse {
-}
+message AdminDeleteResponse {}
 
-
-message AdminRoleListRequest {
-}
+message AdminRoleListRequest {}
 
 message AdminRoleListResponse {
   repeated string roles = 1;

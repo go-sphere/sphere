@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package shared.v1;
 
-import "google/api/annotations.proto";
 import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
 
 service TestService {
   rpc RunTest(RunTestRequest) returns (RunTestResponse) {
@@ -18,18 +18,16 @@ message RunTestRequest {
   string field_test1 = 1;
   int64 field_test2 = 2;
   string path_test1 = 3; // @sphere:uri
-  int64  path_test2 = 4; // @sphere:uri="path_test2"
-  string query_test1 = 5 [
-    (buf.validate.field).required = true
-  ]; // @sphere:form
-  int64  query_test2 = 6; // @sphere:form="query_test2"
+  int64 path_test2 = 4; // @sphere:uri="path_test2"
+  string query_test1 = 5 [(buf.validate.field).required = true]; // @sphere:form
+  int64 query_test2 = 6; // @sphere:form="query_test2"
 }
 
 message RunTestResponse {
   string field_test1 = 1;
   int64 field_test2 = 2;
-  string  path_test1 = 3;
-  int64  path_test2 = 4;
-  string  query_test1 = 5;
-  int64  query_test2 = 6;
+  string path_test1 = 3;
+  int64 path_test2 = 4;
+  string query_test1 = 5;
+  int64 query_test2 = 6;
 }

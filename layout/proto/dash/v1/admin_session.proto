@@ -2,20 +2,16 @@ syntax = "proto3";
 
 package dash.v1;
 
+import "buf/validate/validate.proto";
 import "entpb/entpb.proto";
 import "google/api/annotations.proto";
-import "buf/validate/validate.proto";
 
 service AdminSessionService {
   rpc AdminSessionList(AdminSessionListRequest) returns (AdminSessionListResponse) {
-    option (google.api.http) = {
-      get: "/api/admin-session/list"
-    };
+    option (google.api.http) = {get: "/api/admin-session/list"};
   }
   rpc AdminSessionDelete(AdminSessionDeleteRequest) returns (AdminSessionDeleteResponse) {
-    option (google.api.http) = {
-      delete: "/api/admin-session/delete/{id}"
-    };
+    option (google.api.http) = {delete: "/api/admin-session/delete/{id}"};
   }
 }
 
@@ -24,9 +20,7 @@ message AdminSessionListRequest {
     (buf.validate.field).required = false,
     (buf.validate.field).int64.gte = 0
   ]; // @sphere:form
-  int64 page_size = 2 [
-    (buf.validate.field).int64.gte = 0
-  ]; // @sphere:form
+  int64 page_size = 2 [(buf.validate.field).int64.gte = 0]; // @sphere:form
 }
 
 message AdminSessionListResponse {
@@ -39,5 +33,4 @@ message AdminSessionDeleteRequest {
   int64 id = 1; // @sphere:uri
 }
 
-message AdminSessionDeleteResponse {
-}
+message AdminSessionDeleteResponse {}
