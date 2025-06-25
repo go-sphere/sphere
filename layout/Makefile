@@ -136,8 +136,8 @@ fmt: ## Run formatter
 
 # ---------- Install Tools ----------
 install: ## Install dependencies tools
-	$(TOOLS_INSTALL) github.com/TBXark/sphere/cmd/sphere-cli
-	$(TOOLS_INSTALL) github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	$(TOOLS_INSTALL) github.com/TBXark/sphere/cmd/sphere-cli@latest
+	$(TOOLS_INSTALL) github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 ifeq ($(IGNORE_INSTALL_SPHERE_TOOLS),1)
 	@echo "Skipping sphere tools installation as IGNORE_INSTALL_SPHERE_TOOLS=1"
