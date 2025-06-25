@@ -11,7 +11,6 @@ go install github.com/TBXark/sphere/cmd/sphere-cli@latest
 ## Usage
 
 ```
-sphere-cli
 Usage:
   sphere-cli [flags]
   sphere-cli [command]

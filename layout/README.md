@@ -4,11 +4,6 @@
 
 `Sphere` is a server scaffolding that uses `ent` as the database structure definition and `proto` as the interface definition. It also provides a series of code and document generation tools, including `proto` files, `Swagger` documents, `TypeScript` clients, etc.
 
-You can fork this project and modify the code in proto, internal and cmd to implement your own business logic. Please do not modify the code in pkg. If necessary, please raise an issue or PR.
-
-Alternatively, you can import this project in go mod and implement your own business logic in your project.
-
-
 
 ## Usage
 ```
@@ -79,7 +74,9 @@ Sphere build tool. Usage: make [target]
 
 ### 1. Create a new project with `sphere-cli`
 
-Although you use `sphere-cli` to create the project, you are free to modify the project structure subsequently. `sphere` just provides a template, and you are free to modify the project structure according to your own needs. This way you can freely develop your own projects without relying on any framework.
+Use `sphere-cli` to create the project, you are free to modify the project structure subsequently. `sphere` just
+provides a template, and you are free to modify the project structure according to your own needs. This way you can
+freely develop your own projects without relying on any framework.
 
 ```bash
 go install github.com/TBXark/sphere/cmd/sphere-cli@latest
@@ -102,7 +99,10 @@ make gen/db
 
 You can define the http server interface in the `/proto` directory. For details, please refer to the [proto documentation](https://developers.google.com/protocol-buffers/docs/proto3).
 
-When you have finished defining the http server interface, you can run the following command to generate the http server code and swagger docs.
+When you have finished defining the http server interface, For details, please refer to
+the [Transcoding HTTP/JSON to gRPC](https://cloud.google.com/endpoints/docs/grpc/transcoding)
+
+You can run the following command to generate the http server code and swagger docs.
 
 ```bash
 make gen/docs
@@ -114,6 +114,7 @@ There are some rules for defining the http server interface:
 2. For other requests, the non-path field in the request message will be treated as a body parameter, unless `@sphere:uri` is added in the message, in which case it will be treated as a path parameter. Or `@sphere:form` is added in the message, in which case it will be treated as a query parameter.
 3. It is not recommended to use pattern matching in the path parameter, such as `/api/test/{path_test1:.*}`, because it will cause routing conflicts. It is also not recommended to use pattern matching in the body parameter, such as `field_test1: .*`, because it will cause parameter parsing errors.
 
+You can view an example of the standard HTTP server interface definition in [test.proto](./proto/shared/v1/test.proto).
 
 ### 4. Implement the business logic
 
