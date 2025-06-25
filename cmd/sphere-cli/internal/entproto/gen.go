@@ -88,6 +88,7 @@ func generate(g *gen.Graph, options *Options) error {
 		allDescriptors = append(allDescriptors, fDesc)
 	}
 	var printer protoprint.Printer
+	printer.Compact = true
 	if err = printer.PrintProtosToFileSystem(allDescriptors, entProtoDir); err != nil {
 		return fmt.Errorf("entproto: failed writing .proto files: %w", err)
 	}
