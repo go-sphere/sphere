@@ -29,8 +29,8 @@ func RenameDirModule(oldModule, newModule string, dir string) error {
 }
 
 func RenameModule(oldModule, newModule string, path string) error {
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	files := token.NewFileSet()
+	node, err := parser.ParseFile(files, path, nil, parser.ParseComments)
 	if err != nil {
 		log.Printf("parse file error: %v", err)
 		return err
@@ -51,8 +51,10 @@ func RenameModule(oldModule, newModule string, path string) error {
 		log.Printf("open file error: %v", err)
 		return err
 	}
-	defer file.Close()
-	err = printer.Fprint(file, fset, node)
+	defer func() {
+		_ = file.Close()
+	}()
+	err = printer.Fprint(file, files, node)
 	if err != nil {
 		log.Printf("write file error: %v", err)
 		return err

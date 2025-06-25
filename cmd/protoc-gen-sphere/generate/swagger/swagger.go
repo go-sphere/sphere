@@ -44,6 +44,13 @@ type Config struct {
 	ErrorResponse string
 }
 
+var noBodyMethods = map[string]struct{}{
+	http.MethodGet:     {},
+	http.MethodHead:    {},
+	http.MethodDelete:  {},
+	http.MethodOptions: {},
+}
+
 func BuildAnnotations(m *protogen.Method, config *Config) string {
 	var builder strings.Builder
 	builder.WriteString("// @Summary " + string(m.Desc.Name()) + "\n")
@@ -70,7 +77,7 @@ func BuildAnnotations(m *protogen.Method, config *Config) string {
 		builder.WriteString(fmt.Sprintf("// @Param %s query %s %v \"%s\"\n", param, paramType, required, param))
 	}
 	// Add request body
-	if !(config.Method == http.MethodGet || config.Method == http.MethodDelete) {
+	if _, ok := noBodyMethods[config.Method]; !ok {
 		builder.WriteString("// @Param request body " + m.Input.GoIdent.GoName + " true \"request body\"\n")
 	}
 	builder.WriteString("// @Success 200 {object} " + config.DataResponse + "[" + m.Output.GoIdent.GoName + "]\n")

@@ -20,8 +20,9 @@ GO_TAGS	   	  ?= jsoniter#,embed_dash
 GO_BUILD      ?= CGO_ENABLED=0 go build -trimpath -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
 GO_RUN        ?= CGO_ENABLED=0 go run -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
 # ---------- Go Tools ----------
-SPHERE_TOOLS ?= sphere-cli # go tool sphere-cli
-
+TOOLS_INSTALL ?= go install # go get -tool
+SPHERE_TOOLS  ?= sphere-cli # go tool sphere-cli
+GOLANG_LINT   ?= golangci-lint # go tool golangci-lint
 
 .PHONY: \
 	build build/linux/amd64 build/linux/arm64 build/all \
@@ -135,6 +136,8 @@ fmt: ## Run formatter
 
 # ---------- Install Tools ----------
 install: ## Install dependencies tools
+	$(TOOLS_INSTALL) github.com/TBXark/sphere/cmd/sphere-cli
+	$(TOOLS_INSTALL) github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 ifeq ($(IGNORE_INSTALL_SPHERE_TOOLS),1)
 	@echo "Skipping sphere tools installation as IGNORE_INSTALL_SPHERE_TOOLS=1"

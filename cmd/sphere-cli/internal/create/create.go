@@ -102,6 +102,9 @@ func renameGoModule(oldModName, newModName, target string) error {
 		}
 	}
 	_, err = execCommand(target, "make", "init")
+	if err != nil {
+		log.Printf("make init failed: %v", err)
+	}
 	return nil
 }
 

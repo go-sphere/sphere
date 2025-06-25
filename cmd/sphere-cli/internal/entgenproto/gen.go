@@ -14,7 +14,7 @@ import (
 	"entgo.io/ent/entc"
 	"entgo.io/ent/entc/gen"
 	"entgo.io/ent/schema/field"
-	"github.com/jhump/protoreflect/desc"
+	"github.com/jhump/protoreflect/desc" //nolint
 	"github.com/jhump/protoreflect/desc/protoprint"
 	"github.com/mitchellh/mapstructure"
 	"go.uber.org/multierr"
@@ -63,7 +63,7 @@ func Generate(options *Options) {
 }
 
 func generate(g *gen.Graph, options *Options) error {
-	entProtoDir := path.Join(g.Config.Target, "proto")
+	entProtoDir := path.Join(g.Target, "proto")
 	if options.ProtoDir != "" {
 		entProtoDir = options.ProtoDir
 	}
