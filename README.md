@@ -1,23 +1,17 @@
 # Sphere
 
-> This project is under development. APIs may change at any time. Please use it with caution.
+> This project is under active development. APIs may change at any time. Please use it with caution.
 
-**Sphere** is a Monolithic Architecture (MA) application template that can be used to develop microservices.
-It is designed to be a simple, fast, and maintainable codebase that can be easily extended and replaced.
-Sphere uses `ent` as the database structure definition and `proto` as the interface definition.
-It also provides a series of code and document generation tools, including `proto` files, `Swagger` documents,
-`TypeScript` clients, etc.
+**Sphere** is a project template for building monolithic applications with a focus on simplicity, maintainability, and scalability. It uses `ent` for schema management and `proto` for API definitions, providing a solid foundation that can be adapted for microservices as your project evolves.
+
+Sphere comes with powerful code generation tools to create `proto` files, `Swagger` documents, `TypeScript` clients, and more, accelerating your development workflow.
 
 ## Features
 
-- **Simple**: Simple code that is easy to maintain.
-- **Fast**: One-click code generation for rapid development.
-- **Maintainable**: Clear code structure that is easy to extend.
-- **Replaceable**: All modules are replaceable.
-- **Code Generator**: One-click code generation. The generator automatically generates code, including proto files, Swagger documents, TypeScript clients, and more.
-- **Deployment By One file**: The entire project can be deployed with a single file, making it easy to deploy and
-  manage.
-
+- **Simple & Maintainable**: A clean and straightforward codebase that is easy to understand and extend.
+- **Rapid Development**: Use the code generator to quickly scaffold project components.
+- **Modular Design**: All modules are designed to be replaceable to fit your specific needs.
+- **Single-File Deployment**: The entire project can be deployed as a single file for easy management.
 
 ## Core Dependencies
 
@@ -27,9 +21,7 @@ It also provides a series of code and document generation tools, including `prot
 
 ## Getting Started
 
-Use the [`sphere-cli`](cmd/sphere-cli/README.md) command-line tool to generate a project with
-the [standard layout](./layout/README.md).
-Full standard layout documentation is available in the [layout](./layout/README.md) directory.
+Use the [`sphere-cli`](cmd/sphere-cli/README.md) tool to generate a new project from the [standard layout](./layout/README.md).
 
 ## License
 

@@ -1,8 +1,10 @@
-# sphere-cli
+# Sphere CLI
 
-This is a cli tool to create a new sphere project, and generate code for Sphere.
+Sphere CLI (`sphere-cli`) is a command-line tool designed to streamline the development of [Sphere](https://github.com/TBXark/sphere) projects. It helps you create new projects, generate service code, manage Protobuf definitions, and perform other common development tasks.
 
 ## Installation
+
+To install `sphere-cli`, ensure you have Go installed and run the following command:
 
 ```shell
 go install github.com/TBXark/sphere/cmd/sphere-cli@latest
@@ -10,143 +12,129 @@ go install github.com/TBXark/sphere/cmd/sphere-cli@latest
 
 ## Usage
 
+The general syntax for `sphere-cli` is:
+
+```shell
+sphere-cli [command] [flags]
 ```
-Usage:
-  sphere-cli [flags]
-  sphere-cli [command]
 
-Available Commands:
-  completion  Generate the autocompletion script for the specified shell
-  create      Create a new Sphere project
-  ent2proto   Convert Ent schema to Protobuf definitions
-  help        Help about any command
-  rename      Rename Go module in a directory
-  service     Generate service code
+For detailed information on any command, you can use the `--help` flag:
 
-Flags:
-  -h, --help   help for sphere-cli
-
-Use "sphere-cli [command] --help" for more information about a command.
+```shell
+sphere-cli [command] --help
 ```
+
+## Commands
+
+Here is an overview of the available commands.
 
 ---
 
-### `sphere-cli create`
+### `create`
 
+Initializes a new Sphere project with a default template.
+
+**Usage:**
+```shell
+sphere-cli create --name <project-name> [--module <go-module-name>]
 ```
-Create a new Sphere project with the specified name and optional template.
 
-Usage:
-  sphere-cli create [flags]
-
-Flags:
-  -h, --help            help for create
-      --module string   Go module name for the project (optional)
-      --name string     Name of the new Sphere project
-```
+**Flags:**
+- `--name string`: (Required) The name for the new Sphere project.
+- `--module string`: (Optional) The Go module path for the project.
 
 ---
 
-### `sphere-cli entproto`
+### `entproto`
 
+Converts Ent schemas into Protobuf (`.proto`) definitions. This command reads your Ent schema files and generates corresponding `.proto` files.
+
+**Usage:**
+```shell
+sphere-cli entproto [flags]
 ```
-Convert Ent schema to Protobuf definitions, generating .proto files from Ent schema definitions.
 
-Usage:
-  sphere-cli entproto [flags]
-
-Flags:
-      --all_fields_required             ignore optional, use zero value instead (default true)
-      --auto_annotation                 auto add annotation to the schema (default true)
-      --enum_raw_type                   use string for enum (default true)
-  -h, --help                            help for ent2proto
-      --import_proto string             import proto, format: path1,package1,type1,type2;path2,package2,type3,type4; (default "google/protobuf/any.proto,google.protobuf,Any;")
-      --path string                     path to schema directory (default "./schema")
-      --proto string                    path to proto directory (default "./proto")
-      --skip_unsupported                skip unsupported types, when unsupportedProtoType is not set (default true)
-      --time_proto_type string          use proto type for time.Time, one of int64, string, google.protobuf.Timestamp (default "int64")
-      --unsupported_proto_type string   use proto type for unsupported types, one of google.protobuf.Any, google.protobuf.Struct, bytes (default "google.protobuf.Any")
-      --uuid_proto_type string          use proto type for uuid.UUID, one of string, bytes (default "string")
-```
+**Flags:**
+- `--path string`: Path to the Ent schema directory (default: `./schema`).
+- `--proto string`: Output directory for the generated `.proto` files (default: `./proto`).
+- `--all_fields_required`: Treat all fields as required, ignoring `Optional()` (default: `true`).
+- `--auto_annotation`: Automatically add `@entproto` annotations to the schema (default: `true`).
+- `--enum_raw_type`: Use `string` as the type for enums in Protobuf (default: `true`).
+- `--skip_unsupported`: Skip fields with types that are not supported (default: `true`).
+- `--time_proto_type string`: Protobuf type to use for `time.Time` fields. Options: `int64`, `string`, `google.protobuf.Timestamp` (default: `int64`).
+- `--uuid_proto_type string`: Protobuf type to use for `uuid.UUID` fields. Options: `string`, `bytes` (default: `string`).
+- `--unsupported_proto_type string`: Protobuf type to use for unsupported fields. Options: `google.protobuf.Any`, `google.protobuf.Struct`, `bytes` (default: `google.protobuf.Any`).
+- `--import_proto string`: Define external Protobuf imports. Format: `path1,package1,type1;path2,package2,type2` (default: `google/protobuf/any.proto,google.protobuf,Any;`).
 
 ---
 
-### `sphere-cli rename`
+### `service`
 
+Generates service code, including both Protobuf definitions and Go service implementations.
+
+This command has two subcommands: `proto` and `golang`.
+
+#### `service proto`
+
+Generates a `.proto` file for a new service.
+
+**Usage:**
+```shell
+sphere-cli service proto --name <service-name> [--package <package-name>]
 ```
-Rename the Go module in the specified directory from old to new name.
 
-Usage:
-  sphere-cli rename [flags]
+**Flags:**
+- `--name string`: (Required) The name of the service.
+- `--package string`: The package name for the generated `.proto` file (default: `dash.v1`).
 
-Flags:
-  -h, --help            help for rename
-      --new string      New Go module name
-      --old string      Old Go module name
-      --target string   Target directory to rename the module in (default ".")
+#### `service golang`
+
+Generates the Go implementation for a service from its definition.
+
+**Usage:**
+```shell
+sphere-cli service golang --name <service-name> [--package <package-name>] [--mod <go-module-path>]
 ```
+
+**Flags:**
+- `--name string`: (Required) The name of the service.
+- `--package string`: The package name for the generated Go code (default: `dash.v1`).
+- `--mod string`: The Go module path for the generated code (default: `github.com/TBXark/sphere/layout`).
 
 ---
 
-### `sphere-cli retags`
+### `retags`
 
+Injects struct tags into generated Protobuf message files (`.pb.go`). This command is an optimization for the Sphere framework, inspired by `favadi/protoc-go-inject-tag`.
+
+**Usage:**
+```shell
+sphere-cli retags [--input <glob-pattern>]
 ```
-Refer to "favadi/protoc-go-inject-tag", which is specifically optimized for the sphere project.
 
-Usage:
-  sphere-cli retags [flags]
-
-Flags:
-  -h, --help                 help for retags
-      --input string         pattern to match input file(s) (default "./api/*/*/*.pb.go")
-      --remove_tag_comment   remove tag comment (default true)
-```
+**Flags:**
+- `--input string`: Glob pattern to find target `.pb.go` files (default: `./api/*/*/*.pb.go`).
+- `--remove_tag_comment`: Remove tag comments after injection (default: `true`).
 
 ---
 
-### `sphere-cli service`
+### `rename`
 
-```
-Generate service code for Sphere projects, including service interfaces and implementations.
+Performs a project-wide rename of the Go module path.
 
-Usage:
-  sphere-cli service [command]
-
-Available Commands:
-  golang      Generate service Golang code
-  proto       Generate service proto code
-
-Flags:
-  -h, --help   help for service
-
-Use "sphere-cli service [command] --help" for more information about a command.
+**Usage:**
+```shell
+sphere-cli rename --old <old-module> --new <new-module> [--target <directory>]
 ```
 
-#### `sphere-cli service golang`
+**Flags:**
+- `--old string`: (Required) The current Go module name.
+- `--new string`: (Required) The new Go module name.
+- `--target string`: The root directory of the project to rename (default: `.`).
 
-```
-Generate service Golang code for Sphere projects, including service interfaces and implementations in Go.
+---
 
-Usage:
-  sphere-cli service golang [flags]
+### Other Commands
 
-Flags:
-  -h, --help             help for golang
-      --mod string       Go module path for the generated code (default "github.com/TBXark/sphere/layout")
-      --name string      Name of the service
-      --package string   Package name for the generated Go code (default "dash.v1")
-```
-
-#### `sphere-cli service proto`
-
-```
-Generate service proto code for Sphere projects, including proto definitions and gRPC service implementations.
-
-Usage:
-  sphere-cli service proto [flags]
-
-Flags:
-  -h, --help             help for proto
-      --name string      Name of the service
-      --package string   Package name for the generated proto code (default "dash.v1")
-```
+- `completion`: Generates shell autocompletion scripts (for Bash, Zsh, etc.).
+- `help`: Provides help for any command.
