@@ -2,6 +2,14 @@
 
 This is a cli tool to create a new sphere project, and generate code for Sphere.
 
+## Installation
+
+```shell
+go install github.com/TBXark/sphere/cmd/sphere-cli@latest
+```
+
+## Usage
+
 ```
 sphere-cli
 Usage:

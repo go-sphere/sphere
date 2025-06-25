@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/TBXark/sphere/contrib/sphere-shared/tags"
+	"github.com/TBXark/sphere/internal/tags"
 )
 
 var (
