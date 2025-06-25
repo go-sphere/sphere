@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	validatepb "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
+	"github.com/TBXark/sphere/contrib/sphere-shared/tags"
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
@@ -294,29 +295,32 @@ func buildPathVars(path string) (map[string]*string, []string) {
 	return res, vars
 }
 
-func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*string) (res []string) {
-	r := regexp.MustCompile(`@gotags:.*form:"([^"^,]*).*"`)
-	findQueryParam := func(str string) string {
-		cmp := r.FindStringSubmatch(str)
-		if len(cmp) == 2 {
-			return cmp[1]
+func findQueryParam(comment, defaultName string) string {
+	items := tags.NewSphereTagItems(comment, defaultName)
+	for _, item := range items {
+		if item.Key != "form" {
+			value := strings.Trim(item.Value, " \"")
+			return strings.Split(value, ",")[0]
 		}
-		return ""
 	}
+	return ""
+}
+
+func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*string) []string {
+	var res []string
 	for _, field := range m.Input.Fields {
 		name := string(field.Desc.Name())
 		if _, ok := pathVars[name]; ok {
 			continue
 		}
-
 		formName := ""
 		if field.Comments.Leading.String() != "" {
-			if n := findQueryParam(field.Comments.Leading.String()); n != "" {
+			if n := findQueryParam(string(field.Comments.Leading), name); n != "" {
 				formName = n
 			}
 		}
-		if field.Comments.Trailing.String() != "" {
-			if n := findQueryParam(field.Comments.Trailing.String()); n != "" {
+		if field.Comments.Trailing.String() != "" && formName == "" {
+			if n := findQueryParam(string(field.Comments.Trailing), name); n != "" {
 				formName = n
 			}
 		}
@@ -328,7 +332,7 @@ func buildQueryParams(m *protogen.Method, method string, pathVars map[string]*st
 			continue
 		}
 	}
-	return
+	return res
 }
 
 func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars []string, queryVars []string, conf *genConfig) string {
@@ -367,7 +371,7 @@ func buildSwaggerAnnotations(m *protogen.Method, method, path string, pathVars [
 
 	// Add request body
 	if !(method == http.MethodGet || method == http.MethodDelete) {
-		builder.WriteString("// @Param request body " + m.Input.GoIdent.GoName + " true \"Request body\"\n")
+		builder.WriteString("// @Param request body " + m.Input.GoIdent.GoName + " true \"request body\"\n")
 	}
 
 	builder.WriteString("// @Success 200 {object} " + conf.packageDesc.DataResponseType + "[" + m.Output.GoIdent.GoName + "]\n")

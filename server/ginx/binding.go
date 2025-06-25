@@ -16,12 +16,10 @@ var (
 	ErrUnsupportedFieldType        = errors.New("unsupported field type")
 )
 
-var (
-	invalidTags = map[string]bool{
-		"":  true,
-		"-": true,
-	}
-)
+var invalidTags = map[string]bool{
+	"":  true,
+	"-": true,
+}
 
 type ValueGetterFunc = func(ctx *gin.Context, name string) (string, bool)
 
