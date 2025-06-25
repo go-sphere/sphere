@@ -12,7 +12,7 @@ var (
 	rAll    = regexp.MustCompile(".*")
 )
 
-func injectTag(contents []byte, area textArea, removeTagComment bool) (injected []byte) {
+func injectTag(contents []byte, area textArea, removeTagComment bool) []byte {
 	expr := make([]byte, area.End-area.Start)
 	copy(expr, contents[area.Start-1:area.End-1])
 	cti := tags.NewTagItems(area.CurrentTag)
@@ -20,6 +20,8 @@ func injectTag(contents []byte, area textArea, removeTagComment bool) (injected 
 	iti := tags.NewSphereTagItems(area.InjectTag, protoName)
 	ti := cti.Override(iti)
 	expr = rInject.ReplaceAll(expr, []byte(fmt.Sprintf("`%s`", ti.Format())))
+
+	var injected []byte
 	if removeTagComment {
 		strippedComment := make([]byte, area.CommentEnd-area.CommentStart)
 		copy(strippedComment, contents[area.CommentStart-1:area.CommentEnd-1])
@@ -42,6 +44,5 @@ func injectTag(contents []byte, area textArea, removeTagComment bool) (injected 
 		injected = append(injected, expr...)
 		injected = append(injected, contents[area.End-1:]...)
 	}
-
-	return
+	return injected
 }

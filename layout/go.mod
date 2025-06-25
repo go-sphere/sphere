@@ -9,7 +9,6 @@ replace github.com/TBXark/sphere => ../
 tool (
 	github.com/TBXark/sphere/contrib/sphere-cli
 	github.com/bufbuild/buf/cmd/buf
-	github.com/favadi/protoc-go-inject-tag
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 	github.com/google/wire/cmd/wire
 	github.com/swaggo/swag/cmd/swag
@@ -125,7 +124,6 @@ require (
 	github.com/ettle/strcase v0.2.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
-	github.com/favadi/protoc-go-inject-tag v1.4.0 // indirect
 	github.com/felixge/fgprof v0.9.5 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/firefart/nonamedreturns v1.0.6 // indirect
