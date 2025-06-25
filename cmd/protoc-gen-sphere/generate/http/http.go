@@ -24,7 +24,7 @@ const (
 
 const (
 	ctxPackage      = protogen.GoImportPath("context")
-	validatePackage = protogen.GoImportPath("github.com/bufbuild/protovalidate-go")
+	validatePackage = protogen.GoImportPath("buf.build/go/protovalidate")
 )
 
 var methodSets = make(map[string]int)
