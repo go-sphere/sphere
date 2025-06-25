@@ -20,7 +20,8 @@ GO_TAGS	   	  ?= jsoniter#,embed_dash
 GO_BUILD      ?= CGO_ENABLED=0 go build -trimpath -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
 GO_RUN        ?= CGO_ENABLED=0 go run -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
 # ---------- Go Tools ----------
-TOOLS_INSTALL ?= go install # go get -tool
+TOOLS_INSTALL  ?= go install # go get -tool
+GOLANG_INSTALL ?= go install
 SPHERE_TOOLS  ?= sphere-cli # go tool sphere-cli
 GOLANG_LINT   ?= golangci-lint # go tool golangci-lint
 
@@ -124,7 +125,7 @@ deploy: ## Deploy binary
 	./devops/deploy/deploy.sh deploy
 
 lint: ## Run linter
-	go tool golangci-lint run
+	$(GOLANG_LINT) run
 	go tool buf lint
 
 fmt: ## Run formatter
@@ -136,14 +137,14 @@ fmt: ## Run formatter
 
 # ---------- Install Tools ----------
 install: ## Install dependencies tools
-	$(TOOLS_INSTALL) github.com/TBXark/sphere/cmd/sphere-cli@latest
 	$(TOOLS_INSTALL) github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	$(GOLANG_INSTALL) google.golang.org/protobuf/cmd/protoc-gen-go@latest
 ifeq ($(IGNORE_INSTALL_SPHERE_TOOLS),1)
 	@echo "Skipping sphere tools installation as IGNORE_INSTALL_SPHERE_TOOLS=1"
 else
-	go install github.com/TBXark/sphere/cmd/protoc-gen-sphere@latest
-	go install github.com/TBXark/sphere/cmd/protoc-gen-route@latest
+	$(TOOLS_INSTALL) github.com/TBXark/sphere/cmd/sphere-cli@latest
+	$(GOLANG_INSTALL) github.com/TBXark/sphere/cmd/protoc-gen-sphere@latest
+	$(GOLANG_INSTALL) github.com/TBXark/sphere/cmd/protoc-gen-route@latest
 endif
 
 init: ## Init all dependencies
