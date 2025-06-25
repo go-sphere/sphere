@@ -1,4 +1,4 @@
-package entgenproto
+package entproto
 
 import (
 	"errors"

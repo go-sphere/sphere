@@ -61,7 +61,7 @@ gen/db: ## Generate ent code
 	go run -tags spheretools ./cmd/tools/ent
 
 gen/proto: gen/db ## Generate proto files and run protoc plugins
-	$(SPHERE_TOOLS) ent2proto --path=./internal/pkg/database/schema
+	$(SPHERE_TOOLS) entproto --path=./internal/pkg/database/schema
 	go tool buf generate
 	$(SPHERE_TOOLS) retags --input="./api/*/*/*.pb.go" --remove_tag_comment
 	go run -tags spheretools ./cmd/tools/bind

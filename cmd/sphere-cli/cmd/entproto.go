@@ -1,14 +1,15 @@
 package cmd
 
 import (
-	"github.com/TBXark/sphere/cmd/sphere-cli/internal/entgenproto"
+	"github.com/TBXark/sphere/cmd/sphere-cli/internal/entproto"
 	"github.com/spf13/cobra"
 )
 
 var ent2protoCmd = &cobra.Command{
-	Use:   "ent2proto",
-	Short: "Convert Ent schema to Protobuf definitions",
-	Long:  `Convert Ent schema to Protobuf definitions, generating .proto files from Ent schema definitions.`,
+	Use:     "entproto",
+	Aliases: []string{"ent2proto"},
+	Short:   "Convert Ent schema to Protobuf definitions",
+	Long:    `Convert Ent schema to Protobuf definitions, generating .proto files from Ent schema definitions.`,
 }
 
 func init() {
@@ -30,7 +31,7 @@ func init() {
 	importProto := flag.String("import_proto", "google/protobuf/any.proto,google.protobuf,Any;", "import proto, format: path1,package1,type1,type2;path2,package2,type3,type4;")
 
 	ent2protoCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		options := entgenproto.Options{
+		options := entproto.Options{
 			SchemaPath: *schemaPath,
 			ProtoDir:   *protoDir,
 
@@ -43,9 +44,9 @@ func init() {
 			AutoAddAnnotation: *autoAddAnnotation,
 			EnumUseRawType:    *enumUseRawType,
 
-			ProtoPackages: entgenproto.ParseProtoPackages(*importProto),
+			ProtoPackages: entproto.ParseProtoPackages(*importProto),
 		}
-		entgenproto.Generate(&options)
+		entproto.Generate(&options)
 		return nil
 	}
 }
