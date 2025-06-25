@@ -10,7 +10,7 @@ import (
 )
 
 //go:embed template.go.tpl
-var Template string
+var httpTemplate string
 
 type ServiceDesc struct {
 	ServiceType string
@@ -65,7 +65,7 @@ func (s *ServiceDesc) Execute() string {
 		s.MethodSets[m.Name] = m
 	}
 	buf := new(bytes.Buffer)
-	tmpl, err := template.New("http").Parse(strings.TrimSpace(Template))
+	tmpl, err := template.New("http").Parse(strings.TrimSpace(httpTemplate))
 	if err != nil {
 		panic(err)
 	}
@@ -83,6 +83,6 @@ func ReplaceTemplateIfNeed(path string) {
 			_, _ = fmt.Fprintf(os.Stderr, "read template file error: %v\n", err)
 			os.Exit(2)
 		}
-		Template = string(raw)
+		httpTemplate = string(raw)
 	}
 }

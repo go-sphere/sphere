@@ -1,8 +1,10 @@
-package main
+package template
 
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
+	"os"
 	"strings"
 	"text/template"
 )
@@ -10,12 +12,12 @@ import (
 //go:embed template.go.tpl
 var routeTemplate string
 
-type serviceDesc struct {
-	ServiceType string // Greeter
-	ServiceName string // helloworld.Greeter
-	Metadata    string // api/helloworld/helloworld.proto
-	Methods     []*methodDesc
-	MethodSets  map[string]*methodDesc
+type ServiceDesc struct {
+	ServiceType string
+	ServiceName string
+	Metadata    string
+	Methods     []*MethodDesc
+	MethodSets  map[string]*MethodDesc
 
 	OptionsKey       string
 	RequestType      string
@@ -24,21 +26,20 @@ type serviceDesc struct {
 	NewExtraDataFunc string
 }
 
-type methodDesc struct {
+type MethodDesc struct {
 	// method
 	Name         string
-	OriginalName string // The parsed original name
+	OriginalName string
 	Num          int
 	Request      string
 	Reply        string
 	Comment      string
-
 	// extra data
 	Extra map[string]string
 }
 
-func (s *serviceDesc) execute() string {
-	s.MethodSets = make(map[string]*methodDesc)
+func (s *ServiceDesc) Execute() string {
+	s.MethodSets = make(map[string]*MethodDesc)
 	for _, m := range s.Methods {
 		s.MethodSets[m.Name] = m
 	}
@@ -52,4 +53,15 @@ func (s *serviceDesc) execute() string {
 		panic(err)
 	}
 	return strings.Trim(buf.String(), "\r\n")
+}
+
+func ReplaceTemplateIfNeed(path string) {
+	if path != "" {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "read template file error: %v\n", err)
+			os.Exit(2)
+		}
+		routeTemplate = string(raw)
+	}
 }
