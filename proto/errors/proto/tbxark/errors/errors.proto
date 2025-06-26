@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-package errors;
+package tbxark.errors;
 
 import "google/protobuf/descriptor.proto";
 
-option go_package = "github.com/tbxark/sphere/proto/errors";
+option go_package = "github.com/TBXark/sphere/proto/errors";
 
 message Error {
   int32 code = 1;

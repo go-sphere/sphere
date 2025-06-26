@@ -18,6 +18,8 @@ github.com/TBXark/confstore v0.0.4 h1:4HCbWbXz1qKtxjxcmEGU1W0kyBJz6aXZtca7CPx7Oj
 github.com/TBXark/confstore v0.0.4/go.mod h1:TOxM19Snt9wT02PJzyz66sgq7sWhr4AFzPEZIKvVnTE=
 github.com/TBXark/jsoncompressor v0.0.1 h1:C2hshiwpS5ziO7wbPFnDKnxRKPeRq2vyybWHVoGeLbc=
 github.com/TBXark/jsoncompressor v0.0.1/go.mod h1:Le17YSrfvfVgsIlzJpjc7zvxwtzTwshAguHcrQqJY/E=
+github.com/TBXark/sphere/proto/options v0.0.0-20250626081123-3302841936c9 h1:pPEWiW0gQlkco+VAKqOplpqemsayZF9dhiuBDen8DV0=
+github.com/TBXark/sphere/proto/options v0.0.0-20250626081123-3302841936c9/go.mod h1:WUFGY0FWBvROVlWakSwMnrt7wjUe4s1ZWUcJW6dqmJ4=
 github.com/agext/levenshtein v1.2.3 h1:YB2fHEn0UJagG8T1rrWknE3ZQzWM06O8AMAatNn7lmo=
 github.com/agext/levenshtein v1.2.3/go.mod h1:JEDfjyjHDjOF/1e4FlBE/PkbqA9OfWu2ki2W0IB5558=
 github.com/alitto/pond/v2 v2.4.0 h1:ZsJTPeqFOrdLuvjSfwveO5c5OwL3LvAVylburWZPDPM=
@@ -173,8 +175,6 @@ github.com/swaggo/gin-swagger v1.6.0 h1:y8sxvQ3E20/RCyrXeFfg60r6H0Z+SwpTjMYsMm+z
 github.com/swaggo/gin-swagger v1.6.0/go.mod h1:BG00cCEy294xtVpyIAHG6+e2Qzj/xKlRdOqDkvq0uzo=
 github.com/swaggo/swag v1.16.4 h1:clWJtd9LStiG3VeijiCfOVODP6VpHtKdQy9ELFG3s1A=
 github.com/swaggo/swag v1.16.4/go.mod h1:VBsHJRsDvfYvqoiMKnsdwhNV9LEMHgEDZcyVYX0sxPg=
-github.com/tbxark/options-proto/go v0.0.0-20241107032846-d46ef06aa5e1 h1:KbSM/XOumfWsQ3Lx9lcQcOCK0Z6JTXBva0i2wVxCT7c=
-github.com/tbxark/options-proto/go v0.0.0-20241107032846-d46ef06aa5e1/go.mod h1:MKIinEKfhcwhPlG5Cuk3uaenUyel2VrhxhHAMsG2McE=
 github.com/twitchyliquid64/golang-asm v0.15.1 h1:SU5vSMR7hnwNxj24w34ZyCi/FmDZTkS4MhqMhdFk5YI=
 github.com/twitchyliquid64/golang-asm v0.15.1/go.mod h1:a1lVb/DtPvCB8fslRZhAngC2+aY1QWCk3Cedj/Gdt08=
 github.com/ugorji/go/codec v1.3.0 h1:Qd2W2sQawAfG8XSvzwhBeoGq71zXOC/Q1E9y/wUcsUA=

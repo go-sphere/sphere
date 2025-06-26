@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bot.v1;
 
-import "tbxark/options/annotations.proto";
+import "tbxark/options/options.proto";
 
 service MenuService {
   rpc Start(StartRequest) returns (StartResponse) {

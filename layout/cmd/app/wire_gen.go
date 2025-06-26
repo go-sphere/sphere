@@ -41,22 +41,22 @@ func NewApplication(conf *config.Config) (*boot.Application, error) {
 	daoDao := dao.NewDao(entClient)
 	wechatConfig := conf.WxMini
 	wechatWechat := wechat.NewWechat(wechatConfig)
-	v := memory.NewByteCache()
-	service := dash.NewService(daoDao, wechatWechat, v, s3Adapter)
+	cache := memory.NewByteCache()
+	service := dash.NewService(daoDao, wechatWechat, cache, s3Adapter)
 	web := dash2.NewWebServer(dashConfig, s3Adapter, service)
 	apiConfig := conf.API
-	apiService := api.NewService(daoDao, wechatWechat, v, s3Adapter)
+	apiService := api.NewService(daoDao, wechatWechat, cache, s3Adapter)
 	apiWeb := api2.NewWebServer(apiConfig, s3Adapter, apiService)
-	v2 := conf.Bot
+	telegramConfig := conf.Bot
 	botService := bot.NewService()
-	botBot, err := bot2.NewApp(v2, botService)
+	botBot, err := bot2.NewApp(telegramConfig, botService)
 	if err != nil {
 		return nil, err
 	}
 	fileConfig := conf.File
 	fileWeb := file.NewWebServer(fileConfig, s3Adapter)
 	dashInitialize := dashinit.NewDashInitialize(daoDao)
-	connectCleaner := conncleaner.NewConnectCleaner(entClient, v)
+	connectCleaner := conncleaner.NewConnectCleaner(entClient, cache)
 	application := newApplication(web, apiWeb, botBot, fileWeb, dashInitialize, connectCleaner)
 	return application, nil
 }

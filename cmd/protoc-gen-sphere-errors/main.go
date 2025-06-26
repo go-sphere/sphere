@@ -1,1 +1,4 @@
-package protoc_gen_sphere_errors
+package main
+
+func main() {
+}

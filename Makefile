@@ -16,9 +16,12 @@ fmt: ## Format code
 	$(call fmt_mod,layout)
 	$(call fmt_mod,cmd/protoc-gen-route)
 	$(call fmt_mod,cmd/protoc-gen-sphere)
+	$(call fmt_mod,cmd/protoc-gen-sphere-errors)
 	$(call fmt_mod,cmd/sphere-cli)
 	$(call fmt_mod,internal/protogo)
 	$(call fmt_mod,internal/tags)
+	$(call fmt_mod,proto/errors)
+	$(call fmt_mod,proto/options)
 
 .PHONY: cli/service/test
 cli/service/test: ## Test sphere-cli service generation

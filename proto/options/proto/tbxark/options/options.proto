@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-package options;
+package tbxark.options;
 
 import "google/protobuf/descriptor.proto";
 
-option go_package = "github.com/tbxark/sphere/proto/options";
+option go_package = "github.com/TBXark/sphere/proto/options";
 
 message KeyValuePair {
   string key = 1;
@@ -15,7 +15,6 @@ message KeyValuePair {
   }
   map<string, string> extra = 5;
 }
-
 extend google.protobuf.MethodOptions {
   repeated KeyValuePair options = 114514;
 }

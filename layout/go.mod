@@ -12,6 +12,7 @@ require (
 	entgo.io/ent v0.14.4
 	github.com/TBXark/confstore v0.0.4
 	github.com/TBXark/sphere v0.0.0-20250626030019-3c510b318a0c
+	github.com/TBXark/sphere/proto/options v0.0.0-20250626081123-3302841936c9
 	github.com/alitto/pond/v2 v2.4.0
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.10.1
@@ -20,7 +21,6 @@ require (
 	github.com/google/wire v0.6.0
 	github.com/spf13/cobra v1.9.1
 	github.com/swaggo/swag v1.16.4
-	github.com/tbxark/options-proto/go v0.0.0-20241107032846-d46ef06aa5e1
 	golang.org/x/sync v0.15.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822
 	google.golang.org/protobuf v1.36.6

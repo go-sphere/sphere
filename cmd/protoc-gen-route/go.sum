@@ -1,9 +1,9 @@
 github.com/TBXark/sphere/internal/protogo v0.0.0-20250626030019-3c510b318a0c h1:qKzNAtItW0mBbAyQMcefnEmqn0aeELvXCpEYfsvRnzk=
 github.com/TBXark/sphere/internal/protogo v0.0.0-20250626030019-3c510b318a0c/go.mod h1:YXf/rwvoNOzQqCA16qkulYxstGc+PSo8vGXnIZhqY9o=
+github.com/TBXark/sphere/proto/options v0.0.0-20250626081123-3302841936c9 h1:pPEWiW0gQlkco+VAKqOplpqemsayZF9dhiuBDen8DV0=
+github.com/TBXark/sphere/proto/options v0.0.0-20250626081123-3302841936c9/go.mod h1:WUFGY0FWBvROVlWakSwMnrt7wjUe4s1ZWUcJW6dqmJ4=
 github.com/google/go-cmp v0.5.5 h1:Khx7svrCpmxxtHBq5j2mp/xVjsi8hQMfNLvJFAlrGgU=
 github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
-github.com/tbxark/options-proto/go v0.0.0-20241107032846-d46ef06aa5e1 h1:KbSM/XOumfWsQ3Lx9lcQcOCK0Z6JTXBva0i2wVxCT7c=
-github.com/tbxark/options-proto/go v0.0.0-20241107032846-d46ef06aa5e1/go.mod h1:MKIinEKfhcwhPlG5Cuk3uaenUyel2VrhxhHAMsG2McE=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 h1:E7g+9GITq07hpfrRu66IVDexMakfv52eLZ2CXBWiKr4=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 google.golang.org/protobuf v1.36.6 h1:z1NpPI8ku2WgiWnf+t9wTPsn6eP1L7ksHUlkfLvd9xY=
