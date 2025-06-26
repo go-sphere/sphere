@@ -1,9 +1,9 @@
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250625184727-c923a0c2a132.1 h1:6tCo3lsKNLqUjRPhyc8JuYWYUiQkulufxSDOfG1zgWQ=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250625184727-c923a0c2a132.1/go.mod h1:avRlCjnFzl98VPaeCtJ24RrV/wwHFzB8sWXhj26+n/U=
-github.com/TBXark/sphere/internal/protogo v0.0.0-20250626030019-3c510b318a0c h1:qKzNAtItW0mBbAyQMcefnEmqn0aeELvXCpEYfsvRnzk=
-github.com/TBXark/sphere/internal/protogo v0.0.0-20250626030019-3c510b318a0c/go.mod h1:YXf/rwvoNOzQqCA16qkulYxstGc+PSo8vGXnIZhqY9o=
-github.com/TBXark/sphere/internal/tags v0.0.0-20250626030019-3c510b318a0c h1:PZoGpLqwgTYGTDZy1UeSopgIRsQfnHkqTrVxK5yQwPw=
-github.com/TBXark/sphere/internal/tags v0.0.0-20250626030019-3c510b318a0c/go.mod h1:+Co4H83kvPLo5JB9kRqV6lXQ1BiqvLo+h97gOLagIYg=
+github.com/TBXark/sphere/internal/protogo v0.0.0-20250626085116-d100979d0d20 h1:R37hOmYqCfGk93YhqkoPEFRDRJMM4HSUAHmS9K3y3Eg=
+github.com/TBXark/sphere/internal/protogo v0.0.0-20250626085116-d100979d0d20/go.mod h1:YXf/rwvoNOzQqCA16qkulYxstGc+PSo8vGXnIZhqY9o=
+github.com/TBXark/sphere/internal/tags v0.0.0-20250626085116-d100979d0d20 h1:CaRJdelQU5y0590D3Ylbuza1tl263gD0oarykHW2qFg=
+github.com/TBXark/sphere/internal/tags v0.0.0-20250626085116-d100979d0d20/go.mod h1:+Co4H83kvPLo5JB9kRqV6lXQ1BiqvLo+h97gOLagIYg=
 github.com/google/go-cmp v0.5.5 h1:Khx7svrCpmxxtHBq5j2mp/xVjsi8hQMfNLvJFAlrGgU=
 github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 h1:E7g+9GITq07hpfrRu66IVDexMakfv52eLZ2CXBWiKr4=
