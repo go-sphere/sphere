@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        (unknown)
-// source: errors.proto
+// source: tbxark/errors/errors.proto
 
 package errors
 
@@ -34,7 +34,7 @@ type Error struct {
 
 func (x *Error) Reset() {
 	*x = Error{}
-	mi := &file_errors_proto_msgTypes[0]
+	mi := &file_tbxark_errors_errors_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -46,7 +46,7 @@ func (x *Error) String() string {
 func (*Error) ProtoMessage() {}
 
 func (x *Error) ProtoReflect() protoreflect.Message {
-	mi := &file_errors_proto_msgTypes[0]
+	mi := &file_tbxark_errors_errors_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59,7 +59,7 @@ func (x *Error) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Error.ProtoReflect.Descriptor instead.
 func (*Error) Descriptor() ([]byte, []int) {
-	return file_errors_proto_rawDescGZIP(), []int{0}
+	return file_tbxark_errors_errors_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Error) GetCode() int32 {
@@ -90,73 +90,72 @@ func (x *Error) GetMessage() string {
 	return ""
 }
 
-var file_errors_proto_extTypes = []protoimpl.ExtensionInfo{
+var file_tbxark_errors_errors_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.EnumOptions)(nil),
 		ExtensionType: (*int32)(nil),
 		Field:         114515,
-		Name:          "errors.default_code",
+		Name:          "tbxark.errors.default_code",
 		Tag:           "varint,114515,opt,name=default_code",
-		Filename:      "errors.proto",
+		Filename:      "tbxark/errors/errors.proto",
 	},
 	{
 		ExtendedType:  (*descriptorpb.EnumValueOptions)(nil),
 		ExtensionType: (*int32)(nil),
 		Field:         114516,
-		Name:          "errors.code",
+		Name:          "tbxark.errors.code",
 		Tag:           "varint,114516,opt,name=code",
-		Filename:      "errors.proto",
+		Filename:      "tbxark/errors/errors.proto",
 	},
 }
 
 // Extension fields to descriptorpb.EnumOptions.
 var (
 	// optional int32 default_code = 114515;
-	E_DefaultCode = &file_errors_proto_extTypes[0]
+	E_DefaultCode = &file_tbxark_errors_errors_proto_extTypes[0]
 )
 
 // Extension fields to descriptorpb.EnumValueOptions.
 var (
 	// optional int32 code = 114516;
-	E_Code = &file_errors_proto_extTypes[1]
+	E_Code = &file_tbxark_errors_errors_proto_extTypes[1]
 )
 
-var File_errors_proto protoreflect.FileDescriptor
+var File_tbxark_errors_errors_proto protoreflect.FileDescriptor
 
-const file_errors_proto_rawDesc = "" +
+const file_tbxark_errors_errors_proto_rawDesc = "" +
 	"\n" +
-	"\ferrors.proto\x12\x06errors\x1a google/protobuf/descriptor.proto\"c\n" +
+	"\x1atbxark/errors/errors.proto\x12\rtbxark.errors\x1a google/protobuf/descriptor.proto\"c\n" +
 	"\x05Error\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\x05R\x06status\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\x12\x18\n" +
 	"\amessage\x18\x04 \x01(\tR\amessage:A\n" +
 	"\fdefault_code\x12\x1c.google.protobuf.EnumOptions\x18\xd3\xfe\x06 \x01(\x05R\vdefaultCode:7\n" +
-	"\x04code\x12!.google.protobuf.EnumValueOptions\x18\xd4\xfe\x06 \x01(\x05R\x04codeBx\n" +
-	"\n" +
-	"com.errorsB\vErrorsProtoP\x01Z%github.com/tbxark/sphere/proto/errors\xa2\x02\x03EXX\xaa\x02\x06Errors\xca\x02\x06Errors\xe2\x02\x12Errors\\GPBMetadata\xea\x02\x06Errorsb\x06proto3"
+	"\x04code\x12!.google.protobuf.EnumValueOptions\x18\xd4\xfe\x06 \x01(\x05R\x04codeB\x9c\x01\n" +
+	"\x11com.tbxark.errorsB\vErrorsProtoP\x01Z%github.com/TBXark/sphere/proto/errors\xa2\x02\x03TEX\xaa\x02\rTbxark.Errors\xca\x02\rTbxark\\Errors\xe2\x02\x19Tbxark\\Errors\\GPBMetadata\xea\x02\x0eTbxark::Errorsb\x06proto3"
 
 var (
-	file_errors_proto_rawDescOnce sync.Once
-	file_errors_proto_rawDescData []byte
+	file_tbxark_errors_errors_proto_rawDescOnce sync.Once
+	file_tbxark_errors_errors_proto_rawDescData []byte
 )
 
-func file_errors_proto_rawDescGZIP() []byte {
-	file_errors_proto_rawDescOnce.Do(func() {
-		file_errors_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_errors_proto_rawDesc), len(file_errors_proto_rawDesc)))
+func file_tbxark_errors_errors_proto_rawDescGZIP() []byte {
+	file_tbxark_errors_errors_proto_rawDescOnce.Do(func() {
+		file_tbxark_errors_errors_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_tbxark_errors_errors_proto_rawDesc), len(file_tbxark_errors_errors_proto_rawDesc)))
 	})
-	return file_errors_proto_rawDescData
+	return file_tbxark_errors_errors_proto_rawDescData
 }
 
-var file_errors_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_errors_proto_goTypes = []any{
-	(*Error)(nil),                         // 0: errors.Error
+var file_tbxark_errors_errors_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_tbxark_errors_errors_proto_goTypes = []any{
+	(*Error)(nil),                         // 0: tbxark.errors.Error
 	(*descriptorpb.EnumOptions)(nil),      // 1: google.protobuf.EnumOptions
 	(*descriptorpb.EnumValueOptions)(nil), // 2: google.protobuf.EnumValueOptions
 }
-var file_errors_proto_depIdxs = []int32{
-	1, // 0: errors.default_code:extendee -> google.protobuf.EnumOptions
-	2, // 1: errors.code:extendee -> google.protobuf.EnumValueOptions
+var file_tbxark_errors_errors_proto_depIdxs = []int32{
+	1, // 0: tbxark.errors.default_code:extendee -> google.protobuf.EnumOptions
+	2, // 1: tbxark.errors.code:extendee -> google.protobuf.EnumValueOptions
 	2, // [2:2] is the sub-list for method output_type
 	2, // [2:2] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
@@ -164,27 +163,27 @@ var file_errors_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_errors_proto_init() }
-func file_errors_proto_init() {
-	if File_errors_proto != nil {
+func init() { file_tbxark_errors_errors_proto_init() }
+func file_tbxark_errors_errors_proto_init() {
+	if File_tbxark_errors_errors_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_errors_proto_rawDesc), len(file_errors_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tbxark_errors_errors_proto_rawDesc), len(file_tbxark_errors_errors_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 2,
 			NumServices:   0,
 		},
-		GoTypes:           file_errors_proto_goTypes,
-		DependencyIndexes: file_errors_proto_depIdxs,
-		MessageInfos:      file_errors_proto_msgTypes,
-		ExtensionInfos:    file_errors_proto_extTypes,
+		GoTypes:           file_tbxark_errors_errors_proto_goTypes,
+		DependencyIndexes: file_tbxark_errors_errors_proto_depIdxs,
+		MessageInfos:      file_tbxark_errors_errors_proto_msgTypes,
+		ExtensionInfos:    file_tbxark_errors_errors_proto_extTypes,
 	}.Build()
-	File_errors_proto = out.File
-	file_errors_proto_goTypes = nil
-	file_errors_proto_depIdxs = nil
+	File_tbxark_errors_errors_proto = out.File
+	file_tbxark_errors_errors_proto_goTypes = nil
+	file_tbxark_errors_errors_proto_depIdxs = nil
 }

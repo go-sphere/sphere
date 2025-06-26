@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        (unknown)
-// source: options.proto
+// source: tbxark/options/options.proto
 
 package options
 
@@ -38,7 +38,7 @@ type KeyValuePair struct {
 
 func (x *KeyValuePair) Reset() {
 	*x = KeyValuePair{}
-	mi := &file_options_proto_msgTypes[0]
+	mi := &file_tbxark_options_options_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -50,7 +50,7 @@ func (x *KeyValuePair) String() string {
 func (*KeyValuePair) ProtoMessage() {}
 
 func (x *KeyValuePair) ProtoReflect() protoreflect.Message {
-	mi := &file_options_proto_msgTypes[0]
+	mi := &file_tbxark_options_options_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63,7 +63,7 @@ func (x *KeyValuePair) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyValuePair.ProtoReflect.Descriptor instead.
 func (*KeyValuePair) Descriptor() ([]byte, []int) {
-	return file_options_proto_rawDescGZIP(), []int{0}
+	return file_tbxark_options_options_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *KeyValuePair) GetKey() string {
@@ -136,64 +136,64 @@ func (*KeyValuePair_Text) isKeyValuePair_Value() {}
 
 func (*KeyValuePair_Number) isKeyValuePair_Value() {}
 
-var file_options_proto_extTypes = []protoimpl.ExtensionInfo{
+var file_tbxark_options_options_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
 		ExtensionType: ([]*KeyValuePair)(nil),
 		Field:         114514,
-		Name:          "options.options",
+		Name:          "tbxark.options.options",
 		Tag:           "bytes,114514,rep,name=options",
-		Filename:      "options.proto",
+		Filename:      "tbxark/options/options.proto",
 	},
 }
 
 // Extension fields to descriptorpb.MethodOptions.
 var (
-	// repeated options.KeyValuePair options = 114514;
-	E_Options = &file_options_proto_extTypes[0]
+	// repeated tbxark.options.KeyValuePair options = 114514;
+	E_Options = &file_tbxark_options_options_proto_extTypes[0]
 )
 
-var File_options_proto protoreflect.FileDescriptor
+var File_tbxark_options_options_proto protoreflect.FileDescriptor
 
-const file_options_proto_rawDesc = "" +
+const file_tbxark_options_options_proto_rawDesc = "" +
 	"\n" +
-	"\roptions.proto\x12\aoptions\x1a google/protobuf/descriptor.proto\"\xe1\x01\n" +
+	"\x1ctbxark/options/options.proto\x12\x0etbxark.options\x1a google/protobuf/descriptor.proto\"\xe8\x01\n" +
 	"\fKeyValuePair\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x04flag\x18\x02 \x01(\bH\x00R\x04flag\x12\x14\n" +
 	"\x04text\x18\x03 \x01(\tH\x00R\x04text\x12\x18\n" +
-	"\x06number\x18\x04 \x01(\x03H\x00R\x06number\x126\n" +
-	"\x05extra\x18\x05 \x03(\v2 .options.KeyValuePair.ExtraEntryR\x05extra\x1a8\n" +
+	"\x06number\x18\x04 \x01(\x03H\x00R\x06number\x12=\n" +
+	"\x05extra\x18\x05 \x03(\v2'.tbxark.options.KeyValuePair.ExtraEntryR\x05extra\x1a8\n" +
 	"\n" +
 	"ExtraEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\a\n" +
-	"\x05value:Q\n" +
-	"\aoptions\x12\x1e.google.protobuf.MethodOptions\x18\xd2\xfe\x06 \x03(\v2\x15.options.KeyValuePairR\aoptionsB\x7f\n" +
-	"\vcom.optionsB\fOptionsProtoP\x01Z&github.com/tbxark/sphere/proto/options\xa2\x02\x03OXX\xaa\x02\aOptions\xca\x02\aOptions\xe2\x02\x13Options\\GPBMetadata\xea\x02\aOptionsb\x06proto3"
+	"\x05value:X\n" +
+	"\aoptions\x12\x1e.google.protobuf.MethodOptions\x18\xd2\xfe\x06 \x03(\v2\x1c.tbxark.options.KeyValuePairR\aoptionsB\xa3\x01\n" +
+	"\x12com.tbxark.optionsB\fOptionsProtoP\x01Z&github.com/TBXark/sphere/proto/options\xa2\x02\x03TOX\xaa\x02\x0eTbxark.Options\xca\x02\x0eTbxark\\Options\xe2\x02\x1aTbxark\\Options\\GPBMetadata\xea\x02\x0fTbxark::Optionsb\x06proto3"
 
 var (
-	file_options_proto_rawDescOnce sync.Once
-	file_options_proto_rawDescData []byte
+	file_tbxark_options_options_proto_rawDescOnce sync.Once
+	file_tbxark_options_options_proto_rawDescData []byte
 )
 
-func file_options_proto_rawDescGZIP() []byte {
-	file_options_proto_rawDescOnce.Do(func() {
-		file_options_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_options_proto_rawDesc), len(file_options_proto_rawDesc)))
+func file_tbxark_options_options_proto_rawDescGZIP() []byte {
+	file_tbxark_options_options_proto_rawDescOnce.Do(func() {
+		file_tbxark_options_options_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_tbxark_options_options_proto_rawDesc), len(file_tbxark_options_options_proto_rawDesc)))
 	})
-	return file_options_proto_rawDescData
+	return file_tbxark_options_options_proto_rawDescData
 }
 
-var file_options_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_options_proto_goTypes = []any{
-	(*KeyValuePair)(nil),               // 0: options.KeyValuePair
-	nil,                                // 1: options.KeyValuePair.ExtraEntry
+var file_tbxark_options_options_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_tbxark_options_options_proto_goTypes = []any{
+	(*KeyValuePair)(nil),               // 0: tbxark.options.KeyValuePair
+	nil,                                // 1: tbxark.options.KeyValuePair.ExtraEntry
 	(*descriptorpb.MethodOptions)(nil), // 2: google.protobuf.MethodOptions
 }
-var file_options_proto_depIdxs = []int32{
-	1, // 0: options.KeyValuePair.extra:type_name -> options.KeyValuePair.ExtraEntry
-	2, // 1: options.options:extendee -> google.protobuf.MethodOptions
-	0, // 2: options.options:type_name -> options.KeyValuePair
+var file_tbxark_options_options_proto_depIdxs = []int32{
+	1, // 0: tbxark.options.KeyValuePair.extra:type_name -> tbxark.options.KeyValuePair.ExtraEntry
+	2, // 1: tbxark.options.options:extendee -> google.protobuf.MethodOptions
+	0, // 2: tbxark.options.options:type_name -> tbxark.options.KeyValuePair
 	3, // [3:3] is the sub-list for method output_type
 	3, // [3:3] is the sub-list for method input_type
 	2, // [2:3] is the sub-list for extension type_name
@@ -201,12 +201,12 @@ var file_options_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_options_proto_init() }
-func file_options_proto_init() {
-	if File_options_proto != nil {
+func init() { file_tbxark_options_options_proto_init() }
+func file_tbxark_options_options_proto_init() {
+	if File_tbxark_options_options_proto != nil {
 		return
 	}
-	file_options_proto_msgTypes[0].OneofWrappers = []any{
+	file_tbxark_options_options_proto_msgTypes[0].OneofWrappers = []any{
 		(*KeyValuePair_Flag)(nil),
 		(*KeyValuePair_Text)(nil),
 		(*KeyValuePair_Number)(nil),
@@ -215,18 +215,18 @@ func file_options_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_options_proto_rawDesc), len(file_options_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tbxark_options_options_proto_rawDesc), len(file_tbxark_options_options_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 1,
 			NumServices:   0,
 		},
-		GoTypes:           file_options_proto_goTypes,
-		DependencyIndexes: file_options_proto_depIdxs,
-		MessageInfos:      file_options_proto_msgTypes,
-		ExtensionInfos:    file_options_proto_extTypes,
+		GoTypes:           file_tbxark_options_options_proto_goTypes,
+		DependencyIndexes: file_tbxark_options_options_proto_depIdxs,
+		MessageInfos:      file_tbxark_options_options_proto_msgTypes,
+		ExtensionInfos:    file_tbxark_options_options_proto_extTypes,
 	}.Build()
-	File_options_proto = out.File
-	file_options_proto_goTypes = nil
-	file_options_proto_depIdxs = nil
+	File_tbxark_options_options_proto = out.File
+	file_tbxark_options_options_proto_goTypes = nil
+	file_tbxark_options_options_proto_depIdxs = nil
 }
