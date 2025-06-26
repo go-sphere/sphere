@@ -6,47 +6,47 @@ import (
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 )
 
-func (r *Render) AdminLite(a *ent.Admin) *entpb.Admin {
-	if a == nil {
+func (r *Render) AdminLite(value *ent.Admin) *entpb.Admin {
+	if value == nil {
 		return nil
 	}
 	return &entpb.Admin{
-		Id:       a.ID,
-		Nickname: a.Nickname,
-		Avatar:   r.storage.GenerateURL(a.Avatar),
+		Id:       value.ID,
+		Nickname: value.Nickname,
+		Avatar:   r.storage.GenerateURL(value.Avatar),
 	}
 }
 
-func (r *Render) Admin(a *ent.Admin) *entpb.Admin {
+func (r *Render) Admin(value *ent.Admin) *entpb.Admin {
 	return &entpb.Admin{
-		Id:        a.ID,
-		Username:  a.Username,
-		Nickname:  a.Nickname,
-		Avatar:    r.storage.GenerateURL(a.Avatar),
-		Roles:     a.Roles,
-		CreatedAt: a.CreatedAt,
-		UpdatedAt: a.UpdatedAt,
+		Id:        value.ID,
+		Username:  value.Username,
+		Nickname:  value.Nickname,
+		Avatar:    r.storage.GenerateURL(value.Avatar),
+		Roles:     value.Roles,
+		CreatedAt: value.CreatedAt,
+		UpdatedAt: value.UpdatedAt,
 	}
 }
 
-func (r *Render) User(u *ent.User) *sharedv1.User {
-	if u == nil {
+func (r *Render) User(value *ent.User) *sharedv1.User {
+	if value == nil {
 		return nil
 	}
 	return &sharedv1.User{
-		Id:       u.ID,
-		Username: u.Username,
-		Avatar:   r.storage.GenerateURL(u.Avatar),
+		Id:       value.ID,
+		Username: value.Username,
+		Avatar:   r.storage.GenerateURL(value.Avatar),
 	}
 }
 
-func (r *Render) UserFull(u *ent.User) *sharedv1.User {
-	if u == nil {
+func (r *Render) UserFull(value *ent.User) *sharedv1.User {
+	if value == nil {
 		return nil
 	}
 	return &sharedv1.User{
-		Id:       u.ID,
-		Username: u.Username,
-		Avatar:   r.storage.GenerateURL(u.Avatar),
+		Id:       value.ID,
+		Username: value.Username,
+		Avatar:   r.storage.GenerateURL(value.Avatar),
 	}
 }

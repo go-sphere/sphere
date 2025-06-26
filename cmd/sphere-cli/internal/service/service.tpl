@@ -3,11 +3,9 @@ package dash
 import (
 	"context"
 
-	"github.com/TBXark/sphere/database/bind"
 	"github.com/TBXark/sphere/database/mapper"
 	{{.ServicePackage}} "{{.BizPackagePath}}/api/{{.PackagePath}}"
-	"{{.BizPackagePath}}/pkg/database/ent/{{.ServiceFileName}}"
-	"{{.BizPackagePath}}/internal/pkg/render"
+    "{{.BizPackagePath}}/internal/pkg/render"
 )
 
 var _ {{.ServicePackage}}.{{.ServiceName}}ServiceHTTPServer = (*Service)(nil)

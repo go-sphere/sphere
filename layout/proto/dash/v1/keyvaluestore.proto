@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package dash.v1;
+
+import "buf/validate/validate.proto";
+import "entpb/entpb.proto";
+import "google/api/annotations.proto";
+
+service KeyValueStoreService {
+  rpc KeyValueStoreList(KeyValueStoreListRequest) returns (KeyValueStoreListResponse) {
+    option (google.api.http) = {get: "/api/key-value-store/list"};
+  }
+  rpc KeyValueStoreCreate(KeyValueStoreCreateRequest) returns (KeyValueStoreCreateResponse) {
+    option (google.api.http) = {
+      post: "/api/key-value-store/create"
+      body: "*"
+    };
+  }
+  rpc KeyValueStoreUpdate(KeyValueStoreUpdateRequest) returns (KeyValueStoreUpdateResponse) {
+    option (google.api.http) = {
+      post: "/api/key-value-store/update"
+      body: "*"
+    };
+  }
+  rpc KeyValueStoreDetail(KeyValueStoreDetailRequest) returns (KeyValueStoreDetailResponse) {
+    option (google.api.http) = {get: "/api/key-value-store/detail/{id}"};
+  }
+  rpc KeyValueStoreDelete(KeyValueStoreDeleteRequest) returns (KeyValueStoreDeleteResponse) {
+    option (google.api.http) = {delete: "/api/key-value-store/delete/{id}"};
+  }
+}
+
+message KeyValueStoreListRequest {
+  int64 page = 1 [
+    (buf.validate.field).required = false,
+    (buf.validate.field).int64.gte = 0
+  ]; // @sphere:form
+  int64 page_size = 2 [(buf.validate.field).int64.gte = 0]; // @sphere:form
+}
+
+message KeyValueStoreListResponse {
+  repeated entpb.KeyValueStore key_value_stores = 1;
+  int64 total_size = 2;
+  int64 total_page = 3;
+}
+
+message KeyValueStoreCreateRequest {
+  entpb.KeyValueStore key_value_store = 1;
+}
+
+message KeyValueStoreCreateResponse {
+  entpb.KeyValueStore key_value_store = 1;
+}
+
+message KeyValueStoreUpdateRequest {
+  entpb.KeyValueStore key_value_store = 1;
+}
+
+message KeyValueStoreUpdateResponse {
+  entpb.KeyValueStore key_value_store = 1;
+}
+
+message KeyValueStoreDetailRequest {
+  int64 id = 1; // @sphere:uri
+}
+
+message KeyValueStoreDetailResponse {
+  entpb.KeyValueStore key_value_store = 1;
+}
+
+message KeyValueStoreDeleteRequest {
+  int64 id = 1; // @sphere:uri
+}
+
+message KeyValueStoreDeleteResponse {}

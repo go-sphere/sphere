@@ -19,3 +19,9 @@ fmt: ## Format code
 	$(call fmt_mod,cmd/sphere-cli)
 	$(call fmt_mod,internal/protogo)
 	$(call fmt_mod,internal/tags)
+
+.PHONY: cli/service/test
+cli/service/test: ## Test sphere-cli service generation
+	sphere-cli service golang --name KeyValueStore &> layout/internal/service/dash/keyvaluestore.go
+	sphere-cli service proto --name KeyValueStore &> layout/proto/dash/v1/keyvaluestore.proto
+	cd layout && make gen/all && make build

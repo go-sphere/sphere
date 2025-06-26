@@ -7,11 +7,11 @@ toolchain go1.24.2
 replace github.com/TBXark/sphere => ../
 
 require (
-	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250613105001-9f2d3c737feb.1
+	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250625184727-c923a0c2a132.1
 	buf.build/go/protovalidate v0.13.1
 	entgo.io/ent v0.14.4
 	github.com/TBXark/confstore v0.0.4
-	github.com/TBXark/sphere v0.0.0-20250625090612-2a0dc683ab0a
+	github.com/TBXark/sphere v0.0.0-20250626030019-3c510b318a0c
 	github.com/alitto/pond/v2 v2.4.0
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.10.1
