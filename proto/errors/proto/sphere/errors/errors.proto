@@ -12,6 +12,10 @@ message Error {
   string message = 3;
 };
 
+extend google.protobuf.EnumOptions {
+  int32 default_status = 114515;
+}
+
 extend google.protobuf.EnumValueOptions {
   Error options = 114516;
 }

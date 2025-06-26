@@ -1,7 +1,11 @@
 package errors
 
 import (
+	"fmt"
+	"github.com/TBXark/sphere/cmd/protoc-gen-sphere-errors/generate/template"
+	"github.com/TBXark/sphere/proto/errors/sphere/errors"
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -47,5 +51,39 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 }
 
 func genErrorsReason(_ *protogen.Plugin, _ *protogen.File, g *protogen.GeneratedFile, enum *protogen.Enum) bool {
+	var ew template.ErrorWrapper
+	for _, v := range enum.Values {
+		options := proto.GetExtension(v.Desc.Options(), errors.E_Options)
+		if ok := eCode.(int32); ok != 0 {
+			enumCode = int(ok)
+		}
+		// If the current enumeration does not contain 'errors.code'
+		// or the code value exceeds the range, the current enum will be skipped
+		if enumCode > 600 || enumCode < 0 {
+			panic(fmt.Sprintf("Enum '%s' range must be greater than 0 and less than or equal to 600", string(v.Desc.Name())))
+		}
+		if enumCode == 0 {
+			continue
+		}
+
+		comment := v.Comments.Leading.String()
+		if comment == "" {
+			comment = v.Comments.Trailing.String()
+		}
+
+		err := &errorInfo{
+			Name:       string(enum.Desc.Name()),
+			Value:      string(v.Desc.Name()),
+			CamelValue: case2Camel(string(v.Desc.Name())),
+			HTTPCode:   enumCode,
+			Comment:    comment,
+			HasComment: len(comment) > 0,
+		}
+		ew.Errors = append(ew.Errors, err)
+	}
+	if len(ew.Errors) == 0 {
+		return true
+	}
+	g.P(ew.execute())
 	return false
 }

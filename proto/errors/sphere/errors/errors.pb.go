@@ -84,6 +84,14 @@ func (x *Error) GetMessage() string {
 
 var file_sphere_errors_errors_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
+		ExtendedType:  (*descriptorpb.EnumOptions)(nil),
+		ExtensionType: (*int32)(nil),
+		Field:         114515,
+		Name:          "sphere.errors.default_status",
+		Tag:           "varint,114515,opt,name=default_status",
+		Filename:      "sphere/errors/errors.proto",
+	},
+	{
 		ExtendedType:  (*descriptorpb.EnumValueOptions)(nil),
 		ExtensionType: (*Error)(nil),
 		Field:         114516,
@@ -93,10 +101,16 @@ var file_sphere_errors_errors_proto_extTypes = []protoimpl.ExtensionInfo{
 	},
 }
 
+// Extension fields to descriptorpb.EnumOptions.
+var (
+	// optional int32 default_status = 114515;
+	E_DefaultStatus = &file_sphere_errors_errors_proto_extTypes[0]
+)
+
 // Extension fields to descriptorpb.EnumValueOptions.
 var (
 	// optional sphere.errors.Error options = 114516;
-	E_Options = &file_sphere_errors_errors_proto_extTypes[0]
+	E_Options = &file_sphere_errors_errors_proto_extTypes[1]
 )
 
 var File_sphere_errors_errors_proto protoreflect.FileDescriptor
@@ -107,7 +121,8 @@ const file_sphere_errors_errors_proto_rawDesc = "" +
 	"\x05Error\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\x05R\x06status\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage:S\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage:E\n" +
+	"\x0edefault_status\x12\x1c.google.protobuf.EnumOptions\x18\xd3\xfe\x06 \x01(\x05R\rdefaultStatus:S\n" +
 	"\aoptions\x12!.google.protobuf.EnumValueOptions\x18\xd4\xfe\x06 \x01(\v2\x14.sphere.errors.ErrorR\aoptionsB\xaa\x01\n" +
 	"\x11com.sphere.errorsB\vErrorsProtoP\x01Z3github.com/TBXark/sphere/proto/errors/sphere/errors\xa2\x02\x03SEX\xaa\x02\rSphere.Errors\xca\x02\rSphere\\Errors\xe2\x02\x19Sphere\\Errors\\GPBMetadata\xea\x02\x0eSphere::Errorsb\x06proto3"
 
@@ -126,15 +141,17 @@ func file_sphere_errors_errors_proto_rawDescGZIP() []byte {
 var file_sphere_errors_errors_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_sphere_errors_errors_proto_goTypes = []any{
 	(*Error)(nil),                         // 0: sphere.errors.Error
-	(*descriptorpb.EnumValueOptions)(nil), // 1: google.protobuf.EnumValueOptions
+	(*descriptorpb.EnumOptions)(nil),      // 1: google.protobuf.EnumOptions
+	(*descriptorpb.EnumValueOptions)(nil), // 2: google.protobuf.EnumValueOptions
 }
 var file_sphere_errors_errors_proto_depIdxs = []int32{
-	1, // 0: sphere.errors.options:extendee -> google.protobuf.EnumValueOptions
-	0, // 1: sphere.errors.options:type_name -> sphere.errors.Error
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	1, // [1:2] is the sub-list for extension type_name
-	0, // [0:1] is the sub-list for extension extendee
+	1, // 0: sphere.errors.default_status:extendee -> google.protobuf.EnumOptions
+	2, // 1: sphere.errors.options:extendee -> google.protobuf.EnumValueOptions
+	0, // 2: sphere.errors.options:type_name -> sphere.errors.Error
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	2, // [2:3] is the sub-list for extension type_name
+	0, // [0:2] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
 }
 
@@ -150,7 +167,7 @@ func file_sphere_errors_errors_proto_init() {
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_sphere_errors_errors_proto_rawDesc), len(file_sphere_errors_errors_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   1,
-			NumExtensions: 1,
+			NumExtensions: 2,
 			NumServices:   0,
 		},
 		GoTypes:           file_sphere_errors_errors_proto_goTypes,
