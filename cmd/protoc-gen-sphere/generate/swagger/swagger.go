@@ -59,7 +59,11 @@ func BuildAnnotations(m *protogen.Method, config *Config) string {
 		desc = strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(desc, "\n"), "//"))
 		builder.WriteString("// @Description " + desc + "\n")
 	}
-	builder.WriteString("// @Tags " + string(m.Parent.Desc.ParentFile().Package()) + "\n")
+	pkgName := string(m.Parent.Desc.ParentFile().Package())
+	builder.WriteString("// @Tags " + strings.Join([]string{
+		pkgName,
+		pkgName + "." + string(m.Parent.Desc.Name()),
+	}, ",") + "\n")
 	builder.WriteString("// @Accept json\n")
 	builder.WriteString("// @Produce json\n")
 	if config.Auth != "" {
