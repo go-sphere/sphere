@@ -37,20 +37,19 @@ message AdminSessionDeleteRequest {
 message AdminSessionDeleteResponse {}
 
 enum AdminSessionError {
-  UNKNOWN_ERROR = 0;
+  option (sphere.errors.default_status) = 500;
+
+  UNKNOWN_ADMIN_SESSION_ERROR = 0;
   SESSION_REVOKED = 1000 [(sphere.errors.options) = {
     status: 403
     message: "会话已被撤销"
-    //    reason: "session_is_revoked"
   }];
   SESSION_EXPIRED = 1001 [(sphere.errors.options) = {
     status: 403
     message: "会话已过期"
-    //    reason: "session_expired"
   }];
   SESSION_KEY_NOT_MATCH = 1002 [(sphere.errors.options) = {
     status: 403
     message: "会话密钥不匹配"
-    //    reason: "session_key_not_match"
   }];
 }

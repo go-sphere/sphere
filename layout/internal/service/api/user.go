@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TBXark/sphere/core/errors/statuserr"
 	"github.com/TBXark/sphere/core/safe"
 	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/auth"
@@ -105,7 +103,7 @@ func (s *Service) BindPhoneWxMini(ctx context.Context, request *apiv1.BindPhoneW
 		return nil, err
 	}
 	if number.PhoneInfo.CountryCode != "86" {
-		return nil, statuserr.BadRequestError(errors.New("only support China phone number"), "仅支持中国大陆手机号")
+		return nil, apiv1.AuthErrorUnsupportedPhoneRegion()
 	}
 	err = s.db.UserPlatform.Create().
 		SetUserID(userId).

@@ -50,4 +50,4 @@ plugins:
       - extra_data_constructor=github.com/TBXark/sphere/social/telegram;NewMethodExtraData
 ```
 
-You will also need to configure the `route` plugin in your `buf.gen.yaml` so that `buf` knows how to execute it.
+You will also need to configure the `protoc-gen-route` plugin in your `buf.gen.yaml` so that `buf` knows how to execute it.

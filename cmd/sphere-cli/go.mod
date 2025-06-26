@@ -7,7 +7,7 @@ toolchain go1.24.4
 require (
 	entgo.io/contrib v0.6.0
 	entgo.io/ent v0.14.4
-	github.com/TBXark/sphere/internal/tags v0.0.0-20250626030019-3c510b318a0c
+	github.com/TBXark/sphere/internal/tags v0.0.0-20250626120942-d1480ba7e1f8
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jhump/protoreflect v1.17.0
 	github.com/mitchellh/mapstructure v1.5.0

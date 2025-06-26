@@ -3,6 +3,7 @@ syntax = "proto3";
 package dash.v1;
 
 import "google/api/annotations.proto";
+import "sphere/errors/errors.proto";
 
 // https://github.com/pure-admin/pure-admin-thin/blob/main/src/api/user.ts
 
@@ -45,4 +46,14 @@ message AuthRefreshResponse {
   string accessToken = 1;
   string refreshToken = 2;
   string expires = 3;
+}
+
+enum AuthError {
+  option (sphere.errors.default_status) = 500;
+
+  UNKNOWN_AUTH_ERROR = 0;
+  PASSWORD_ERROR = 1000 [(sphere.errors.options) = {
+    status: 401
+    message: "密码错误"
+  }];
 }

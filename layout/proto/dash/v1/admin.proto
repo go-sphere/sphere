@@ -5,6 +5,7 @@ package dash.v1;
 import "buf/validate/validate.proto";
 import "entpb/entpb.proto";
 import "google/api/annotations.proto";
+import "sphere/errors/errors.proto";
 
 service AdminService {
   rpc AdminList(AdminListRequest) returns (AdminListResponse) {
@@ -79,4 +80,17 @@ message AdminRoleListRequest {}
 
 message AdminRoleListResponse {
   repeated string roles = 1;
+}
+
+enum AdminError {
+  option (sphere.errors.default_status) = 500;
+  UNKNOWN_ADMIN_ERROR = 0;
+  PASSWORD_TOO_SHORT = 1000 [(sphere.errors.options) = {
+    status: 400
+    message: "密码长度不能小于8位"
+  }];
+  CANNOT_DELETE_SELF = 1001 [(sphere.errors.options) = {
+    status: 400
+    message: "不能删除当前登录的管理员账号"
+  }];
 }

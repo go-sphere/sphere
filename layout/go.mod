@@ -11,9 +11,9 @@ require (
 	buf.build/go/protovalidate v0.13.1
 	entgo.io/ent v0.14.4
 	github.com/TBXark/confstore v0.0.4
-	github.com/TBXark/sphere v0.0.0-20250626085116-d100979d0d20
-	github.com/TBXark/sphere/proto/errors v0.0.0-20250626092033-ea378a02656f
-	github.com/TBXark/sphere/proto/options v0.0.0-20250626092033-ea378a02656f
+	github.com/TBXark/sphere v0.0.0-20250626120942-d1480ba7e1f8
+	github.com/TBXark/sphere/proto/errors v0.0.0-20250626120942-d1480ba7e1f8
+	github.com/TBXark/sphere/proto/options v0.0.0-20250626120942-d1480ba7e1f8
 	github.com/alitto/pond/v2 v2.4.0
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.10.1
@@ -101,7 +101,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	modernc.org/libc v1.66.0 // indirect
+	modernc.org/libc v1.66.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.38.0 // indirect

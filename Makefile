@@ -2,6 +2,7 @@ GOLANG_CI_LINT = golangci-lint
 
 .PHONY: install
 install: ## Install all dependencies
+	 cd cmd/protoc-gen-sphere-errors && go mod tidy && go install .
 	 cd cmd/protoc-gen-sphere && go mod tidy && go install .
 	 cd cmd/protoc-gen-route && go mod tidy && go install .
 	 cd cmd/sphere-cli && go mod tidy && go install .

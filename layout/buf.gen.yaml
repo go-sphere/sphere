@@ -32,3 +32,6 @@ plugins:
     opt:
       - paths=source_relative
       - swagger_auth_header=// @Security ApiKeyAuth
+  - local: protoc-gen-sphere-errors
+    out: api
+    opt: paths=source_relative

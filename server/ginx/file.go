@@ -70,7 +70,10 @@ func WithFormFileReader[T any](handler func(ctx *gin.Context, file io.Reader, fi
 		if opts.allowExtensions != nil {
 			ext := file.Filename[strings.LastIndex(file.Filename, ".")+1:]
 			if _, ok := opts.allowExtensions[strings.ToLower(ext)]; !ok {
-				return nil, statuserr.BadRequestError(errors.New("extension not allowed"), "File extension not allowed: "+ext)
+				return nil, statuserr.BadRequestError(
+					errors.New("FileError:FILE_EXTENSION_NOT_ALLOWED"),
+					"File extension not allowed: "+ext,
+				)
 			}
 		}
 		read, err := file.Open()

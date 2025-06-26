@@ -22,8 +22,9 @@ Sphere comes with powerful code generation tools to create `proto` files, `Swagg
 ## Command line Tool
 
 - [`sphere-cli`](cmd/sphere-cli/README.md) - A command-line tool for `sphere` project management.
-- [`protoc-gen-sphere`](cmd/protoc-gen-sphere/README.md) - A plugin for generating HTTP server code from `.proto` files.
 - [`protoc-gen-route`](cmd/protoc-gen-route/README.md) - A plugin for generating routing code from `.proto` files.
+- [`protoc-gen-sphere`](cmd/protoc-gen-sphere/README.md) - A plugin for generating HTTP server code from `.proto` files.
+- [`protoc-gen-sphere-errors`](cmd/protoc-gen-sphere-errors/README.md) - A plugin for generating error handling code from `.proto` files.
 
 ## Documentation
 

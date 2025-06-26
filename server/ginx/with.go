@@ -1,6 +1,7 @@
 package ginx
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -54,8 +55,9 @@ func WithRecover(message string, handler func(ctx *gin.Context)) gin.HandlerFunc
 				)
 				AbortWithJsonError(ctx,
 					statuserr.InternalServerError(
-						fmt.Errorf("%v", err),
-						"internal server error"),
+						errors.New("ServerError:PANIC"),
+						fmt.Sprintf("internal server error: %v", err),
+					),
 				)
 			}
 		}()

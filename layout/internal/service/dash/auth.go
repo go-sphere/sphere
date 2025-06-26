@@ -2,10 +2,8 @@ package dash
 
 import (
 	"context"
-	"errors"
 	"time"
 
-	"github.com/TBXark/sphere/core/errors/statuserr"
 	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
@@ -27,8 +25,6 @@ const (
 	AuthContextKeyIP = "auth_ip"
 	AuthContextKeyUA = "auth_ua"
 )
-
-var errPasswordNotMatch = statuserr.BadRequestError(errors.New("password not match"), "密码不匹配")
 
 type AdminToken struct {
 	Admin        *ent.Admin
@@ -88,10 +84,10 @@ func (s *Service) AuthLogin(ctx context.Context, request *dashv1.AuthLoginReques
 	token, err := dao.WithTx[AdminToken](ctx, s.db.Client, func(ctx context.Context, client *ent.Client) (*AdminToken, error) {
 		administrator, err := client.Admin.Query().Where(admin.UsernameEqualFold(request.Username)).Only(ctx)
 		if err != nil {
-			return nil, errPasswordNotMatch // 隐藏错误信息
+			return nil, dashv1.AuthErrorPasswordError() // 隐藏错误信息
 		}
 		if !secure.IsPasswordMatch(request.Password, administrator.Password) {
-			return nil, errPasswordNotMatch
+			return nil, dashv1.AuthErrorPasswordError()
 		}
 		return s.createAdminToken(ctx, client, administrator)
 	})
@@ -119,13 +115,13 @@ func (s *Service) AuthRefresh(ctx context.Context, request *dashv1.AuthRefreshRe
 			return nil, err
 		}
 		if session.IsRevoked {
-			return nil, statuserr.ForbiddenError(errors.New("session is revoked"), "会话已被撤销")
+			return nil, dashv1.AdminSessionErrorSessionRevoked()
 		}
 		if session.Expires < time.Now().Unix() {
-			return nil, statuserr.ForbiddenError(errors.New("session expired"), "会话已过期")
+			return nil, dashv1.AdminSessionErrorSessionExpired()
 		}
 		if session.SessionKey != claims.Subject {
-			return nil, statuserr.ForbiddenError(errors.New("session key not match"), "会话密钥不匹配")
+			return nil, dashv1.AdminSessionErrorSessionExpired()
 		}
 		administrator, err := client.Admin.Get(ctx, session.UID)
 		if err != nil {

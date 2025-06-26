@@ -53,4 +53,4 @@ plugins:
       - swagger_auth_header=// @Security ApiKeyAuth
 ```
 
-You will also need to configure the `sphere` plugin in your `buf.gen.yaml` so that `buf` knows how to execute it.
+You will also need to configure the `protoc-gen-sphere` plugin in your `buf.gen.yaml` so that `buf` knows how to execute it.

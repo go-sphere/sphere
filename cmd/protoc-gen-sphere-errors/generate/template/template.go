@@ -4,8 +4,6 @@ import (
 	"bytes"
 	_ "embed"
 	"text/template"
-
-	"github.com/TBXark/sphere/proto/errors/sphere/errors"
 )
 
 //go:embed template.go.tpl
@@ -13,9 +11,15 @@ var errorsTemplate string
 
 type ErrorInfo struct {
 	Name       string
-	Comment    string
-	HasComment bool
-	Error      errors.Error
+	Value      string
+	CamelValue string
+
+	HasMessage bool
+
+	Status  int32
+	Code    int32
+	Reason  string
+	Message string
 }
 
 type ErrorWrapper struct {

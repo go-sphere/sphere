@@ -2,9 +2,7 @@ package dash
 
 import (
 	"context"
-	"errors"
 
-	"github.com/TBXark/sphere/core/errors/statuserr"
 	"github.com/TBXark/sphere/database/bind"
 	"github.com/TBXark/sphere/database/mapper"
 	dashv1 "github.com/TBXark/sphere/layout/api/dash/v1"
@@ -19,7 +17,7 @@ func (s *Service) AdminCreate(ctx context.Context, request *dashv1.AdminCreateRe
 	if len(request.Admin.Password) > 8 {
 		request.Admin.Password = secure.CryptPassword(request.Admin.Password)
 	} else {
-		return nil, statuserr.BadRequestError(errors.New("password is too short"), "密码长度不能小于8位")
+		return nil, dashv1.AdminErrorPasswordTooShort()
 	}
 	request.Admin.Avatar = s.storage.ExtractKeyFromURL(request.Admin.Avatar)
 	u, err := render.CreateAdmin(s.db.Admin.Create(), request.Admin).Save(ctx)
@@ -37,7 +35,7 @@ func (s *Service) AdminDelete(ctx context.Context, request *dashv1.AdminDeleteRe
 		return nil, err
 	}
 	if value == request.Id {
-		return nil, statuserr.BadRequestError(errors.New("can't delete admin"), "不能删除当前登录的管理员账号")
+		return nil, dashv1.AdminErrorCannotDeleteSelf()
 	}
 	err = s.db.Admin.DeleteOneID(request.Id).Exec(ctx)
 	if err != nil {
