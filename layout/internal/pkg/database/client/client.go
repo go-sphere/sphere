@@ -2,12 +2,18 @@ package client
 
 import (
 	"context"
+	"database/sql"
 
-	_ "github.com/TBXark/sphere/database/sqlite"
+	"entgo.io/ent/dialect"
+	"github.com/TBXark/sphere/database/sqlite"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/migrate"
 	_ "github.com/go-sql-driver/mysql"
 )
+
+func init() {
+	sql.Register(dialect.SQLite, sqlite.NewDriver())
+}
 
 type Config struct {
 	Type  string `json:"type" yaml:"type"`

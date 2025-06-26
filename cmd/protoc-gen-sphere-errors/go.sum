@@ -1,5 +1,3 @@
-github.com/TBXark/sphere/proto/errors v0.0.0-20250626114905-6eeb0253cb98 h1:2il5qz6oyBE2EoNgM6bABB9pyti4uAX5ZH1RIU7sVlM=
-github.com/TBXark/sphere/proto/errors v0.0.0-20250626114905-6eeb0253cb98/go.mod h1:+TzguIJicUgVCcwkfAeGgvzHo+kdWgY+Fz4LLL+cupw=
 github.com/TBXark/sphere/proto/errors v0.0.0-20250626120942-d1480ba7e1f8 h1:9I12qrPVC/u7PhNlCebkVtjadcYY9u9aMhXenARwwk8=
 github.com/TBXark/sphere/proto/errors v0.0.0-20250626120942-d1480ba7e1f8/go.mod h1:+TzguIJicUgVCcwkfAeGgvzHo+kdWgY+Fz4LLL+cupw=
 github.com/google/go-cmp v0.5.5 h1:Khx7svrCpmxxtHBq5j2mp/xVjsi8hQMfNLvJFAlrGgU=

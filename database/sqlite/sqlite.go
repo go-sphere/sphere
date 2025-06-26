@@ -1,16 +1,20 @@
 package sqlite
 
 import (
-	"database/sql"
 	"database/sql/driver"
 	"fmt"
 
-	"entgo.io/ent/dialect"
 	"modernc.org/sqlite"
 )
 
 type Driver struct {
 	*sqlite.Driver
+}
+
+func NewDriver() *Driver {
+	return &Driver{
+		Driver: &sqlite.Driver{},
+	}
 }
 
 func (d Driver) Open(name string) (driver.Conn, error) {
@@ -26,8 +30,4 @@ func (d Driver) Open(name string) (driver.Conn, error) {
 		return nil, fmt.Errorf("failed to enable enable foreign keys: %w", e)
 	}
 	return conn, nil
-}
-
-func init() {
-	sql.Register(dialect.SQLite, Driver{Driver: &sqlite.Driver{}})
 }

@@ -5,7 +5,6 @@ go 1.23.0
 toolchain go1.24.4
 
 require (
-	entgo.io/ent v0.14.4
 	github.com/TBXark/jsoncompressor v0.0.1
 	github.com/dgraph-io/badger/v4 v4.7.0
 	github.com/dgraph-io/ristretto/v2 v2.2.0
@@ -64,7 +63,6 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.26.0 // indirect
-	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
