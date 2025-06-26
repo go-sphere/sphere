@@ -23,8 +23,6 @@ prefix.
 * `@sphere:json` or `@sphere:json="xxx"`: Binds the field to the request body.
 * `@sphere:!json`: Excludes the field from JSON serialization by adding a `json:"-"` tag.
 
-These annotations allow for fine-grained control over how request data is mapped. The logic for parsing these annotations can be found in `internal/tags/tags.go`.
-
 #### Automatic JSON Omission
 
 By default, when you use `@sphere:uri` or `@sphere:form` to bind a field to the URL path or query parameters, Sphere's
@@ -37,7 +35,7 @@ This behavior is controlled by the `--auto_omit_json` flag in the `sphere-cli re
 
 Sphere converts gRPC-Gateway style URL paths from your `.proto` definitions into Gin-compatible routes. This includes support for path parameters, wildcards, and complex segments.
 
-The following table shows examples of how Protobuf URL paths are translated into Gin routes. This is based on the test cases in `cmd/protoc-gen-sphere/generate/parser/path_test.go`.
+The following table shows examples of how Protobuf URL paths are translated into Gin routes.
 
 | Protobuf Path Template                           | Generated Gin Route                         |
 |--------------------------------------------------|---------------------------------------------|
