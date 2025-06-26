@@ -7,12 +7,12 @@ import (
 
 type StatusErr interface {
 	error
-	Status() int
+	Status() int32
 }
 
 type CodeErr interface {
 	error
-	Code() int
+	Code() int32
 }
 
 type MessageErr interface {
@@ -22,12 +22,12 @@ type MessageErr interface {
 
 type Error struct {
 	error
-	status  int
-	code    int
+	status  int32
+	code    int32
 	message string
 }
 
-func NewError(status, code int, message string) Error {
+func NewError(status, code int32, message string) Error {
 	return Error{
 		error:   errors.New("status_err:" + message),
 		status:  status,
@@ -36,7 +36,7 @@ func NewError(status, code int, message string) Error {
 	}
 }
 
-func JoinError(status int, message string, err error) error {
+func JoinError(status int32, message string, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -48,11 +48,11 @@ func JoinError(status int, message string, err error) error {
 	}
 }
 
-func (e Error) Status() int {
+func (e Error) Status() int32 {
 	return e.status
 }
 
-func (e Error) Code() int {
+func (e Error) Code() int32 {
 	return e.code
 }
 

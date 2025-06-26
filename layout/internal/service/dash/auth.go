@@ -28,7 +28,7 @@ const (
 	AuthContextKeyUA = "auth_ua"
 )
 
-var ErrPasswordNotMatch = statuserr.NewError(400, 0, "password not match")
+var errPasswordNotMatch = statuserr.NewError(400, 0, "password not match")
 
 type AdminToken struct {
 	Admin        *ent.Admin
@@ -88,10 +88,10 @@ func (s *Service) AuthLogin(ctx context.Context, request *dashv1.AuthLoginReques
 	token, err := dao.WithTx[AdminToken](ctx, s.db.Client, func(ctx context.Context, client *ent.Client) (*AdminToken, error) {
 		administrator, err := client.Admin.Query().Where(admin.UsernameEqualFold(request.Username)).Only(ctx)
 		if err != nil {
-			return nil, ErrPasswordNotMatch // 隐藏错误信息
+			return nil, errPasswordNotMatch // 隐藏错误信息
 		}
 		if !secure.IsPasswordMatch(request.Password, administrator.Password) {
-			return nil, ErrPasswordNotMatch
+			return nil, errPasswordNotMatch
 		}
 		return s.createAdminToken(ctx, client, administrator)
 	})

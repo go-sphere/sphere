@@ -1,6 +1,8 @@
 module github.com/TBXark/sphere/cmd/protoc-gen-sphere
 
-go 1.23.2
+go 1.23.0
+
+toolchain go1.24.4
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250625184727-c923a0c2a132.1

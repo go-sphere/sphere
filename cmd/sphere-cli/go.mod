@@ -1,6 +1,8 @@
 module github.com/TBXark/sphere/cmd/sphere-cli
 
-go 1.23.2
+go 1.23.0
+
+toolchain go1.24.4
 
 require (
 	entgo.io/contrib v0.6.0

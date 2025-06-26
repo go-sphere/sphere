@@ -1,8 +1,8 @@
 module github.com/TBXark/sphere
 
-go 1.23.4
+go 1.23.0
 
-toolchain go1.24.2
+toolchain go1.24.4
 
 require (
 	entgo.io/ent v0.14.4

@@ -7,9 +7,7 @@ import (
 	"github.com/TBXark/sphere/core/errors/statuserr"
 )
 
-var internalServerError = statuserr.NewError(http.StatusInternalServerError, 0, "internal Server Error")
-
-func ParseError(err error) (code int, status int, message string) {
+func ParseError(err error) (code int32, status int32, message string) {
 	var se statuserr.StatusErr
 	if errors.As(err, &se) {
 		status = se.Status()

@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package options;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/tbxark/sphere/proto/options";
+
+message KeyValuePair {
+  string key = 1;
+  oneof value {
+    bool flag = 2;
+    string text = 3;
+    int64 number = 4;
+  }
+  map<string, string> extra = 5;
+}
+
+extend google.protobuf.MethodOptions {
+  repeated KeyValuePair options = 114514;
+}

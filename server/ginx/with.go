@@ -1,6 +1,9 @@
 package ginx
 
 import (
+	"errors"
+	"fmt"
+	"github.com/TBXark/sphere/core/errors/statuserr"
 	"net/http"
 
 	"github.com/TBXark/sphere/log"
@@ -10,7 +13,7 @@ import (
 
 type (
 	Context     = gin.Context
-	ErrorParser func(error) (int, int, string)
+	ErrorParser func(error) (int32, int32, string)
 )
 
 var defaultErrorParser ErrorParser = ParseError
@@ -35,8 +38,8 @@ func AbortWithJsonError(ctx *gin.Context, err error) {
 	if status < 100 || status > 599 {
 		status = http.StatusInternalServerError
 	}
-	ctx.AbortWithStatusJSON(status, ErrorResponse{
-		Code:    code,
+	ctx.AbortWithStatusJSON(int(status), ErrorResponse{
+		Code:    int(code),
 		Error:   err.Error(),
 		Message: message,
 	})
@@ -50,7 +53,11 @@ func WithRecover(message string, handler func(ctx *gin.Context)) gin.HandlerFunc
 					message,
 					logfields.Any("error", err),
 				)
-				AbortWithJsonError(ctx, internalServerError)
+				AbortWithJsonError(ctx,
+					statuserr.InternalServerError(
+						errors.New(fmt.Sprintf("%v", err)),
+						"internal server error"),
+				)
 			}
 		}()
 		handler(ctx)

@@ -1,8 +1,8 @@
 module github.com/TBXark/sphere/layout
 
-go 1.23.4
+go 1.23.2
 
-toolchain go1.24.2
+toolchain go1.24.4
 
 replace github.com/TBXark/sphere => ../
 
