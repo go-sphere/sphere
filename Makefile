@@ -29,3 +29,7 @@ cli/service/test: ## Test sphere-cli service generation
 	sphere-cli service golang --name KeyValueStore &> layout/internal/service/dash/keyvaluestore.go
 	sphere-cli service proto --name KeyValueStore &> layout/proto/dash/v1/keyvaluestore.proto
 	cd layout && make gen/all && make build
+
+.PHONY: hook/before/commit
+hook/before/commit: install fmt cli/service/test ## Run before commit hook
+	cd layout && IGNORE_INSTALL_SPHERE_TOOLS=1 make install && make build

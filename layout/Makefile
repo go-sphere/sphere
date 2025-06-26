@@ -165,8 +165,9 @@ ifeq ($(IGNORE_INSTALL_SPHERE_TOOLS),1)
 	@echo "Skipping sphere tools installation as IGNORE_INSTALL_SPHERE_TOOLS=1"
 else
 	$(GO_INSTALL) github.com/TBXark/sphere/cmd/sphere-cli@latest
-	$(GO_INSTALL) github.com/TBXark/sphere/cmd/protoc-gen-sphere@latest
 	$(GO_INSTALL) github.com/TBXark/sphere/cmd/protoc-gen-route@latest
+	$(GO_INSTALL) github.com/TBXark/sphere/cmd/protoc-gen-sphere@latest
+	$(GO_INSTALL) github.com/TBXark/sphere/cmd/protoc-gen-sphere-errors@latest
 endif
 
 init: ## Init all dependencies
