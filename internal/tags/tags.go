@@ -78,21 +78,27 @@ func NewSphereTagItems(raw, protoName string) Items {
 		if part == "" {
 			continue
 		}
+		var key, value string
 		if strings.Contains(part, "=") {
 			kvParts := strings.SplitN(part, "=", 2)
 			if len(kvParts) != 2 {
 				continue
 			}
-			items = append(items, Item{
-				Key:   kvParts[0],
-				Value: strings.TrimSpace(kvParts[1]),
-			})
+			key = strings.TrimSpace(kvParts[0])
+			value = strings.TrimPrefix(strings.TrimSuffix(strings.TrimSpace(kvParts[1]), `"`), `"`)
 		} else if protoName != "" {
-			items = append(items, Item{
-				Key:   part,
-				Value: fmt.Sprintf("\"%s\"", protoName),
-			})
+			key = strings.TrimSpace(part)
+			value = protoName
 		}
+		if strings.HasPrefix(key, "!") {
+			key = strings.TrimPrefix(key, "!")
+			value = "-"
+		}
+		value = fmt.Sprintf(`"%s"`, value)
+		items = append(items, Item{
+			Key:   key,
+			Value: value,
+		})
 	}
 	return items
 }
