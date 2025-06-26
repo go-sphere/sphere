@@ -1,4 +1,4 @@
-# Sphere
+# Sphere Standard Layout
 
 ## About
 

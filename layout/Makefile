@@ -91,7 +91,7 @@ gen/docs: gen/proto ## Generate swagger docs
 		-g docs.go \
 		--parseDependency
 
-gen/all: clean gen/docs gen/wire ## Generate all code (ent, docs, wire)
+gen/all: clean gen/docs gen/wire fmt ## Generate all code (ent, docs, wire)
 
 # ---------- Assets Tools ----------
 gen/dts: gen/docs ## Generate swagger typescript docs

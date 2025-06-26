@@ -6,12 +6,11 @@ After=network.target
 Type=simple
 ExecStart=/opt/sphere/app --config /opt/sphere/config.json
 WorkingDirectory=/opt/sphere
-User=nobody
-Group=nobody
+#User=nobody  # change to a specific user if needed
+#Group=nobody # change to a specific group if needed
 Restart=always
 RestartSec=5
-Environment="APP_ENV=production"
-EnvironmentFile=/opt/sphere/.env
+Environment="GIN_MODE=release"
 LimitNOFILE=65535
 
 [Install]
