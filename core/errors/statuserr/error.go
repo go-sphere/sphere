@@ -5,19 +5,19 @@ import (
 	"net/http"
 )
 
-type StatusErr interface {
+type StatusError interface {
 	error
-	Status() int32
+	GetStatus() int32
 }
 
-type CodeErr interface {
+type CodeError interface {
 	error
-	Code() int32
+	GetCode() int32
 }
 
-type MessageErr interface {
+type MessageError interface {
 	error
-	Message() string
+	GetMessage() string
 }
 
 type Error struct {
@@ -29,7 +29,7 @@ type Error struct {
 
 func NewError(status, code int32, message string) Error {
 	return Error{
-		error:   errors.New("status_err:" + message),
+		error:   errors.New("err:" + message),
 		status:  status,
 		code:    code,
 		message: message,
@@ -48,15 +48,15 @@ func JoinError(status int32, message string, err error) error {
 	}
 }
 
-func (e Error) Status() int32 {
+func (e Error) GetStatus() int32 {
 	return e.status
 }
 
-func (e Error) Code() int32 {
+func (e Error) GetCode() int32 {
 	return e.code
 }
 
-func (e Error) Message() string {
+func (e Error) GetMessage() string {
 	return e.message
 }
 

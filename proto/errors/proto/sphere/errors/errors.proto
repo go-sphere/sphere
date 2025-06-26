@@ -9,7 +9,7 @@ option go_package = "github.com/TBXark/sphere/proto/errors/sphere/errors";
 message Error {
   int32 code = 1;
   int32 status = 2;
-  string error = 3;
+  string reason = 3;
   string message = 4;
 };
 

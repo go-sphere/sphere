@@ -26,7 +26,7 @@ type Error struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Code          int32                  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
 	Status        int32                  `protobuf:"varint,2,opt,name=status,proto3" json:"status,omitempty"`
-	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
 	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -76,9 +76,9 @@ func (x *Error) GetStatus() int32 {
 	return 0
 }
 
-func (x *Error) GetError() string {
+func (x *Error) GetReason() string {
 	if x != nil {
-		return x.Error
+		return x.Reason
 	}
 	return ""
 }
@@ -111,14 +111,14 @@ var File_sphere_errors_errors_proto protoreflect.FileDescriptor
 
 const file_sphere_errors_errors_proto_rawDesc = "" +
 	"\n" +
-	"\x1asphere/errors/errors.proto\x12\rsphere.errors\x1a google/protobuf/descriptor.proto\"c\n" +
+	"\x1asphere/errors/errors.proto\x12\rsphere.errors\x1a google/protobuf/descriptor.proto\"e\n" +
 	"\x05Error\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x16\n" +
-	"\x06status\x18\x02 \x01(\x05R\x06status\x12\x14\n" +
-	"\x05error\x18\x03 \x01(\tR\x05error\x12\x18\n" +
+	"\x06status\x18\x02 \x01(\x05R\x06status\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x18\n" +
 	"\amessage\x18\x04 \x01(\tR\amessage:S\n" +
-	"\aoptions\x12!.google.protobuf.EnumValueOptions\x18\xd4\xfe\x06 \x01(\v2\x14.sphere.errors.ErrorR\aoptionsB\xab\x01\n" +
-	"\x11com.sphere.errorsB\vErrorsProtoP\x01Z4github.com/TBXark/sphere/proto/options/sphere/errors\xa2\x02\x03SEX\xaa\x02\rSphere.Errors\xca\x02\rSphere\\Errors\xe2\x02\x19Sphere\\Errors\\GPBMetadata\xea\x02\x0eSphere::Errorsb\x06proto3"
+	"\aoptions\x12!.google.protobuf.EnumValueOptions\x18\xd4\xfe\x06 \x01(\v2\x14.sphere.errors.ErrorR\aoptionsB\xaa\x01\n" +
+	"\x11com.sphere.errorsB\vErrorsProtoP\x01Z3github.com/TBXark/sphere/proto/errors/sphere/errors\xa2\x02\x03SEX\xaa\x02\rSphere.Errors\xca\x02\rSphere\\Errors\xe2\x02\x19Sphere\\Errors\\GPBMetadata\xea\x02\x0eSphere::Errorsb\x06proto3"
 
 var (
 	file_sphere_errors_errors_proto_rawDescOnce sync.Once

@@ -8,21 +8,21 @@ import (
 )
 
 func ParseError(err error) (code int32, status int32, message string) {
-	var se statuserr.StatusErr
+	var se statuserr.StatusError
 	if errors.As(err, &se) {
-		status = se.Status()
+		status = se.GetStatus()
 	} else {
 		status = http.StatusInternalServerError
 	}
-	var ce statuserr.CodeErr
+	var ce statuserr.CodeError
 	if errors.As(err, &ce) {
-		code = ce.Code()
+		code = ce.GetCode()
 	} else {
 		code = status
 	}
-	var me statuserr.MessageErr
+	var me statuserr.MessageError
 	if errors.As(err, &me) {
-		message = me.Message()
+		message = me.GetMessage()
 	} else {
 		message = err.Error()
 	}
