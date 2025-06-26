@@ -107,6 +107,12 @@ sphere-cli service golang --name <service-name> [--package <package-name>] [--mo
 
 Injects struct tags into generated Protobuf message files (`.pb.go`). This command is an optimization for the Sphere framework, inspired by `favadi/protoc-go-inject-tag`.
 
+It supports special `// @sphere:` comments to inject tags. For example, a comment `// @sphere:json="name"` on a field
+will add the struct tag ``json:"name"``.
+
+A special annotation, `// @sphere:!json`, can be used to explicitly exclude a field from JSON serialization by adding
+the `json:"-"` tag.
+
 **Usage:**
 ```shell
 sphere-cli retags [--input <glob-pattern>]
@@ -115,6 +121,9 @@ sphere-cli retags [--input <glob-pattern>]
 **Flags:**
 - `--input string`: Glob pattern to find target `.pb.go` files (default: `./api/*/*/*.pb.go`).
 - `--remove_tag_comment`: Remove tag comments after injection (default: `true`).
+- `--auto_omit_json`: Automatically add `json:"-"` for fields that have `form` or `uri` tags. This helps prevent
+  accidental exposure of fields in the request body when they are already bound to the URL path or query string (
+  default: `true`).
 
 ---
 

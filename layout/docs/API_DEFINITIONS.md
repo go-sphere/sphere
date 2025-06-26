@@ -14,13 +14,24 @@ The binding of request message fields to the HTTP request (URL path, query param
 
 ### Field Binding Annotations
 
-To override the default binding behavior for `POST`, `PUT`, and `PATCH` methods, you can add annotations in the comments above the field definition in your `.proto` file. The generator recognizes tags based on the `// @sphere:` prefix.
+To override the default binding behavior for `POST`, `PUT`, and `PATCH` methods, you can add annotations in the comments
+above the field definition in your `.proto` file. The `retags` command recognizes tags based on the `// @sphere:`
+prefix.
 
-*   `@sphere:uri` or `@sphere:uri="xxx""`: Binds the field to the URL path.
-*   `@sphere:form` or `@sphere:form="xxx""`: Binds the field to URL query parameters.
-*   `@sphere:json` or `@sphere:json="-""`: Binds the field to the request body, overriding any previous bindings.
+* `@sphere:uri` or `@sphere:uri="xxx"`: Binds the field to the URL path.
+* `@sphere:form` or `@sphere:form="xxx"`: Binds the field to URL query parameters.
+* `@sphere:json` or `@sphere:json="xxx"`: Binds the field to the request body.
+* `@sphere:!json`: Excludes the field from JSON serialization by adding a `json:"-"` tag.
 
 These annotations allow for fine-grained control over how request data is mapped. The logic for parsing these annotations can be found in `internal/tags/tags.go`.
+
+#### Automatic JSON Omission
+
+By default, when you use `@sphere:uri` or `@sphere:form` to bind a field to the URL path or query parameters, Sphere's
+`retags` command will automatically add a `json:"-"` tag to that field. This is a safety feature to prevent fields from
+being accidentally exposed in both the URL and the request body.
+
+This behavior is controlled by the `--auto_omit_json` flag in the `sphere-cli retags` command and is enabled by default.
 
 ## URL Path Mapping
 

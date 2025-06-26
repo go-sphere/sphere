@@ -2,10 +2,11 @@ module github.com/TBXark/sphere/cmd/sphere-cli
 
 go 1.23.2
 
+
 require (
 	entgo.io/contrib v0.6.0
 	entgo.io/ent v0.14.4
-	github.com/TBXark/sphere/internal/tags v0.0.0-20250625055910-ff7d982d771f
+	github.com/TBXark/sphere/internal/tags v0.0.0-20250626015559-cb500c3e450b
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jhump/protoreflect v1.17.0
 	github.com/mitchellh/mapstructure v1.5.0

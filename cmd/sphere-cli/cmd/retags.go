@@ -17,8 +17,9 @@ func init() {
 	flag := retagsCmd.Flags()
 	input := flag.String("input", "./api/*/*/*.pb.go", "pattern to match input file(s)")
 	remove := flag.Bool("remove_tag_comment", true, "remove tag comment")
+	omitJSON := flag.Bool("auto_omit_json", true, "omit JSON tags when form or uri struct tag is present")
 
 	retagsCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return tags.ReTags(*input, *remove)
+		return tags.ReTags(*input, *remove, *omitJSON)
 	}
 }
