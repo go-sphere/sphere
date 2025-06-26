@@ -144,9 +144,9 @@ func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middlewares ..
 }
 
 type (
-	MessageSender                 func(ctx context.Context, request *Update, msg *Message) error
-	RouteMap                      map[string]func(ctx context.Context, request *Update) error
-	RouteMapBuilder[S any, D any] func(srv S, codec D, sender MessageSender) RouteMap
+	MessageSender                 = func(ctx context.Context, request *Update, msg *Message) error
+	RouteMap                      = map[string]func(ctx context.Context, request *Update) error
+	RouteMapBuilder[S any, D any] = func(srv S, codec D, sender MessageSender) RouteMap
 )
 
 func (b *Bot) BindRoute(route RouteMap, extra func(string) *MethodExtraData, operations []string, middlewares ...MiddlewareFunc) {
