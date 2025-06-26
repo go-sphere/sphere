@@ -31,6 +31,7 @@ Sphere comes with powerful code generation tools to create `proto` files, `Swagg
 - [Standard Layout](./layout/README.md). - Default sphere project template layout.
 - [Quick Start Guide](./layout/docs/QUICK_START.md) - A step-by-step guide to setting up a new Sphere project.
 - [API Definitions](./layout/docs/API_DEFINITIONS.md) - Guidelines for writing API definitions `.proto` files in Sphere.
+- [Error Handling](./layout/docs/ERROR_HANDLING.md) - Guidelines for error handling in Sphere applications.
 
 ## License
 

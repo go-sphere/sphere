@@ -17,7 +17,7 @@ func (s *Service) AdminCreate(ctx context.Context, request *dashv1.AdminCreateRe
 	if len(request.Admin.Password) > 8 {
 		request.Admin.Password = secure.CryptPassword(request.Admin.Password)
 	} else {
-		return nil, dashv1.AdminErrorPasswordTooShort()
+		return nil, dashv1.AdminError_PASSWORD_TOO_SHORT
 	}
 	request.Admin.Avatar = s.storage.ExtractKeyFromURL(request.Admin.Avatar)
 	u, err := render.CreateAdmin(s.db.Admin.Create(), request.Admin).Save(ctx)
@@ -35,7 +35,7 @@ func (s *Service) AdminDelete(ctx context.Context, request *dashv1.AdminDeleteRe
 		return nil, err
 	}
 	if value == request.Id {
-		return nil, dashv1.AdminErrorCannotDeleteSelf()
+		return nil, dashv1.AdminError_CANNOT_DELETE_SELF
 	}
 	err = s.db.Admin.DeleteOneID(request.Id).Exec(ctx)
 	if err != nil {

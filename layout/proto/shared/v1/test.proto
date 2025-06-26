@@ -4,6 +4,7 @@ package shared.v1;
 
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
+import "sphere/errors/errors.proto";
 
 service TestService {
   rpc RunTest(RunTestRequest) returns (RunTestResponse) {
@@ -30,4 +31,15 @@ message RunTestResponse {
   int64 path_test2 = 4;
   string query_test1 = 5;
   int64 query_test2 = 6;
+}
+
+enum TestError {
+  option (sphere.errors.default_status) = 500;
+  UNKNOWN_TEST_ERROR = 0;
+  INVALID_FIELD_TEST1 = 1000 [(sphere.errors.options) = {
+    status: 400
+    reason: "INVALID_ARGUMENT"
+    message: "无效的 field_test1"
+  }];
+  INVALID_PATH_TEST2 = 1001 [(sphere.errors.options) = {status: 400}];
 }

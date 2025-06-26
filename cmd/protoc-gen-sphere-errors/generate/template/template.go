@@ -14,15 +14,22 @@ type ErrorInfo struct {
 	Value      string
 	CamelValue string
 
-	HasMessage bool
-
 	Status  int32
 	Code    int32
 	Reason  string
 	Message string
 }
 
+func (i *ErrorInfo) HasReason() bool {
+	return i.Reason != ""
+}
+
+func (i *ErrorInfo) HasMessage() bool {
+	return i.Message != ""
+}
+
 type ErrorWrapper struct {
+	Name   string
 	Errors []*ErrorInfo
 }
 

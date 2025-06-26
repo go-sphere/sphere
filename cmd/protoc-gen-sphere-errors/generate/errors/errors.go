@@ -58,7 +58,9 @@ func generateErrorsReason(_ *protogen.Plugin, _ *protogen.File, g *protogen.Gene
 		return false
 	}
 	defaultStatus := proto.GetExtension(enum.Desc.Options(), errors.E_DefaultStatus).(int32)
-	var ew template.ErrorWrapper
+	ew := template.ErrorWrapper{
+		Name: string(enum.Desc.Name()),
+	}
 	for _, v := range enum.Values {
 		options := generateEnumOptions(v, defaultStatus)
 		if options.Reason == "" {
@@ -69,11 +71,10 @@ func generateErrorsReason(_ *protogen.Plugin, _ *protogen.File, g *protogen.Gene
 			Value:      string(v.Desc.Name()),
 			CamelValue: case2Camel(string(v.Desc.Name())),
 
-			HasMessage: options.Message != "",
-			Status:     options.Status,
-			Code:       int32(v.Desc.Number()),
-			Reason:     options.Reason,
-			Message:    options.Message,
+			Status:  options.Status,
+			Code:    int32(v.Desc.Number()),
+			Reason:  options.Reason,
+			Message: options.Message,
 		}
 		ew.Errors = append(ew.Errors, err)
 	}
@@ -120,6 +121,5 @@ func case2Camel(name string) string {
 		w = enCases.String(w)
 		words = append(words, w)
 	}
-
 	return strings.Join(words, "")
 }

@@ -61,3 +61,7 @@ Sphere build tool. Usage: make [target]
 ## API Definition Rules
 
 For detailed guidelines on defining API interfaces, including HTTP transcoding rules, path mapping, and field binding, please refer to the [API Definition Rules](docs/API_DEFINITIONS.md) documentation.
+
+## Error Handling
+
+For guidelines on error handling and how to define errors in your API, please refer to the [Error Handling Documentation](docs/ERROR_HANDLING.md).

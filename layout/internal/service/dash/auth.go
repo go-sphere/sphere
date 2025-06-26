@@ -84,10 +84,10 @@ func (s *Service) AuthLogin(ctx context.Context, request *dashv1.AuthLoginReques
 	token, err := dao.WithTx[AdminToken](ctx, s.db.Client, func(ctx context.Context, client *ent.Client) (*AdminToken, error) {
 		administrator, err := client.Admin.Query().Where(admin.UsernameEqualFold(request.Username)).Only(ctx)
 		if err != nil {
-			return nil, dashv1.AuthErrorPasswordError() // 隐藏错误信息
+			return nil, dashv1.AuthError_PASSWORD_ERROR // 隐藏错误信息
 		}
 		if !secure.IsPasswordMatch(request.Password, administrator.Password) {
-			return nil, dashv1.AuthErrorPasswordError()
+			return nil, dashv1.AuthError_PASSWORD_ERROR
 		}
 		return s.createAdminToken(ctx, client, administrator)
 	})
@@ -115,13 +115,13 @@ func (s *Service) AuthRefresh(ctx context.Context, request *dashv1.AuthRefreshRe
 			return nil, err
 		}
 		if session.IsRevoked {
-			return nil, dashv1.AdminSessionErrorSessionRevoked()
+			return nil, dashv1.AdminSessionError_SESSION_REVOKED
 		}
 		if session.Expires < time.Now().Unix() {
-			return nil, dashv1.AdminSessionErrorSessionExpired()
+			return nil, dashv1.AdminSessionError_SESSION_EXPIRED
 		}
 		if session.SessionKey != claims.Subject {
-			return nil, dashv1.AdminSessionErrorSessionExpired()
+			return nil, dashv1.AdminSessionError_SESSION_EXPIRED
 		}
 		administrator, err := client.Admin.Get(ctx, session.UID)
 		if err != nil {
