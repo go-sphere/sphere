@@ -2,10 +2,10 @@
 
 # New Schema
 ```shell
-ent new <schema_name>
+go run -mod=mod entgo.io/ent/cmd/ent new <schema_name>
 ```
 
 # Schema Description
 ```shell
-ent describe ./ent/schema
+go run -mod=mod entgo.io/ent/cmd/ent describe ./schema
 ```
