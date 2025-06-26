@@ -27,8 +27,8 @@ type Error struct {
 	message string
 }
 
-func NewError(status, code int32, message string) Error {
-	return Error{
+func NewError(status, code int32, message string) error {
+	return &Error{
 		error:   errors.New("err:" + message),
 		status:  status,
 		code:    code,
@@ -40,7 +40,7 @@ func JoinError(status int32, message string, err error) error {
 	if err == nil {
 		return nil
 	}
-	return Error{
+	return &Error{
 		error:   err,
 		status:  status,
 		code:    0,
@@ -48,26 +48,26 @@ func JoinError(status int32, message string, err error) error {
 	}
 }
 
-func (e Error) GetStatus() int32 {
+func (e *Error) GetStatus() int32 {
 	return e.status
 }
 
-func (e Error) GetCode() int32 {
+func (e *Error) GetCode() int32 {
 	return e.code
 }
 
-func (e Error) GetMessage() string {
+func (e *Error) GetMessage() string {
 	return e.message
 }
 
-func (e Error) Error() string {
+func (e *Error) Error() string {
 	if e.error == nil {
 		return ""
 	}
 	return e.error.Error()
 }
 
-func (e Error) Unwrap() error {
+func (e *Error) Unwrap() error {
 	return e.error
 }
 
