@@ -8,6 +8,8 @@ managed:
       module: buf.build/bufbuild/protovalidate
     - file_option: go_package_prefix
       module: buf.build/tbxark/options
+    - file_option: go_package_prefix
+      module: buf.build/tbxark/errors
   override:
     - file_option: go_package_prefix
       value: github.com/TBXark/sphere/layout/api

@@ -8,8 +8,8 @@ deps:
     commit: 61b203b9a9164be9a834f58c37be6f62
     digest: b5:7811a98b35bd2e4ae5c3ac73c8b3d9ae429f3a790da15de188dc98fc2b77d6bb10e45711f14903af9553fa9821dff256054f2e4b7795789265bc476bec2f088c
   - name: buf.build/tbxark/errors
-    commit: 56fb916fabf14adfaddf4487106cf58d
-    digest: b5:e601fe10f1d834f663e49cda1aa096c8ee095a87294f5478cfbed3935ec3230df2036f4d9ca2fa0cfeaeccdf419b3f7a20e88f807922f19c21088668fd358b68
+    commit: 9edf9bf758de49cabd55dd8fca4f19ee
+    digest: b5:6bfef6c80dd626df058eb11c23ff05bacd904cabb5a243ff5b624a7b16a0271f6cfe71a18b1982c41af63c1f79d50a8e52ecc4999d480ec4dbd4f43f24252c8f
   - name: buf.build/tbxark/options
     commit: e277869dace2465eaabb5c6b3e7990d0
     digest: b5:a435ca3ac0e3fe6b613101c391bbd60a6285a85cc3b648e7dc6373f95256a43c9c4f8ee93bb1cacd324535e67fe2a23267fc55c3c4f97ad6b8b2ef2ba53ca25a

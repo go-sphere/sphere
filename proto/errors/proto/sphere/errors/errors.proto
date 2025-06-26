@@ -4,7 +4,7 @@ package sphere.errors;
 
 import "google/protobuf/descriptor.proto";
 
-option go_package = "github.com/TBXark/sphere/proto/options/sphere/errors";
+option go_package = "github.com/TBXark/sphere/proto/errors/sphere/errors";
 
 message Error {
   int32 code = 1;

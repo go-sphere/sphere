@@ -18,6 +18,8 @@ github.com/TBXark/confstore v0.0.4 h1:4HCbWbXz1qKtxjxcmEGU1W0kyBJz6aXZtca7CPx7Oj
 github.com/TBXark/confstore v0.0.4/go.mod h1:TOxM19Snt9wT02PJzyz66sgq7sWhr4AFzPEZIKvVnTE=
 github.com/TBXark/jsoncompressor v0.0.1 h1:C2hshiwpS5ziO7wbPFnDKnxRKPeRq2vyybWHVoGeLbc=
 github.com/TBXark/jsoncompressor v0.0.1/go.mod h1:Le17YSrfvfVgsIlzJpjc7zvxwtzTwshAguHcrQqJY/E=
+github.com/TBXark/sphere/proto/errors v0.0.0-20250626092033-ea378a02656f h1:PDXpCSRzohHG0ylF2EzXWbhxwAUfK5nHNNxNCpEwq4Y=
+github.com/TBXark/sphere/proto/errors v0.0.0-20250626092033-ea378a02656f/go.mod h1:+TzguIJicUgVCcwkfAeGgvzHo+kdWgY+Fz4LLL+cupw=
 github.com/TBXark/sphere/proto/options v0.0.0-20250626092033-ea378a02656f h1:nykoHwtd9XNGZv9zhJyPiDiWVun4evdjGHtShqN5Fzw=
 github.com/TBXark/sphere/proto/options v0.0.0-20250626092033-ea378a02656f/go.mod h1:WUFGY0FWBvROVlWakSwMnrt7wjUe4s1ZWUcJW6dqmJ4=
 github.com/agext/levenshtein v1.2.3 h1:YB2fHEn0UJagG8T1rrWknE3ZQzWM06O8AMAatNn7lmo=
