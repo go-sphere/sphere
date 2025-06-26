@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package bot.v1;
 
-import "tbxark/options/options.proto";
+import "sphere/options/options.proto";
 
 service MenuService {
   rpc Start(StartRequest) returns (StartResponse) {
-    option (tbxark.options.options) = {
+    option (sphere.options.options) = {
       key: "bot"
       extra: [
         {

@@ -5,6 +5,7 @@ package dash.v1;
 import "buf/validate/validate.proto";
 import "entpb/entpb.proto";
 import "google/api/annotations.proto";
+//import "sphere/errors/errors.proto";
 
 service AdminSessionService {
   rpc AdminSessionList(AdminSessionListRequest) returns (AdminSessionListResponse) {
@@ -34,3 +35,31 @@ message AdminSessionDeleteRequest {
 }
 
 message AdminSessionDeleteResponse {}
+
+//enum AdminSessionError {
+//  UNKNOWN_ERROR = 0;
+//  SESSION_REVOKED = 1 [
+//    (sphere.errors.options) = {
+//      code: 1000,
+//      status: 403,
+//      message: "会话已被撤销"
+//      error: "session_is_revoked"
+//    }
+//  ];
+//  SESSION_EXPIRED = 2 [
+//    (sphere.errors.options) = {
+//      code: 1001,
+//      status: 403,
+//      message: "会话已过期"
+//      error: "session_expired"
+//    }
+//  ];
+//  SESSION_KEY_NOT_MATCH = 3 [
+//    (sphere.errors.options) = {
+//      code: 1002,
+//      status: 403,
+//      message: "会话密钥不匹配"
+//      error: "session_key_not_match"
+//    }
+//  ];
+//}

@@ -4,7 +4,7 @@ package sphere.options;
 
 import "google/protobuf/descriptor.proto";
 
-option go_package = "github.com/TBXark/sphere/proto/options";
+option go_package = "github.com/TBXark/sphere/proto/options/sphere/options";
 
 message KeyValuePair {
   string key = 1;

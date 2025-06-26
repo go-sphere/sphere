@@ -169,8 +169,8 @@ const file_sphere_options_options_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\a\n" +
 	"\x05value:X\n" +
-	"\aoptions\x12\x1e.google.protobuf.MethodOptions\x18\xd2\xfe\x06 \x03(\v2\x1c.sphere.options.KeyValuePairR\aoptionsB\xa3\x01\n" +
-	"\x12com.sphere.optionsB\fOptionsProtoP\x01Z&github.com/TBXark/sphere/proto/options\xa2\x02\x03SOX\xaa\x02\x0eSphere.Options\xca\x02\x0eSphere\\Options\xe2\x02\x1aSphere\\Options\\GPBMetadata\xea\x02\x0fSphere::Optionsb\x06proto3"
+	"\aoptions\x12\x1e.google.protobuf.MethodOptions\x18\xd2\xfe\x06 \x03(\v2\x1c.sphere.options.KeyValuePairR\aoptionsB\xb2\x01\n" +
+	"\x12com.sphere.optionsB\fOptionsProtoP\x01Z5github.com/TBXark/sphere/proto/options/sphere/options\xa2\x02\x03SOX\xaa\x02\x0eSphere.Options\xca\x02\x0eSphere\\Options\xe2\x02\x1aSphere\\Options\\GPBMetadata\xea\x02\x0fSphere::Optionsb\x06proto3"
 
 var (
 	file_sphere_options_options_proto_rawDescOnce sync.Once

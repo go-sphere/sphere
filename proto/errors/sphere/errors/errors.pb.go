@@ -117,8 +117,8 @@ const file_sphere_errors_errors_proto_rawDesc = "" +
 	"\x06status\x18\x02 \x01(\x05R\x06status\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\x12\x18\n" +
 	"\amessage\x18\x04 \x01(\tR\amessage:S\n" +
-	"\aoptions\x12!.google.protobuf.EnumValueOptions\x18\xd4\xfe\x06 \x01(\v2\x14.sphere.errors.ErrorR\aoptionsB\x9c\x01\n" +
-	"\x11com.sphere.errorsB\vErrorsProtoP\x01Z%github.com/TBXark/sphere/proto/errors\xa2\x02\x03SEX\xaa\x02\rSphere.Errors\xca\x02\rSphere\\Errors\xe2\x02\x19Sphere\\Errors\\GPBMetadata\xea\x02\x0eSphere::Errorsb\x06proto3"
+	"\aoptions\x12!.google.protobuf.EnumValueOptions\x18\xd4\xfe\x06 \x01(\v2\x14.sphere.errors.ErrorR\aoptionsB\xab\x01\n" +
+	"\x11com.sphere.errorsB\vErrorsProtoP\x01Z4github.com/TBXark/sphere/proto/options/sphere/errors\xa2\x02\x03SEX\xaa\x02\rSphere.Errors\xca\x02\rSphere\\Errors\xe2\x02\x19Sphere\\Errors\\GPBMetadata\xea\x02\x0eSphere::Errorsb\x06proto3"
 
 var (
 	file_sphere_errors_errors_proto_rawDescOnce sync.Once

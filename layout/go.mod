@@ -11,8 +11,8 @@ require (
 	buf.build/go/protovalidate v0.13.1
 	entgo.io/ent v0.14.4
 	github.com/TBXark/confstore v0.0.4
-	github.com/TBXark/sphere v0.0.0-20250626030019-3c510b318a0c
-	github.com/TBXark/sphere/proto/options v0.0.0-20250626081123-3302841936c9
+	github.com/TBXark/sphere v0.0.0-20250626085116-d100979d0d20
+	github.com/TBXark/sphere/proto/options v0.0.0-20250626092033-ea378a02656f
 	github.com/alitto/pond/v2 v2.4.0
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.10.1

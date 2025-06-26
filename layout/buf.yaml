@@ -6,6 +6,7 @@ deps:
     - buf.build/googleapis/googleapis
     - buf.build/bufbuild/protovalidate
     - buf.build/tbxark/options
+    - buf.build/tbxark/errors
 lint:
   use:
     - STANDARD
