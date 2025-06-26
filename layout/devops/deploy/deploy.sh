@@ -66,11 +66,11 @@ log_warn() {
 usage() {
     printf "Usage: %s {build|install|deploy|stop|start}\n" "$0"
     printf "Commands:\n"
-    printf "  build    - Build the application binary and assets.\n"
     printf "  install  - Install the systemd service on the remote host.\n"
     printf "  deploy   - Build and deploy a new version of the application.\n"
     printf "  stop     - Stop the application service on the remote host.\n"
     printf "  start    - Start the application service on the remote host.\n"
+    printf "  restart  - Restart the application service on the remote host.\n"
 }
 
 # Check for required command-line tools.
@@ -80,6 +80,7 @@ check_dependencies() {
     for cmd in ssh scp git make; do
         if ! command -v "${cmd}" &> /dev/null; then
             log_error "Required command '${cmd}' is not installed."
+            # shellcheck disable=SC2317
             missing=1
         fi
     done
@@ -94,6 +95,7 @@ check_dependencies() {
 # Arguments:
 #   $@: The command and its arguments to execute.
 run_remote() {
+    # shellcheck disable=SC2145
     log_info "Executing on ${REMOTE_HOST}: $@"
     ssh -t "${REMOTE_HOST}" "$@"
 }
@@ -165,6 +167,7 @@ deploy_app() {
     # Step 2: Generate versioned binary name
     local version
     version=$(git rev-parse --short HEAD)
+    # shellcheck disable=SC2155
     local binary_name="app-${version}-$(date +%Y%m%d%H%M%S)-${REMOTE_ARCH}"
     local remote_tmp_binary="/tmp/${binary_name}"
 
@@ -225,21 +228,30 @@ start_service() {
     log_success "Service started."
 }
 
+# Restart the application service on the remote host.
+restart_service() {
+    log_info "Restarting service '${SERVICE_NAME}' on ${REMOTE_HOST}..."
+    if ! run_remote "sudo systemctl restart '${SERVICE_NAME}'"; then
+        log_error "Failed to restart the service."
+    fi
+    run_remote "sudo systemctl status '${SERVICE_NAME}'"
+    log_success "Service restarted."
+}
+
 # --- Main Function ---
 main() {
     check_dependencies
 
-    # Ensure a command is provided
+    local command
     if [[ $# -eq 0 ]]; then
         usage
-        log_error "No command specified." 1
+        printf "\nPlease enter a command: "
+        read -r command
+    else
+        command="$1"
     fi
 
-    local command="$1"
     case "${command}" in
-        build)
-            build_app
-            ;;
         install)
             install_service
             ;;
@@ -251,6 +263,9 @@ main() {
             ;;
         start)
             start_service
+            ;;
+        restart)
+            restart_service
             ;;
         *)
             usage
