@@ -6,7 +6,7 @@ import (
 
 	"github.com/TBXark/sphere/cmd/protoc-gen-route/generate/template"
 	"github.com/TBXark/sphere/internal/protogo"
-	"github.com/TBXark/sphere/proto/options"
+	"github.com/TBXark/sphere/proto/options/sphere/options"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
