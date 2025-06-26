@@ -39,8 +39,8 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	if len(file.Enums) == 0 {
 		return
 	}
-	g.P("var _ = ", errorsPackage.Ident("Join"))
-	g.P("var _ = new(", statusErrorsPackage.Ident("Error"), ")")
+	//g.P("var _ = ", errorsPackage.Ident("Join"))
+	//g.P("var _ = new(", statusErrorsPackage.Ident("Error"), ")")
 	g.P()
 	index := 0
 	for _, enum := range file.Enums {
