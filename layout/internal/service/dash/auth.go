@@ -28,7 +28,7 @@ const (
 	AuthContextKeyUA = "auth_ua"
 )
 
-var errPasswordNotMatch = statuserr.NewError(400, 0, "password not match")
+var errPasswordNotMatch = statuserr.BadRequestError(errors.New("password not match"), "密码不匹配")
 
 type AdminToken struct {
 	Admin        *ent.Admin
