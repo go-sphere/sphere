@@ -7,10 +7,9 @@ import "google/protobuf/descriptor.proto";
 option go_package = "github.com/TBXark/sphere/proto/errors/sphere/errors";
 
 message Error {
-  int32 code = 1;
-  int32 status = 2;
-  string reason = 3;
-  string message = 4;
+  int32 status = 1;
+  string reason = 2;
+  string message = 3;
 };
 
 extend google.protobuf.EnumValueOptions {
