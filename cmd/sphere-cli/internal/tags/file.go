@@ -78,7 +78,7 @@ func parseFile(inputPath string, src interface{}) ([]textArea, error) {
 	return areas, nil
 }
 
-func writeFile(inputPath string, areas []textArea, removeTagComment bool) error {
+func writeFile(inputPath string, areas []textArea, removeTagComment, autoOmitJSON bool) error {
 	file, err := os.Open(inputPath)
 	if err != nil {
 		return err
@@ -93,7 +93,7 @@ func writeFile(inputPath string, areas []textArea, removeTagComment bool) error 
 	}
 	for i := range areas {
 		area := areas[len(areas)-i-1]
-		contents = injectTag(contents, area, removeTagComment)
+		contents = injectTag(contents, area, removeTagComment, autoOmitJSON)
 	}
 	contents, err = format.Source(contents)
 	if err != nil {
@@ -106,7 +106,7 @@ func writeFile(inputPath string, areas []textArea, removeTagComment bool) error 
 	return nil
 }
 
-func ReTags(inputPath string, removeTagComment bool) error {
+func ReTags(inputPath string, removeTagComment, autoOmitJSON bool) error {
 	if inputPath == "" {
 		return nil
 	}
@@ -133,7 +133,7 @@ func ReTags(inputPath string, removeTagComment bool) error {
 		if len(areas) == 0 {
 			continue
 		}
-		err = writeFile(path, areas, removeTagComment)
+		err = writeFile(path, areas, removeTagComment, autoOmitJSON)
 		if err != nil {
 			return err
 		}
