@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/TBXark/sphere/core/codec"
 	"reflect"
 	"testing"
 
 	"github.com/TBXark/sphere/cache/mcache"
+	"github.com/TBXark/sphere/core/codec"
 )
 
 func TestGetObjectEx(t *testing.T) {

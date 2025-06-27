@@ -7,7 +7,7 @@ type DataResponse[T any] struct {
 }
 
 type ErrorResponse struct {
-	Success bool   `json:"success,omitempty" default:"false"`
+	Success bool   `json:"success" default:"false"`
 	Code    int    `json:"code,omitempty" default:"0"`
 	Error   string `json:"error,omitempty"`
 	Message string `json:"message,omitempty"`

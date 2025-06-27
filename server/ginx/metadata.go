@@ -1,6 +1,28 @@
 package ginx
 
-import "github.com/gin-gonic/gin"
+import (
+	"path"
+
+	"github.com/gin-gonic/gin"
+)
+
+func lastChar(s string) byte {
+	if len(s) == 0 {
+		return 0
+	}
+	return s[len(s)-1]
+}
+
+func joinPaths(absolutePath, relativePath string) string {
+	if relativePath == "" {
+		return absolutePath
+	}
+	finalPath := path.Join(absolutePath, relativePath)
+	if lastChar(relativePath) == '/' && lastChar(finalPath) != '/' {
+		return finalPath + "/"
+	}
+	return finalPath
+}
 
 func EndpointsToMatches(base string, endpoints ...[][3]string) map[string]map[string]string {
 	matches := make(map[string]map[string]string)
@@ -9,7 +31,7 @@ func EndpointsToMatches(base string, endpoints ...[][3]string) map[string]map[st
 			if _, ok := matches[route[1]]; !ok {
 				matches[route[1]] = make(map[string]string)
 			}
-			matches[route[1]][JoinPaths(base, route[2])] = route[0]
+			matches[route[1]][joinPaths(base, route[2])] = route[0]
 		}
 	}
 	return matches

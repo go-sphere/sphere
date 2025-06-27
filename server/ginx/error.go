@@ -5,7 +5,16 @@ import (
 	"net/http"
 
 	"github.com/TBXark/sphere/core/errors/statuserr"
+	"github.com/gin-gonic/gin"
 )
+
+type ErrorParser func(error) (int32, int32, string)
+
+var defaultErrorParser ErrorParser = ParseError
+
+func SetDefaultErrorParser(parser ErrorParser) {
+	defaultErrorParser = parser
+}
 
 func ParseError(err error) (code int32, status int32, message string) {
 	var se statuserr.StatusError
@@ -27,4 +36,16 @@ func ParseError(err error) (code int32, status int32, message string) {
 		message = err.Error()
 	}
 	return
+}
+
+func AbortWithJsonError(ctx *gin.Context, err error) {
+	code, status, message := defaultErrorParser(err)
+	if status < 100 || status > 599 {
+		status = http.StatusInternalServerError
+	}
+	ctx.AbortWithStatusJSON(int(status), ErrorResponse{
+		Code:    int(code),
+		Error:   err.Error(),
+		Message: message,
+	})
 }

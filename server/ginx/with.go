@@ -11,38 +11,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type (
-	Context     = gin.Context
-	ErrorParser func(error) (int32, int32, string)
-)
+type Context = gin.Context
 
-var defaultErrorParser ErrorParser = ParseError
-
-func SetDefaultErrorParser(parser ErrorParser) {
-	defaultErrorParser = parser
-}
-
-func Value[T any](key string, ctx *gin.Context) (*T, bool) {
+func Value[T any](key string, ctx *gin.Context) (T, bool) {
 	v, exists := ctx.Get(key)
+	var zero T
 	if !exists {
-		return nil, false
+		return zero, false
 	}
 	if i, ok := v.(T); ok {
-		return &i, true
+		return i, true
 	}
-	return nil, false
-}
-
-func AbortWithJsonError(ctx *gin.Context, err error) {
-	code, status, message := defaultErrorParser(err)
-	if status < 100 || status > 599 {
-		status = http.StatusInternalServerError
-	}
-	ctx.AbortWithStatusJSON(int(status), ErrorResponse{
-		Code:    int(code),
-		Error:   err.Error(),
-		Message: message,
-	})
+	return zero, false
 }
 
 func WithRecover(message string, handler func(ctx *gin.Context)) gin.HandlerFunc {
