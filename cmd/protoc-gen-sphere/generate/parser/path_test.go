@@ -2,7 +2,7 @@ package parser
 
 import "testing"
 
-func TestConvertProtoPathToGin(t *testing.T) {
+func TestGinURIParams(t *testing.T) {
 	testCases := [][2]string{
 		{"/users/{user_id}", "/users/:user_id"},
 		{"/users/{user_id}/posts/{post_id}", "/users/:user_id/posts/:post_id"},
@@ -28,6 +28,6 @@ func TestConvertProtoPathToGin(t *testing.T) {
 			t.Errorf("GinRoute(%q) = %q; want %q", protoPath, ginPath, expectedGinPath)
 			continue
 		}
-		t.Logf("%q\n%q\n%v", protoPath, ginPath, GinRouteParams(ginPath))
+		t.Logf("%q\n%q\n%v", protoPath, ginPath, GinURIParams(ginPath))
 	}
 }

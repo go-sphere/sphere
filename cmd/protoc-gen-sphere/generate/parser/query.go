@@ -8,11 +8,16 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 )
 
-func QueryValue(m *protogen.Method, method string, pathVars []string) []string {
-	var res []string
+type QueryFormField struct {
+	Name  string
+	Field *protogen.Field
+}
+
+func GinQueryForm(m *protogen.Method, method string, pathVars []URIParamsField) []QueryFormField {
+	var res []QueryFormField
 	pathVarsMap := make(map[string]struct{}, len(pathVars))
 	for _, v := range pathVars {
-		pathVarsMap[v] = struct{}{}
+		pathVarsMap[v.Name] = struct{}{}
 	}
 	for _, field := range m.Input.Fields {
 		name := string(field.Desc.Name())
@@ -31,10 +36,16 @@ func QueryValue(m *protogen.Method, method string, pathVars []string) []string {
 			}
 		}
 		if formName != "" {
-			res = append(res, formName)
+			res = append(res, QueryFormField{
+				Name:  formName,
+				Field: field,
+			})
 		} else if method == http.MethodGet || method == http.MethodDelete {
 			// All fields are query parameters for GET and DELETE methods except for path parameters
-			res = append(res, name)
+			res = append(res, QueryFormField{
+				Name:  name,
+				Field: field,
+			})
 			continue
 		}
 	}

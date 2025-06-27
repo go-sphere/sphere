@@ -9,7 +9,6 @@ import (
 
 	validatepb "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/parser"
-	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/swagger"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/template"
 	"github.com/TBXark/sphere/internal/protogo"
 	"google.golang.org/genproto/googleapis/api/annotations"
@@ -135,13 +134,19 @@ func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.Genera
 		rule, ok := proto.GetExtension(method.Desc.Options(), annotations.E_Http).(*annotations.HttpRule)
 		if rule != nil && ok {
 			for _, bind := range rule.AdditionalBindings {
-				sd.Methods = append(sd.Methods, buildHTTPRule(g, service, method, bind, conf))
+				if desc, err := buildHTTPRule(g, service, method, bind, conf); err == nil {
+					sd.Methods = append(sd.Methods, desc)
+				}
 			}
-			sd.Methods = append(sd.Methods, buildHTTPRule(g, service, method, rule, conf))
+			if desc, err := buildHTTPRule(g, service, method, rule, conf); err == nil {
+				sd.Methods = append(sd.Methods, desc)
+			}
 		} else if !conf.omitempty {
 			// Method with no http_rule defined, automatically generating a default POST method.
 			path := fmt.Sprintf("%s/%s/%s", conf.omitemptyPrefix, service.Desc.FullName(), method.Desc.Name())
-			sd.Methods = append(sd.Methods, buildMethodDesc(g, method, http.MethodPost, path, conf))
+			if desc, err := buildMethodDesc(g, method, http.MethodPost, path, conf); err == nil {
+				sd.Methods = append(sd.Methods, desc)
+			}
 		}
 	}
 	if len(sd.Methods) != 0 {
@@ -169,7 +174,7 @@ func hasValidateOptions(field *protogen.Field) bool {
 	return proto.HasExtension(opts, validatepb.E_Field)
 }
 
-func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *protogen.Method, rule *annotations.HttpRule, conf *GenConfig) *template.MethodDesc {
+func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *protogen.Method, rule *annotations.HttpRule, conf *GenConfig) (*template.MethodDesc, error) {
 	var (
 		path         string
 		method       string
@@ -182,7 +187,10 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 	}
 	body = rule.Body
 	responseBody = rule.ResponseBody
-	md := buildMethodDesc(g, m, method, path, conf)
+	md, err := buildMethodDesc(g, m, method, path, conf)
+	if err != nil {
+		return nil, err
+	}
 	if method == http.MethodGet || method == http.MethodDelete {
 		if body != "" {
 			_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: %s %s body should not be declared.\n", method, path)
@@ -206,25 +214,25 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 	} else if responseBody != "" {
 		md.ResponseBody = "." + camelCaseVars(responseBody)
 	}
-	return md
+	return md, nil
 }
 
-func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path string, conf *GenConfig) *template.MethodDesc {
-	ginRoute, err := parser.GinRoute(path)
+func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path string, conf *GenConfig) (*template.MethodDesc, error) {
+	route, err := parser.GinRoute(path)
 	if err != nil {
-		return nil
+		_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: %s %s route parse error: %v\n", m.GoName, path, err)
+		return nil, err
 	}
 	defer func() { methodSets[m.GoName]++ }()
-	swagRoute := swagger.ConvertGinToSwaggerPath(ginRoute)
-	vars := parser.GinRouteParams(ginRoute)
-	forms := parser.QueryValue(m, method, vars)
-	comment := swagger.MethodCommend(m)
-	anno := swagger.Config{
+	vars := parser.GinURIParams(route)
+	forms := parser.GinQueryForm(m, method, vars)
+	comment := parser.MethodCommend(m)
+	swag := parser.SwagParams{
 		Method:        method,
-		Path:          swagRoute,
+		Path:          parser.ConvertGinToSwaggerPath(route),
+		Auth:          conf.swaggerAuth,
 		PathVars:      vars,
 		QueryVars:     forms,
-		Auth:          conf.swaggerAuth,
 		DataResponse:  conf.packageDesc.DataResponseType,
 		ErrorResponse: conf.packageDesc.ErrorResponseType,
 	}
@@ -239,8 +247,8 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 		Method:       method,
 		HasVars:      len(vars) > 0,
 		HasQuery:     len(forms) > 0,
-		GinPath:      ginRoute,
-		Swagger:      swagger.BuildAnnotations(m, &anno),
+		GinPath:      route,
+		Swagger:      parser.BuildAnnotations(m, &swag),
 		NeedValidate: slices.ContainsFunc(m.Input.Fields, hasValidateOptions),
-	}
+	}, nil
 }

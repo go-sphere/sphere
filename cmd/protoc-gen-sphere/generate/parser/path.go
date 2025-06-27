@@ -80,14 +80,22 @@ func GinRoute(protoPath string) (string, error) {
 	return result, nil
 }
 
-func GinRouteParams(route string) []string {
-	var params []string
+type URIParamsField struct {
+	Name     string
+	Wildcard bool
+}
+
+func GinURIParams(route string) []URIParamsField {
+	var params []URIParamsField
 	// :param
 	namedParamRegex := regexp.MustCompile(`:([a-zA-Z_][a-zA-Z0-9_]*)`)
 	namedMatches := namedParamRegex.FindAllStringSubmatch(route, -1)
 	for _, match := range namedMatches {
 		if len(match) > 1 {
-			params = append(params, match[1])
+			params = append(params, URIParamsField{
+				Name:     match[1],
+				Wildcard: false,
+			})
 		}
 	}
 	// *param
@@ -95,7 +103,10 @@ func GinRouteParams(route string) []string {
 	wildcardMatches := wildcardParamRegex.FindAllStringSubmatch(route, -1)
 	for _, match := range wildcardMatches {
 		if len(match) > 1 {
-			params = append(params, match[1])
+			params = append(params, URIParamsField{
+				Name:     match[1],
+				Wildcard: true,
+			})
 		}
 	}
 	return params

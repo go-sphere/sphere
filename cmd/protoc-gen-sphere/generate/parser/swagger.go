@@ -1,8 +1,9 @@
-package swagger
+package parser
 
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 
@@ -34,12 +35,14 @@ func MethodCommend(m *protogen.Method) string {
 	return comment
 }
 
-type Config struct {
-	Method        string
-	Path          string
-	PathVars      []string
-	QueryVars     []string
-	Auth          string
+type SwagParams struct {
+	Method string
+	Path   string
+	Auth   string
+
+	PathVars  []URIParamsField
+	QueryVars []QueryFormField
+
 	DataResponse  string
 	ErrorResponse string
 }
@@ -51,7 +54,7 @@ var noBodyMethods = map[string]struct{}{
 	http.MethodOptions: {},
 }
 
-func BuildAnnotations(m *protogen.Method, config *Config) string {
+func BuildAnnotations(m *protogen.Method, config *SwagParams) string {
 	var builder strings.Builder
 	builder.WriteString("// @Summary " + string(m.Desc.Name()) + "\n")
 	desc := MethodCommend(m)
@@ -71,14 +74,19 @@ func BuildAnnotations(m *protogen.Method, config *Config) string {
 	}
 	// Add path parameters
 	for _, param := range config.PathVars {
-		paramType := buildSwaggerParamType(m.Input.Desc, param)
-		builder.WriteString(fmt.Sprintf("// @Param %s path %s true \"%s\"\n", param, paramType, param))
+		field := m.Input.Desc.Fields().ByName(protoreflect.Name(param.Name))
+		if field == nil {
+			_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: %s path parameter %s not found in request message %s.\n", m.GoName, param.Name, m.Input.GoIdent.GoName)
+			continue
+		}
+		paramType := buildSwaggerParamType(field)
+		builder.WriteString(fmt.Sprintf("// @Param %s path %s true \"%s\"\n", param.Name, paramType, param.Name))
 	}
 	// Add query parameters
 	for _, param := range config.QueryVars {
-		paramType := buildSwaggerParamType(m.Input.Desc, param)
-		required := IsFieldRequired(m.Input.Desc, param)
-		builder.WriteString(fmt.Sprintf("// @Param %s query %s %v \"%s\"\n", param, paramType, required, param))
+		paramType := buildSwaggerParamType(param.Field.Desc)
+		required := isFieldRequired(param.Field.Desc)
+		builder.WriteString(fmt.Sprintf("// @Param %s query %s %v \"%s\"\n", param.Name, paramType, required, param.Name))
 	}
 	// Add request body
 	if _, ok := noBodyMethods[config.Method]; !ok {
@@ -90,11 +98,7 @@ func BuildAnnotations(m *protogen.Method, config *Config) string {
 	return builder.String()
 }
 
-func buildSwaggerParamType(messageDesc protoreflect.MessageDescriptor, fieldName string) string {
-	field := messageDesc.Fields().ByName(protoreflect.Name(fieldName))
-	if field == nil {
-		return "string" // Default to string if field not found
-	}
+func buildSwaggerParamType(field protoreflect.FieldDescriptor) string {
 	switch field.Kind() {
 	case protoreflect.BoolKind:
 		return "boolean"
@@ -118,11 +122,7 @@ func buildSwaggerParamType(messageDesc protoreflect.MessageDescriptor, fieldName
 	}
 }
 
-func IsFieldRequired(messageDesc protoreflect.MessageDescriptor, fieldName string) bool {
-	field := messageDesc.Fields().ByName(protoreflect.Name(fieldName))
-	if field == nil {
-		return false
-	}
+func isFieldRequired(field protoreflect.FieldDescriptor) bool {
 	opts := field.Options()
 	if opts == nil {
 		return false
