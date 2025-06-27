@@ -28,6 +28,9 @@ type Error struct {
 }
 
 func NewError(status, code int32, message string, err error) error {
+	if err == nil {
+		return nil
+	}
 	return &Error{
 		error:   err,
 		status:  status,
@@ -68,9 +71,6 @@ func (e *Error) GetMessage() string {
 }
 
 func (e *Error) Error() string {
-	if e.error == nil {
-		return ""
-	}
 	return e.error.Error()
 }
 
