@@ -108,7 +108,7 @@ func generateGoImport(file *protogen.File, g *protogen.GeneratedFile, conf *Conf
 LOOP:
 	for _, service := range file.Services {
 		for _, method := range service.Methods {
-			if slices.ContainsFunc(method.Input.Fields, hasValidateOptions) {
+			if hasValidateOptionsInMessage(method.Input) || slices.ContainsFunc(method.Input.Fields, hasValidateOptions) {
 				g.P("var _ = new(", validatePackage.Ident("Validator"), ")")
 				genConf.packageDesc.ValidateFunc = g.QualifiedGoIdent(validatePackage.Ident("Validate"))
 				break LOOP
@@ -182,6 +182,10 @@ func hasValidateOptions(field *protogen.Field) bool {
 	return proto.HasExtension(opts, validatepb.E_Field)
 }
 
+func hasValidateOptionsInMessage(msg *protogen.Message) bool {
+	return proto.HasExtension(msg.Desc.Options(), validatepb.E_Message)
+}
+
 func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *protogen.Method, rule *annotations.HttpRule, conf *GenConfig) (*template.MethodDesc, error) {
 	res := parser.ParseHttpRule(rule)
 	if res.Path == "" {
@@ -222,6 +226,7 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, rule *parser
 		DataResponse:  conf.packageDesc.DataResponseType,
 		ErrorResponse: conf.packageDesc.ErrorResponseType,
 	}
+	needValidate := hasValidateOptionsInMessage(m.Input) || slices.ContainsFunc(m.Input.Fields, hasValidateOptions)
 	return &template.MethodDesc{
 		Name:         m.GoName,
 		OriginalName: string(m.Desc.Name()),
@@ -233,8 +238,11 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, rule *parser
 		Method:       rule.Method,
 		HasVars:      len(vars) > 0,
 		HasQuery:     len(forms) > 0,
-		GinPath:      route,
+		HasBody:      rule.HasBody,
+		Body:         rule.Body,
+		ResponseBody: rule.ResponseBody,
 		Swagger:      parser.BuildAnnotations(m, swag),
-		NeedValidate: slices.ContainsFunc(m.Input.Fields, hasValidateOptions),
+		GinPath:      route,
+		NeedValidate: needValidate,
 	}, nil
 }
