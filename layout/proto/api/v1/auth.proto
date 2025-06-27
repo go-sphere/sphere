@@ -29,7 +29,7 @@ message AuthWxMiniResponse {
 enum AuthError {
   option (sphere.errors.default_status) = 500;
 
-  AUTH_UNKNOWN_ERROR = 0;
+  AUTH_UNSPECIFIED = 0;
   AUTH_UNSUPPORTED_PHONE_REGION = 1000 [(sphere.errors.options) = {
     status: 400
     message: "不支持的手机号地区"

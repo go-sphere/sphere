@@ -35,11 +35,11 @@ message RunTestResponse {
 
 enum TestError {
   option (sphere.errors.default_status) = 500;
-  UNKNOWN_TEST_ERROR = 0;
-  INVALID_FIELD_TEST1 = 1000 [(sphere.errors.options) = {
+  TEST_UNSPECIFIED = 0;
+  TEST_INVALID_FIELD_TEST1 = 1000 [(sphere.errors.options) = {
     status: 400
     reason: "INVALID_ARGUMENT"
     message: "无效的 field_test1"
   }];
-  INVALID_PATH_TEST2 = 1001 [(sphere.errors.options) = {status: 400}];
+  TEST_INVALID_PATH_TEST2 = 1001 [(sphere.errors.options) = {status: 400}];
 }

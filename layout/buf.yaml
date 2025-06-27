@@ -10,6 +10,8 @@ deps:
 lint:
   use:
     - STANDARD
+  except:
+    - ENUM_VALUE_PREFIX
   ignore:
     - proto/entpb
     - proto/dash/v1/auth.proto

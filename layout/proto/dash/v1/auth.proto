@@ -52,7 +52,7 @@ message AuthRefreshResponse {
 enum AuthError {
   option (sphere.errors.default_status) = 500;
 
-  AUTH_UNKNOWN_ERROR = 0;
+  AUTH_UNSPECIFIED = 0;
   AUTH_PASSWORD_ERROR = 1000 [(sphere.errors.options) = {
     status: 401
     message: "密码错误"
