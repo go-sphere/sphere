@@ -7,19 +7,13 @@ import "google/api/annotations.proto";
 import "shared/v1/user.proto";
 
 service UserService {
-  rpc GetMineInfo(GetMineInfoRequest) returns (GetMineInfoResponse) {
+  rpc UserMeDetail(UserMeDetailRequest) returns (UserMeDetailResponse) {
     option (google.api.http) = {get: "/api/user/me"};
   }
-  rpc GetMinePlatform(GetMinePlatformRequest) returns (GetMinePlatformResponse) {
+  rpc UserMinePlatforms(UserMinePlatformsRequest) returns (UserMinePlatformsResponse) {
     option (google.api.http) = {get: "/api/user/platforms"};
   }
-  rpc UpdateMineInfo(UpdateMineInfoRequest) returns (UpdateMineInfoResponse) {
-    option (google.api.http) = {
-      post: "/api/user/update"
-      body: "*"
-    };
-  }
-  rpc BindPhoneWxMini(BindPhoneWxMiniRequest) returns (BindPhoneWxMiniResponse) {
+  rpc UserBinePhoneWxMini(UserBinePhoneWxMiniRequest) returns (UserBinePhoneWxMiniResponse) {
     option (google.api.http) = {
       post: "/api/user/bind/phone/wxmini"
       body: "*"
@@ -27,31 +21,22 @@ service UserService {
   }
 }
 
-message GetMineInfoRequest {}
+message UserMeDetailRequest {}
 
-message GetMineInfoResponse {
+message UserMeDetailResponse {
   shared.v1.User user = 1;
 }
 
-message UpdateMineInfoRequest {
-  string username = 1 [(buf.validate.field).required = true];
-  string avatar = 2;
-}
+message UserMinePlatformsRequest {}
 
-message UpdateMineInfoResponse {
-  shared.v1.User user = 1;
-}
-
-message GetMinePlatformRequest {}
-
-message GetMinePlatformResponse {
+message UserMinePlatformsResponse {
   string username = 1;
   string wechat_mini = 2;
   string phone = 3;
 }
 
-message BindPhoneWxMiniRequest {
+message UserBinePhoneWxMiniRequest {
   string code = 1 [(buf.validate.field).required = true];
 }
 
-message BindPhoneWxMiniResponse {}
+message UserBinePhoneWxMiniResponse {}

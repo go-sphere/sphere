@@ -2,35 +2,16 @@ package api
 
 import (
 	"context"
-	"fmt"
-	"net/http"
-	"net/url"
-	"strconv"
-	"strings"
-	"time"
 
-	"github.com/TBXark/sphere/core/safe"
 	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
 	"github.com/TBXark/sphere/layout/internal/pkg/auth"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/userplatform"
 	"github.com/TBXark/sphere/social/wechat"
-	"github.com/TBXark/sphere/storage"
 )
 
 var _ apiv1.UserServiceHTTPServer = (*Service)(nil)
 
-var wechatAvatarDomains = map[string]struct{}{
-	"thirdwx.qlogo.cn": {},
-}
-
-const RemoteImageMaxSize = 1024 * 1024 * 2
-
-var (
-	ErrImageSizeExceed     = fmt.Errorf("image size exceed")
-	ErrImageHostNotAllowed = fmt.Errorf("image host not allowed")
-)
-
-func (s *Service) GetMineInfo(ctx context.Context, request *apiv1.GetMineInfoRequest) (*apiv1.GetMineInfoResponse, error) {
+func (s *Service) UserMeDetail(ctx context.Context, request *apiv1.UserMeDetailRequest) (*apiv1.UserMeDetailResponse, error) {
 	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -39,12 +20,12 @@ func (s *Service) GetMineInfo(ctx context.Context, request *apiv1.GetMineInfoReq
 	if err != nil {
 		return nil, err
 	}
-	return &apiv1.GetMineInfoResponse{
+	return &apiv1.UserMeDetailResponse{
 		User: s.render.UserFull(me),
 	}, nil
 }
 
-func (s *Service) GetMinePlatform(ctx context.Context, request *apiv1.GetMinePlatformRequest) (*apiv1.GetMinePlatformResponse, error) {
+func (s *Service) UserMinePlatforms(ctx context.Context, request *apiv1.UserMinePlatformsRequest) (*apiv1.UserMinePlatformsResponse, error) {
 	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -57,7 +38,7 @@ func (s *Service) GetMinePlatform(ctx context.Context, request *apiv1.GetMinePla
 	if err != nil {
 		return nil, err
 	}
-	res := apiv1.GetMinePlatformResponse{
+	res := apiv1.UserMinePlatformsResponse{
 		Username: me.Username,
 	}
 	for _, p := range plat {
@@ -71,29 +52,7 @@ func (s *Service) GetMinePlatform(ctx context.Context, request *apiv1.GetMinePla
 	return &res, nil
 }
 
-func (s *Service) UpdateMineInfo(ctx context.Context, request *apiv1.UpdateMineInfoRequest) (*apiv1.UpdateMineInfoResponse, error) {
-	id, err := s.GetCurrentID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	request.Avatar, err = s.uploadRemoteImage(ctx, request.Avatar)
-	if err != nil {
-		return nil, err
-	}
-	request.Avatar = s.storage.ExtractKeyFromURL(request.Avatar)
-	up, err := s.db.User.UpdateOneID(id).
-		SetUsername(request.Username).
-		SetAvatar(request.Avatar).
-		Save(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &apiv1.UpdateMineInfoResponse{
-		User: s.render.UserFull(up),
-	}, nil
-}
-
-func (s *Service) BindPhoneWxMini(ctx context.Context, request *apiv1.BindPhoneWxMiniRequest) (*apiv1.BindPhoneWxMiniResponse, error) {
+func (s *Service) UserBinePhoneWxMini(ctx context.Context, request *apiv1.UserBinePhoneWxMiniRequest) (*apiv1.UserBinePhoneWxMiniResponse, error) {
 	userId, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -113,50 +72,5 @@ func (s *Service) BindPhoneWxMini(ctx context.Context, request *apiv1.BindPhoneW
 	if err != nil {
 		return nil, err
 	}
-	return &apiv1.BindPhoneWxMiniResponse{}, nil
-}
-
-func (s *Service) uploadRemoteImage(ctx context.Context, uri string) (string, error) {
-	key, err := s.storage.ExtractKeyFromURLWithMode(uri, true)
-	if key != "" && err == nil {
-		return key, nil
-	}
-	u, err := url.Parse(uri)
-	if err != nil {
-		return "", err
-	}
-	isValidHost := false
-	for domain := range wechatAvatarDomains {
-		if strings.HasSuffix(u.Host, domain) {
-			isValidHost = true
-			break
-		}
-	}
-	if !isValidHost {
-		return "", ErrImageHostNotAllowed
-	}
-	id, err := s.GetCurrentID(ctx)
-	if err != nil {
-		return "", err
-	}
-	key = storage.DefaultKeyBuilder(strconv.Itoa(int(id)))(uri, "user")
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	if resp.ContentLength > RemoteImageMaxSize {
-		return "", ErrImageSizeExceed
-	}
-	defer safe.IfErrorPresent("close response body", resp.Body.Close)
-	ret, err := s.storage.UploadFile(ctx, resp.Body, key)
-	if err != nil {
-		return "", err
-	}
-	return ret, nil
+	return &apiv1.UserBinePhoneWxMiniResponse{}, nil
 }

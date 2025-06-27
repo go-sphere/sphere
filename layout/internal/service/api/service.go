@@ -1,9 +1,6 @@
 package api
 
 import (
-	"net/http"
-	"time"
-
 	"github.com/TBXark/sphere/cache"
 	"github.com/TBXark/sphere/layout/internal/pkg/dao"
 	"github.com/TBXark/sphere/layout/internal/pkg/render"
@@ -18,10 +15,9 @@ type TokenAuthorizer = authorizer.TokenAuthorizer[int64, *jwtauth.RBACClaims[int
 type Service struct {
 	authorizer.ContextUtils[int64]
 
-	db         *dao.Dao
-	wechat     *wechat.Wechat
-	render     *render.Render
-	httpClient *http.Client
+	db     *dao.Dao
+	wechat *wechat.Wechat
+	render *render.Render
 
 	cache      cache.ByteCache
 	storage    storage.CDNStorage
@@ -30,13 +26,10 @@ type Service struct {
 
 func NewService(db *dao.Dao, wechat *wechat.Wechat, cache cache.ByteCache, store storage.CDNStorage) *Service {
 	return &Service{
-		db:     db,
-		wechat: wechat,
-		cache:  cache,
-		render: render.NewRender(db, store, true),
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		db:      db,
+		wechat:  wechat,
+		cache:   cache,
+		render:  render.NewRender(db, store, true),
 		storage: store,
 	}
 }
