@@ -52,9 +52,9 @@ func (w *Web) Start(ctx context.Context) error {
 			return err
 		}
 	}
-	indexHTML := []byte(createIndex(w.config.Targets))
+	indexRaw := []byte(createIndex(w.config.Targets))
 	engine.GET("/", func(c *gin.Context) {
-		c.Data(http.StatusOK, "text/html", indexHTML)
+		c.Data(http.StatusOK, "text/html", indexRaw)
 	})
 
 	w.server = &http.Server{
