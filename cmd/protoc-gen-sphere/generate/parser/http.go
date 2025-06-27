@@ -3,32 +3,59 @@ package parser
 import (
 	"net/http"
 
+	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/utils"
 	"google.golang.org/genproto/googleapis/api/annotations"
 )
 
-func HttpRule(rule *annotations.HttpRule, path string, method string) (string, string) {
+type HttpRule struct {
+	Path         string
+	Method       string
+	HasBody      bool
+	Body         string
+	ResponseBody string
+}
+
+func ParseHttpRule(rule *annotations.HttpRule) *HttpRule {
+	res := HttpRule{
+		Method: http.MethodPost,
+	}
 	switch pattern := rule.Pattern.(type) {
 	case *annotations.HttpRule_Get:
-		path = pattern.Get
-		method = http.MethodGet
+		res.Path = pattern.Get
+		res.Method = http.MethodGet
 	case *annotations.HttpRule_Put:
-		path = pattern.Put
-		method = http.MethodPut
+		res.Path = pattern.Put
+		res.Method = http.MethodPut
 	case *annotations.HttpRule_Post:
-		path = pattern.Post
-		method = http.MethodPost
+		res.Path = pattern.Post
+		res.Method = http.MethodPost
 	case *annotations.HttpRule_Delete:
-		path = pattern.Delete
-		method = http.MethodDelete
+		res.Path = pattern.Delete
+		res.Method = http.MethodDelete
 	case *annotations.HttpRule_Patch:
-		path = pattern.Patch
-		method = http.MethodPatch
+		res.Path = pattern.Patch
+		res.Method = http.MethodPatch
 	case *annotations.HttpRule_Custom:
-		path = pattern.Custom.Path
-		method = pattern.Custom.Kind
+		res.Path = pattern.Custom.Path
+		res.Method = pattern.Custom.Kind
+	default:
+		res.Method = http.MethodPost
 	}
-	if method == "" {
-		method = http.MethodPost
+
+	if rule.Body == "*" {
+		res.HasBody = true
+		res.Body = ""
+	} else if res.Body != "" {
+		res.HasBody = true
+		res.Body = "." + utils.CamelCaseVars(rule.Body)
+	} else {
+		res.HasBody = false
 	}
-	return path, method
+
+	if rule.ResponseBody == "*" {
+		res.ResponseBody = ""
+	} else if rule.ResponseBody != "" {
+		res.ResponseBody = "." + utils.CamelCaseVars(rule.ResponseBody)
+	}
+	return &res
 }
