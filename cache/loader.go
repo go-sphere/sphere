@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"github.com/TBXark/sphere/core/codec"
 	"reflect"
 	"time"
 
@@ -78,7 +79,7 @@ func Set[T any](ctx context.Context, c Cache[T], key string, value T, options ..
 	}
 }
 
-func SetObject[T any, E Encoder](ctx context.Context, c ByteCache, e E, key string, value T, options ...Option) error {
+func SetObject[T any, E codec.Encoder](ctx context.Context, c ByteCache, e E, key string, value T, options ...Option) error {
 	data, err := e.Marshal(value)
 	if err != nil {
 		return err
@@ -87,10 +88,10 @@ func SetObject[T any, E Encoder](ctx context.Context, c ByteCache, e E, key stri
 }
 
 func SetJson[T any](ctx context.Context, c ByteCache, key string, value T, options ...Option) error {
-	return SetObject[T, EncoderFunc](ctx, c, json.Marshal, key, value, options...)
+	return SetObject[T, codec.EncoderFunc](ctx, c, json.Marshal, key, value, options...)
 }
 
-func GetObject[T any, D Decoder](ctx context.Context, c ByteCache, d D, key string) (T, bool, error) {
+func GetObject[T any, D codec.Decoder](ctx context.Context, c ByteCache, d D, key string) (T, bool, error) {
 	data, found, err := c.Get(ctx, key)
 	var value T
 	if err != nil {
@@ -107,7 +108,7 @@ func GetObject[T any, D Decoder](ctx context.Context, c ByteCache, d D, key stri
 }
 
 func GetJson[T any](ctx context.Context, c ByteCache, key string, options ...Option) (T, bool, error) {
-	return GetObject[T, DecoderFunc](ctx, c, json.Unmarshal, key)
+	return GetObject[T, codec.DecoderFunc](ctx, c, json.Unmarshal, key)
 }
 
 // FetchCached is a function type that defines a builder for fetching cached objects.
@@ -136,7 +137,7 @@ func GetEx[T any](ctx context.Context, c Cache[T], key string, builder FetchCach
 
 // GetObjectEx retrieves an object from the cache using the provided key.
 // Something like GetEx, but for ByteCache.
-func GetObjectEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, d D, e E, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
+func GetObjectEx[T any, D codec.Decoder, E codec.Encoder](ctx context.Context, c ByteCache, d D, e E, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return load[T](
 		ctx,
 		key,
@@ -154,7 +155,7 @@ func GetObjectEx[T any, D Decoder, E Encoder](ctx context.Context, c ByteCache, 
 // GetJsonEx retrieves a JSON object from the cache using the provided key.
 // Similar to GetObjectEx, but specifically for JSON data.
 func GetJsonEx[T any](ctx context.Context, c ByteCache, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
-	return GetObjectEx[T, DecoderFunc, EncoderFunc](ctx, c, json.Unmarshal, json.Marshal, key, builder, options...)
+	return GetObjectEx[T, codec.DecoderFunc, codec.EncoderFunc](ctx, c, json.Unmarshal, json.Marshal, key, builder, options...)
 }
 
 func load[T any](

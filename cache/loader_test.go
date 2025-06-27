@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/TBXark/sphere/core/codec"
 	"reflect"
 	"testing"
 
@@ -19,7 +20,7 @@ func TestGetObjectEx(t *testing.T) {
 	cache := mcache.NewMapCache[[]byte]()
 	_ = cache.Set(context.Background(), "testKey", val)
 
-	type args[D Decoder, E Encoder, T any] struct {
+	type args[D codec.Decoder, E codec.Encoder, T any] struct {
 		ctx     context.Context
 		c       ByteCache
 		d       D
@@ -27,17 +28,17 @@ func TestGetObjectEx(t *testing.T) {
 		key     string
 		builder func() (obj T, err error)
 	}
-	type testCase[D Decoder, E Encoder, T any] struct {
+	type testCase[D codec.Decoder, E codec.Encoder, T any] struct {
 		name      string
 		args      args[D, E, T]
 		want      T
 		wantFound bool
 		wantErr   bool
 	}
-	tests := []testCase[DecoderFunc, EncoderFunc, *Example]{
+	tests := []testCase[codec.DecoderFunc, codec.EncoderFunc, *Example]{
 		{
 			name: "GetObjectEx existing key",
-			args: args[DecoderFunc, EncoderFunc, *Example]{
+			args: args[codec.DecoderFunc, codec.EncoderFunc, *Example]{
 				ctx:     context.Background(),
 				c:       cache,
 				d:       json.Unmarshal,
@@ -51,7 +52,7 @@ func TestGetObjectEx(t *testing.T) {
 		},
 		{
 			name: "GetObjectEx non-existing key with builder",
-			args: args[DecoderFunc, EncoderFunc, *Example]{
+			args: args[codec.DecoderFunc, codec.EncoderFunc, *Example]{
 				ctx: context.Background(),
 				c:   cache,
 				d:   json.Unmarshal,
@@ -67,7 +68,7 @@ func TestGetObjectEx(t *testing.T) {
 		},
 		{
 			name: "GetObjectEx with error in builder",
-			args: args[DecoderFunc, EncoderFunc, *Example]{
+			args: args[codec.DecoderFunc, codec.EncoderFunc, *Example]{
 				ctx: context.Background(),
 				c:   cache,
 				d:   json.Unmarshal,
@@ -83,7 +84,7 @@ func TestGetObjectEx(t *testing.T) {
 		},
 		{
 			name: "GetObjectEx with nil builder",
-			args: args[DecoderFunc, EncoderFunc, *Example]{
+			args: args[codec.DecoderFunc, codec.EncoderFunc, *Example]{
 				ctx: context.Background(),
 				c:   cache,
 				d:   json.Unmarshal,

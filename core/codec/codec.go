@@ -1,4 +1,4 @@
-package cache
+package codec
 
 type Encoder interface {
 	Marshal(val any) ([]byte, error)
@@ -17,4 +17,9 @@ type DecoderFunc func(data []byte, val any) error
 
 func (d DecoderFunc) Unmarshal(data []byte, val any) error {
 	return d(data, val)
+}
+
+type Codec interface {
+	Encoder
+	Decoder
 }
