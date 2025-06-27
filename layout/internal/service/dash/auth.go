@@ -84,10 +84,10 @@ func (s *Service) AuthLogin(ctx context.Context, request *dashv1.AuthLoginReques
 	token, err := dao.WithTx[AdminToken](ctx, s.db.Client, func(ctx context.Context, client *ent.Client) (*AdminToken, error) {
 		administrator, err := client.Admin.Query().Where(admin.UsernameEqualFold(request.Username)).Only(ctx)
 		if err != nil {
-			return nil, dashv1.AuthError_PASSWORD_ERROR // 隐藏错误信息
+			return nil, dashv1.AuthError_AUTH_PASSWORD_ERROR // 隐藏错误信息
 		}
 		if !secure.IsPasswordMatch(request.Password, administrator.Password) {
-			return nil, dashv1.AuthError_PASSWORD_ERROR
+			return nil, dashv1.AuthError_AUTH_PASSWORD_ERROR
 		}
 		return s.createAdminToken(ctx, client, administrator)
 	})

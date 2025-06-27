@@ -39,7 +39,7 @@ message AdminSessionDeleteResponse {}
 enum AdminSessionError {
   option (sphere.errors.default_status) = 500;
 
-  UNKNOWN_ADMIN_SESSION_ERROR = 0;
+  SESSION_UNKNOWN_ERROR = 0;
   SESSION_REVOKED = 1000 [(sphere.errors.options) = {
     status: 403
     message: "会话已被撤销"

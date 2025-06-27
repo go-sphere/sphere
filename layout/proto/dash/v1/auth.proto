@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package dash.v1;
 
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "sphere/errors/errors.proto";
 
@@ -24,8 +25,12 @@ service AuthService {
 }
 
 message AuthLoginRequest {
-  string username = 1;
-  string password = 2;
+  string username = 1 [
+    (buf.validate.field).required = true
+  ];
+  string password = 2 [
+    (buf.validate.field).required = true
+  ];
 }
 
 message AuthLoginResponse {
@@ -39,7 +44,9 @@ message AuthLoginResponse {
 }
 
 message AuthRefreshRequest {
-  string refreshToken = 1;
+  string refreshToken = 1 [
+    (buf.validate.field).required = true
+  ];
 }
 
 message AuthRefreshResponse {
@@ -51,8 +58,8 @@ message AuthRefreshResponse {
 enum AuthError {
   option (sphere.errors.default_status) = 500;
 
-  UNKNOWN_AUTH_ERROR = 0;
-  PASSWORD_ERROR = 1000 [(sphere.errors.options) = {
+  AUTH_UNKNOWN_ERROR = 0;
+  AUTH_PASSWORD_ERROR = 1000 [(sphere.errors.options) = {
     status: 401
     message: "密码错误"
   }];

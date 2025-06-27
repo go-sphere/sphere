@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package api.v1;
 
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "shared/v1/user.proto";
 
@@ -33,7 +34,9 @@ message GetMineInfoResponse {
 }
 
 message UpdateMineInfoRequest {
-  string username = 1;
+  string username = 1 [
+    (buf.validate.field).required = true
+  ];
   string avatar = 2;
 }
 
@@ -50,7 +53,9 @@ message GetMinePlatformResponse {
 }
 
 message BindPhoneWxMiniRequest {
-  string code = 1;
+  string code = 1 [
+    (buf.validate.field).required = true
+  ];
 }
 
 message BindPhoneWxMiniResponse {}

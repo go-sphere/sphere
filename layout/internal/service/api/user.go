@@ -103,7 +103,7 @@ func (s *Service) BindPhoneWxMini(ctx context.Context, request *apiv1.BindPhoneW
 		return nil, err
 	}
 	if number.PhoneInfo.CountryCode != "86" {
-		return nil, apiv1.AuthError_UNSUPPORTED_PHONE_REGION
+		return nil, apiv1.AuthError_AUTH_UNSUPPORTED_PHONE_REGION
 	}
 	err = s.db.UserPlatform.Create().
 		SetUserID(userId).
