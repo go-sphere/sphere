@@ -25,12 +25,8 @@ service AuthService {
 }
 
 message AuthLoginRequest {
-  string username = 1 [
-    (buf.validate.field).required = true
-  ];
-  string password = 2 [
-    (buf.validate.field).required = true
-  ];
+  string username = 1 [(buf.validate.field).required = true];
+  string password = 2 [(buf.validate.field).required = true];
 }
 
 message AuthLoginResponse {
@@ -44,9 +40,7 @@ message AuthLoginResponse {
 }
 
 message AuthRefreshRequest {
-  string refreshToken = 1 [
-    (buf.validate.field).required = true
-  ];
+  string refreshToken = 1 [(buf.validate.field).required = true];
 }
 
 message AuthRefreshResponse {

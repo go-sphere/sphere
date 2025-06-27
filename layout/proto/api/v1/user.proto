@@ -34,9 +34,7 @@ message GetMineInfoResponse {
 }
 
 message UpdateMineInfoRequest {
-  string username = 1 [
-    (buf.validate.field).required = true
-  ];
+  string username = 1 [(buf.validate.field).required = true];
   string avatar = 2;
 }
 
@@ -53,9 +51,7 @@ message GetMinePlatformResponse {
 }
 
 message BindPhoneWxMiniRequest {
-  string code = 1 [
-    (buf.validate.field).required = true
-  ];
+  string code = 1 [(buf.validate.field).required = true];
 }
 
 message BindPhoneWxMiniResponse {}

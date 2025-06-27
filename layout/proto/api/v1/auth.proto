@@ -18,9 +18,7 @@ service AuthService {
 }
 
 message AuthWxMiniRequest {
-  string code = 1 [
-    (buf.validate.field).required = true
-  ];
+  string code = 1 [(buf.validate.field).required = true];
 }
 message AuthWxMiniResponse {
   bool is_new = 1;

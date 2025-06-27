@@ -47,9 +47,7 @@ message AdminListResponse {
 }
 
 message AdminCreateRequest {
-  entpb.Admin admin = 1 [
-    (buf.validate.field).required = true
-  ];
+  entpb.Admin admin = 1 [(buf.validate.field).required = true];
   option (buf.validate.message).cel = {
     id: "admin_password_min_length"
     expression: "size(this.admin.password) >= 8"
@@ -67,9 +65,7 @@ message AdminCreateResponse {
 }
 
 message AdminUpdateRequest {
-  entpb.Admin admin = 1 [
-    (buf.validate.field).required = true
-  ];
+  entpb.Admin admin = 1 [(buf.validate.field).required = true];
   option (buf.validate.message).cel = {
     id: "admin_password_min_length"
     expression: "size(this.admin.password) == 0 || size(this.admin.password) >= 8"
