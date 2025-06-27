@@ -54,8 +54,8 @@ type {{.ServiceType}}{{$optionsKey}}Server interface {
 
 type {{.ServiceType}}{{$optionsKey}}Codec interface {
 {{- range .MethodSets}}
-    Decode{{.Name}}Request(ctx context.Context, update *{{$requestType}}) (*{{.Request}}, error)
-    Encode{{.Name}}Response(ctx context.Context, reply *{{.Reply}}) (*{{$responseType}}, error)
+    Decode{{.Name}}Request(ctx context.Context, request *{{$requestType}}) (*{{.Request}}, error)
+    Encode{{.Name}}Response(ctx context.Context, response *{{.Reply}}) (*{{$responseType}}, error)
 {{- end}}
 }
 
@@ -66,11 +66,11 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_{{$optionsKey}}_Handler(srv {{$svrType}}{{$
     		if err != nil {
     			return err
     		}
-    		reply, err := srv.{{.Name}}(ctx, req)
+    		resp, err := srv.{{.Name}}(ctx, req)
     		if err != nil {
     			return err
     		}
-    		msg, err := codec.Encode{{.Name}}Response(ctx, reply)
+    		msg, err := codec.Encode{{.Name}}Response(ctx, resp)
     		if err != nil {
     			return err
     		}

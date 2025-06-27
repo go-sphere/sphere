@@ -5,12 +5,16 @@ package bot.v1;
 import "sphere/options/options.proto";
 
 service MenuService {
-  rpc Start(StartRequest) returns (StartResponse) {
+  rpc Counter(CounterRequest) returns (CounterResponse) {
     option (sphere.options.options) = {
       key: "bot"
       extra: [
         {
           key: "command"
+          value: "start"
+        },
+        {
+          key: "callback_query"
           value: "start"
         }
       ]
@@ -18,10 +22,11 @@ service MenuService {
   }
 }
 
-message StartRequest {
-  string name = 1;
+message CounterRequest {
+  int64 value = 1;
+  int64 offset = 2;
 }
 
-message StartResponse {
-  string message = 1;
+message CounterResponse {
+  int64 value = 1;
 }
