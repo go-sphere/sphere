@@ -39,6 +39,9 @@ func NewEmptyConfig() *Config {
 				MaxBackups: 10,
 				MaxAge:     10,
 			},
+			Console: &log.ConsoleOptions{
+				AsyncOut: true,
+			},
 			Level: "info",
 		},
 		Database: &client.Config{},

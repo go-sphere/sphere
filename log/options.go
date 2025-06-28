@@ -7,16 +7,22 @@ type FileOptions struct {
 	MaxAge     int    `json:"max_age" yaml:"max_age"`
 }
 
+type ConsoleOptions struct {
+	AsyncOut bool `json:"async_out" yaml:"async_out"`
+}
+
 type Options struct {
-	File            *FileOptions `json:"file" yaml:"file"`
-	ConsoleOutAsync bool         `json:"console_out_async" yaml:"console_out_async"`
-	Level           string       `json:"level" yaml:"level"`
+	File    *FileOptions    `json:"file" yaml:"file"`
+	Console *ConsoleOptions `json:"console" yaml:"console"`
+	Level   string          `json:"level" yaml:"level"`
 }
 
 func NewOptions() *Options {
 	return &Options{
-		File:            nil,
-		ConsoleOutAsync: true,
-		Level:           "info",
+		File: nil,
+		Console: &ConsoleOptions{
+			AsyncOut: true,
+		},
+		Level: "info",
 	}
 }

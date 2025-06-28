@@ -22,34 +22,31 @@ func newLogger(opts *Options, fields ...logfields.Field) *zapLogger {
 	}
 	level := zap.NewAtomicLevelAt(levelRaw)
 
-	developmentCfg := zap.NewDevelopmentEncoderConfig()
-	developmentCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
-
-	consoleEncoder := zapcore.NewConsoleEncoder(developmentCfg)
 	var nodes []zapcore.Core
 
-	if opts.ConsoleOutAsync {
-		nodes = append(nodes, zapcore.NewCore(consoleEncoder, os.Stdout, level))
-	} else {
-		stdout := zapcore.AddSync(os.Stdout)
-		nodes = append(nodes, zapcore.NewCore(consoleEncoder, stdout, level))
+	if opts.Console != nil {
+		developmentCfg := zap.NewDevelopmentEncoderConfig()
+		developmentCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		consoleEncoder := zapcore.NewConsoleEncoder(developmentCfg)
+		var stdout zapcore.WriteSyncer = os.Stdout
+		if !opts.Console.AsyncOut {
+			stdout = zapcore.AddSync(os.Stdout)
+		}
+		pc := zapcore.NewCore(consoleEncoder, stdout, level).With(fields)
+		nodes = append(nodes, pc)
 	}
 
 	if opts.File != nil {
-
 		productionCfg := zap.NewProductionEncoderConfig()
 		productionCfg.TimeKey = "timestamp"
 		productionCfg.EncodeTime = zapcore.ISO8601TimeEncoder
-
 		fileEncoder := zapcore.NewJSONEncoder(productionCfg)
-
 		file := zapcore.AddSync(&lumberjack.Logger{
 			Filename:   opts.File.FileName,
 			MaxSize:    opts.File.MaxSize, // megabytes
 			MaxBackups: opts.File.MaxBackups,
 			MaxAge:     opts.File.MaxAge, // days
 		})
-
 		pc := zapcore.NewCore(fileEncoder, file, level).With(fields)
 		nodes = append(nodes, pc)
 	}
@@ -141,10 +138,10 @@ func (l *zapLogger) Fatalw(message string, args ...interface{}) {
 }
 
 func (l *zapLogger) WithFields(fields map[string]interface{}) Logger {
-	f := make([]zap.Field, 0)
+	f := make([]any, 0)
 	for k, v := range fields {
 		f = append(f, zap.Any(k, v))
 	}
-	logger := l.sugarLogger.With(f)
+	logger := l.sugarLogger.With(f...)
 	return &zapLogger{logger}
 }
