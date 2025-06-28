@@ -3,6 +3,7 @@ package statuserr
 import (
 	"errors"
 	"net/http"
+	"strings"
 )
 
 type StatusError interface {
@@ -29,7 +30,7 @@ type Error struct {
 
 func NewError(status, code int32, message string, err error) error {
 	if err == nil {
-		return nil
+		err = httpError(status)
 	}
 	return &Error{
 		error:   err,
@@ -41,7 +42,7 @@ func NewError(status, code int32, message string, err error) error {
 
 func JoinError(status int32, message string, err error) error {
 	if err == nil {
-		return nil
+		err = httpError(status)
 	}
 	var code int32
 	var codeError CodeError
@@ -78,22 +79,34 @@ func (e *Error) Unwrap() error {
 	return e.error
 }
 
-func BadRequestError(err error, message string) error {
-	return JoinError(http.StatusBadRequest, message, err)
+func WithStatus(status int32, err error, messages ...string) error {
+	return JoinError(status, strings.Join(messages, ", "), err)
 }
 
-func UnauthorizedError(err error, message string) error {
-	return JoinError(http.StatusUnauthorized, message, err)
+func BadRequestError(err error, messages ...string) error {
+	return WithStatus(http.StatusBadRequest, err, messages...)
 }
 
-func ForbiddenError(err error, message string) error {
-	return JoinError(http.StatusForbidden, message, err)
+func UnauthorizedError(err error, messages ...string) error {
+	return WithStatus(http.StatusUnauthorized, err, messages...)
 }
 
-func NotFoundError(err error, message string) error {
-	return JoinError(http.StatusNotFound, message, err)
+func ForbiddenError(err error, messages ...string) error {
+	return WithStatus(http.StatusForbidden, err, messages...)
 }
 
-func InternalServerError(err error, message string) error {
-	return JoinError(http.StatusInternalServerError, message, err)
+func NotFoundError(err error, messages ...string) error {
+	return WithStatus(http.StatusNotFound, err, messages...)
+}
+
+func InternalServerError(err error, messages ...string) error {
+	return WithStatus(http.StatusInternalServerError, err, messages...)
+}
+
+func httpError(status int32) error {
+	msg := http.StatusText(int(status))
+	if msg == "" {
+		msg = "Unknown error"
+	}
+	return errors.New(msg)
 }
