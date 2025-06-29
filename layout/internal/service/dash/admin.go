@@ -31,7 +31,7 @@ func (s *Service) AdminDelete(ctx context.Context, request *dashv1.AdminDeleteRe
 		return nil, err
 	}
 	if value == request.Id {
-		return nil, dashv1.AdminError_ADMIN_CANNOT_DELETE_SELF
+		return nil, dashv1.AdminError_ADMIN_ERROR_CANNOT_DELETE_SELF
 	}
 	err = s.db.Admin.DeleteOneID(request.Id).Exec(ctx)
 	if err != nil {

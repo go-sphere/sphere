@@ -62,7 +62,7 @@ func (s *Service) UserBinePhoneWxMini(ctx context.Context, request *apiv1.UserBi
 		return nil, err
 	}
 	if number.PhoneInfo.CountryCode != "86" {
-		return nil, apiv1.AuthError_AUTH_UNSUPPORTED_PHONE_REGION
+		return nil, apiv1.AuthError_AUTH_ERROR_UNSUPPORTED_PHONE_REGION
 	}
 	err = s.db.UserPlatform.Create().
 		SetUserID(userId).
