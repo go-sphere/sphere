@@ -9,7 +9,7 @@ import "sphere/errors/errors.proto";
 
 service AuthService {
   // 请求小程序
-  rpc AuthWxMini(AuthWxMiniRequest) returns (AuthWxMiniResponse) {
+  rpc AuthWithWxMini(AuthWithWxMiniRequest) returns (AuthWithWxMiniResponse) {
     option (google.api.http) = {
       post: "/v1/auth/wxmini"
       body: "*"
@@ -17,10 +17,10 @@ service AuthService {
   }
 }
 
-message AuthWxMiniRequest {
+message AuthWithWxMiniRequest {
   string code = 1 [(buf.validate.field).required = true];
 }
-message AuthWxMiniResponse {
+message AuthWithWxMiniResponse {
   bool is_new = 1;
   string token = 2;
   shared.v1.User user = 3;

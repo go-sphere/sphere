@@ -12,7 +12,7 @@ import (
 
 var _ apiv1.AuthServiceHTTPServer = (*Service)(nil)
 
-func (s *Service) AuthWxMini(ctx context.Context, request *apiv1.AuthWxMiniRequest) (*apiv1.AuthWxMiniResponse, error) {
+func (s *Service) AuthWithWxMini(ctx context.Context, request *apiv1.AuthWithWxMiniRequest) (*apiv1.AuthWithWxMiniResponse, error) {
 	data, err := s.wechat.JsCode2Session(ctx, request.Code)
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func (s *Service) AuthWxMini(ctx context.Context, request *apiv1.AuthWxMiniReque
 	if err != nil {
 		return nil, err
 	}
-	return &apiv1.AuthWxMiniResponse{
+	return &apiv1.AuthWithWxMiniResponse{
 		IsNew: res.IsNew,
 		Token: token,
 		User:  s.render.UserFull(res.User),

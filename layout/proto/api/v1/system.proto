@@ -5,11 +5,11 @@ package api.v1;
 import "google/api/annotations.proto";
 
 service SystemService {
-  rpc Status(StatusRequest) returns (StatusResponse) {
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {
     option (google.api.http) = {get: "/api/status"};
   }
 }
 
-message StatusRequest {}
+message GetStatusRequest {}
 
-message StatusResponse {}
+message GetStatusResponse {}

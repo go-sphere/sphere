@@ -11,7 +11,7 @@ import (
 
 var _ apiv1.UserServiceHTTPServer = (*Service)(nil)
 
-func (s *Service) UserMeDetail(ctx context.Context, request *apiv1.UserMeDetailRequest) (*apiv1.UserMeDetailResponse, error) {
+func (s *Service) GetCurrentUser(ctx context.Context, request *apiv1.GetCurrentUserRequest) (*apiv1.GetCurrentUserResponse, error) {
 	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -20,12 +20,12 @@ func (s *Service) UserMeDetail(ctx context.Context, request *apiv1.UserMeDetailR
 	if err != nil {
 		return nil, err
 	}
-	return &apiv1.UserMeDetailResponse{
+	return &apiv1.GetCurrentUserResponse{
 		User: s.render.UserFull(me),
 	}, nil
 }
 
-func (s *Service) UserMinePlatforms(ctx context.Context, request *apiv1.UserMinePlatformsRequest) (*apiv1.UserMinePlatformsResponse, error) {
+func (s *Service) ListUserPlatforms(ctx context.Context, request *apiv1.ListUserPlatformsRequest) (*apiv1.ListUserPlatformsResponse, error) {
 	id, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func (s *Service) UserMinePlatforms(ctx context.Context, request *apiv1.UserMine
 	if err != nil {
 		return nil, err
 	}
-	res := apiv1.UserMinePlatformsResponse{
+	res := apiv1.ListUserPlatformsResponse{
 		Username: me.Username,
 	}
 	for _, p := range plat {
@@ -52,7 +52,7 @@ func (s *Service) UserMinePlatforms(ctx context.Context, request *apiv1.UserMine
 	return &res, nil
 }
 
-func (s *Service) UserBinePhoneWxMini(ctx context.Context, request *apiv1.UserBinePhoneWxMiniRequest) (*apiv1.UserBinePhoneWxMiniResponse, error) {
+func (s *Service) BindPhoneWxMini(ctx context.Context, request *apiv1.BindPhoneWxMiniRequest) (*apiv1.BindPhoneWxMiniResponse, error) {
 	userId, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -72,5 +72,5 @@ func (s *Service) UserBinePhoneWxMini(ctx context.Context, request *apiv1.UserBi
 	if err != nil {
 		return nil, err
 	}
-	return &apiv1.UserBinePhoneWxMiniResponse{}, nil
+	return &apiv1.BindPhoneWxMiniResponse{}, nil
 }

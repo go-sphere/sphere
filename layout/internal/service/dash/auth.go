@@ -80,21 +80,21 @@ func (s *Service) createAdminToken(ctx context.Context, client *ent.Client, admi
 	}, nil
 }
 
-func (s *Service) AuthLogin(ctx context.Context, request *dashv1.AuthLoginRequest) (*dashv1.AuthLoginResponse, error) {
+func (s *Service) LoginWithPassword(ctx context.Context, request *dashv1.LoginWithPasswordRequest) (*dashv1.LoginWithPasswordResponse, error) {
 	token, err := dao.WithTx[AdminToken](ctx, s.db.Client, func(ctx context.Context, client *ent.Client) (*AdminToken, error) {
 		administrator, err := client.Admin.Query().Where(admin.UsernameEqualFold(request.Username)).Only(ctx)
 		if err != nil {
-			return nil, dashv1.AuthError_AUTH_ERROR_PASSWORD_ERROR // 隐藏错误信息
+			return nil, dashv1.AuthError_AUTH_ERROR_INVALID_CREDENTIALS // 隐藏错误信息
 		}
 		if !secure.IsPasswordMatch(request.Password, administrator.Password) {
-			return nil, dashv1.AuthError_AUTH_ERROR_PASSWORD_ERROR
+			return nil, dashv1.AuthError_AUTH_ERROR_INVALID_CREDENTIALS
 		}
 		return s.createAdminToken(ctx, client, administrator)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &dashv1.AuthLoginResponse{
+	return &dashv1.LoginWithPasswordResponse{
 		Avatar:       s.storage.GenerateURL(token.Admin.Avatar),
 		Username:     token.Admin.Username,
 		Roles:        token.Admin.Roles,
@@ -104,7 +104,7 @@ func (s *Service) AuthLogin(ctx context.Context, request *dashv1.AuthLoginReques
 	}, nil
 }
 
-func (s *Service) AuthRefresh(ctx context.Context, request *dashv1.AuthRefreshRequest) (*dashv1.AuthRefreshResponse, error) {
+func (s *Service) RefreshToken(ctx context.Context, request *dashv1.RefreshTokenRequest) (*dashv1.RefreshTokenResponse, error) {
 	token, err := dao.WithTx[AdminToken](ctx, s.db.Client, func(ctx context.Context, client *ent.Client) (*AdminToken, error) {
 		claims, err := s.authRefresher.ParseToken(ctx, request.RefreshToken)
 		if err != nil {
@@ -136,7 +136,7 @@ func (s *Service) AuthRefresh(ctx context.Context, request *dashv1.AuthRefreshRe
 	if err != nil {
 		return nil, err
 	}
-	return &dashv1.AuthRefreshResponse{
+	return &dashv1.RefreshTokenResponse{
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		Expires:      token.Expires,

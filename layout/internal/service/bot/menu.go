@@ -8,8 +8,8 @@ import (
 
 var _ botv1.MenuServiceBotServer = (*Service)(nil)
 
-func (s Service) Counter(ctx context.Context, request *botv1.CounterRequest) (*botv1.CounterResponse, error) {
-	return &botv1.CounterResponse{
+func (s Service) UpdateCount(ctx context.Context, request *botv1.UpdateCountRequest) (*botv1.UpdateCountResponse, error) {
+	return &botv1.UpdateCountResponse{
 		Value: request.Value + request.Offset,
 	}, nil
 }

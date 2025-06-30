@@ -5,7 +5,7 @@ package bot.v1;
 import "sphere/options/options.proto";
 
 service MenuService {
-  rpc Counter(CounterRequest) returns (CounterResponse) {
+  rpc UpdateCount(UpdateCountRequest) returns (UpdateCountResponse) {
     option (sphere.options.options) = {
       key: "bot"
       extra: [
@@ -22,11 +22,11 @@ service MenuService {
   }
 }
 
-message CounterRequest {
+message UpdateCountRequest {
   int64 value = 1;
   int64 offset = 2;
 }
 
-message CounterResponse {
+message UpdateCountResponse {
   int64 value = 1;
 }

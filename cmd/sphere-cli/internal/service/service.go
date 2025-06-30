@@ -29,7 +29,9 @@ func GenServiceGolang(name, pkg, mod string) (string, error) {
 		ServiceFileName: strings.ToLower(name),
 	}
 
-	tmpl := template.New("service")
+	tmpl := template.New("service").Funcs(template.FuncMap{
+		"plural": Plural,
+	})
 	tmpl, err := tmpl.Parse(serviceTemplate)
 	if err != nil {
 		return "", err

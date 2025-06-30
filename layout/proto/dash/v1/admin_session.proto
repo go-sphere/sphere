@@ -8,15 +8,15 @@ import "google/api/annotations.proto";
 import "sphere/errors/errors.proto";
 
 service AdminSessionService {
-  rpc AdminSessionList(AdminSessionListRequest) returns (AdminSessionListResponse) {
+  rpc ListAdminSessions(ListAdminSessionsRequest) returns (ListAdminSessionsResponse) {
     option (google.api.http) = {get: "/api/admin-session/list"};
   }
-  rpc AdminSessionDelete(AdminSessionDeleteRequest) returns (AdminSessionDeleteResponse) {
+  rpc DeleteAdminSession(DeleteAdminSessionRequest) returns (DeleteAdminSessionResponse) {
     option (google.api.http) = {delete: "/api/admin-session/delete/{id}"};
   }
 }
 
-message AdminSessionListRequest {
+message ListAdminSessionsRequest {
   int64 page = 1 [
     (buf.validate.field).required = false,
     (buf.validate.field).int64.gte = 0
@@ -24,17 +24,17 @@ message AdminSessionListRequest {
   int64 page_size = 2 [(buf.validate.field).int64.gte = 0]; // @sphere:form
 }
 
-message AdminSessionListResponse {
+message ListAdminSessionsResponse {
   repeated entpb.AdminSession admin_sessions = 1;
   int64 total_size = 2;
   int64 total_page = 3;
 }
 
-message AdminSessionDeleteRequest {
+message DeleteAdminSessionRequest {
   int64 id = 1; // @sphere:uri
 }
 
-message AdminSessionDeleteResponse {}
+message DeleteAdminSessionResponse {}
 
 enum AdminSessionError {
   option (sphere.errors.default_status) = 500;

@@ -8,45 +8,45 @@ import "google/api/annotations.proto";
 import "sphere/errors/errors.proto";
 
 service AdminService {
-  rpc AdminList(AdminListRequest) returns (AdminListResponse) {
+  rpc ListAdmins(ListAdminsRequest) returns (ListAdminsResponse) {
     option (google.api.http) = {get: "/api/admin/list"};
   }
-  rpc AdminCreate(AdminCreateRequest) returns (AdminCreateResponse) {
+  rpc CreateAdmin(CreateAdminRequest) returns (CreateAdminResponse) {
     option (google.api.http) = {
       post: "/api/admin/create"
       body: "*"
     };
   }
-  rpc AdminUpdate(AdminUpdateRequest) returns (AdminUpdateResponse) {
+  rpc UpdateAdmin(UpdateAdminRequest) returns (UpdateAdminResponse) {
     option (google.api.http) = {
       post: "/api/admin/update"
       body: "*"
     };
   }
-  rpc AdminDetail(AdminDetailRequest) returns (AdminDetailResponse) {
+  rpc GetAdmin(GetAdminRequest) returns (GetAdminResponse) {
     option (google.api.http) = {get: "/api/admin/detail/{id}"};
   }
-  rpc AdminDelete(AdminDeleteRequest) returns (AdminDeleteResponse) {
+  rpc DeleteAdmin(DeleteAdminRequest) returns (DeleteAdminResponse) {
     option (google.api.http) = {delete: "/api/admin/delete/{id}"};
   }
 
-  rpc AdminRoleList(AdminRoleListRequest) returns (AdminRoleListResponse) {
+  rpc ListAdminRoles(ListAdminRolesRequest) returns (ListAdminRolesResponse) {
     option (google.api.http) = {get: "/api/admin/role/list"};
   }
 }
 
-message AdminListRequest {
+message ListAdminsRequest {
   int64 page = 1 [(buf.validate.field).int64.gte = 0]; // @sphere:form
   int64 page_size = 2 [(buf.validate.field).int64.gte = 0]; // @sphere:form
 }
 
-message AdminListResponse {
+message ListAdminsResponse {
   repeated entpb.Admin admins = 1;
   int64 total_size = 2;
   int64 total_page = 3;
 }
 
-message AdminCreateRequest {
+message CreateAdminRequest {
   entpb.Admin admin = 1 [(buf.validate.field).required = true];
   option (buf.validate.message).cel = {
     id: "admin_password_min_length"
@@ -60,11 +60,11 @@ message AdminCreateRequest {
   };
 }
 
-message AdminCreateResponse {
+message CreateAdminResponse {
   entpb.Admin admin = 1;
 }
 
-message AdminUpdateRequest {
+message UpdateAdminRequest {
   entpb.Admin admin = 1 [(buf.validate.field).required = true];
   option (buf.validate.message).cel = {
     id: "admin_password_min_length"
@@ -78,27 +78,27 @@ message AdminUpdateRequest {
   };
 }
 
-message AdminUpdateResponse {
+message UpdateAdminResponse {
   entpb.Admin admin = 1;
 }
 
-message AdminDetailRequest {
+message GetAdminRequest {
   int64 id = 1; // @sphere:uri
 }
 
-message AdminDetailResponse {
+message GetAdminResponse {
   entpb.Admin admin = 1;
 }
 
-message AdminDeleteRequest {
+message DeleteAdminRequest {
   int64 id = 1; // @sphere:uri
 }
 
-message AdminDeleteResponse {}
+message DeleteAdminResponse {}
 
-message AdminRoleListRequest {}
+message ListAdminRolesRequest {}
 
-message AdminRoleListResponse {
+message ListAdminRolesResponse {
   repeated string roles = 1;
 }
 

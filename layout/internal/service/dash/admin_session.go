@@ -10,15 +10,15 @@ import (
 
 var _ dashv1.AdminSessionServiceHTTPServer = (*Service)(nil)
 
-func (s *Service) AdminSessionDelete(ctx context.Context, request *dashv1.AdminSessionDeleteRequest) (*dashv1.AdminSessionDeleteResponse, error) {
+func (s *Service) DeleteAdminSession(ctx context.Context, request *dashv1.DeleteAdminSessionRequest) (*dashv1.DeleteAdminSessionResponse, error) {
 	err := s.db.AdminSession.UpdateOneID(request.Id).SetIsRevoked(true).Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &dashv1.AdminSessionDeleteResponse{}, nil
+	return &dashv1.DeleteAdminSessionResponse{}, nil
 }
 
-func (s *Service) AdminSessionList(ctx context.Context, request *dashv1.AdminSessionListRequest) (*dashv1.AdminSessionListResponse, error) {
+func (s *Service) ListAdminSession(ctx context.Context, request *dashv1.ListAdminSessionRequest) (*dashv1.ListAdminSessionResponse, error) {
 	uid, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -33,7 +33,7 @@ func (s *Service) AdminSessionList(ctx context.Context, request *dashv1.AdminSes
 	if err != nil {
 		return nil, err
 	}
-	return &dashv1.AdminSessionListResponse{
+	return &dashv1.ListAdminSessionResponse{
 		AdminSessions: mapper.Map(all, s.render.AdminSession),
 		TotalSize:     int64(count),
 		TotalPage:     int64(page),

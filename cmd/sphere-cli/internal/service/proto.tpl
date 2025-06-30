@@ -7,36 +7,36 @@ import "google/api/annotations.proto";
 import "buf/validate/validate.proto";
 
 service {{.ServiceName}}Service {
-  rpc {{.ServiceName}}List({{.ServiceName}}ListRequest) returns ({{.ServiceName}}ListResponse) {
+  rpc List{{plural .ServiceName}}(List{{plural .ServiceName}}Request) returns (List{{plural .ServiceName}}Response) {
     option (google.api.http) = {
       get: "/api/{{.RouteName}}/list"
     };
   }
-  rpc {{.ServiceName}}Create({{.ServiceName}}CreateRequest) returns ({{.ServiceName}}CreateResponse) {
+  rpc Create{{.ServiceName}}(Create{{.ServiceName}}Request) returns (Create{{.ServiceName}}Response) {
     option (google.api.http) = {
       post: "/api/{{.RouteName}}/create"
       body: "*"
     };
   }
-  rpc {{.ServiceName}}Update({{.ServiceName}}UpdateRequest) returns ({{.ServiceName}}UpdateResponse) {
+  rpc Update{{.ServiceName}}(Update{{.ServiceName}}Request) returns (Update{{.ServiceName}}Response) {
     option (google.api.http) = {
       post: "/api/{{.RouteName}}/update"
       body: "*"
     };
   }
-  rpc {{.ServiceName}}Detail({{.ServiceName}}DetailRequest) returns ({{.ServiceName}}DetailResponse) {
+  rpc Get{{.ServiceName}}(Get{{.ServiceName}}Request) returns (Get{{.ServiceName}}Response) {
     option (google.api.http) = {
       get: "/api/{{.RouteName}}/detail/{id}"
     };
   }
-  rpc {{.ServiceName}}Delete({{.ServiceName}}DeleteRequest) returns ({{.ServiceName}}DeleteResponse) {
+  rpc Delete{{.ServiceName}}(Delete{{.ServiceName}}Request) returns (Delete{{.ServiceName}}Response) {
     option (google.api.http) = {
       delete: "/api/{{.RouteName}}/delete/{id}"
     };
   }
 }
 
-message {{.ServiceName}}ListRequest {
+message List{{plural .ServiceName}}Request {
   int64 page = 1 [
     (buf.validate.field).required = false,
     (buf.validate.field).int64.gte = 0
@@ -46,39 +46,39 @@ message {{.ServiceName}}ListRequest {
   ]; // @sphere:form
 }
 
-message {{.ServiceName}}ListResponse {
-  repeated entpb.{{.ServiceName}} {{.EntityName}}s = 1;
+message List{{plural .ServiceName}}Response {
+  repeated entpb.{{.ServiceName}} {{plural .EntityName}} = 1;
   int64 total_size = 2;
   int64 total_page = 3;
 }
 
-message {{.ServiceName}}CreateRequest {
+message Create{{.ServiceName}}Request {
   entpb.{{.ServiceName}} {{.EntityName}} = 1;
 }
 
-message {{.ServiceName}}CreateResponse {
+message Create{{.ServiceName}}Response {
   entpb.{{.ServiceName}} {{.EntityName}} = 1;
 }
 
-message {{.ServiceName}}UpdateRequest {
+message Update{{.ServiceName}}Request {
   entpb.{{.ServiceName}} {{.EntityName}} = 1;
 }
 
-message {{.ServiceName}}UpdateResponse {
+message Update{{.ServiceName}}Response {
   entpb.{{.ServiceName}} {{.EntityName}} = 1;
 }
 
-message {{.ServiceName}}DetailRequest {
+message Get{{.ServiceName}}Request {
   int64 id = 1; // @sphere:uri
 }
 
-message {{.ServiceName}}DetailResponse {
+message Get{{.ServiceName}}Response {
   entpb.{{.ServiceName}} {{.EntityName}} = 1;
 }
 
-message {{.ServiceName}}DeleteRequest {
+message Delete{{.ServiceName}}Request {
   int64 id = 1; // @sphere:uri
 }
 
-message {{.ServiceName}}DeleteResponse {
+message Delete{{.ServiceName}}Response {
 }

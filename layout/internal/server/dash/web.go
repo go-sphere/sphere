@@ -87,7 +87,7 @@ func (w *Web) Start(ctx context.Context) error {
 				ginx.MatchOperation(
 					authRoute.BasePath(),
 					dashv1.EndpointsAuthService[:],
-					dashv1.OperationAuthServiceAuthLogin,
+					dashv1.OperationAuthServiceLoginWithPassword,
 				),
 			),
 			rateLimiter,

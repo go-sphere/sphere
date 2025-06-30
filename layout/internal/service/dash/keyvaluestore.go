@@ -10,35 +10,35 @@ import (
 
 var _ dashv1.KeyValueStoreServiceHTTPServer = (*Service)(nil)
 
-func (s *Service) KeyValueStoreCreate(ctx context.Context, request *dashv1.KeyValueStoreCreateRequest) (*dashv1.KeyValueStoreCreateResponse, error) {
+func (s *Service) CreateKeyValueStore(ctx context.Context, request *dashv1.CreateKeyValueStoreRequest) (*dashv1.CreateKeyValueStoreResponse, error) {
 	item, err := render.CreateKeyValueStore(s.db.KeyValueStore.Create(), request.KeyValueStore).Save(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &dashv1.KeyValueStoreCreateResponse{
+	return &dashv1.CreateKeyValueStoreResponse{
 		KeyValueStore: s.render.KeyValueStore(item),
 	}, nil
 }
 
-func (s *Service) KeyValueStoreDelete(ctx context.Context, request *dashv1.KeyValueStoreDeleteRequest) (*dashv1.KeyValueStoreDeleteResponse, error) {
+func (s *Service) DeleteKeyValueStore(ctx context.Context, request *dashv1.DeleteKeyValueStoreRequest) (*dashv1.DeleteKeyValueStoreResponse, error) {
 	err := s.db.KeyValueStore.DeleteOneID(request.Id).Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &dashv1.KeyValueStoreDeleteResponse{}, nil
+	return &dashv1.DeleteKeyValueStoreResponse{}, nil
 }
 
-func (s *Service) KeyValueStoreDetail(ctx context.Context, request *dashv1.KeyValueStoreDetailRequest) (*dashv1.KeyValueStoreDetailResponse, error) {
+func (s *Service) GetKeyValueStore(ctx context.Context, request *dashv1.GetKeyValueStoreRequest) (*dashv1.GetKeyValueStoreResponse, error) {
 	item, err := s.db.KeyValueStore.Get(ctx, request.Id)
 	if err != nil {
 		return nil, err
 	}
-	return &dashv1.KeyValueStoreDetailResponse{
+	return &dashv1.GetKeyValueStoreResponse{
 		KeyValueStore: s.render.KeyValueStore(item),
 	}, nil
 }
 
-func (s *Service) KeyValueStoreList(ctx context.Context, request *dashv1.KeyValueStoreListRequest) (*dashv1.KeyValueStoreListResponse, error) {
+func (s *Service) ListKeyValueStores(ctx context.Context, request *dashv1.ListKeyValueStoresRequest) (*dashv1.ListKeyValueStoresResponse, error) {
 	query := s.db.KeyValueStore.Query()
 	count, err := query.Clone().Count(ctx)
 	if err != nil {
@@ -49,14 +49,14 @@ func (s *Service) KeyValueStoreList(ctx context.Context, request *dashv1.KeyValu
 	if err != nil {
 		return nil, err
 	}
-	return &dashv1.KeyValueStoreListResponse{
+	return &dashv1.ListKeyValueStoresResponse{
 		KeyValueStores: mapper.Map(all, s.render.KeyValueStore),
 		TotalSize:      int64(count),
 		TotalPage:      int64(page),
 	}, nil
 }
 
-func (s *Service) KeyValueStoreUpdate(ctx context.Context, request *dashv1.KeyValueStoreUpdateRequest) (*dashv1.KeyValueStoreUpdateResponse, error) {
+func (s *Service) UpdateKeyValueStore(ctx context.Context, request *dashv1.UpdateKeyValueStoreRequest) (*dashv1.UpdateKeyValueStoreResponse, error) {
 	item, err := render.UpdateOneKeyValueStore(
 		s.db.KeyValueStore.UpdateOneID(request.KeyValueStore.Id),
 		request.KeyValueStore,
@@ -64,7 +64,7 @@ func (s *Service) KeyValueStoreUpdate(ctx context.Context, request *dashv1.KeyVa
 	if err != nil {
 		return nil, err
 	}
-	return &dashv1.KeyValueStoreUpdateResponse{
+	return &dashv1.UpdateKeyValueStoreResponse{
 		KeyValueStore: s.render.KeyValueStore(item),
 	}, nil
 }

@@ -7,30 +7,30 @@ import "entpb/entpb.proto";
 import "google/api/annotations.proto";
 
 service KeyValueStoreService {
-  rpc KeyValueStoreList(KeyValueStoreListRequest) returns (KeyValueStoreListResponse) {
+  rpc ListKeyValueStores(ListKeyValueStoresRequest) returns (ListKeyValueStoresResponse) {
     option (google.api.http) = {get: "/api/key-value-store/list"};
   }
-  rpc KeyValueStoreCreate(KeyValueStoreCreateRequest) returns (KeyValueStoreCreateResponse) {
+  rpc CreateKeyValueStore(CreateKeyValueStoreRequest) returns (CreateKeyValueStoreResponse) {
     option (google.api.http) = {
       post: "/api/key-value-store/create"
       body: "*"
     };
   }
-  rpc KeyValueStoreUpdate(KeyValueStoreUpdateRequest) returns (KeyValueStoreUpdateResponse) {
+  rpc UpdateKeyValueStore(UpdateKeyValueStoreRequest) returns (UpdateKeyValueStoreResponse) {
     option (google.api.http) = {
       post: "/api/key-value-store/update"
       body: "*"
     };
   }
-  rpc KeyValueStoreDetail(KeyValueStoreDetailRequest) returns (KeyValueStoreDetailResponse) {
+  rpc GetKeyValueStore(GetKeyValueStoreRequest) returns (GetKeyValueStoreResponse) {
     option (google.api.http) = {get: "/api/key-value-store/detail/{id}"};
   }
-  rpc KeyValueStoreDelete(KeyValueStoreDeleteRequest) returns (KeyValueStoreDeleteResponse) {
+  rpc DeleteKeyValueStore(DeleteKeyValueStoreRequest) returns (DeleteKeyValueStoreResponse) {
     option (google.api.http) = {delete: "/api/key-value-store/delete/{id}"};
   }
 }
 
-message KeyValueStoreListRequest {
+message ListKeyValueStoresRequest {
   int64 page = 1 [
     (buf.validate.field).required = false,
     (buf.validate.field).int64.gte = 0
@@ -38,38 +38,38 @@ message KeyValueStoreListRequest {
   int64 page_size = 2 [(buf.validate.field).int64.gte = 0]; // @sphere:form
 }
 
-message KeyValueStoreListResponse {
+message ListKeyValueStoresResponse {
   repeated entpb.KeyValueStore key_value_stores = 1;
   int64 total_size = 2;
   int64 total_page = 3;
 }
 
-message KeyValueStoreCreateRequest {
+message CreateKeyValueStoreRequest {
   entpb.KeyValueStore key_value_store = 1;
 }
 
-message KeyValueStoreCreateResponse {
+message CreateKeyValueStoreResponse {
   entpb.KeyValueStore key_value_store = 1;
 }
 
-message KeyValueStoreUpdateRequest {
+message UpdateKeyValueStoreRequest {
   entpb.KeyValueStore key_value_store = 1;
 }
 
-message KeyValueStoreUpdateResponse {
+message UpdateKeyValueStoreResponse {
   entpb.KeyValueStore key_value_store = 1;
 }
 
-message KeyValueStoreDetailRequest {
+message GetKeyValueStoreRequest {
   int64 id = 1; // @sphere:uri
 }
 
-message KeyValueStoreDetailResponse {
+message GetKeyValueStoreResponse {
   entpb.KeyValueStore key_value_store = 1;
 }
 
-message KeyValueStoreDeleteRequest {
+message DeleteKeyValueStoreRequest {
   int64 id = 1; // @sphere:uri
 }
 
-message KeyValueStoreDeleteResponse {}
+message DeleteKeyValueStoreResponse {}

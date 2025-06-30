@@ -26,7 +26,9 @@ func GenServiceProto(name, pkg string) (string, error) {
 		EntityName:  strcase.ToSnake(name),
 	}
 
-	tmpl := template.New("proto")
+	tmpl := template.New("proto").Funcs(template.FuncMap{
+		"plural": Plural,
+	})
 	tmpl, err := tmpl.Parse(protoTemplate)
 	if err != nil {
 		return "", err

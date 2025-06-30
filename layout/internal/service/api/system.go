@@ -8,6 +8,6 @@ import (
 
 var _ apiv1.SystemServiceHTTPServer = (*Service)(nil)
 
-func (s *Service) Status(ctx context.Context, request *apiv1.StatusRequest) (*apiv1.StatusResponse, error) {
-	return &apiv1.StatusResponse{}, nil
+func (s *Service) GetStatus(ctx context.Context, request *apiv1.GetStatusRequest) (*apiv1.GetStatusResponse, error) {
+	return &apiv1.GetStatusResponse{}, nil
 }
