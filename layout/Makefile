@@ -83,13 +83,13 @@ gen/docs: gen/proto ## Generate swagger docs
 		--output ./swagger/api \
 		--tags api.v1,shared.v1 \
 		--instanceName API \
-		-g docs.go \
+		-g docs/docs.api.go \
 		--parseDependency
 	$(SWAG_CLI) init \
 		--output ./swagger/dash \
 		--tags dash.v1,shared.v1 \
 		--instanceName Dash \
-		-g docs.go \
+		-g docs/docs.dash.go \
 		--parseDependency
 
 gen/all: clean gen/docs gen/wire fmt ## Generate all code (ent, docs, wire)

@@ -116,4 +116,4 @@ This behavior is controlled by the `--auto_omit_json` flag in the `sphere-cli re
 
 ---
 
-For a complete, practical example, see the [`test.proto`](../proto/shared/v1/test.proto) file and its generated output in [`test_sphere.pb.go`](../api/shared/v1/test_sphere.pb.go).
+For a complete, practical example, see the [`test.proto`](../layout/proto/shared/v1/test.proto) file and its generated output in [`test_sphere.pb.go`](../layout/api/shared/v1/test_sphere.pb.go).

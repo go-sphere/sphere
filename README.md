@@ -6,6 +6,20 @@
 
 Sphere comes with powerful code generation tools to create `proto` files, `Swagger` documents, `TypeScript` clients, and more, accelerating your development workflow.
 
+## Quick Start
+
+For a detailed walkthrough of setting up a new project, please see the [Quick Start Guide](docs/QUICK_START.md).
+
+
+### API Definition Rules
+
+For detailed guidelines on defining API interfaces, including HTTP transcoding rules, path mapping, and field binding, please refer to the [API Definition Rules](docs/API_DEFINITIONS.md) documentation.
+
+### Error Handling
+
+For guidelines on error handling and how to define errors in your API, please refer to the [Error Handling Documentation](docs/ERROR_HANDLING.md).
+
+
 ## Features
 
 - **Simple & Maintainable**: A clean and straightforward codebase that is easy to understand and extend.
@@ -32,9 +46,9 @@ Sphere comes with powerful code generation tools to create `proto` files, `Swagg
 ## Documentation
 
 - [Standard Layout](./layout/README.md). - Default sphere project template layout.
-- [Quick Start Guide](./layout/docs/QUICK_START.md) - A step-by-step guide to setting up a new Sphere project.
-- [API Definitions](./layout/docs/API_DEFINITIONS.md) - Guidelines for writing API definitions `.proto` files in Sphere.
-- [Error Handling](./layout/docs/ERROR_HANDLING.md) - Guidelines for error handling in Sphere applications.
+- [Quick Start Guide](docs/QUICK_START.md) - A step-by-step guide to setting up a new Sphere project.
+- [API Definitions](docs/API_DEFINITIONS.md) - Guidelines for writing API definitions `.proto` files in Sphere.
+- [Error Handling](docs/ERROR_HANDLING.md) - Guidelines for error handling in Sphere applications.
 
 ## License
 

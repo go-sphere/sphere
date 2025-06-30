@@ -1,7 +1,6 @@
 package layout
 
 import (
-	_ "github.com/TBXark/sphere/layout/api/api/v1"
 	_ "github.com/TBXark/sphere/layout/api/dash/v1"
 	_ "github.com/TBXark/sphere/layout/api/shared/v1"
 )
@@ -15,9 +14,10 @@ import (
 
 // @title sphere
 // @version 1.0.0
-// @description sphere api docs
+// @description sphere dash docs
 // @accept json
 // @produce json
+// @host localhost:8800
 
 // @securityDefinitions.apikey ApiKeyAuth
 // @in header

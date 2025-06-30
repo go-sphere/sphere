@@ -4,9 +4,6 @@
 
 `sphere` is a backend scaffolding designed for rapid development. It leverages `ent` for database schema definition and `gRPC/Protobuf` for API interface contracts. The framework includes a suite of tools for generating code and documentation, such as `Protobuf` files, `Swagger`/`OpenAPI` specifications, and `TypeScript` client libraries.
 
-## Quick Start
-
-For a detailed walkthrough of setting up a new project, please see the [Quick Start Guide](docs/QUICK_START.md).
 
 ## Development Commands
 
@@ -57,11 +54,3 @@ Sphere build tool. Usage: make [target]
 ├── scripts             # Helper scripts for development
 └── swagger             # Generated Swagger/OpenAPI documentation
 ```
-
-## API Definition Rules
-
-For detailed guidelines on defining API interfaces, including HTTP transcoding rules, path mapping, and field binding, please refer to the [API Definition Rules](docs/API_DEFINITIONS.md) documentation.
-
-## Error Handling
-
-For guidelines on error handling and how to define errors in your API, please refer to the [Error Handling Documentation](docs/ERROR_HANDLING.md).
