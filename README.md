@@ -15,14 +15,11 @@ Sphere comes with powerful code generation tools to create `proto` files, `Swagg
 
 ## Core Dependencies
 
-- **Web Framework**: [gin](https://gin-gonic.com)
+- **Web Framework**: [gin](https://github.com/gin-gonic/gin)
 - **Dependency Injection**: [wire](https://github.com/google/wire)
-- **ORM**: [ent](https://entgo.io)
-
-## Core Tools
-
-- **Code Generation**: [ent](https://entgo.io), [swag](https://github.com/swaggo/swag), [sphere](cmd/README.md)
-- **Protobuf management**: [buf](https://buf.build)
+- **ORM**: [ent](https://github.com/ent/ent)
+- **Docs Generation**: [swag](https://github.com/swaggo/swag)
+- **Protobuf management**: [buf](https://github.com/bufbuild/buf)
 - **Build Tool**: make
 
 ## Command line Tool

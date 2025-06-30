@@ -80,7 +80,7 @@ func (e *Error) Unwrap() error {
 }
 
 func WithStatus(status int32, err error, messages ...string) error {
-	return JoinError(status, strings.Join(messages, ", "), err)
+	return JoinError(status, strings.Join(messages, "\n"), err)
 }
 
 func BadRequestError(err error, messages ...string) error {

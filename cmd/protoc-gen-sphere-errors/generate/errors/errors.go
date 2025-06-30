@@ -92,7 +92,7 @@ func generateEnumOptions(enum *protogen.EnumValue, defaultStatus int32) *errors.
 	} else {
 		return &errors.Error{
 			Status:  defaultStatus,
-			Reason:  string(enum.Desc.Name()),
+			Reason:  "",
 			Message: "",
 		}
 	}
