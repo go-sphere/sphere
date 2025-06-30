@@ -18,7 +18,7 @@ func (s *Service) DeleteAdminSession(ctx context.Context, request *dashv1.Delete
 	return &dashv1.DeleteAdminSessionResponse{}, nil
 }
 
-func (s *Service) ListAdminSession(ctx context.Context, request *dashv1.ListAdminSessionRequest) (*dashv1.ListAdminSessionResponse, error) {
+func (s *Service) ListAdminSessions(ctx context.Context, request *dashv1.ListAdminSessionsRequest) (*dashv1.ListAdminSessionsResponse, error) {
 	uid, err := s.GetCurrentID(ctx)
 	if err != nil {
 		return nil, err
@@ -33,7 +33,7 @@ func (s *Service) ListAdminSession(ctx context.Context, request *dashv1.ListAdmi
 	if err != nil {
 		return nil, err
 	}
-	return &dashv1.ListAdminSessionResponse{
+	return &dashv1.ListAdminSessionsResponse{
 		AdminSessions: mapper.Map(all, s.render.AdminSession),
 		TotalSize:     int64(count),
 		TotalPage:     int64(page),
