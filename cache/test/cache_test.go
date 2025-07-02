@@ -10,6 +10,7 @@ import (
 	"github.com/TBXark/sphere/cache/mcache"
 	"github.com/TBXark/sphere/cache/memory"
 	"github.com/TBXark/sphere/cache/redis"
+	redis2 "github.com/TBXark/sphere/server/conn/redis"
 )
 
 func testCache(ctx context.Context, t *testing.T, byteCache cache.ByteCache) {
@@ -159,7 +160,7 @@ func testCache(ctx context.Context, t *testing.T, byteCache cache.ByteCache) {
 }
 
 func TestRedisCache(t *testing.T) {
-	client := redis.NewClient(&redis.Config{
+	client := redis2.NewClient(&redis2.Config{
 		Addr: "localhost:6379",
 		DB:   0,
 	})

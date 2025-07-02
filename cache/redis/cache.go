@@ -4,20 +4,16 @@ import (
 	"context"
 	"time"
 
+	"github.com/TBXark/sphere/core/codec"
 	"github.com/redis/go-redis/v9"
 )
 
-type Codec interface {
-	Marshal(value any) ([]byte, error)
-	Unmarshal(data []byte, value any) error
-}
-
 type Cache[T any] struct {
 	cache *ByteCache
-	codec Codec
+	codec codec.Codec
 }
 
-func NewCache[T any](client *redis.Client, codec Codec) *Cache[T] {
+func NewCache[T any](client *redis.Client, codec codec.Codec) *Cache[T] {
 	return &Cache[T]{
 		cache: NewByteCache(client),
 		codec: codec,
