@@ -14,8 +14,7 @@ type Queue[T any] interface {
 
 type PubSub[T any] interface {
 	Broadcast(ctx context.Context, topic string, data T) error
-	Subscribe(ctx context.Context, topic string, handler func(data T) error) (string, error)
-	Unsubscribe(ctx context.Context, topic string, subscriptionID string) error
+	Subscribe(ctx context.Context, topic string, handler func(data T) error) error
 	UnsubscribeAll(ctx context.Context, topic string) error
 	io.Closer
 }

@@ -4,21 +4,21 @@ import (
 	"context"
 	"fmt"
 	"sync"
-
-	"github.com/TBXark/sphere/mq"
 )
 
-var _ mq.Queue[string] = (*Queue[string])(nil)
-
 type Queue[T any] struct {
+	*options
+
 	queues map[string]chan T
+
 	mu     sync.RWMutex
 	closed bool
 }
 
-func NewQueue[T any]() *Queue[T] {
+func NewQueue[T any](opt ...Option) *Queue[T] {
 	return &Queue[T]{
-		queues: make(map[string]chan T),
+		options: newOptions(opt...),
+		queues:  make(map[string]chan T),
 	}
 }
 
@@ -30,7 +30,7 @@ func (q *Queue[T]) Publish(ctx context.Context, topic string, data T) error {
 		return fmt.Errorf("queue is closed")
 	}
 	if _, exists := q.queues[topic]; !exists {
-		q.queues[topic] = make(chan T, 100)
+		q.queues[topic] = make(chan T, q.queueSize)
 	}
 
 	select {

@@ -7,10 +7,10 @@ type MessageQueue[T any] struct {
 	*PubSub[T]
 }
 
-func NewMessageQueue[T any]() *MessageQueue[T] {
+func NewMessageQueue[T any](opt ...Option) *MessageQueue[T] {
 	return &MessageQueue[T]{
-		Queue:  NewQueue[T](),
-		PubSub: NewPubSub[T](),
+		Queue:  NewQueue[T](opt...),
+		PubSub: NewPubSub[T](opt...),
 	}
 }
 

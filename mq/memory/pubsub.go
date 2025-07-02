@@ -4,26 +4,29 @@ import (
 	"context"
 	"fmt"
 	"sync"
+
+	"github.com/TBXark/sphere/log"
 )
 
 type Subscription[T any] struct {
-	id      string
 	handler func(data T) error
 	ch      chan T
 	done    chan struct{}
 }
 
 type PubSub[T any] struct {
-	// topic -> subscriptionID -> subscription
-	topics map[string]map[string]*Subscription[T]
+	*options
+
+	topics map[string][]*Subscription[T]
+
 	mu     sync.RWMutex
 	closed bool
-	nextID int64
 }
 
-func NewPubSub[T any]() *PubSub[T] {
+func NewPubSub[T any](opt ...Option) *PubSub[T] {
 	return &PubSub[T]{
-		topics: make(map[string]map[string]*Subscription[T]),
+		options: newOptions(opt...),
+		topics:  make(map[string][]*Subscription[T]),
 	}
 }
 
@@ -58,31 +61,31 @@ func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 	return nil
 }
 
-func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(data T) error) (string, error) {
+func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(data T) error) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if p.closed {
-		return "", fmt.Errorf("pubsub is closed")
+		return fmt.Errorf("pubsub is closed")
 	}
-	p.nextID++
-	subscriptionID := fmt.Sprintf("sub_%d", p.nextID)
 
 	sub := &Subscription[T]{
-		id:      subscriptionID,
 		handler: handler,
-		ch:      make(chan T, 100),
+		ch:      make(chan T, p.queueSize),
 		done:    make(chan struct{}),
 	}
+	p.topics[topic] = append(p.topics[topic], sub)
 
-	if p.topics[topic] == nil {
-		p.topics[topic] = make(map[string]*Subscription[T])
-	}
-	p.topics[topic][subscriptionID] = sub
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Errorf("recovered from panic in subscription handler: %v", r)
+			}
+		}()
+		p.handleSubscription(sub)
+	}()
 
-	go p.handleSubscription(sub)
-
-	return subscriptionID, nil
+	return nil
 }
 
 func (p *PubSub[T]) handleSubscription(sub *Subscription[T]) {
@@ -96,30 +99,6 @@ func (p *PubSub[T]) handleSubscription(sub *Subscription[T]) {
 			return
 		}
 	}
-}
-
-func (p *PubSub[T]) Unsubscribe(ctx context.Context, topic string, subscriptionID string) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.closed {
-		return fmt.Errorf("pubsub is closed")
-	}
-
-	if subscribers, exists := p.topics[topic]; exists {
-		if sub, sExists := subscribers[subscriptionID]; sExists {
-
-			close(sub.done)
-			delete(subscribers, subscriptionID)
-
-			if len(subscribers) == 0 {
-				delete(p.topics, topic)
-			}
-			return nil
-		}
-	}
-
-	return fmt.Errorf("subscription %s not found in topic %s", subscriptionID, topic)
 }
 
 func (p *PubSub[T]) UnsubscribeAll(ctx context.Context, topic string) error {
