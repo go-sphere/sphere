@@ -1,6 +1,9 @@
 package codec
 
-import "errors"
+import (
+	"encoding/json"
+	"errors"
+)
 
 type codec struct {
 	encoder EncoderFunc
@@ -23,6 +26,12 @@ func StringCodec() Codec {
 			if str, ok := val.(string); ok {
 				return []byte(str), nil
 			}
+			if strPtr, ok := val.(*string); ok {
+				if strPtr == nil {
+					return nil, errors.New("nil pointer cannot be marshaled")
+				}
+				return []byte(*strPtr), nil
+			}
 			return nil, ErrInvalidType
 		},
 		decoder: func(data []byte, val any) error {
@@ -32,5 +41,12 @@ func StringCodec() Codec {
 			}
 			return ErrInvalidType
 		},
+	}
+}
+
+func JsonCodec() Codec {
+	return &codec{
+		encoder: json.Marshal,
+		decoder: json.Unmarshal,
 	}
 }

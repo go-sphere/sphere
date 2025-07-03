@@ -27,7 +27,9 @@ func WithCodec(codec codec.Codec) Option {
 }
 
 func newOptions(opt ...Option) *options {
-	opts := &options{}
+	opts := &options{
+		codec: codec.JsonCodec(),
+	}
 	for _, o := range opt {
 		o(opts)
 	}
