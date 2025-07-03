@@ -104,7 +104,7 @@ func (s *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	key = s.keyPreprocess(key)
 	_, err := s.client.StatObject(ctx, s.config.Bucket, key, minio.StatObjectOptions{})
 	if err != nil {
-		if minio.ToErrorResponse(err).Code == "NoSuchKey" {
+		if minio.ToErrorResponse(err).Code == minio.NoSuchKey {
 			return false, nil
 		}
 		return false, err
