@@ -114,8 +114,9 @@ func GenBindFunc(conf *GenFuncConf) string {
 	}
 
 	parse, err := template.New("gen").Funcs(template.FuncMap{
-		"GenZeroCheck": genZeroCheck,
-		"ToSnakeCase":  strcase.ToSnake,
+		"GenZeroCheck":    genZeroCheck,
+		"GenNotZeroCheck": genNotZeroCheck,
+		"ToSnakeCase":     strcase.ToSnake,
 	}).Parse(genBindFuncTemplate)
 	if err != nil {
 		return ""
@@ -181,7 +182,7 @@ func {{.FuncName}}(source *{{.SourcePkgName}}.{{.ActionName}}, target *{{.Target
 				}
 			{{- end}}
 		{{- else -}} {{/* 当目标字段不是指针类型 */}}
-			if !option.IgnoreSetZero("{{ToSnakeCase .SourceField.Name}}") || !({{GenZeroCheck "target" .TargetField}}) {
+			if !option.IgnoreSetZero("{{ToSnakeCase .SourceField.Name}}") || {{GenNotZeroCheck "target" .TargetField}} {
         		{{- if .TargetSourceIsSomeType}} {{/* 如果源和目标是相同类型，直接赋值 */}}
 					source.{{.SetterFuncName}}(target.{{.TargetField.Name}}) 
         		{{- else}} {{/* 如果类型不同，需要进行类型转换 */}}

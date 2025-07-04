@@ -103,9 +103,30 @@ func genZeroCheck(sourceName string, field reflect.StructField) string {
 		return fmt.Sprintf("%s.%s == 0.0", sourceName, field.Name)
 	case reflect.Bool:
 		return fmt.Sprintf("!%s.%s", sourceName, field.Name)
-	case reflect.Slice:
+	case reflect.Slice, reflect.Array, reflect.Map, reflect.Struct:
 		return fmt.Sprintf("%s.%s == nil", sourceName, field.Name)
 	default:
 		return fmt.Sprintf("reflect.ValueOf(%s.%s).IsZero()", sourceName, field.Name)
+	}
+}
+
+func genNotZeroCheck(sourceName string, field reflect.StructField) string {
+	if field.Type.Kind() == reflect.Ptr {
+		return fmt.Sprintf("%s.%s != nil", sourceName, field.Name)
+	}
+	switch field.Type.Kind() {
+	case reflect.String:
+		return fmt.Sprintf("%s.%s != \"\"", sourceName, field.Name)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return fmt.Sprintf("%s.%s != 0", sourceName, field.Name)
+	case reflect.Float32, reflect.Float64:
+		return fmt.Sprintf("%s.%s != 0.0", sourceName, field.Name)
+	case reflect.Bool:
+		return fmt.Sprintf("%s.%s", sourceName, field.Name)
+	case reflect.Slice, reflect.Array, reflect.Map, reflect.Struct:
+		return fmt.Sprintf("%s.%s != nil", sourceName, field.Name)
+	default:
+		return fmt.Sprintf("!reflect.ValueOf(%s.%s).IsZero()", sourceName, field.Name)
 	}
 }
