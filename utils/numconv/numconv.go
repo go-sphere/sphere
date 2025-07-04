@@ -1,75 +1,60 @@
 package numconv
 
 import (
-	"fmt"
+	"errors"
 	"math/rand/v2"
+
+	"github.com/TBXark/sphere/utils/baseconv"
 )
 
-const (
-	base32Chars = "0123456789ABCDEFGHJKLMNPQRSTVWXYZ"
-	base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-)
-
-var (
-	base32Map      map[rune]int64
-	base62Map      map[rune]int64
-	ErrInvalidChar = fmt.Errorf("invalid character in string")
-)
-
-func init() {
-	base62Map = make(map[rune]int64)
-	for i, char := range base62Chars {
-		base62Map[char] = int64(i)
-	}
-	base32Map = make(map[rune]int64)
-	for i, char := range base32Chars {
-		base32Map[char] = int64(i)
-	}
+func int64ToBytes(n int64) []byte {
+	bytes := make([]byte, 8)
+	bytes[0] = byte(n >> 56)
+	bytes[1] = byte(n >> 48)
+	bytes[2] = byte(n >> 40)
+	bytes[3] = byte(n >> 32)
+	bytes[4] = byte(n >> 24)
+	bytes[5] = byte(n >> 16)
+	bytes[6] = byte(n >> 8)
+	bytes[7] = byte(n)
+	return bytes
 }
 
-func fromInt64(n int64, chars string) string {
-	if n == 0 {
-		return "0"
+func bytesToInt64(b []byte) (int64, error) {
+	if len(b) > 8 {
+		return 0, errors.New("byte slice too long, must be 8 bytes or less")
 	}
-	result := ""
-	length := int64(len(chars))
-	for n > 0 {
-		result = string(chars[n%length]) + result
-		n = n / length
+	if len(b) < 8 {
+		padded := make([]byte, 8)
+		copy(padded[8-len(b):], b)
+		b = padded
 	}
-
-	return result
-}
-
-func toInt64(s string, charMap map[rune]int64) (int64, error) {
-	var result int64 = 0
-	length := int64(len(charMap))
-
-	for _, char := range s {
-		pos, exists := charMap[char]
-		if !exists {
-			return 0, ErrInvalidChar
-		}
-		result = result*length + pos
-	}
-
-	return result, nil
+	return int64(b[0])<<56 | int64(b[1])<<48 | int64(b[2])<<40 | int64(b[3])<<32 |
+		int64(b[4])<<24 | int64(b[5])<<16 | int64(b[6])<<8 | int64(b[7]), nil
 }
 
 func Int64ToBase32(n int64) string {
-	return fromInt64(n, base32Chars)
+	return baseconv.Std32Encoding.Encode(int64ToBytes(n))
 }
 
 func Int64ToBase62(n int64) string {
-	return fromInt64(n, base62Chars)
+	return baseconv.Std62Encoding.Encode(int64ToBytes(n))
 }
 
 func Base32ToInt64(s string) (int64, error) {
-	return toInt64(s, base32Map)
+	bytes, err := baseconv.Std32Encoding.DecodeString(s)
+	if err != nil {
+		return 0, err
+	}
+	return bytesToInt64(bytes)
 }
 
 func Base62ToInt64(s string) (int64, error) {
-	return toInt64(s, base62Map)
+	bytes, err := baseconv.Std62Encoding.DecodeString(s)
+	if err != nil {
+		return 0, err
+	}
+	return bytesToInt64(bytes)
 }
 
 func RandomBase32(length int) string {
@@ -78,7 +63,7 @@ func RandomBase32(length int) string {
 	}
 	result := make([]rune, length)
 	for i := 0; i < length; i++ {
-		result[i] = rune(base32Chars[rand.IntN(len(base32Chars))])
+		result[i] = rune(baseconv.AlphabetBase32[rand.IntN(len(baseconv.AlphabetBase32))])
 	}
 	return string(result)
 }
@@ -89,7 +74,7 @@ func RandomBase62(length int) string {
 	}
 	result := make([]rune, length)
 	for i := 0; i < length; i++ {
-		result[i] = rune(base62Chars[rand.IntN(len(base62Chars))])
+		result[i] = rune(baseconv.AlphabetBase62[rand.IntN(len(baseconv.AlphabetBase62))])
 	}
 	return string(result)
 }

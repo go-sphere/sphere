@@ -18,7 +18,10 @@ func (c *codec) Unmarshal(data []byte, val any) error {
 	return c.decoder(data, val)
 }
 
-var ErrInvalidType = errors.New("invalid type for codec operation")
+var (
+	ErrInvalidType = errors.New("invalid type for codec operation")
+	ErrNilPointer  = errors.New("nil pointer cannot be marshaled")
+)
 
 func StringCodec() Codec {
 	return &codec{
@@ -28,7 +31,7 @@ func StringCodec() Codec {
 			}
 			if strPtr, ok := val.(*string); ok {
 				if strPtr == nil {
-					return nil, errors.New("nil pointer cannot be marshaled")
+					return nil, ErrNilPointer
 				}
 				return []byte(*strPtr), nil
 			}
