@@ -34,11 +34,11 @@ func bytesToInt64(b []byte) (int64, error) {
 }
 
 func Int64ToBase32(n int64) string {
-	return baseconv.Std32Encoding.Encode(int64ToBytes(n))
+	return baseconv.Std32Encoding.EncodeToString(int64ToBytes(n))
 }
 
 func Int64ToBase62(n int64) string {
-	return baseconv.Std62Encoding.Encode(int64ToBytes(n))
+	return baseconv.Std62Encoding.EncodeToString(int64ToBytes(n))
 }
 
 func Base32ToInt64(s string) (int64, error) {

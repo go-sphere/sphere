@@ -2,12 +2,13 @@ package test
 
 import (
 	"context"
+	"sync"
+	"testing"
+
 	"github.com/TBXark/sphere/mq"
 	"github.com/TBXark/sphere/mq/memory"
 	redismq "github.com/TBXark/sphere/mq/redis"
 	"github.com/TBXark/sphere/server/conn/redis"
-	"sync"
-	"testing"
 )
 
 func testPubSub(t *testing.T, pub mq.PubSub[int]) {

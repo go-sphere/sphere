@@ -2,11 +2,12 @@ package test
 
 import (
 	"context"
+	"testing"
+
 	"github.com/TBXark/sphere/mq"
 	"github.com/TBXark/sphere/mq/memory"
 	redismq "github.com/TBXark/sphere/mq/redis"
 	"github.com/TBXark/sphere/server/conn/redis"
-	"testing"
 )
 
 func testQueue(t *testing.T, queue mq.Queue[int]) {

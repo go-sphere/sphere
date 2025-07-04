@@ -11,7 +11,7 @@ type BaseEncoding struct {
 	alphabet  string
 	base      int
 	decodeMap map[byte]int
-	padChar   byte // 填充字符，0表示不使用填充
+	padChar   byte
 }
 
 func NewBaseEncoding(alphabet string) (*BaseEncoding, error) {
@@ -49,7 +49,7 @@ func NewBaseEncodingWithPadding(alphabet string, padChar byte) (*BaseEncoding, e
 	}, nil
 }
 
-func (e *BaseEncoding) Encode(data []byte) string {
+func (e *BaseEncoding) EncodeToString(data []byte) string {
 	if len(data) == 0 {
 		return ""
 	}
@@ -160,7 +160,7 @@ func (e *BaseEncoding) encodeMathematical(data []byte) string {
 	return result.String()
 }
 
-func (e *BaseEncoding) Decode(encoded string) ([]byte, error) {
+func (e *BaseEncoding) DecodeString(encoded string) ([]byte, error) {
 	if len(encoded) == 0 {
 		return []byte{}, nil
 	}
@@ -247,12 +247,4 @@ func (e *BaseEncoding) decodeMathematical(data string) ([]byte, error) {
 	}
 
 	return finalResult, nil
-}
-
-func (e *BaseEncoding) EncodeToString(data []byte) string {
-	return e.Encode(data)
-}
-
-func (e *BaseEncoding) DecodeString(encoded string) ([]byte, error) {
-	return e.Decode(encoded)
 }
