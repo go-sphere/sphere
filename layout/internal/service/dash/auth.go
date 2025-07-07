@@ -118,10 +118,13 @@ func (s *Service) RefreshToken(ctx context.Context, request *dashv1.RefreshToken
 			return nil, dashv1.AdminSessionError_ADMIN_SESSION_ERROR_REVOKED
 		}
 		if session.Expires < time.Now().Unix() {
+			if eErr := client.AdminSession.UpdateOneID(session.ID).SetIsRevoked(true).Exec(ctx); err != nil {
+				return nil, dashv1.AdminSessionError_ADMIN_SESSION_ERROR_EXPIRED.Join(eErr)
+			}
 			return nil, dashv1.AdminSessionError_ADMIN_SESSION_ERROR_EXPIRED
 		}
 		if session.SessionKey != claims.Subject {
-			return nil, dashv1.AdminSessionError_ADMIN_SESSION_ERROR_EXPIRED
+			return nil, dashv1.AdminSessionError_ADMIN_SESSION_ERROR_KEY_NOT_MATCH
 		}
 		administrator, err := client.Admin.Get(ctx, session.UID)
 		if err != nil {

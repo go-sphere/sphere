@@ -22,32 +22,32 @@ const (
 func CreateAdmin(source *ent.AdminCreate, target *entpb.Admin, options ...bind.Option) *ent.AdminCreate {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField("id") {
-		if !option.IgnoreSetZero("id") || !(target.Id == 0) {
+		if !option.IgnoreSetZero("id") || target.Id != 0 {
 			source.SetID(target.Id)
 		}
 	}
 	if option.CanSetField("username") {
-		if !option.IgnoreSetZero("username") || !(target.Username == "") {
+		if !option.IgnoreSetZero("username") || target.Username != "" {
 			source.SetUsername(target.Username)
 		}
 	}
 	if option.CanSetField("nickname") {
-		if !option.IgnoreSetZero("nickname") || !(target.Nickname == "") {
+		if !option.IgnoreSetZero("nickname") || target.Nickname != "" {
 			source.SetNickname(target.Nickname)
 		}
 	}
 	if option.CanSetField("avatar") {
-		if !option.IgnoreSetZero("avatar") || !(target.Avatar == "") {
+		if !option.IgnoreSetZero("avatar") || target.Avatar != "" {
 			source.SetAvatar(target.Avatar)
 		}
 	}
 	if option.CanSetField("password") {
-		if !option.IgnoreSetZero("password") || !(target.Password == "") {
+		if !option.IgnoreSetZero("password") || target.Password != "" {
 			source.SetPassword(target.Password)
 		}
 	}
 	if option.CanSetField("roles") {
-		if !option.IgnoreSetZero("roles") || !(target.Roles == nil) {
+		if !option.IgnoreSetZero("roles") || target.Roles != nil {
 			source.SetRoles(target.Roles)
 		}
 	}
@@ -57,27 +57,27 @@ func CreateAdmin(source *ent.AdminCreate, target *entpb.Admin, options ...bind.O
 func UpdateOneAdmin(source *ent.AdminUpdateOne, target *entpb.Admin, options ...bind.Option) *ent.AdminUpdateOne {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField("username") {
-		if !option.IgnoreSetZero("username") || !(target.Username == "") {
+		if !option.IgnoreSetZero("username") || target.Username != "" {
 			source.SetUsername(target.Username)
 		}
 	}
 	if option.CanSetField("nickname") {
-		if !option.IgnoreSetZero("nickname") || !(target.Nickname == "") {
+		if !option.IgnoreSetZero("nickname") || target.Nickname != "" {
 			source.SetNickname(target.Nickname)
 		}
 	}
 	if option.CanSetField("avatar") {
-		if !option.IgnoreSetZero("avatar") || !(target.Avatar == "") {
+		if !option.IgnoreSetZero("avatar") || target.Avatar != "" {
 			source.SetAvatar(target.Avatar)
 		}
 	}
 	if option.CanSetField("password") {
-		if !option.IgnoreSetZero("password") || !(target.Password == "") {
+		if !option.IgnoreSetZero("password") || target.Password != "" {
 			source.SetPassword(target.Password)
 		}
 	}
 	if option.CanSetField("roles") {
-		if !option.IgnoreSetZero("roles") || !(target.Roles == nil) {
+		if !option.IgnoreSetZero("roles") || target.Roles != nil {
 			source.SetRoles(target.Roles)
 		}
 	}
@@ -87,37 +87,37 @@ func UpdateOneAdmin(source *ent.AdminUpdateOne, target *entpb.Admin, options ...
 func CreateAdminSession(source *ent.AdminSessionCreate, target *entpb.AdminSession, options ...bind.Option) *ent.AdminSessionCreate {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField("id") {
-		if !option.IgnoreSetZero("id") || !(target.Id == 0) {
+		if !option.IgnoreSetZero("id") || target.Id != 0 {
 			source.SetID(target.Id)
 		}
 	}
 	if option.CanSetField("uid") {
-		if !option.IgnoreSetZero("uid") || !(target.Uid == 0) {
+		if !option.IgnoreSetZero("uid") || target.Uid != 0 {
 			source.SetUID(target.Uid)
 		}
 	}
 	if option.CanSetField("session_key") {
-		if !option.IgnoreSetZero("session_key") || !(target.SessionKey == "") {
+		if !option.IgnoreSetZero("session_key") || target.SessionKey != "" {
 			source.SetSessionKey(target.SessionKey)
 		}
 	}
 	if option.CanSetField("expires") {
-		if !option.IgnoreSetZero("expires") || !(target.Expires == 0) {
+		if !option.IgnoreSetZero("expires") || target.Expires != 0 {
 			source.SetExpires(target.Expires)
 		}
 	}
 	if option.CanSetField("is_revoked") {
-		if !option.IgnoreSetZero("is_revoked") || !(!target.IsRevoked) {
+		if !option.IgnoreSetZero("is_revoked") || target.IsRevoked {
 			source.SetIsRevoked(target.IsRevoked)
 		}
 	}
 	if option.CanSetField("device_info") {
-		if !option.IgnoreSetZero("device_info") || !(target.DeviceInfo == "") {
+		if !option.IgnoreSetZero("device_info") || target.DeviceInfo != "" {
 			source.SetDeviceInfo(target.DeviceInfo)
 		}
 	}
 	if option.CanSetField("ip_address") {
-		if !option.IgnoreSetZero("ip_address") || !(target.IpAddress == "") {
+		if !option.IgnoreSetZero("ip_address") || target.IpAddress != "" {
 			source.SetIPAddress(target.IpAddress)
 		}
 	}
@@ -127,17 +127,17 @@ func CreateAdminSession(source *ent.AdminSessionCreate, target *entpb.AdminSessi
 func UpdateOneAdminSession(source *ent.AdminSessionUpdateOne, target *entpb.AdminSession, options ...bind.Option) *ent.AdminSessionUpdateOne {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField("is_revoked") {
-		if !option.IgnoreSetZero("is_revoked") || !(!target.IsRevoked) {
+		if !option.IgnoreSetZero("is_revoked") || target.IsRevoked {
 			source.SetIsRevoked(target.IsRevoked)
 		}
 	}
 	if option.CanSetField("device_info") {
-		if !option.IgnoreSetZero("device_info") || !(target.DeviceInfo == "") {
+		if !option.IgnoreSetZero("device_info") || target.DeviceInfo != "" {
 			source.SetDeviceInfo(target.DeviceInfo)
 		}
 	}
 	if option.CanSetField("ip_address") {
-		if !option.IgnoreSetZero("ip_address") || !(target.IpAddress == "") {
+		if !option.IgnoreSetZero("ip_address") || target.IpAddress != "" {
 			source.SetIPAddress(target.IpAddress)
 		}
 	}
@@ -147,17 +147,17 @@ func UpdateOneAdminSession(source *ent.AdminSessionUpdateOne, target *entpb.Admi
 func CreateUser(source *ent.UserCreate, target *sharedv1.User, options ...bind.Option) *ent.UserCreate {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField("id") {
-		if !option.IgnoreSetZero("id") || !(target.Id == 0) {
+		if !option.IgnoreSetZero("id") || target.Id != 0 {
 			source.SetID(target.Id)
 		}
 	}
 	if option.CanSetField("username") {
-		if !option.IgnoreSetZero("username") || !(target.Username == "") {
+		if !option.IgnoreSetZero("username") || target.Username != "" {
 			source.SetUsername(target.Username)
 		}
 	}
 	if option.CanSetField("avatar") {
-		if !option.IgnoreSetZero("avatar") || !(target.Avatar == "") {
+		if !option.IgnoreSetZero("avatar") || target.Avatar != "" {
 			source.SetAvatar(target.Avatar)
 		}
 	}
@@ -167,12 +167,12 @@ func CreateUser(source *ent.UserCreate, target *sharedv1.User, options ...bind.O
 func UpdateOneUser(source *ent.UserUpdateOne, target *sharedv1.User, options ...bind.Option) *ent.UserUpdateOne {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField("username") {
-		if !option.IgnoreSetZero("username") || !(target.Username == "") {
+		if !option.IgnoreSetZero("username") || target.Username != "" {
 			source.SetUsername(target.Username)
 		}
 	}
 	if option.CanSetField("avatar") {
-		if !option.IgnoreSetZero("avatar") || !(target.Avatar == "") {
+		if !option.IgnoreSetZero("avatar") || target.Avatar != "" {
 			source.SetAvatar(target.Avatar)
 		}
 	}
@@ -182,12 +182,12 @@ func UpdateOneUser(source *ent.UserUpdateOne, target *sharedv1.User, options ...
 func CreateKeyValueStore(source *ent.KeyValueStoreCreate, target *entpb.KeyValueStore, options ...bind.Option) *ent.KeyValueStoreCreate {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField("key") {
-		if !option.IgnoreSetZero("key") || !(target.Key == "") {
+		if !option.IgnoreSetZero("key") || target.Key != "" {
 			source.SetKey(target.Key)
 		}
 	}
 	if option.CanSetField("value") {
-		if !option.IgnoreSetZero("value") || !(target.Value == nil) {
+		if !option.IgnoreSetZero("value") || target.Value != nil {
 			source.SetValue(target.Value)
 		}
 	}
@@ -197,12 +197,12 @@ func CreateKeyValueStore(source *ent.KeyValueStoreCreate, target *entpb.KeyValue
 func UpdateOneKeyValueStore(source *ent.KeyValueStoreUpdateOne, target *entpb.KeyValueStore, options ...bind.Option) *ent.KeyValueStoreUpdateOne {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField("key") {
-		if !option.IgnoreSetZero("key") || !(target.Key == "") {
+		if !option.IgnoreSetZero("key") || target.Key != "" {
 			source.SetKey(target.Key)
 		}
 	}
 	if option.CanSetField("value") {
-		if !option.IgnoreSetZero("value") || !(target.Value == nil) {
+		if !option.IgnoreSetZero("value") || target.Value != nil {
 			source.SetValue(target.Value)
 		}
 	}
@@ -212,12 +212,12 @@ func UpdateOneKeyValueStore(source *ent.KeyValueStoreUpdateOne, target *entpb.Ke
 func UpsertOneKeyValueStore(source *ent.KeyValueStoreUpsertOne, target *entpb.KeyValueStore, options ...bind.Option) *ent.KeyValueStoreUpsertOne {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField("key") {
-		if !option.IgnoreSetZero("key") || !(target.Key == "") {
+		if !option.IgnoreSetZero("key") || target.Key != "" {
 			source.SetKey(target.Key)
 		}
 	}
 	if option.CanSetField("value") {
-		if !option.IgnoreSetZero("value") || !(target.Value == nil) {
+		if !option.IgnoreSetZero("value") || target.Value != nil {
 			source.SetValue(target.Value)
 		}
 	}
