@@ -3,91 +3,60 @@ package task
 import (
 	"context"
 	"errors"
-	"sync"
-
 	"github.com/TBXark/sphere/core/errors/multierr"
 	"github.com/TBXark/sphere/log"
+	"sync"
+	"sync/atomic"
+
 	"golang.org/x/sync/errgroup"
 )
 
 var (
 	ErrTaskAlreadyExists = errors.New("task already exists")
 	ErrTaskNotFound      = errors.New("task not found")
+	ErrManagerStopped    = errors.New("manager already stopped")
 )
 
 type Manager struct {
-	mu           sync.RWMutex
-	tasks        map[string]Task
-	runningGroup *errgroup.Group
+	tasks   sync.Map
+	group   *errgroup.Group
+	stopped atomic.Bool
 }
 
 func NewManager() *Manager {
 	return &Manager{
-		tasks:        make(map[string]Task),
-		runningGroup: &errgroup.Group{},
+		tasks:   sync.Map{},
+		group:   &errgroup.Group{},
+		stopped: atomic.Bool{},
 	}
 }
 
-func NewManagerWithContext(ctx context.Context) (*Manager, context.Context) {
-	group, ctx := errgroup.WithContext(ctx)
-	return &Manager{
-		tasks:        make(map[string]Task),
-		runningGroup: group,
-	}, ctx
-}
-
-type options struct {
-	onError func(ctx context.Context, name string, task Task, err error)
-}
-
-type Option func(*options)
-
-func WithOnError(fn func(ctx context.Context, name string, task Task, err error)) Option {
-	return func(opts *options) {
-		opts.onError = fn
+func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
+	if m.stopped.Load() {
+		return ErrManagerStopped
 	}
-}
 
-func (m *Manager) StartTask(ctx context.Context, name string, task Task, option ...Option) error {
-	m.mu.Lock()
-	if _, ok := m.tasks[name]; ok {
-		m.mu.Unlock()
+	if _, loaded := m.tasks.LoadOrStore(name, task); loaded {
 		return ErrTaskAlreadyExists
 	}
-	m.tasks[name] = task
-	m.mu.Unlock()
 
-	opts := &options{}
-	for _, opt := range option {
-		opt(opts)
-	}
-
-	m.runningGroup.Go(func() error {
+	m.group.Go(func() error {
 		log.Infof("<Manager> %s starting", name)
-		err := execute(ctx, name, task, func(ctx context.Context, task Task) error {
+		defer m.tasks.Delete(name)
+		return execute(ctx, name, task, func(ctx context.Context, task Task) error {
 			return task.Start(ctx)
 		})
-		if err != nil {
-			logTaskError(task, name, err)
-			if opts.onError != nil {
-				opts.onError(ctx, name, task, err)
-			}
-			return err
-		}
-		return nil
 	})
+
 	return nil
 }
 
 func (m *Manager) StopTask(ctx context.Context, name string) error {
-	m.mu.Lock()
-	task, ok := m.tasks[name]
+	value, ok := m.tasks.LoadAndDelete(name)
 	if !ok {
-		m.mu.Unlock()
 		return ErrTaskNotFound
 	}
-	delete(m.tasks, name)
-	m.mu.Unlock()
+	task := value.(Task)
 	log.Infof("<Manager> %s stopping", name)
 	err := task.Stop(ctx)
 	if err != nil {
@@ -98,46 +67,72 @@ func (m *Manager) StopTask(ctx context.Context, name string) error {
 }
 
 func (m *Manager) StopAll(ctx context.Context) error {
-	m.mu.Lock()
-	tasks := make(map[string]Task, len(m.tasks))
-	for name, task := range m.tasks {
-		tasks[name] = task
-		delete(m.tasks, name)
+	if !m.stopped.CompareAndSwap(false, true) {
+		return nil
 	}
-	m.mu.Unlock()
+
+	tasks := make(map[string]Task)
+	m.tasks.Range(func(key, value interface{}) bool {
+		name := key.(string)
+		task := value.(Task)
+		tasks[name] = task
+		m.tasks.Delete(name)
+		return true
+	})
 
 	var stopErrs multierr.Error
 	var stopGroup sync.WaitGroup
+
 	for name, task := range tasks {
 		stopGroup.Add(1)
-		go func() {
+		go func(taskName string, t Task) {
 			defer stopGroup.Done()
-			log.Infof("<Manager> %s stopping", name)
-			err := execute(ctx, name, task, func(ctx context.Context, task Task) error {
+			log.Infof("<Manager> %s stopping", taskName)
+			err := execute(ctx, taskName, t, func(ctx context.Context, task Task) error {
 				return task.Stop(ctx)
 			})
 			if err != nil {
 				stopErrs.Add(err)
 				return
 			}
-			log.Infof("<Manager> %s stopped", name)
-		}()
+			log.Infof("<Manager> %s stopped", taskName)
+		}(name, task)
 	}
-	stopGroup.Wait()
 
+	stopGroup.Wait()
 	return errors.Join(
 		stopErrs.Unwrap(),
-		m.runningGroup.Wait(),
+		m.group.Wait(),
 	)
 }
 
 func (m *Manager) Wait() error {
-	return m.runningGroup.Wait()
+	return m.group.Wait()
 }
 
 func (m *Manager) IsRunning(name string) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	_, ok := m.tasks[name]
+	_, ok := m.tasks.Load(name)
 	return ok
+}
+
+func (m *Manager) IsStopped() bool {
+	return m.stopped.Load()
+}
+
+func (m *Manager) GetRunningTasks() []string {
+	var tasks []string
+	m.tasks.Range(func(key, value interface{}) bool {
+		tasks = append(tasks, key.(string))
+		return true
+	})
+	return tasks
+}
+
+func (m *Manager) GetTaskCount() int {
+	count := 0
+	m.tasks.Range(func(key, value interface{}) bool {
+		count++
+		return true
+	})
+	return count
 }
