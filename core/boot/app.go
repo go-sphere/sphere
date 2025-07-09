@@ -12,7 +12,7 @@ type Application struct {
 
 func NewApplication(tasks ...task.Task) *Application {
 	return &Application{
-		task.NewGroup(tasks...),
+		group: task.NewGroup(tasks...),
 	}
 }
 

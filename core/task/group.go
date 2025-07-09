@@ -45,7 +45,9 @@ func (g *Group) Start(ctx context.Context) error {
 		t := tt
 		eg.Go(func() error {
 			<-egCtx.Done()
-			return t.Stop(ctx)
+			return execute(ctx, t.Identifier(), t, func(ctx context.Context, task Task) error {
+				return task.Stop(ctx)
+			})
 		})
 		wg.Add(1)
 		eg.Go(func() error {
