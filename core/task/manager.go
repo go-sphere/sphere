@@ -18,28 +18,37 @@ var (
 type Manager struct {
 	mu           sync.RWMutex
 	tasks        map[string]Task
-	runningGroup errgroup.Group
+	runningGroup *errgroup.Group
 }
 
 func NewManager() *Manager {
 	return &Manager{
-		tasks: make(map[string]Task),
+		tasks:        make(map[string]Task),
+		runningGroup: &errgroup.Group{},
 	}
 }
 
-type Options struct {
-	stopGroupOnError bool
+func NewManagerWithContext(ctx context.Context) (*Manager, context.Context) {
+	group, ctx := errgroup.WithContext(ctx)
+	return &Manager{
+		tasks:        make(map[string]Task),
+		runningGroup: group,
+	}, ctx
 }
 
-type Option = func(*Options)
+type options struct {
+	onError func(ctx context.Context, name string, task Task, err error)
+}
 
-func WithStopGroupOnError() Option {
-	return func(opts *Options) {
-		opts.stopGroupOnError = true
+type Option func(*options)
+
+func WithOnError(fn func(ctx context.Context, name string, task Task, err error)) Option {
+	return func(opts *options) {
+		opts.onError = fn
 	}
 }
 
-func (m *Manager) StartTask(ctx context.Context, name string, task Task, options ...Option) error {
+func (m *Manager) StartTask(ctx context.Context, name string, task Task, option ...Option) error {
 	m.mu.Lock()
 	if _, ok := m.tasks[name]; ok {
 		m.mu.Unlock()
@@ -48,8 +57,8 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task, options
 	m.tasks[name] = task
 	m.mu.Unlock()
 
-	opts := &Options{}
-	for _, opt := range options {
+	opts := &options{}
+	for _, opt := range option {
 		opt(opts)
 	}
 
@@ -60,10 +69,10 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task, options
 		})
 		if err != nil {
 			logTaskError(task, name, err)
-			if opts.stopGroupOnError {
-				return err
+			if opts.onError != nil {
+				opts.onError(ctx, name, task, err)
 			}
-			return nil
+			return err
 		}
 		return nil
 	})

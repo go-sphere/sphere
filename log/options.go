@@ -21,7 +21,7 @@ func NewOptions() *Options {
 	return &Options{
 		File: nil,
 		Console: &ConsoleOptions{
-			AsyncOut: true,
+			AsyncOut: false,
 		},
 		Level: "info",
 	}
