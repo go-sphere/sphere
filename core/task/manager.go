@@ -5,37 +5,28 @@ import (
 	"errors"
 	"github.com/TBXark/sphere/core/errors/multierr"
 	"github.com/TBXark/sphere/log"
-	"sync"
-	"sync/atomic"
-
 	"golang.org/x/sync/errgroup"
+	"sync"
 )
 
 var (
 	ErrTaskAlreadyExists = errors.New("task already exists")
 	ErrTaskNotFound      = errors.New("task not found")
-	ErrManagerStopped    = errors.New("manager already stopped")
 )
 
 type Manager struct {
-	tasks   sync.Map
-	group   *errgroup.Group
-	stopped atomic.Bool
+	tasks sync.Map
+	group errgroup.Group
 }
 
 func NewManager() *Manager {
 	return &Manager{
-		tasks:   sync.Map{},
-		group:   &errgroup.Group{},
-		stopped: atomic.Bool{},
+		tasks: sync.Map{},
+		group: errgroup.Group{},
 	}
 }
 
 func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
-	if m.stopped.Load() {
-		return ErrManagerStopped
-	}
-
 	if _, loaded := m.tasks.LoadOrStore(name, task); loaded {
 		return ErrTaskAlreadyExists
 	}
@@ -67,10 +58,6 @@ func (m *Manager) StopTask(ctx context.Context, name string) error {
 }
 
 func (m *Manager) StopAll(ctx context.Context) error {
-	if !m.stopped.CompareAndSwap(false, true) {
-		return nil
-	}
-
 	tasks := make(map[string]Task)
 	m.tasks.Range(func(key, value interface{}) bool {
 		name := key.(string)
@@ -113,10 +100,6 @@ func (m *Manager) Wait() error {
 func (m *Manager) IsRunning(name string) bool {
 	_, ok := m.tasks.Load(name)
 	return ok
-}
-
-func (m *Manager) IsStopped() bool {
-	return m.stopped.Load()
 }
 
 func (m *Manager) GetRunningTasks() []string {
