@@ -3,14 +3,14 @@ package testutils
 import (
 	"context"
 	"errors"
-	"github.com/TBXark/sphere/core/task"
 	"time"
+
+	"github.com/TBXark/sphere/core/task"
 )
 
 var _ task.Task = (*AutoClose)(nil)
 
-type AutoClose struct {
-}
+type AutoClose struct{}
 
 func NewAutoClose() *AutoClose {
 	return &AutoClose{}
@@ -26,5 +26,24 @@ func (a AutoClose) Start(ctx context.Context) error {
 }
 
 func (a AutoClose) Stop(ctx context.Context) error {
+	return nil
+}
+
+type AutoPanic struct{}
+
+func NewAutoPanic() *AutoPanic {
+	return &AutoPanic{}
+}
+
+func (a AutoPanic) Identifier() string {
+	return "autopanic"
+}
+
+func (a AutoPanic) Start(ctx context.Context) error {
+	time.Sleep(3 * time.Second)
+	panic("simulated panic for autopanic task")
+}
+
+func (a AutoPanic) Stop(ctx context.Context) error {
 	return nil
 }

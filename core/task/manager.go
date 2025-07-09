@@ -3,10 +3,11 @@ package task
 import (
 	"context"
 	"errors"
+	"sync"
+
 	"github.com/TBXark/sphere/core/errors/multierr"
 	"github.com/TBXark/sphere/log"
 	"golang.org/x/sync/errgroup"
-	"sync"
 )
 
 var (

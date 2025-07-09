@@ -6,121 +6,98 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"syscall"
-	"time"
 
 	"github.com/TBXark/sphere/core/task"
 	"github.com/TBXark/sphere/log"
 	"github.com/TBXark/sphere/log/logfields"
 )
 
-type Options struct {
-	shutdownTimeout time.Duration
-	beforeStart     []func()
-	beforeStop      []func()
-	afterStop       []func()
-}
-
-func newOptions(opts ...Option) *Options {
-	opt := &Options{
-		shutdownTimeout: 30 * time.Second,
-	}
-	for _, o := range opts {
-		o(opt)
-	}
-	return opt
-}
-
-type Option func(*Options)
-
-func WithShutdownTimeout(d time.Duration) Option {
-	return func(o *Options) {
-		o.shutdownTimeout = d
-	}
-}
-
-func AddBeforeStart(f func()) Option {
-	return func(o *Options) {
-		o.beforeStart = append(o.beforeStart, f)
-	}
-}
-
-func AddBeforeStop(f func()) Option {
-	return func(o *Options) {
-		o.beforeStop = append(o.beforeStop, f)
-	}
-}
-
-func AddAfterStop(f func()) Option {
-	return func(o *Options) {
-		o.afterStop = append(o.afterStop, f)
-	}
-}
-
-func WithLoggerInit(ver string, conf *log.Options) Option {
-	return func(o *Options) {
-		o.beforeStart = append(o.beforeStart, func() {
-			log.Init(conf, logfields.String("version", ver))
-		})
-		o.afterStop = append(o.beforeStop, func() {
-			_ = log.Sync()
-		})
-	}
-}
-
-func runHooks(hooks []func()) {
-	for _, f := range hooks {
-		f()
-	}
-}
-
-func run(ctx context.Context, task task.Task, options ...Option) error {
+func RunWithContext(ctx context.Context, t task.Task, options ...Option) error {
 	opts := newOptions(options...)
 
 	// Execute before start hooks
-	runHooks(opts.beforeStart)
+	if err := runHooks(opts.beforeStart, "beforeStart"); err != nil {
+		return fmt.Errorf("before start hooks failed: %w", err)
+	}
 
-	// Create root context
+	// Create cancellable context
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Listen for shutdown signal
+	// Setup signal handling
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(quit, opts.signals...)
 	defer signal.Stop(quit)
 
-	// Start application
-	errChan := make(chan error, 1)
+	// Start a task in a goroutine
+	startErr := make(chan error, 1)
 	go func() {
-		errChan <- task.Start(ctx)
+		defer close(startErr) // 确保 channel 被关闭
+		defer func() {
+			if r := recover(); r != nil {
+				log.Errorw("Task panic",
+					logfields.String("task", t.Identifier()),
+					logfields.Any("recover", r),
+				)
+				startErr <- fmt.Errorf("task panic: %v", r)
+			}
+		}()
+		if err := t.Start(ctx); err != nil {
+			startErr <- err
+		}
 	}()
 
-	// Wait for shutdown signal or application error
-	var errs []error
+	// Wait for a shutdown signal or task error
+	var shutdownReason string
+	var startError error
+
 	select {
 	case sig := <-quit:
+		shutdownReason = fmt.Sprintf("signal %v", sig)
 		log.Infof("Received shutdown signal: %v", sig)
-		cancel() // Trigger application shutdown
-	case err := <-errChan:
-		if err != nil {
-			log.Error("Application error", logfields.Error(err))
-			errs = append(errs, fmt.Errorf("application error: %w", err))
-			cancel() // Ensure context is canceled
+	case err, ok := <-startErr:
+		if ok && err != nil {
+			startError = err
+			shutdownReason = "task error"
+			log.Error("Task start error", logfields.Error(err))
+		} else {
+			shutdownReason = "task completed"
+			log.Info("Task completed normally")
 		}
+	case <-ctx.Done():
+		shutdownReason = "context cancelled"
+		log.Info("Context cancelled")
 	}
 
+	log.Infof("Initiating shutdown due to: %s", shutdownReason)
+
 	// Execute before stop hooks
-	runHooks(opts.beforeStop)
+	var errs []error
+	if err := runHooks(opts.beforeStop, "beforeStop"); err != nil {
+		errs = append(errs, fmt.Errorf("before stop hooks: %w", err))
+	}
+
+	// Cancel context to signal shutdown
+	cancel()
 
 	// Graceful shutdown with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), opts.shutdownTimeout)
 	defer shutdownCancel()
-	if err := task.Stop(shutdownCtx); err != nil {
-		errs = append(errs, fmt.Errorf("shutdown error: %w", err))
+
+	if err := t.Stop(shutdownCtx); err != nil {
+		errs = append(errs, fmt.Errorf("task stop: %w", err))
 	}
 
 	// Execute after stop hooks
-	runHooks(opts.afterStop)
+	if err := runHooks(opts.afterStop, "afterStop"); err != nil {
+		errs = append(errs, fmt.Errorf("after stop hooks: %w", err))
+	}
+
+	// Include start error if any
+	if startError != nil {
+		errs = append(errs, fmt.Errorf("task start: %w", startError))
+	}
+
 	return errors.Join(errs...)
 }
 
@@ -132,5 +109,5 @@ func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Opti
 	}
 
 	// Run application
-	return run(context.Background(), app, options...)
+	return RunWithContext(context.Background(), app, options...)
 }
