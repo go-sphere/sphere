@@ -8,7 +8,7 @@ type FileOptions struct {
 }
 
 type ConsoleOptions struct {
-	AsyncOut bool `json:"async_out" yaml:"async_out"`
+	Disable bool `json:"disable" yaml:"disable"`
 }
 
 type Options struct {
@@ -19,10 +19,8 @@ type Options struct {
 
 func NewOptions() *Options {
 	return &Options{
-		File: nil,
-		Console: &ConsoleOptions{
-			AsyncOut: false,
-		},
-		Level: "info",
+		File:    nil,
+		Console: nil,
+		Level:   "info",
 	}
 }

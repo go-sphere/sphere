@@ -69,7 +69,8 @@ func WithLoggerInit(ver string, conf *log.Options) Option {
 			return nil
 		})
 		o.afterStop = append(o.afterStop, func() error {
-			return log.Sync()
+			_ = log.Sync()
+			return nil
 		})
 	}
 }

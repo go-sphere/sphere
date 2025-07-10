@@ -33,7 +33,7 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 	}
 
 	m.group.Go(func() error {
-		log.Infof("<Manager> %s starting", name)
+		log.Infof("<manager> %s starting", name)
 		defer m.tasks.Delete(name)
 		return execute(ctx, name, task, func(ctx context.Context, task Task) error {
 			return task.Start(ctx)
@@ -49,14 +49,14 @@ func (m *Manager) StopTask(ctx context.Context, name string) error {
 		return ErrTaskNotFound
 	}
 	task := value.(Task)
-	log.Infof("<Manager> %s stopping", name)
+	log.Infof("<manager> %s stopping", name)
 	err := execute(ctx, name, task, func(ctx context.Context, task Task) error {
 		return task.Stop(ctx)
 	})
 	if err != nil {
 		return err
 	}
-	log.Infof("<Manager> %s stopped", name)
+	log.Infof("<manager> %s stopped", name)
 	return nil
 }
 
@@ -77,7 +77,7 @@ func (m *Manager) StopAll(ctx context.Context) error {
 		stopGroup.Add(1)
 		go func(taskName string, t Task) {
 			defer stopGroup.Done()
-			log.Infof("<Manager> %s stopping", taskName)
+			log.Infof("<manager> %s stopping", taskName)
 			err := execute(ctx, taskName, t, func(ctx context.Context, task Task) error {
 				return task.Stop(ctx)
 			})
@@ -85,7 +85,7 @@ func (m *Manager) StopAll(ctx context.Context) error {
 				stopErrs.Add(err)
 				return
 			}
-			log.Infof("<Manager> %s stopped", taskName)
+			log.Infof("<manager> %s stopped", taskName)
 		}(name, task)
 	}
 

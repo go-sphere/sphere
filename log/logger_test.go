@@ -6,10 +6,6 @@ import (
 
 func TestLogger(t *testing.T) {
 	Init(&Options{
-		File: nil,
-		Console: &ConsoleOptions{
-			AsyncOut: false,
-		},
 		Level: "debug",
 	})
 	Debug("debug")

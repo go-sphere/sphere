@@ -24,15 +24,11 @@ func newLogger(opts *Options, fields ...logfields.Field) *zapLogger {
 
 	var nodes []zapcore.Core
 
-	if opts.Console != nil {
+	if opts.Console == nil || !opts.Console.Disable {
 		developmentCfg := zap.NewDevelopmentEncoderConfig()
 		developmentCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
 		consoleEncoder := zapcore.NewConsoleEncoder(developmentCfg)
-		var stdout zapcore.WriteSyncer = os.Stdout
-		if !opts.Console.AsyncOut {
-			stdout = zapcore.AddSync(os.Stdout)
-		}
-		pc := zapcore.NewCore(consoleEncoder, stdout, level).With(fields)
+		pc := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level).With(fields)
 		nodes = append(nodes, pc)
 	}
 

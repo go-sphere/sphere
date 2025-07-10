@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/TBXark/sphere/log"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -46,6 +47,7 @@ func (g *Group) Start(ctx context.Context) error {
 		eg.Go(func() error {
 			<-egCtx.Done()
 			return execute(ctx, t.Identifier(), t, func(ctx context.Context, task Task) error {
+				log.Infof("<task> %s stopping", t.Identifier())
 				return task.Stop(ctx)
 			})
 		})
@@ -53,6 +55,7 @@ func (g *Group) Start(ctx context.Context) error {
 		eg.Go(func() error {
 			wg.Done()
 			return execute(egCtx, t.Identifier(), t, func(ctx context.Context, task Task) error {
+				log.Infof("<task> %s starting", t.Identifier())
 				return task.Start(ctx)
 			})
 		})
