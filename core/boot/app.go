@@ -2,6 +2,7 @@ package boot
 
 import (
 	"context"
+	"errors"
 
 	"github.com/TBXark/sphere/core/task"
 )
@@ -21,7 +22,14 @@ func (a *Application) Identifier() string {
 }
 
 func (a *Application) Start(ctx context.Context) error {
-	return a.group.Start(ctx)
+	err := a.group.Start(ctx)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (a *Application) Stop(ctx context.Context) error {

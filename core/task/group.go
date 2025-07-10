@@ -72,7 +72,8 @@ func (g *Group) Start(ctx context.Context) error {
 		}
 	})
 
-	if err := eg.Wait(); err != nil && !errors.Is(err, context.Canceled) {
+	err := eg.Wait()
+	if err != nil {
 		return err
 	}
 

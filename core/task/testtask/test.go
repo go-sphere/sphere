@@ -1,8 +1,9 @@
-package testutils
+package testtask
 
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/TBXark/sphere/core/task"
@@ -46,4 +47,28 @@ func (a AutoPanic) Start(ctx context.Context) error {
 
 func (a AutoPanic) Stop(ctx context.Context) error {
 	return nil
+}
+
+type ServerExample struct {
+	server *http.Server
+}
+
+func NewServerExample() *ServerExample {
+	return &ServerExample{
+		server: &http.Server{
+			Addr: ":0",
+		},
+	}
+}
+
+func (s *ServerExample) Identifier() string {
+	return "serverexample"
+}
+
+func (s *ServerExample) Start(ctx context.Context) error {
+	return s.server.ListenAndServe()
+}
+
+func (s *ServerExample) Stop(ctx context.Context) error {
+	return s.server.Shutdown(ctx)
 }

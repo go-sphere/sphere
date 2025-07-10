@@ -53,7 +53,7 @@ func NewMemoryCacheWithRistretto[T any](cache *ristretto.Cache[string, T], calcu
 	}
 }
 
-// UpdateMaxCost  In memory.Cache, By default, `calculateCost` is False, so `cost` will be 1.
+// UpdateMaxCost In memory.Cache, By default, `calculateCost` is False, so `cost` will be 1.
 // It doesn't care about the size of the item.
 // Calculating cost is too complex and not necessary for most use cases.
 // If you want to limit the number of items in the cache, you use this method to set the maximum number of items.
