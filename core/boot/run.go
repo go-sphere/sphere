@@ -12,11 +12,9 @@ import (
 	"github.com/TBXark/sphere/log/logfields"
 )
 
-func runWithContext(ctx context.Context, t task.Task, options ...Option) error {
-	opts := newOptions(options...)
-
+func run(ctx context.Context, t task.Task, options *Options) error {
 	// Execute before start hooks
-	if err := runHooks(opts.beforeStart, "beforeStart"); err != nil {
+	if err := runHooks(ctx, options.beforeStart, "beforeStart"); err != nil {
 		return fmt.Errorf("before start hooks failed: %w", err)
 	}
 
@@ -26,7 +24,7 @@ func runWithContext(ctx context.Context, t task.Task, options ...Option) error {
 
 	// Setup signal handling
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, opts.signals...)
+	signal.Notify(quit, options.signals...)
 	defer signal.Stop(quit)
 
 	// Start a task in a goroutine
@@ -73,7 +71,7 @@ func runWithContext(ctx context.Context, t task.Task, options ...Option) error {
 
 	// Execute before stop hooks
 	var errs []error
-	if err := runHooks(opts.beforeStop, "beforeStop"); err != nil {
+	if err := runHooks(ctx, options.beforeStop, "beforeStop"); err != nil {
 		errs = append(errs, fmt.Errorf("before stop hooks: %w", err))
 	}
 
@@ -81,7 +79,7 @@ func runWithContext(ctx context.Context, t task.Task, options ...Option) error {
 	cancel()
 
 	// Graceful shutdown with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), opts.shutdownTimeout)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), options.shutdownTimeout)
 	defer shutdownCancel()
 
 	if err := t.Stop(shutdownCtx); err != nil {
@@ -89,7 +87,7 @@ func runWithContext(ctx context.Context, t task.Task, options ...Option) error {
 	}
 
 	// Execute after stop hooks
-	if err := runHooks(opts.afterStop, "afterStop"); err != nil {
+	if err := runHooks(ctx, options.afterStop, "afterStop"); err != nil {
 		errs = append(errs, fmt.Errorf("after stop hooks: %w", err))
 	}
 
@@ -107,7 +105,7 @@ func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Opti
 	if err != nil {
 		return fmt.Errorf("failed to build application: %w", err)
 	}
-
+	opts := newOptions(options...)
 	// Run application
-	return runWithContext(context.Background(), app, options...)
+	return run(context.Background(), app, opts)
 }

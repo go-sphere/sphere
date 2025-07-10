@@ -1,6 +1,7 @@
 package boot
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -11,18 +12,20 @@ import (
 	"github.com/TBXark/sphere/log/logfields"
 )
 
+type Hook = func(context.Context) error
+
 type Options struct {
 	shutdownTimeout time.Duration
-	beforeStart     []func() error
-	beforeStop      []func() error
-	afterStop       []func() error
+	beforeStart     []Hook
+	beforeStop      []Hook
+	afterStop       []Hook
 	signals         []os.Signal
 }
 
 func newOptions(opts ...Option) *Options {
 	opt := &Options{
 		shutdownTimeout: 30 * time.Second,
-		signals:         []os.Signal{syscall.SIGINT, syscall.SIGTERM},
+		signals:         []os.Signal{syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT},
 	}
 	for _, o := range opts {
 		o(opt)
@@ -44,19 +47,19 @@ func WithShutdownSignals(sigs ...os.Signal) Option {
 	}
 }
 
-func AddBeforeStart(f func() error) Option {
+func AddBeforeStart(f Hook) Option {
 	return func(o *Options) {
 		o.beforeStart = append(o.beforeStart, f)
 	}
 }
 
-func AddBeforeStop(f func() error) Option {
+func AddBeforeStop(f Hook) Option {
 	return func(o *Options) {
 		o.beforeStop = append(o.beforeStop, f)
 	}
 }
 
-func AddAfterStop(f func() error) Option {
+func AddAfterStop(f Hook) Option {
 	return func(o *Options) {
 		o.afterStop = append(o.afterStop, f)
 	}
@@ -64,21 +67,21 @@ func AddAfterStop(f func() error) Option {
 
 func WithLoggerInit(ver string, conf *log.Options) Option {
 	return func(o *Options) {
-		o.beforeStart = append(o.beforeStart, func() error {
+		o.beforeStart = append(o.beforeStart, func(context.Context) error {
 			log.Init(conf, logfields.String("version", ver))
 			return nil
 		})
-		o.afterStop = append(o.afterStop, func() error {
+		o.afterStop = append(o.afterStop, func(context.Context) error {
 			_ = log.Sync()
 			return nil
 		})
 	}
 }
 
-func runHooks(hooks []func() error, hookType string) error {
+func runHooks(ctx context.Context, hooks []Hook, hookType string) error {
 	var errs []error
 	for i, f := range hooks {
-		if err := f(); err != nil {
+		if err := f(ctx); err != nil {
 			log.Errorf("Hook %s[%d] failed: %v", hookType, i, err)
 			errs = append(errs, fmt.Errorf("%s hook[%d]: %w", hookType, i, err))
 		}
