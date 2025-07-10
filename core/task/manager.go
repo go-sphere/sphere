@@ -50,7 +50,9 @@ func (m *Manager) StopTask(ctx context.Context, name string) error {
 	}
 	task := value.(Task)
 	log.Infof("<Manager> %s stopping", name)
-	err := task.Stop(ctx)
+	err := execute(ctx, name, task, func(ctx context.Context, task Task) error {
+		return task.Stop(ctx)
+	})
 	if err != nil {
 		return err
 	}

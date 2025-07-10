@@ -12,7 +12,7 @@ import (
 	"github.com/TBXark/sphere/log/logfields"
 )
 
-func RunWithContext(ctx context.Context, t task.Task, options ...Option) error {
+func runWithContext(ctx context.Context, t task.Task, options ...Option) error {
 	opts := newOptions(options...)
 
 	// Execute before start hooks
@@ -109,5 +109,5 @@ func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Opti
 	}
 
 	// Run application
-	return RunWithContext(context.Background(), app, options...)
+	return runWithContext(context.Background(), app, options...)
 }
