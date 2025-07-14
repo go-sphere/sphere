@@ -24,7 +24,9 @@ func NewRateLimiter(key func(*gin.Context) string, createLimiter func(*gin.Conte
 		if limiter == nil {
 			value, nErr, _ := sf.Do(k, func() (interface{}, error) {
 				newLimiter, expire := createLimiter(ctx)
-				err := limiterSet.SetWithTTL(context.WithoutCancel(ctx), k, newLimiter, expire)
+				setCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				err := limiterSet.SetWithTTL(setCtx, k, newLimiter, expire)
 				if err != nil {
 					return nil, err
 				}
