@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -18,7 +19,7 @@ func TestShouldBind(t *testing.T) {
 
 	router := gin.Default()
 	type Params struct {
-		state any `protogen:"open.v1"`
+		state any `protogen:"open.v1"` //nolint
 
 		FieldTest1 string `protobuf:"bytes,1,opt,name=field_test1,json=fieldTest1,proto3" json:"field_test1,omitempty"`
 		FieldTest2 int64  `protobuf:"varint,2,opt,name=field_test2,json=fieldTest2,proto3" json:"field_test2,omitempty"`
@@ -27,8 +28,8 @@ func TestShouldBind(t *testing.T) {
 		QueryTest1 string `protobuf:"bytes,5,opt,name=query_test1,json=queryTest1,proto3" json:"query_test1,omitempty"`
 		QueryTest2 *int64 `protobuf:"varint,6,opt,name=query_test2,json=queryTest2,proto3" json:"-" form:"query_test2,omitempty"`
 
-		unknownFields any
-		sizeCache     any
+		unknownFields any //nolint
+		sizeCache     any //nolint
 	}
 	queryTest2 := int64(789)
 	params := &Params{
@@ -74,4 +75,21 @@ func TestShouldBind(t *testing.T) {
 	req, _ := http.NewRequest("GET", uri, bytes.NewReader(paramsRaw))
 	router.ServeHTTP(w, req)
 	assert.Equal(t, 200, w.Code)
+}
+
+func TestUniverseBinding_analyzeFields(t *testing.T) {
+	type Inner struct {
+		InnerField string `protobuf:"bytes,1,opt,name=inner_field,json=innerField,proto3" uri:"inner_field"`
+	}
+
+	type Outer struct {
+		Inner
+		OuterField string `protobuf:"bytes,2,opt,name=outer_field,json=outerField,proto3" json:"outer_field,omitempty"`
+	}
+
+	var outer Outer
+	info := uriBinding.analyzeFields(reflect.TypeOf(outer))
+	assert.Equal(t, 2, len(info), "Expected 2 fields in the binding info")
+	assert.Equal(t, "inner_field", info[0].tag, "Expected first field to be inner_field")
+	assert.Equal(t, "outer_field", info[1].tag, "Expected second field to be outer_field")
 }

@@ -143,11 +143,6 @@ func (u *UniverseBinding) recursiveAnalyze(typ reflect.Type, parentIndex []int) 
 			continue
 		}
 
-		tag, ok := u.tagGetter.Get(field)
-		if !ok || invalidTags[tag] {
-			continue
-		}
-
 		currentIndex := make([]int, len(parentIndex)+1)
 		copy(currentIndex, parentIndex)
 		currentIndex[len(parentIndex)] = i
@@ -157,6 +152,10 @@ func (u *UniverseBinding) recursiveAnalyze(typ reflect.Type, parentIndex []int) 
 			continue
 		}
 
+		tag, ok := u.tagGetter.Get(field)
+		if !ok || invalidTags[tag] {
+			continue
+		}
 		info := &fieldInfo{
 			index: currentIndex,
 			tag:   tag,
