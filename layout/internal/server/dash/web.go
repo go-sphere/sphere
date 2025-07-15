@@ -19,7 +19,6 @@ import (
 	"github.com/TBXark/sphere/server/middleware/ratelimiter"
 	"github.com/TBXark/sphere/server/middleware/selector"
 	"github.com/TBXark/sphere/server/route/cors"
-	"github.com/TBXark/sphere/server/route/pprof"
 	"github.com/TBXark/sphere/storage"
 	"github.com/gin-gonic/gin"
 )
@@ -68,9 +67,6 @@ func (w *Web) Start(ctx context.Context) error {
 	needAuthRoute := api.Group("/", authMiddleware)
 	w.service.Init(jwtAuthorizer, jwtRefresher)
 
-	if w.config.HTTP.PProf {
-		pprof.SetupPProf(api)
-	}
 	if len(w.config.HTTP.Cors) > 0 {
 		cors.Setup(engine, w.config.HTTP.Cors)
 	}
