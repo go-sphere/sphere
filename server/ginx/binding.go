@@ -66,7 +66,7 @@ func multiTagNameFunc(fns ...TagNameFunc) TagNameFunc {
 }
 
 type fieldInfo struct {
-	index int
+	index []int
 	tag   string
 }
 
@@ -101,7 +101,7 @@ func (u *UniverseBinding) Bind(ctx *gin.Context, obj any) error {
 		if !exist {
 			continue
 		}
-		fieldValue := value.Field(field.index)
+		fieldValue := value.FieldByIndex(field.index)
 		if !fieldValue.CanSet() {
 			continue
 		}
@@ -131,19 +131,34 @@ func (u *UniverseBinding) getFieldInfo(typ reflect.Type) []*fieldInfo {
 }
 
 func (u *UniverseBinding) analyzeFields(typ reflect.Type) []*fieldInfo {
-	numFields := typ.NumField()
-	fields := make([]*fieldInfo, 0, numFields)
+	return u.recursiveAnalyze(typ, nil)
+}
+
+func (u *UniverseBinding) recursiveAnalyze(typ reflect.Type, parentIndex []int) []*fieldInfo {
+	var fields []*fieldInfo
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
+
 		if !field.IsExported() {
 			continue
 		}
+
 		tag, ok := u.tagGetter.Get(field)
 		if !ok || invalidTags[tag] {
 			continue
 		}
+
+		currentIndex := make([]int, len(parentIndex)+1)
+		copy(currentIndex, parentIndex)
+		currentIndex[len(parentIndex)] = i
+
+		if field.Anonymous && field.Type.Kind() == reflect.Struct {
+			fields = append(fields, u.recursiveAnalyze(field.Type, currentIndex)...)
+			continue
+		}
+
 		info := &fieldInfo{
-			index: i,
+			index: currentIndex,
 			tag:   tag,
 		}
 		fields = append(fields, info)
