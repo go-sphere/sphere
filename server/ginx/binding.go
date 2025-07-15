@@ -68,9 +68,6 @@ func multiTagNameFunc(fns ...TagNameFunc) TagNameFunc {
 type fieldInfo struct {
 	index int
 	tag   string
-	// isPtr    bool
-	// kind     reflect.Kind
-	// elemKind reflect.Kind
 }
 
 type UniverseBinding struct {
@@ -105,6 +102,9 @@ func (u *UniverseBinding) Bind(ctx *gin.Context, obj any) error {
 			continue
 		}
 		fieldValue := value.Field(field.index)
+		if !fieldValue.CanSet() {
+			continue
+		}
 		if err := u.setFieldValue(fieldValue, val); err != nil {
 			return err
 		}
@@ -135,6 +135,9 @@ func (u *UniverseBinding) analyzeFields(typ reflect.Type) []*fieldInfo {
 	fields := make([]*fieldInfo, 0, numFields)
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
+		if !field.IsExported() {
+			continue
+		}
 		tag, ok := u.tagGetter.Get(field)
 		if !ok || invalidTags[tag] {
 			continue
@@ -142,12 +145,7 @@ func (u *UniverseBinding) analyzeFields(typ reflect.Type) []*fieldInfo {
 		info := &fieldInfo{
 			index: i,
 			tag:   tag,
-			// kind:  field.Type.Kind(),
-			// isPtr: field.Type.Kind() == reflect.Ptr,
 		}
-		//if info.isPtr {
-		//	info.elemKind = field.Type.Elem().Kind()
-		//}
 		fields = append(fields, info)
 	}
 	return fields
@@ -232,13 +230,13 @@ func ShouldBind(ctx *gin.Context, obj any, uri, query, body bool) error {
 			return err
 		}
 	}
-	if uri {
-		if err := ShouldBindUri(ctx, obj); err != nil {
+	if query {
+		if err := ShouldBindQuery(ctx, obj); err != nil {
 			return err
 		}
 	}
-	if query {
-		if err := ShouldBindQuery(ctx, obj); err != nil {
+	if uri {
+		if err := ShouldBindUri(ctx, obj); err != nil {
 			return err
 		}
 	}
