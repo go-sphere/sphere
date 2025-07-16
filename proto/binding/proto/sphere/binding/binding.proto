@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package sphere.options;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/TBXark/sphere/proto/binding/sphere/binding";
+
+enum BindingLocation {
+  BINDING_LOCATION_UNSPECIFIED = 0; // Default value, should not be used.
+  BINDING_LOCATION_QUERY = 1; // Indicates that the binding is for query parameters.
+  BINDING_LOCATION_URI = 2; // Indicates that the binding is for URI parameters.
+  BINDING_LOCATION_BODY = 3; // Indicates that the binding is for the body of the request.
+}
+
+extend google.protobuf.MessageOptions {
+  optional BindingLocation default_binding_location = 114520;
+}
+
+extend google.protobuf.FieldOptions {
+  optional BindingLocation binding_location = 114523;
+}
