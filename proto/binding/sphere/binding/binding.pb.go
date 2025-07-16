@@ -84,6 +84,14 @@ var file_sphere_binding_binding_proto_extTypes = []protoimpl.ExtensionInfo{
 		Filename:      "sphere/binding/binding.proto",
 	},
 	{
+		ExtendedType:  (*descriptorpb.OneofOptions)(nil),
+		ExtensionType: (*BindingLocation)(nil),
+		Field:         114521,
+		Name:          "sphere.binding.default_oneof_location",
+		Tag:           "varint,114521,opt,name=default_oneof_location,enum=sphere.binding.BindingLocation",
+		Filename:      "sphere/binding/binding.proto",
+	},
+	{
 		ExtendedType:  (*descriptorpb.FieldOptions)(nil),
 		ExtensionType: (*BindingLocation)(nil),
 		Field:         114523,
@@ -99,10 +107,16 @@ var (
 	E_DefaultLocation = &file_sphere_binding_binding_proto_extTypes[0]
 )
 
+// Extension fields to descriptorpb.OneofOptions.
+var (
+	// optional sphere.binding.BindingLocation default_oneof_location = 114521;
+	E_DefaultOneofLocation = &file_sphere_binding_binding_proto_extTypes[1]
+)
+
 // Extension fields to descriptorpb.FieldOptions.
 var (
 	// optional sphere.binding.BindingLocation location = 114523;
-	E_Location = &file_sphere_binding_binding_proto_extTypes[1]
+	E_Location = &file_sphere_binding_binding_proto_extTypes[2]
 )
 
 var File_sphere_binding_binding_proto protoreflect.FileDescriptor
@@ -115,7 +129,8 @@ const file_sphere_binding_binding_proto_rawDesc = "" +
 	"\x16BINDING_LOCATION_QUERY\x10\x01\x12\x18\n" +
 	"\x14BINDING_LOCATION_URI\x10\x02\x12\x19\n" +
 	"\x15BINDING_LOCATION_BODY\x10\x03:p\n" +
-	"\x10default_location\x12\x1f.google.protobuf.MessageOptions\x18\xd8\xfe\x06 \x01(\x0e2\x1f.sphere.binding.BindingLocationR\x0fdefaultLocation\x88\x01\x01:_\n" +
+	"\x10default_location\x12\x1f.google.protobuf.MessageOptions\x18\xd8\xfe\x06 \x01(\x0e2\x1f.sphere.binding.BindingLocationR\x0fdefaultLocation\x88\x01\x01:y\n" +
+	"\x16default_oneof_location\x12\x1d.google.protobuf.OneofOptions\x18\xd9\xfe\x06 \x01(\x0e2\x1f.sphere.binding.BindingLocationR\x14defaultOneofLocation\x88\x01\x01:_\n" +
 	"\blocation\x12\x1d.google.protobuf.FieldOptions\x18\xdb\xfe\x06 \x01(\x0e2\x1f.sphere.binding.BindingLocationR\blocation\x88\x01\x01B\xb2\x01\n" +
 	"\x12com.sphere.bindingB\fBindingProtoP\x01Z5github.com/TBXark/sphere/proto/binding/sphere/binding\xa2\x02\x03SBX\xaa\x02\x0eSphere.Binding\xca\x02\x0eSphere\\Binding\xe2\x02\x1aSphere\\Binding\\GPBMetadata\xea\x02\x0fSphere::Bindingb\x06proto3"
 
@@ -135,17 +150,20 @@ var file_sphere_binding_binding_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_sphere_binding_binding_proto_goTypes = []any{
 	(BindingLocation)(0),                // 0: sphere.binding.BindingLocation
 	(*descriptorpb.MessageOptions)(nil), // 1: google.protobuf.MessageOptions
-	(*descriptorpb.FieldOptions)(nil),   // 2: google.protobuf.FieldOptions
+	(*descriptorpb.OneofOptions)(nil),   // 2: google.protobuf.OneofOptions
+	(*descriptorpb.FieldOptions)(nil),   // 3: google.protobuf.FieldOptions
 }
 var file_sphere_binding_binding_proto_depIdxs = []int32{
 	1, // 0: sphere.binding.default_location:extendee -> google.protobuf.MessageOptions
-	2, // 1: sphere.binding.location:extendee -> google.protobuf.FieldOptions
-	0, // 2: sphere.binding.default_location:type_name -> sphere.binding.BindingLocation
-	0, // 3: sphere.binding.location:type_name -> sphere.binding.BindingLocation
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	2, // [2:4] is the sub-list for extension type_name
-	0, // [0:2] is the sub-list for extension extendee
+	2, // 1: sphere.binding.default_oneof_location:extendee -> google.protobuf.OneofOptions
+	3, // 2: sphere.binding.location:extendee -> google.protobuf.FieldOptions
+	0, // 3: sphere.binding.default_location:type_name -> sphere.binding.BindingLocation
+	0, // 4: sphere.binding.default_oneof_location:type_name -> sphere.binding.BindingLocation
+	0, // 5: sphere.binding.location:type_name -> sphere.binding.BindingLocation
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	3, // [3:6] is the sub-list for extension type_name
+	0, // [0:3] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
 }
 
@@ -161,7 +179,7 @@ func file_sphere_binding_binding_proto_init() {
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_sphere_binding_binding_proto_rawDesc), len(file_sphere_binding_binding_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   0,
-			NumExtensions: 2,
+			NumExtensions: 3,
 			NumServices:   0,
 		},
 		GoTypes:           file_sphere_binding_binding_proto_goTypes,
