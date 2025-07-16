@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/log"
+	bindingpb "github.com/TBXark/sphere/proto/binding/sphere/binding"
 	"google.golang.org/protobuf/compiler/protogen"
 )
 
@@ -95,19 +97,16 @@ func GinURIParams(m *protogen.Method, route string) []URIParamsField {
 		name := string(field.Desc.Name())
 		wildcard, exist := params[name]
 		if exist {
-			fields = append(fields, URIParamsField{
-				Name:     name,
-				Wildcard: wildcard,
-				Field:    field,
-			})
+			if checkBindingLocation(m.Input, field, bindingpb.BindingLocation_BINDING_LOCATION_URI) || parseFieldSphereTag(field, "uri", name) != "" {
+				fields = append(fields, URIParamsField{
+					Name:     name,
+					Wildcard: wildcard,
+					Field:    field,
+				})
+			} else {
+				log.Warn("%s `%s`: field `%s` is not bound to URI, but it is used in method `%s`(%s)", m.Parent.Location.SourceFile, m.Parent.Desc.Name(), name, m.Desc.Name(), route)
+			}
 		}
-		//if binding.CheckBindingLocation(m.Input, field, bindingpb.BindingLocation_BINDING_LOCATION_URI) {
-		//	fields = append(fields, URIParamsField{
-		//		Name:     name,
-		//		Wildcard: false,
-		//		Field:    field,
-		//	})
-		//}
 	}
 	return fields
 }
