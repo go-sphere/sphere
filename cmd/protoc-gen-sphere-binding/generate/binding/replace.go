@@ -11,7 +11,7 @@ import (
 
 type StructTags map[string]map[string]*structtag.Tags
 
-func Retag(n ast.Node, tags StructTags) error {
+func ReTags(n ast.Node, tags StructTags) error {
 	var err error
 	ast.Inspect(n, func(node ast.Node) bool {
 		if err != nil {
