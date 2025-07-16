@@ -2,6 +2,7 @@
 
 `protoc-gen-sphere-errors` is a protoc plugin that generates error handling code from `.proto` files. It is designed to inspect service definitions within your protobuf files and automatically generate corresponding error handling code based on a specified template. This code refers to [protoc-gen-go-errors](https://github.com/go-kratos/kratos/tree/main/cmd/protoc-gen-go-errors).
 
+
 ## Installation
 
 To install `protoc-gen-sphere`, use the following command:
@@ -9,6 +10,7 @@ To install `protoc-gen-sphere`, use the following command:
 ```bash
 go install github.com/TBXark/sphere/cmd/protoc-gen-go-errors@latest
 ```
+
 
 ## Usage with Buf
 
