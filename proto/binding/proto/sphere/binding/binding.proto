@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package sphere.options;
+package sphere.binding;
 
 import "google/protobuf/descriptor.proto";
 
@@ -14,9 +14,9 @@ enum BindingLocation {
 }
 
 extend google.protobuf.MessageOptions {
-  optional BindingLocation default_binding_location = 114520;
+  optional BindingLocation default_location = 114520;
 }
 
 extend google.protobuf.FieldOptions {
-  optional BindingLocation binding_location = 114523;
+  optional BindingLocation location = 114523;
 }
