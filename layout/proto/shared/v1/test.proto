@@ -35,7 +35,6 @@ message RunTestResponse {
   int64 path_test2 = 4;
   string query_test1 = 5;
   int64 query_test2 = 6;
-  Nested nested_test = 7;
 }
 
 enum TestError {
