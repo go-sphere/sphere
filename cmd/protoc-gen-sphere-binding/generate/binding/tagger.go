@@ -87,8 +87,12 @@ func extractMessage(message *protogen.Message) StructTags {
 		}
 	}
 	for _, oneOf := range message.Oneofs {
+		defaultOneOfBindingLocation := defaultBindingLocation
+		if proto.HasExtension(oneOf.Desc.Options(), binding.E_DefaultOneofLocation) {
+			defaultOneOfBindingLocation = proto.GetExtension(oneOf.Desc.Options(), binding.E_DefaultOneofLocation).(binding.BindingLocation)
+		}
 		for _, field := range oneOf.Fields {
-			bindingLocation := defaultBindingLocation
+			bindingLocation := defaultOneOfBindingLocation
 			fieldTags := extractField(field, bindingLocation)
 			if fieldTags.Len() > 0 {
 				messageTags[field.GoName] = fieldTags

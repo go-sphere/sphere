@@ -84,6 +84,7 @@ The following table shows how Protobuf URL paths are translated into Gin routes.
   lead to unexpected routing behavior.
 * **Body Parsing**: Avoid using `body: "*"` in conjunction with path parameters, as it can cause conflicts during
   request parsing.
+* **`oneof` Fields**: Do not use `oneof` in the request or response messages of an RPC if you intend to expose it as an HTTP service. The standard JSON codec for Protobuf cannot correctly handle `oneof` fields, which will lead to serialization and deserialization errors.
 
 ### HTTP Method and Field Binding
 
