@@ -18,6 +18,8 @@ github.com/TBXark/confstore v0.0.5 h1:LBbqBS9GdQuqzRi1azLJMdlTJjyEKrGZ9VOrteZUZf
 github.com/TBXark/confstore v0.0.5/go.mod h1:TOxM19Snt9wT02PJzyz66sgq7sWhr4AFzPEZIKvVnTE=
 github.com/TBXark/jsoncompressor v0.0.1 h1:C2hshiwpS5ziO7wbPFnDKnxRKPeRq2vyybWHVoGeLbc=
 github.com/TBXark/jsoncompressor v0.0.1/go.mod h1:Le17YSrfvfVgsIlzJpjc7zvxwtzTwshAguHcrQqJY/E=
+github.com/TBXark/sphere/proto/binding v0.0.0-20250716055340-37dd0404ec80 h1:EhI/SVrDtz5wBIvQ+8M2iAw2484yI6SGOOYHnKO3mYw=
+github.com/TBXark/sphere/proto/binding v0.0.0-20250716055340-37dd0404ec80/go.mod h1:lSSxi3/PZ8hNgnZmnJTx9tVeeaI5xGUF4L6w022Uhp4=
 github.com/TBXark/sphere/proto/errors v0.0.0-20250714091000-6f84a01891cb h1:MYa9K8YOCuBvO7yruXOJ/sPgWa3jBZbo46PcldvyMKk=
 github.com/TBXark/sphere/proto/errors v0.0.0-20250714091000-6f84a01891cb/go.mod h1:+TzguIJicUgVCcwkfAeGgvzHo+kdWgY+Fz4LLL+cupw=
 github.com/TBXark/sphere/proto/options v0.0.0-20250714091000-6f84a01891cb h1:UUdAV+OyZY4TpCX3sClaF+pA36PPkin2rOhQ7W5aF6E=

@@ -12,6 +12,7 @@ require (
 	entgo.io/ent v0.14.4
 	github.com/TBXark/confstore v0.0.5
 	github.com/TBXark/sphere v0.0.0-20250714091000-6f84a01891cb
+	github.com/TBXark/sphere/proto/binding v0.0.0-20250716055340-37dd0404ec80
 	github.com/TBXark/sphere/proto/errors v0.0.0-20250714091000-6f84a01891cb
 	github.com/TBXark/sphere/proto/options v0.0.0-20250714091000-6f84a01891cb
 	github.com/alitto/pond/v2 v2.5.0

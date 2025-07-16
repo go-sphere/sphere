@@ -5,6 +5,7 @@ package dash.v1;
 import "buf/validate/validate.proto";
 import "entpb/entpb.proto";
 import "google/api/annotations.proto";
+import "sphere/binding/binding.proto";
 import "sphere/errors/errors.proto";
 
 service AdminSessionService {
@@ -17,11 +18,12 @@ service AdminSessionService {
 }
 
 message ListAdminSessionsRequest {
+  option (sphere.binding.default_location) = BINDING_LOCATION_QUERY;
   int64 page = 1 [
     (buf.validate.field).required = false,
     (buf.validate.field).int64.gte = 0
-  ]; // @sphere:form
-  int64 page_size = 2 [(buf.validate.field).int64.gte = 0]; // @sphere:form
+  ];
+  int64 page_size = 2 [(buf.validate.field).int64.gte = 0];
 }
 
 message ListAdminSessionsResponse {
@@ -31,7 +33,7 @@ message ListAdminSessionsResponse {
 }
 
 message DeleteAdminSessionRequest {
-  int64 id = 1; // @sphere:uri
+  int64 id = 1 [(sphere.binding.location) = BINDING_LOCATION_URI];
 }
 
 message DeleteAdminSessionResponse {}

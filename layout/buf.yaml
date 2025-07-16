@@ -7,6 +7,7 @@ deps:
     - buf.build/bufbuild/protovalidate
     - buf.build/tbxark/options
     - buf.build/tbxark/errors
+    - buf.build/tbxark/binding
 lint:
   use:
     - STANDARD

@@ -2,6 +2,7 @@ GOLANG_CI_LINT = golangci-lint
 
 .PHONY: install
 install: ## Install all dependencies
+	 cd cmd/protoc-gen-sphere-binding && go mod tidy && go install .
 	 cd cmd/protoc-gen-sphere-errors && go mod tidy && go install .
 	 cd cmd/protoc-gen-sphere && go mod tidy && go install .
 	 cd cmd/protoc-gen-route && go mod tidy && go install .
@@ -17,6 +18,7 @@ fmt: ## Format code
 	$(call fmt_mod,layout)
 	$(call fmt_mod,cmd/protoc-gen-route)
 	$(call fmt_mod,cmd/protoc-gen-sphere)
+	$(call fmt_mod,cmd/protoc-gen-sphere-binding)
 	$(call fmt_mod,cmd/protoc-gen-sphere-errors)
 	$(call fmt_mod,cmd/sphere-cli)
 	$(call fmt_mod,internal/protogo)

@@ -5,6 +5,8 @@ package {{.PackageName}};
 import "entpb/entpb.proto";
 import "google/api/annotations.proto";
 import "buf/validate/validate.proto";
+import "sphere/binding/binding.proto";
+
 
 service {{.ServiceName}}Service {
   rpc List{{plural .ServiceName}}(List{{plural .ServiceName}}Request) returns (List{{plural .ServiceName}}Response) {
@@ -37,13 +39,15 @@ service {{.ServiceName}}Service {
 }
 
 message List{{plural .ServiceName}}Request {
+  option (sphere.binding.default_location) = BINDING_LOCATION_QUERY;
+
   int64 page = 1 [
     (buf.validate.field).required = false,
     (buf.validate.field).int64.gte = 0
-  ]; // @sphere:form
+  ];
   int64 page_size = 2 [
     (buf.validate.field).int64.gte = 0
-  ]; // @sphere:form
+  ];
 }
 
 message List{{plural .ServiceName}}Response {
@@ -69,7 +73,7 @@ message Update{{.ServiceName}}Response {
 }
 
 message Get{{.ServiceName}}Request {
-  int64 id = 1; // @sphere:uri
+  int64 id = 1 [(sphere.binding.location) = BINDING_LOCATION_URI];
 }
 
 message Get{{.ServiceName}}Response {
@@ -77,7 +81,7 @@ message Get{{.ServiceName}}Response {
 }
 
 message Delete{{.ServiceName}}Request {
-  int64 id = 1; // @sphere:uri
+  int64 id = 1 [(sphere.binding.location) = BINDING_LOCATION_URI];
 }
 
 message Delete{{.ServiceName}}Response {

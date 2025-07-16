@@ -16,6 +16,7 @@ syntax = "proto3";
 package your.service.v1;
 
 import "google/api/annotations.proto";
+import "sphere/binding/binding.proto";
 
 // The Greeter service definition.
 service Greeter {
@@ -29,7 +30,8 @@ service Greeter {
 
 // The request message for the SayHello RPC.
 message SayHelloRequest {
-  string name = 1;
+  string name = 1 [(sphere.binding.location) = BINDING_LOCATION_URI];
+  string greeting = 2 [(sphere.binding.location) = BINDING_LOCATION_QUERY];
 }
 
 // The response message for the SayHello RPC.
@@ -95,24 +97,11 @@ HTTP method.
     * By default, all fields in the request message not bound to the URL path are expected in the JSON request body.
     * To bind a field to URL query parameters instead, you can use a field binding annotation.
 
-#### Field Binding Annotations
+#### Field Binding Options
 
-You can override the default binding behavior for `POST`, `PUT`, and `PATCH` methods by adding annotations in the
-comments above the field definition in your `.proto` file. The `retags` command recognizes tags with the `// @sphere:`
-prefix.
-
-* `@sphere:uri` or `@sphere:uri="xxx"`: Binds the field to the URL path.
-* `@sphere:form` or `@sphere:form="xxx"`: Binds the field to URL query parameters.
-* `@sphere:json` or `@sphere:json="xxx"`: Binds the field to the request body.
-* `@sphere:!json`: Excludes the field from JSON serialization by adding a `json:"-"` tag.
-
-##### Automatic JSON Omission
-
-By default, when you use `@sphere:uri` or `@sphere:form` to bind a field to the URL path or query parameters, Sphere's
-`retags` command automatically adds a `json:"-"` tag to that field. This prevents fields from being accidentally exposed
-in both the URL and the request body.
-
-This behavior is controlled by the `--auto_omit_json` flag in the `sphere-cli retags` command and is enabled by default.
+You can specify how fields in your request messages should be bound to the HTTP request using the `sphere.binding` annotation.
+* **`BINDING_LOCATION_URI`**: Bind the field to a URL path parameter.
+* **`BINDING_LOCATION_QUERY`**: Bind the field to a URL query parameter.
 
 ---
 

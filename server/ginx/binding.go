@@ -226,12 +226,20 @@ var (
 	}
 )
 
-func ShouldBindUri(ctx *gin.Context, obj any) error {
+func ShouldUniverseBindUri(ctx *gin.Context, obj any) error {
 	return uriBinding.Bind(ctx, obj)
 }
 
-func ShouldBindQuery(ctx *gin.Context, obj any) error {
+func ShouldUniverseBindQuery(ctx *gin.Context, obj any) error {
 	return queryBinding.Bind(ctx, obj)
+}
+
+func ShouldBindQuery(ctx *gin.Context, obj any) error {
+	return ctx.ShouldBindQuery(obj)
+}
+
+func ShouldBindUri(ctx *gin.Context, obj any) error {
+	return ctx.ShouldBindUri(obj)
 }
 
 func ShouldBindJSON(ctx *gin.Context, obj any) error {

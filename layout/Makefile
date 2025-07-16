@@ -75,7 +75,8 @@ gen/db: ## Generate ent code
 gen/proto: gen/db ## Generate proto files and run protoc plugins
 	$(SPHERE_CLI) entproto --path=./internal/pkg/database/schema
 	$(BUF_CLI) generate
-	$(SPHERE_CLI) retags --input="./api/*/*/*.pb.go" --remove_tag_comment
+	$(BUF_CLI) generate --template buf.binding.yaml # If using binding, use this command.
+	#$(SPHERE_CLI) retags --input="./api/*/*/*.pb.go" --remove_tag_comment # If using the @sphere method, use this command.
 	$(INTERNAL_TOOLS) ./cmd/tools/bind
 
 gen/docs: gen/proto ## Generate swagger docs

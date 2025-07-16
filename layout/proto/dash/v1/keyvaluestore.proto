@@ -5,6 +5,7 @@ package dash.v1;
 import "buf/validate/validate.proto";
 import "entpb/entpb.proto";
 import "google/api/annotations.proto";
+import "sphere/binding/binding.proto";
 
 service KeyValueStoreService {
   rpc ListKeyValueStores(ListKeyValueStoresRequest) returns (ListKeyValueStoresResponse) {
@@ -31,11 +32,13 @@ service KeyValueStoreService {
 }
 
 message ListKeyValueStoresRequest {
+  option (sphere.binding.default_location) = BINDING_LOCATION_QUERY;
+
   int64 page = 1 [
     (buf.validate.field).required = false,
     (buf.validate.field).int64.gte = 0
-  ]; // @sphere:form
-  int64 page_size = 2 [(buf.validate.field).int64.gte = 0]; // @sphere:form
+  ];
+  int64 page_size = 2 [(buf.validate.field).int64.gte = 0];
 }
 
 message ListKeyValueStoresResponse {
@@ -61,7 +64,7 @@ message UpdateKeyValueStoreResponse {
 }
 
 message GetKeyValueStoreRequest {
-  int64 id = 1; // @sphere:uri
+  int64 id = 1 [(sphere.binding.location) = BINDING_LOCATION_URI];
 }
 
 message GetKeyValueStoreResponse {
@@ -69,7 +72,7 @@ message GetKeyValueStoreResponse {
 }
 
 message DeleteKeyValueStoreRequest {
-  int64 id = 1; // @sphere:uri
+  int64 id = 1 [(sphere.binding.location) = BINDING_LOCATION_URI];
 }
 
 message DeleteKeyValueStoreResponse {}

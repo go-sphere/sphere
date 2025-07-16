@@ -4,6 +4,7 @@ package shared.v1;
 
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
+import "sphere/binding/binding.proto";
 import "sphere/errors/errors.proto";
 
 service TestService {
@@ -18,10 +19,13 @@ service TestService {
 message RunTestRequest {
   string field_test1 = 1;
   int64 field_test2 = 2;
-  string path_test1 = 3; // @sphere:uri
-  int64 path_test2 = 4; // @sphere:uri="path_test2"
-  string query_test1 = 5 [(buf.validate.field).required = true]; // @sphere:form
-  int64 query_test2 = 6; // @sphere:form="query_test2"
+  string path_test1 = 3 [(sphere.binding.location) = BINDING_LOCATION_URI];
+  int64 path_test2 = 4 [(sphere.binding.location) = BINDING_LOCATION_URI];
+  string query_test1 = 5 [
+    (buf.validate.field).required = true,
+    (sphere.binding.location) = BINDING_LOCATION_QUERY
+  ];
+  int64 query_test2 = 6 [(sphere.binding.location) = BINDING_LOCATION_QUERY];
 }
 
 message RunTestResponse {
