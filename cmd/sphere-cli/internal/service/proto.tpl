@@ -2,17 +2,14 @@ syntax = "proto3";
 
 package {{.PackageName}};
 
+import "buf/validate/validate.proto";
 import "entpb/entpb.proto";
 import "google/api/annotations.proto";
-import "buf/validate/validate.proto";
 import "sphere/binding/binding.proto";
-
 
 service {{.ServiceName}}Service {
   rpc List{{plural .ServiceName}}(List{{plural .ServiceName}}Request) returns (List{{plural .ServiceName}}Response) {
-    option (google.api.http) = {
-      get: "/api/{{.RouteName}}/list"
-    };
+    option (google.api.http) = {get: "/api/{{.RouteName}}/list"};
   }
   rpc Create{{.ServiceName}}(Create{{.ServiceName}}Request) returns (Create{{.ServiceName}}Response) {
     option (google.api.http) = {
@@ -27,14 +24,10 @@ service {{.ServiceName}}Service {
     };
   }
   rpc Get{{.ServiceName}}(Get{{.ServiceName}}Request) returns (Get{{.ServiceName}}Response) {
-    option (google.api.http) = {
-      get: "/api/{{.RouteName}}/detail/{id}"
-    };
+    option (google.api.http) = {get: "/api/{{.RouteName}}/detail/{id}"};
   }
   rpc Delete{{.ServiceName}}(Delete{{.ServiceName}}Request) returns (Delete{{.ServiceName}}Response) {
-    option (google.api.http) = {
-      delete: "/api/{{.RouteName}}/delete/{id}"
-    };
+    option (google.api.http) = {delete: "/api/{{.RouteName}}/delete/{id}"};
   }
 }
 
@@ -45,9 +38,7 @@ message List{{plural .ServiceName}}Request {
     (buf.validate.field).required = false,
     (buf.validate.field).int64.gte = 0
   ];
-  int64 page_size = 2 [
-    (buf.validate.field).int64.gte = 0
-  ];
+  int64 page_size = 2 [(buf.validate.field).int64.gte = 0];
 }
 
 message List{{plural .ServiceName}}Response {
@@ -84,5 +75,4 @@ message Delete{{.ServiceName}}Request {
   int64 id = 1 [(sphere.binding.location) = BINDING_LOCATION_URI];
 }
 
-message Delete{{.ServiceName}}Response {
-}
+message Delete{{.ServiceName}}Response {}

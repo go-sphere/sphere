@@ -94,6 +94,7 @@ func renameGoModule(oldModName, newModName, target string) error {
 	}
 	files := []string{
 		"buf.gen.yaml",
+		"buf.binding.yaml",
 	}
 	for _, file := range files {
 		e := replaceFileContent(oldModName, newModName, filepath.Join(target, file))

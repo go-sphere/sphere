@@ -19,6 +19,14 @@ plugins:
   - local: protoc-gen-go
     out: api
     opt: paths=source_relative
+  - local: protoc-gen-sphere-errors
+    out: api
+    opt: paths=source_relative
+  - local: protoc-gen-sphere
+    out: api
+    opt:
+      - paths=source_relative
+      - swagger_auth_header=// @Security ApiKeyAuth
   - local: protoc-gen-route
     out: api
     opt:
@@ -29,11 +37,3 @@ plugins:
       - response_model=github.com/TBXark/sphere/social/telegram;Message
       - extra_data_model=github.com/TBXark/sphere/social/telegram;MethodExtraData
       - extra_data_constructor=github.com/TBXark/sphere/social/telegram;NewMethodExtraData
-  - local: protoc-gen-sphere
-    out: api
-    opt:
-      - paths=source_relative
-      - swagger_auth_header=// @Security ApiKeyAuth
-  - local: protoc-gen-sphere-errors
-    out: api
-    opt: paths=source_relative

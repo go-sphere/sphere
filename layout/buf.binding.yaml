@@ -1,17 +1,6 @@
 version: v2
 managed:
   enabled: true
-  disable:
-    - file_option: go_package_prefix
-      module: buf.build/googleapis/googleapis
-    - file_option: go_package_prefix
-      module: buf.build/bufbuild/protovalidate
-    - file_option: go_package_prefix
-      module: buf.build/tbxark/options
-    - file_option: go_package_prefix
-      module: buf.build/tbxark/errors
-    - file_option: go_package_prefix
-      module: buf.build/tbxark/binding
   override:
     - file_option: go_package_prefix
       value: github.com/TBXark/sphere/layout/api
