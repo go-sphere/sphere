@@ -11,70 +11,94 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/stretchr/testify/assert"
 )
+
+func ptr[T any](v T) *T {
+	return &v
+}
 
 func TestShouldBind(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.Default()
-	type Params struct {
-		state any `protogen:"open.v1"` //nolint
-
-		FieldTest1 string `protobuf:"bytes,1,opt,name=field_test1,json=fieldTest1,proto3" json:"field_test1,omitempty"`
-		FieldTest2 int64  `protobuf:"varint,2,opt,name=field_test2,json=fieldTest2,proto3" json:"field_test2,omitempty"`
-		PathTest1  string `protobuf:"bytes,3,opt,name=path_test1,json=pathTest1,proto3" json:"path_test1,omitempty"`
-		PathTest2  int64  `protobuf:"varint,4,opt,name=path_test2,json=pathTest2,proto3" json:"-" uri:"path_test2"`
-		QueryTest1 string `protobuf:"bytes,5,opt,name=query_test1,json=queryTest1,proto3" json:"query_test1,omitempty"`
-		QueryTest2 *int64 `protobuf:"varint,6,opt,name=query_test2,json=queryTest2,proto3" json:"-" form:"query_test2,omitempty"`
-
-		unknownFields any //nolint
-		sizeCache     any //nolint
+	type Request struct {
+		state         any    `protogen:"open.v1"` //nolint
+		FieldTest1    string `protobuf:"bytes,1,opt,name=field_test1,json=fieldTest1,proto3" json:"field_test1,omitempty"`
+		FieldTest2    int64  `protobuf:"varint,2,opt,name=field_test2,json=fieldTest2,proto3" json:"field_test2,omitempty"`
+		PathTest1     string `protobuf:"bytes,3,opt,name=path_test1,json=pathTest1,proto3" json:"path_test1,omitempty"`
+		PathTest2     int64  `protobuf:"varint,4,opt,name=path_test2,json=pathTest2,proto3" json:"-" uri:"path_test2"`
+		QueryTest1    string `protobuf:"bytes,5,opt,name=query_test1,json=queryTest1,proto3" json:"query_test1,omitempty"`
+		QueryTest2    *int64 `protobuf:"varint,6,opt,name=query_test2,json=queryTest2,proto3" json:"-" form:"query_test2,omitempty"`
+		unknownFields any    //nolint
+		sizeCache     any    //nolint
 	}
-	queryTest2 := int64(789)
-	params := &Params{
+	type Response struct {
+		FieldTest1 string `json:"field_test1,omitempty"`
+		FieldTest2 int64  `json:"field_test2,omitempty"`
+		PathTest1  string `json:"path_test1,omitempty"`
+		PathTest2  int64  `json:"path_test2,omitempty"`
+		QueryTest1 string `json:"query_test1,omitempty"`
+		QueryTest2 *int64 `json:"query_test2,omitempty"`
+	}
+
+	params := &Request{
 		FieldTest1: "field",
 		FieldTest2: 123,
 		PathTest1:  "path",
 		PathTest2:  456,
 		QueryTest1: "query",
-		QueryTest2: &queryTest2,
+		QueryTest2: ptr[int64](789),
 	}
-	paramsRaw, err := json.Marshal(map[string]interface{}{
+	paramsRaw, err := json.Marshal(map[string]any{
 		"field_test1": params.FieldTest1,
 		"field_test2": params.FieldTest2,
 	})
 	if err != nil {
 		t.Fatalf("Failed to marshal params: %v", err)
 	}
-
 	router.GET("/api/test/:path_test1/second/:path_test2", func(c *gin.Context) {
-		var obj Params
-		if ShouldBind(c, &obj, true, true, true) != nil {
+		var input Request
+		if ShouldUniverseBind(c, &input, true, true, true) != nil {
 			c.AbortWithStatus(400)
-		} else {
-			assert.Equal(t, params.FieldTest1, obj.FieldTest1)
-			assert.Equal(t, params.FieldTest2, obj.FieldTest2)
-			assert.Equal(t, params.PathTest1, obj.PathTest1)
-			assert.Equal(t, params.PathTest2, obj.PathTest2)
-			assert.Equal(t, params.QueryTest1, obj.QueryTest1)
-			if params.QueryTest2 != nil {
-				assert.Equal(t, *params.QueryTest2, *obj.QueryTest2)
-			} else {
-				assert.Nil(t, obj.QueryTest2)
-			}
-			c.AbortWithStatus(200)
+			return
 		}
+		var output Response
+		if mapstructure.Decode(input, &output) != nil {
+			c.AbortWithStatus(400)
+			return
+		}
+		c.JSON(http.StatusOK, output)
 	})
 
-	w := httptest.NewRecorder()
+	writer := httptest.NewRecorder()
 	query := url.Values{}
 	query.Add("query_test1", params.QueryTest1)
 	query.Add("query_test2", fmt.Sprintf("%d", *params.QueryTest2))
 	uri := fmt.Sprintf("/api/test/%s/second/%d?%s", params.PathTest1, params.PathTest2, query.Encode())
-	req, _ := http.NewRequest("GET", uri, bytes.NewReader(paramsRaw))
-	router.ServeHTTP(w, req)
-	assert.Equal(t, 200, w.Code)
+	req, err := http.NewRequest("GET", uri, bytes.NewReader(paramsRaw))
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	router.ServeHTTP(writer, req)
+
+	var resp Response
+	err = json.Unmarshal(writer.Body.Bytes(), &resp)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	assert.Equal(t, params.FieldTest1, resp.FieldTest1, "Expected FieldTest1 to match")
+	assert.Equal(t, params.FieldTest2, resp.FieldTest2, "Expected FieldTest2 to match")
+	assert.Equal(t, params.PathTest1, resp.PathTest1, "Expected PathTest1 to match")
+	assert.Equal(t, params.PathTest2, resp.PathTest2, "Expected PathTest2 to match")
+	assert.Equal(t, params.QueryTest1, resp.QueryTest1, "Expected QueryTest1 to match")
+	if params.QueryTest2 != nil {
+		assert.Equal(t, *params.QueryTest2, *resp.QueryTest2, "Expected QueryTest2 to match")
+	} else {
+		assert.Nil(t, resp.QueryTest2, "Expected QueryTest2 to be nil")
+	}
 }
 
 func TestUniverseBinding_analyzeFields(t *testing.T) {
@@ -86,7 +110,6 @@ func TestUniverseBinding_analyzeFields(t *testing.T) {
 		Inner
 		OuterField string `protobuf:"bytes,2,opt,name=outer_field,json=outerField,proto3" json:"outer_field,omitempty"`
 	}
-
 	var outer Outer
 	info := uriBinding.analyzeFields(reflect.TypeOf(outer))
 	assert.Equal(t, 2, len(info), "Expected 2 fields in the binding info")

@@ -246,19 +246,19 @@ func ShouldBindJSON(ctx *gin.Context, obj any) error {
 	return ctx.ShouldBindJSON(obj)
 }
 
-func ShouldBind(ctx *gin.Context, obj any, uri, query, body bool) error {
+func ShouldUniverseBind(ctx *gin.Context, obj any, uri, query, body bool) error {
 	if body {
 		if err := ShouldBindJSON(ctx, obj); err != nil {
 			return err
 		}
 	}
 	if query {
-		if err := ShouldBindQuery(ctx, obj); err != nil {
+		if err := ShouldUniverseBindQuery(ctx, obj); err != nil {
 			return err
 		}
 	}
 	if uri {
-		if err := ShouldBindUri(ctx, obj); err != nil {
+		if err := ShouldUniverseBindUri(ctx, obj); err != nil {
 			return err
 		}
 	}
