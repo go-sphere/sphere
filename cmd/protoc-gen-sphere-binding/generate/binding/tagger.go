@@ -24,7 +24,7 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File, out string) {
 }
 
 func generateFile(gen *protogen.Plugin, file *protogen.File, out string) error {
-	tags := Extract(file)
+	tags := extractFile(file)
 	if len(tags) == 0 {
 		return nil
 	}
@@ -60,18 +60,19 @@ func generateFile(gen *protogen.Plugin, file *protogen.File, out string) error {
 	return nil
 }
 
-func Extract(file *protogen.File) StructTags {
+func extractFile(file *protogen.File) StructTags {
 	tags := make(StructTags)
 	for _, message := range file.Messages {
-		m := extractMessage(message)
-		if len(m) > 0 {
-			tags[message.GoIdent.GoName] = m
+		list := extractMessage(message)
+		for name, tag := range list {
+			tags[name] = tag
 		}
 	}
 	return tags
 }
 
-func extractMessage(message *protogen.Message) map[string]*structtag.Tags {
+func extractMessage(message *protogen.Message) StructTags {
+	tags := make(StructTags)
 	defaultBindingLocation := binding.BindingLocation_BINDING_LOCATION_UNSPECIFIED
 	if proto.HasExtension(message.Desc.Options(), binding.E_DefaultLocation) {
 		defaultBindingLocation = proto.GetExtension(message.Desc.Options(), binding.E_DefaultLocation).(binding.BindingLocation)
@@ -79,37 +80,66 @@ func extractMessage(message *protogen.Message) map[string]*structtag.Tags {
 	messageTags := make(map[string]*structtag.Tags)
 	for _, field := range message.Fields {
 		bindingLocation := defaultBindingLocation
-		if proto.HasExtension(field.Desc.Options(), binding.E_Location) {
-			bindingLocation = proto.GetExtension(field.Desc.Options(), binding.E_Location).(binding.BindingLocation)
-		}
-		fieldTags := &structtag.Tags{}
-		switch bindingLocation {
-		case binding.BindingLocation_BINDING_LOCATION_QUERY:
-			_ = fieldTags.Set(&structtag.Tag{
-				Key:     "form",
-				Name:    string(field.Desc.Name()),
-				Options: nil,
-			})
-			_ = fieldTags.Set(&structtag.Tag{
-				Key:     "json",
-				Name:    "-",
-				Options: nil,
-			})
-		case binding.BindingLocation_BINDING_LOCATION_URI:
-			_ = fieldTags.Set(&structtag.Tag{
-				Key:     "uri",
-				Name:    string(field.Desc.Name()),
-				Options: nil,
-			})
-			_ = fieldTags.Set(&structtag.Tag{
-				Key:     "json",
-				Name:    "-",
-				Options: nil,
-			})
-		}
+		fieldTags := extractField(field, bindingLocation)
 		if fieldTags.Len() > 0 {
 			messageTags[field.GoName] = fieldTags
 		}
 	}
-	return messageTags
+	for _, oneOf := range message.Oneofs {
+		for _, field := range oneOf.Fields {
+			bindingLocation := defaultBindingLocation
+			fieldTags := extractField(field, bindingLocation)
+			if fieldTags.Len() > 0 {
+				messageTags[field.GoName] = fieldTags
+			}
+		}
+	}
+	if len(messageTags) > 0 {
+		tags[message.GoIdent.GoName] = messageTags
+	}
+	for _, nested := range message.Messages {
+		nestedTags := extractMessage(nested)
+		for name, tag := range nestedTags {
+			if _, exists := tags[name]; !exists {
+				tags[name] = make(map[string]*structtag.Tags)
+			}
+			for fieldName, fieldTag := range tag {
+				tags[name][fieldName] = fieldTag
+			}
+		}
+	}
+	return tags
+}
+
+func extractField(field *protogen.Field, defaultLocation binding.BindingLocation) *structtag.Tags {
+	location := defaultLocation
+	if proto.HasExtension(field.Desc.Options(), binding.E_Location) {
+		location = proto.GetExtension(field.Desc.Options(), binding.E_Location).(binding.BindingLocation)
+	}
+	fieldTags := &structtag.Tags{}
+	switch location {
+	case binding.BindingLocation_BINDING_LOCATION_QUERY:
+		_ = fieldTags.Set(&structtag.Tag{
+			Key:     "form",
+			Name:    string(field.Desc.Name()),
+			Options: nil,
+		})
+		_ = fieldTags.Set(&structtag.Tag{
+			Key:     "json",
+			Name:    "-",
+			Options: nil,
+		})
+	case binding.BindingLocation_BINDING_LOCATION_URI:
+		_ = fieldTags.Set(&structtag.Tag{
+			Key:     "uri",
+			Name:    string(field.Desc.Name()),
+			Options: nil,
+		})
+		_ = fieldTags.Set(&structtag.Tag{
+			Key:     "json",
+			Name:    "-",
+			Options: nil,
+		})
+	}
+	return fieldTags
 }

@@ -17,6 +17,10 @@ extend google.protobuf.MessageOptions {
   optional BindingLocation default_location = 114520;
 }
 
+extend google.protobuf.OneofOptions {
+  optional BindingLocation default_oneof_location = 114521;
+}
+
 extend google.protobuf.FieldOptions {
   optional BindingLocation location = 114523;
 }
