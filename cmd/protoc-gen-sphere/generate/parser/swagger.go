@@ -3,7 +3,6 @@ package parser
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 
@@ -74,12 +73,7 @@ func BuildAnnotations(m *protogen.Method, config *SwagParams) string {
 	}
 	// Add path parameters
 	for _, param := range config.PathVars {
-		field := m.Input.Desc.Fields().ByName(protoreflect.Name(param.Name))
-		if field == nil {
-			_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: %s path parameter %s not found in request message %s.\n", m.GoName, param.Name, m.Input.GoIdent.GoName)
-			continue
-		}
-		paramType := buildSwaggerParamType(field)
+		paramType := buildSwaggerParamType(param.Field.Desc)
 		builder.WriteString(fmt.Sprintf("// @Param %s path %s true \"%s\"\n", param.Name, paramType, param.Name))
 	}
 	// Add query parameters
@@ -88,7 +82,7 @@ func BuildAnnotations(m *protogen.Method, config *SwagParams) string {
 		required := isFieldRequired(param.Field.Desc)
 		builder.WriteString(fmt.Sprintf("// @Param %s query %s %v \"%s\"\n", param.Name, paramType, required, param.Name))
 	}
-	// Add request body
+	// Add a request body
 	if _, ok := noBodyMethods[config.Method]; !ok {
 		builder.WriteString("// @Param request body " + m.Input.GoIdent.GoName + " true \"request body\"\n")
 	}

@@ -28,6 +28,6 @@ func TestGinURIParams(t *testing.T) {
 			t.Errorf("GinRoute(%q) = %q; want %q", protoPath, ginPath, expectedGinPath)
 			continue
 		}
-		t.Logf("%q\n%q\n%v", protoPath, ginPath, GinURIParams(ginPath))
+		t.Logf("%q\n%q\n%v", protoPath, ginPath, parseGinRoutePath(ginPath))
 	}
 }

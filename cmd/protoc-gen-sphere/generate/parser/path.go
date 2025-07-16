@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"google.golang.org/protobuf/compiler/protogen"
 )
 
 func GinRoute(protoPath string) (string, error) {
@@ -83,19 +85,41 @@ func GinRoute(protoPath string) (string, error) {
 type URIParamsField struct {
 	Name     string
 	Wildcard bool
+	Field    *protogen.Field
 }
 
-func GinURIParams(route string) []URIParamsField {
-	var params []URIParamsField
+func GinURIParams(m *protogen.Method, route string) []URIParamsField {
+	var fields []URIParamsField
+	params := parseGinRoutePath(route)
+	for _, field := range m.Input.Fields {
+		name := string(field.Desc.Name())
+		wildcard, exist := params[name]
+		if exist {
+			fields = append(fields, URIParamsField{
+				Name:     name,
+				Wildcard: wildcard,
+				Field:    field,
+			})
+		}
+		//if binding.CheckBindingLocation(m.Input, field, bindingpb.BindingLocation_BINDING_LOCATION_URI) {
+		//	fields = append(fields, URIParamsField{
+		//		Name:     name,
+		//		Wildcard: false,
+		//		Field:    field,
+		//	})
+		//}
+	}
+	return fields
+}
+
+func parseGinRoutePath(route string) map[string]bool {
+	params := make(map[string]bool)
 	// :param
 	namedParamRegex := regexp.MustCompile(`:([a-zA-Z_][a-zA-Z0-9_]*)`)
 	namedMatches := namedParamRegex.FindAllStringSubmatch(route, -1)
 	for _, match := range namedMatches {
 		if len(match) > 1 {
-			params = append(params, URIParamsField{
-				Name:     match[1],
-				Wildcard: false,
-			})
+			params[match[1]] = false
 		}
 	}
 	// *param
@@ -103,10 +127,7 @@ func GinURIParams(route string) []URIParamsField {
 	wildcardMatches := wildcardParamRegex.FindAllStringSubmatch(route, -1)
 	for _, match := range wildcardMatches {
 		if len(match) > 1 {
-			params = append(params, URIParamsField{
-				Name:     match[1],
-				Wildcard: true,
-			})
+			params[match[1]] = true
 		}
 	}
 	return params

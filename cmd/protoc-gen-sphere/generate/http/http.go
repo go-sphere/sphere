@@ -3,11 +3,11 @@ package http
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 
 	validatepb "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
+	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/log"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/parser"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/template"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/utils"
@@ -197,11 +197,11 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 	}
 	if res.Method == http.MethodGet || res.Method == http.MethodDelete {
 		if rule.Body != "" {
-			_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: %s %s body should not be declared.\n", res.Method, res.Path)
+			log.Warn("%s %s body should not be declared.", res.Method, res.Path)
 		}
 	} else {
 		if rule.Body == "" {
-			_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: %s %s does not declare a body.\n", res.Method, res.Path)
+			log.Warn("%s %s does not declare a body, it is recommended to declare a body for non-GET/DELETE methods.", m.GoName, res.Path)
 		}
 	}
 	return md, nil
@@ -210,11 +210,11 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, rule *parser.HttpRule, conf *GenConfig) (*template.MethodDesc, error) {
 	route, err := parser.GinRoute(rule.Path)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: %s %s route parse error: %v\n", m.GoName, rule.Path, err)
+		log.Warn("%s %s route parse error: %v", m.GoName, rule.Path, err)
 		return nil, err
 	}
 	defer func() { methodSets[m.GoName]++ }()
-	vars := parser.GinURIParams(route)
+	vars := parser.GinURIParams(m, route)
 	forms := parser.GinQueryForm(m, rule.Method, vars)
 	comment := parser.MethodCommend(m)
 	swag := &parser.SwagParams{
