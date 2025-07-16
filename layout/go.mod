@@ -1,8 +1,8 @@
 module github.com/TBXark/sphere/layout
 
-go 1.23.2
+go 1.24
 
-toolchain go1.24.4
+toolchain go1.24.5
 
 replace github.com/TBXark/sphere => ../
 
@@ -11,10 +11,10 @@ require (
 	buf.build/go/protovalidate v0.13.1
 	entgo.io/ent v0.14.4
 	github.com/TBXark/confstore v0.0.5
-	github.com/TBXark/sphere v0.0.0-20250714091000-6f84a01891cb
-	github.com/TBXark/sphere/proto/binding v0.0.0-20250716055340-37dd0404ec80
-	github.com/TBXark/sphere/proto/errors v0.0.0-20250714091000-6f84a01891cb
-	github.com/TBXark/sphere/proto/options v0.0.0-20250714091000-6f84a01891cb
+	github.com/TBXark/sphere v0.0.0-20250716142639-d0b6e650b7fe
+	github.com/TBXark/sphere/proto/binding v0.0.0-20250716142639-d0b6e650b7fe
+	github.com/TBXark/sphere/proto/errors v0.0.0-20250716142639-d0b6e650b7fe
+	github.com/TBXark/sphere/proto/options v0.0.0-20250716142639-d0b6e650b7fe
 	github.com/alitto/pond/v2 v2.5.0
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.10.1
@@ -25,12 +25,12 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/swaggo/swag v1.16.4
 	golang.org/x/sync v0.16.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20250707201910-8d1bb00bc6a7
+	google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79
 	google.golang.org/protobuf v1.36.6
 )
 
 require (
-	ariga.io/atlas v0.34.0 // indirect
+	ariga.io/atlas v0.35.0 // indirect
 	cel.dev/expr v0.24.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
@@ -61,11 +61,11 @@ require (
 	github.com/go-telegram/bot v1.16.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.3 // indirect
 	github.com/google/cel-go v0.26.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20250418163039-24c5476c6587 // indirect
-	github.com/hashicorp/hcl/v2 v2.23.0 // indirect
+	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -101,7 +101,7 @@ require (
 	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.35.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.66.3 // indirect

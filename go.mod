@@ -6,7 +6,7 @@ toolchain go1.24.4
 
 require (
 	github.com/TBXark/jsoncompressor v0.0.1
-	github.com/dgraph-io/badger/v4 v4.7.0
+	github.com/dgraph-io/badger/v4 v4.8.0
 	github.com/dgraph-io/ristretto/v2 v2.2.0
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-contrib/pprof v1.5.3
@@ -14,7 +14,7 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-telegram/bot v1.16.0
 	github.com/go-viper/mapstructure/v2 v2.4.0
-	github.com/golang-jwt/jwt/v5 v5.2.2
+	github.com/golang-jwt/jwt/v5 v5.2.3
 	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/meilisearch/meilisearch-go v0.32.0

@@ -1,7 +1,7 @@
-github.com/TBXark/sphere/internal/protogo v0.0.0-20250626120942-d1480ba7e1f8 h1:uVANjCG2BQTQxJ4q/F7iyQMPkop0dx/voNMwu4VU6Ng=
-github.com/TBXark/sphere/internal/protogo v0.0.0-20250626120942-d1480ba7e1f8/go.mod h1:YXf/rwvoNOzQqCA16qkulYxstGc+PSo8vGXnIZhqY9o=
-github.com/TBXark/sphere/proto/options v0.0.0-20250626120942-d1480ba7e1f8 h1:ph9HqhZ3ptOQsc4tk4Q6pAsrKuTsRGVRyWUZ9pjJYsg=
-github.com/TBXark/sphere/proto/options v0.0.0-20250626120942-d1480ba7e1f8/go.mod h1:WUFGY0FWBvROVlWakSwMnrt7wjUe4s1ZWUcJW6dqmJ4=
+github.com/TBXark/sphere/internal/protogo v0.0.0-20250716142639-d0b6e650b7fe h1:d6S3dAZHdridcwSCQ6NryD6IIBxekHDtJUg23VWm6dc=
+github.com/TBXark/sphere/internal/protogo v0.0.0-20250716142639-d0b6e650b7fe/go.mod h1:YXf/rwvoNOzQqCA16qkulYxstGc+PSo8vGXnIZhqY9o=
+github.com/TBXark/sphere/proto/options v0.0.0-20250716142639-d0b6e650b7fe h1:12mnyTt54P7ZJRM/NubOjGjGN/GyjeMPXB5zxC/7GPU=
+github.com/TBXark/sphere/proto/options v0.0.0-20250716142639-d0b6e650b7fe/go.mod h1:WUFGY0FWBvROVlWakSwMnrt7wjUe4s1ZWUcJW6dqmJ4=
 github.com/google/go-cmp v0.5.5 h1:Khx7svrCpmxxtHBq5j2mp/xVjsi8hQMfNLvJFAlrGgU=
 github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 h1:E7g+9GITq07hpfrRu66IVDexMakfv52eLZ2CXBWiKr4=

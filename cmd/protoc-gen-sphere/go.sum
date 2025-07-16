@@ -1,11 +1,11 @@
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250625184727-c923a0c2a132.1 h1:6tCo3lsKNLqUjRPhyc8JuYWYUiQkulufxSDOfG1zgWQ=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250625184727-c923a0c2a132.1/go.mod h1:avRlCjnFzl98VPaeCtJ24RrV/wwHFzB8sWXhj26+n/U=
-github.com/TBXark/sphere/internal/protogo v0.0.0-20250716055340-37dd0404ec80 h1:k8poLCebvA13gXx5mluCo09TloXfvqUmGReI+7nHJxY=
-github.com/TBXark/sphere/internal/protogo v0.0.0-20250716055340-37dd0404ec80/go.mod h1:YXf/rwvoNOzQqCA16qkulYxstGc+PSo8vGXnIZhqY9o=
-github.com/TBXark/sphere/internal/tags v0.0.0-20250716055340-37dd0404ec80 h1:x1mHX+LTmZo7tARAFv76BL1tAi/EWS3Ams+S2nzC9jg=
-github.com/TBXark/sphere/internal/tags v0.0.0-20250716055340-37dd0404ec80/go.mod h1:+Co4H83kvPLo5JB9kRqV6lXQ1BiqvLo+h97gOLagIYg=
-github.com/TBXark/sphere/proto/binding v0.0.0-20250716080133-54c473d9fcf7 h1:RIKzP+wTVN6ZlctI1eKGVtdb8mTV/qvZdlEDZ6Mu93E=
-github.com/TBXark/sphere/proto/binding v0.0.0-20250716080133-54c473d9fcf7/go.mod h1:lSSxi3/PZ8hNgnZmnJTx9tVeeaI5xGUF4L6w022Uhp4=
+github.com/TBXark/sphere/internal/protogo v0.0.0-20250716142639-d0b6e650b7fe h1:d6S3dAZHdridcwSCQ6NryD6IIBxekHDtJUg23VWm6dc=
+github.com/TBXark/sphere/internal/protogo v0.0.0-20250716142639-d0b6e650b7fe/go.mod h1:YXf/rwvoNOzQqCA16qkulYxstGc+PSo8vGXnIZhqY9o=
+github.com/TBXark/sphere/internal/tags v0.0.0-20250716142639-d0b6e650b7fe h1:/7vydw1Bep1s3tkuBxhTOKtnP1nT4sL1N52VrMQ2EwA=
+github.com/TBXark/sphere/internal/tags v0.0.0-20250716142639-d0b6e650b7fe/go.mod h1:+Co4H83kvPLo5JB9kRqV6lXQ1BiqvLo+h97gOLagIYg=
+github.com/TBXark/sphere/proto/binding v0.0.0-20250716142639-d0b6e650b7fe h1:PTtIv2ZDXXlDCvwYpgGAftT06BtFJUwBhwPdZSJ6TwU=
+github.com/TBXark/sphere/proto/binding v0.0.0-20250716142639-d0b6e650b7fe/go.mod h1:lSSxi3/PZ8hNgnZmnJTx9tVeeaI5xGUF4L6w022Uhp4=
 github.com/google/go-cmp v0.5.5 h1:Khx7svrCpmxxtHBq5j2mp/xVjsi8hQMfNLvJFAlrGgU=
 github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 h1:E7g+9GITq07hpfrRu66IVDexMakfv52eLZ2CXBWiKr4=
