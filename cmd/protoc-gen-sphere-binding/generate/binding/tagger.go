@@ -63,9 +63,10 @@ func generateFile(gen *protogen.Plugin, file *protogen.File, out string) error {
 func extractFile(file *protogen.File) StructTags {
 	tags := make(StructTags)
 	for _, message := range file.Messages {
-		list := extractMessage(message)
-		for name, tag := range list {
-			tags[name] = tag
+		for name, tag := range extractMessage(message) {
+			if len(tag) > 0 {
+				tags[name] = tag
+			}
 		}
 	}
 	return tags
@@ -94,20 +95,12 @@ func extractMessage(message *protogen.Message) StructTags {
 			}
 		}
 	}
-	if len(messageTags) > 0 {
-		tags[message.GoIdent.GoName] = messageTags
-	}
 	for _, nested := range message.Messages {
-		nestedTags := extractMessage(nested)
-		for name, tag := range nestedTags {
-			if _, exists := tags[name]; !exists {
-				tags[name] = make(map[string]*structtag.Tags)
-			}
-			for fieldName, fieldTag := range tag {
-				tags[name][fieldName] = fieldTag
-			}
+		for name, tag := range extractMessage(nested) {
+			tags[name] = tag
 		}
 	}
+	tags[message.GoIdent.GoName] = messageTags
 	return tags
 }
 
