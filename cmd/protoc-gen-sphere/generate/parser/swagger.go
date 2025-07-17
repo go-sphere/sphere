@@ -73,12 +73,12 @@ func BuildAnnotations(m *protogen.Method, config *SwagParams) string {
 	}
 	// Add path parameters
 	for _, param := range config.PathVars {
-		paramType := buildSwaggerParamType(param.Field.Desc)
+		paramType := buildSwaggerParamType(param.Field)
 		builder.WriteString(fmt.Sprintf("// @Param %s path %s true \"%s\"\n", param.Name, paramType, param.Name))
 	}
 	// Add query parameters
 	for _, param := range config.QueryVars {
-		paramType := buildSwaggerParamType(param.Field.Desc)
+		paramType := buildSwaggerParamType(param.Field)
 		required := isFieldRequired(param.Field.Desc)
 		builder.WriteString(fmt.Sprintf("// @Param %s query %s %v \"%s\"\n", param.Name, paramType, required, param.Name))
 	}
@@ -92,8 +92,22 @@ func BuildAnnotations(m *protogen.Method, config *SwagParams) string {
 	return builder.String()
 }
 
-func buildSwaggerParamType(field protoreflect.FieldDescriptor) string {
-	switch field.Kind() {
+func buildSwaggerParamType(field *protogen.Field) string {
+	switch {
+	case field.Desc.IsMap():
+		key := buildSingularSwaggerParamType(field.Message.Fields[0])
+		val := buildSingularSwaggerParamType(field.Message.Fields[1])
+		return fmt.Sprintf("map[%s]%s", key, val)
+	case field.Desc.IsList():
+		elemType := buildSingularSwaggerParamType(field)
+		return fmt.Sprintf("[]%s", elemType)
+	default:
+		return buildSingularSwaggerParamType(field)
+	}
+}
+
+func buildSingularSwaggerParamType(field *protogen.Field) string {
+	switch field.Desc.Kind() {
 	case protoreflect.BoolKind:
 		return "boolean"
 	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Uint32Kind,
@@ -108,9 +122,9 @@ func buildSwaggerParamType(field protoreflect.FieldDescriptor) string {
 	case protoreflect.BytesKind:
 		return "string" // Swagger doesn't have a specific type for bytes, so we use string
 	case protoreflect.EnumKind:
-		return "string" // Enums are typically represented as strings in HTTP APIs
+		return field.Enum.GoIdent.GoName
 	case protoreflect.MessageKind:
-		return "object"
+		return field.Message.GoIdent.GoName
 	default:
 		return "any"
 	}

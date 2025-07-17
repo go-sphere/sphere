@@ -16,6 +16,12 @@ service TestService {
   }
 }
 
+enum TestEnum {
+  TEST_ENUM_UNSPECIFIED = 0;
+  TEST_ENUM_VALUE1 = 1;
+  TEST_ENUM_VALUE2 = 2;
+}
+
 message RunTestRequest {
   string field_test1 = 1;
   int64 field_test2 = 2;
@@ -26,6 +32,7 @@ message RunTestRequest {
     (sphere.binding.location) = BINDING_LOCATION_QUERY
   ];
   int64 query_test2 = 6 [(sphere.binding.location) = BINDING_LOCATION_QUERY];
+  repeated TestEnum enum_test1 = 7 [(sphere.binding.location) = BINDING_LOCATION_QUERY];
 }
 
 message RunTestResponse {
