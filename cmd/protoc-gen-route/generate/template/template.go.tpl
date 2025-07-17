@@ -1,10 +1,10 @@
 {{$svrType := .ServiceType}}
 {{$svrName := .ServiceName}}
 {{$optionsKey := .OptionsKey}}
-{{$requestType := .RequestType}}
-{{$responseType := .ResponseType}}
-{{$extraDataType := .ExtraDataType}}
-{{$newExtraDataFunc := .NewExtraDataFunc}}
+{{$requestType := .Package.RequestType}}
+{{$responseType := .Package.ResponseType}}
+{{$extraDataType := .Package.ExtraDataType}}
+{{$newExtraDataFunc := .Package.NewExtraDataFunc}}
 
 {{$handlerType := printf "func(ctx context.Context, request *%s) error" $requestType}}
 {{$renderType := printf "func(ctx context.Context, request *%s, msg *%s) error" $requestType $responseType}}
@@ -13,7 +13,7 @@
 const Operation{{$optionsKey}}{{$svrType}}{{.OriginalName}} = "/{{$svrName}}/{{.OriginalName}}"
 {{- end}}
 
-{{- if ne .ExtraDataType ""}}
+{{- if ne $extraDataType ""}}
 {{- range .MethodSets}}
     {{- if .Extra}}
 var Extra{{$optionsKey}}Data{{$svrType}}{{.Name}} = {{$newExtraDataFunc}}(map[string]string{
@@ -25,7 +25,7 @@ var Extra{{$optionsKey}}Data{{$svrType}}{{.Name}} = {{$newExtraDataFunc}}(map[st
 {{- end}}
 {{- end}}
 
-func GetExtra{{$optionsKey}}DataBy{{$svrType}}Operation(operation string) *{{.ExtraDataType}} {
+func GetExtra{{$optionsKey}}DataBy{{$svrType}}Operation(operation string) *{{$extraDataType}} {
     switch operation {
     {{- range .MethodSets}}
     {{- if .Extra}}

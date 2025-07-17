@@ -54,8 +54,16 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
 	generateGoImports(g, conf)
 	g.P()
+	packageDesc := &template.PackageDesc{
+		RequestType:  g.QualifiedGoIdent(conf.RequestType),
+		ResponseType: g.QualifiedGoIdent(conf.ResponseType),
+	}
+	if conf.ExtraType.GoName != "" {
+		packageDesc.ExtraDataType = g.QualifiedGoIdent(conf.ExtraType)
+		packageDesc.NewExtraDataFunc = g.QualifiedGoIdent(conf.ExtraConstructor)
+	}
 	for _, service := range file.Services {
-		generateService(gen, file, g, service, conf)
+		generateService(gen, file, g, service, conf, packageDesc)
 	}
 }
 
@@ -75,23 +83,17 @@ func generateGoImports(g *protogen.GeneratedFile, conf *Config) {
 	}
 }
 
-func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, service *protogen.Service, conf *Config) {
+func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, service *protogen.Service, conf *Config, packageDesc *template.PackageDesc) {
 	if service.Desc.Options().(*descriptorpb.ServiceOptions).GetDeprecated() {
 		g.P("//")
 		g.P(deprecationComment)
 	}
 	sd := &template.ServiceDesc{
+		OptionsKey:  pascalCase(conf.OptionsKey),
 		ServiceType: service.GoName,
 		ServiceName: string(service.Desc.FullName()),
 		Metadata:    file.Desc.Path(),
-
-		OptionsKey:   pascalCase(conf.OptionsKey),
-		RequestType:  g.QualifiedGoIdent(conf.RequestType),
-		ResponseType: g.QualifiedGoIdent(conf.ResponseType),
-	}
-	if conf.ExtraType.GoName != "" {
-		sd.ExtraDataType = g.QualifiedGoIdent(conf.ExtraType)
-		sd.NewExtraDataFunc = g.QualifiedGoIdent(conf.ExtraConstructor)
+		Package:     packageDesc,
 	}
 
 	for _, method := range service.Methods {

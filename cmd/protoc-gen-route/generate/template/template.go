@@ -13,17 +13,13 @@ import (
 var routeTemplate string
 
 type ServiceDesc struct {
+	OptionsKey  string
 	ServiceType string
 	ServiceName string
 	Metadata    string
 	Methods     []*MethodDesc
 	MethodSets  map[string]*MethodDesc
-	OptionsKey  string
-
-	RequestType      string
-	ResponseType     string
-	ExtraDataType    string
-	NewExtraDataFunc string
+	Package     *PackageDesc
 }
 
 type MethodDesc struct {
@@ -36,6 +32,13 @@ type MethodDesc struct {
 	Comment      string
 	// extra data
 	Extra map[string]string
+}
+
+type PackageDesc struct {
+	RequestType      string
+	ResponseType     string
+	ExtraDataType    string
+	NewExtraDataFunc string
 }
 
 func (s *ServiceDesc) Execute() string {

@@ -116,6 +116,11 @@ func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.Genera
 	}
 	for _, method := range service.Methods {
 		if method.Desc.IsStreamingClient() || method.Desc.IsStreamingServer() {
+			log.Warn("Method `%s.%s` is streaming, it will be ignored. File: `%s`",
+				method.Parent.Desc.Name(),
+				method.Desc.Name(),
+				method.Parent.Location.SourceFile,
+			)
 			continue
 		}
 		rule, ok := proto.GetExtension(method.Desc.Options(), annotations.E_Http).(*annotations.HttpRule)
@@ -135,7 +140,7 @@ func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.Genera
 				Path:         path,
 				Method:       http.MethodPost,
 				HasBody:      true,
-				Body:         "",
+				Body:         "*",
 				ResponseBody: "",
 			}
 			if desc, err := buildMethodDesc(g, method, res, conf); err == nil {
