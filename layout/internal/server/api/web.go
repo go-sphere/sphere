@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	apiv1 "github.com/TBXark/sphere/layout/api/api/v1"
-	"github.com/TBXark/sphere/layout/api/shared/v1"
+	sharedv1 "github.com/TBXark/sphere/layout/api/shared/v1"
 	"github.com/TBXark/sphere/layout/internal/service/api"
 	"github.com/TBXark/sphere/layout/internal/service/shared"
 	"github.com/TBXark/sphere/log"

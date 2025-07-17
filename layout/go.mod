@@ -12,9 +12,9 @@ require (
 	entgo.io/ent v0.14.4
 	github.com/TBXark/confstore v0.0.5
 	github.com/TBXark/sphere v0.0.0-20250717023127-c87329e19a4f
-	github.com/TBXark/sphere/proto/binding v0.0.0-20250716151936-cff5e88f9ae1
+	github.com/TBXark/sphere/proto/binding v0.0.0-20250717023127-c87329e19a4f
 	github.com/TBXark/sphere/proto/errors v0.0.0-20250717023127-c87329e19a4f
-	github.com/TBXark/sphere/proto/options v0.0.0-20250716151936-cff5e88f9ae1
+	github.com/TBXark/sphere/proto/options v0.0.0-20250717023127-c87329e19a4f
 	github.com/alitto/pond/v2 v2.5.0
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.10.1

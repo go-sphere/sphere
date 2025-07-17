@@ -4,8 +4,8 @@ github.com/TBXark/sphere/internal/protogo v0.0.0-20250717023127-c87329e19a4f h1:
 github.com/TBXark/sphere/internal/protogo v0.0.0-20250717023127-c87329e19a4f/go.mod h1:YXf/rwvoNOzQqCA16qkulYxstGc+PSo8vGXnIZhqY9o=
 github.com/TBXark/sphere/internal/tags v0.0.0-20250717023127-c87329e19a4f h1:eQMwwEY3GSP0pldei54m0VvA7tHwplWuj5j+FdqJKNE=
 github.com/TBXark/sphere/internal/tags v0.0.0-20250717023127-c87329e19a4f/go.mod h1:+Co4H83kvPLo5JB9kRqV6lXQ1BiqvLo+h97gOLagIYg=
-github.com/TBXark/sphere/proto/binding v0.0.0-20250716151936-cff5e88f9ae1 h1:VIBICQx6FHyLwJrIBTfFnyq0GMramIKOjxjmrZLoWXs=
-github.com/TBXark/sphere/proto/binding v0.0.0-20250716151936-cff5e88f9ae1/go.mod h1:lSSxi3/PZ8hNgnZmnJTx9tVeeaI5xGUF4L6w022Uhp4=
+github.com/TBXark/sphere/proto/binding v0.0.0-20250717023127-c87329e19a4f h1:nzbw5fUQTPjcu1VdPt1Zk9uFEopuKSBbD8YitOmLGKQ=
+github.com/TBXark/sphere/proto/binding v0.0.0-20250717023127-c87329e19a4f/go.mod h1:lSSxi3/PZ8hNgnZmnJTx9tVeeaI5xGUF4L6w022Uhp4=
 github.com/google/go-cmp v0.5.5 h1:Khx7svrCpmxxtHBq5j2mp/xVjsi8hQMfNLvJFAlrGgU=
 github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 h1:E7g+9GITq07hpfrRu66IVDexMakfv52eLZ2CXBWiKr4=

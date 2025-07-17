@@ -17,9 +17,8 @@ func main() {
 		fmt.Printf("protoc-gen-sphere-errors %v\n", "0.0.1")
 		return
 	}
-	var flags flag.FlagSet
 	protogen.Options{
-		ParamFunc: flags.Set,
+		ParamFunc: flag.CommandLine.Set,
 	}.Run(func(gen *protogen.Plugin) error {
 		gen.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
 		for _, f := range gen.Files {

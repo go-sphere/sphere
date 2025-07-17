@@ -17,7 +17,6 @@ import (
 	"github.com/jhump/protoreflect/desc" //nolint
 	"github.com/jhump/protoreflect/desc/protoprint"
 	"github.com/mitchellh/mapstructure"
-	"go.uber.org/multierr"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -71,16 +70,16 @@ func generate(g *gen.Graph, options *Options) error {
 	if err != nil {
 		return fmt.Errorf("entproto: failed parsing ent graph: %w", err)
 	}
-	var errs error
+	var errs []error
 	for _, schema := range g.Schemas {
 		name := schema.Name
 		_, sErr := adapter.GetFileDescriptor(name)
 		if sErr != nil && !errors.Is(sErr, entproto.ErrSchemaSkipped) {
-			errs = multierr.Append(errs, sErr)
+			errs = append(errs, sErr)
 		}
 	}
-	if errs != nil {
-		return fmt.Errorf("entproto: failed parsing some schemas: %w", errs)
+	if len(errs) > 0 {
+		return fmt.Errorf("entproto: failed parsing some schemas: %w", errors.Join(errs...))
 	}
 	allDescriptors := make([]*desc.FileDescriptor, 0, len(adapter.AllFileDescriptors()))
 	for _, fDesc := range adapter.AllFileDescriptors() {
