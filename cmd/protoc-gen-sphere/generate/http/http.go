@@ -197,11 +197,19 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 	}
 	if res.Method == http.MethodGet || res.Method == http.MethodDelete {
 		if rule.Body != "" {
-			log.Warn("%s `%s`: body should not be declared", m.Parent.Location.SourceFile, m.Parent.Desc.Name())
+			log.Warn("%s `%s`: %s body should not be declared",
+				m.Parent.Location.SourceFile,
+				m.Parent.Desc.Name(),
+				m.Desc.Name(),
+			)
 		}
 	} else {
 		if rule.Body == "" {
-			log.Warn("%s `%s`: does not declare a body, it is recommended to declare a body for non-GET/DELETE methods.", m.Parent.Location.SourceFile, m.Parent.Desc.Name())
+			log.Warn("%s `%s`: %s does not declare a body, it is recommended to declare a body for non-GET/DELETE methods.",
+				m.Parent.Location.SourceFile,
+				m.Parent.Desc.Name(),
+				m.Desc.Name(),
+			)
 		}
 	}
 	return md, nil
@@ -210,7 +218,12 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, rule *parser.HttpRule, conf *GenConfig) (*template.MethodDesc, error) {
 	route, err := parser.GinRoute(rule.Path)
 	if err != nil {
-		log.Warn("%s `%s`: route parse error: %v", m.Parent.Location.SourceFile, m.Parent.Desc.Name(), err)
+		log.Warn("%s `%s`: %s route parse error: %v",
+			m.Parent.Location.SourceFile,
+			m.Parent.Desc.Name(),
+			m.Desc.Name(),
+			err,
+		)
 		return nil, err
 	}
 	defer func() { methodSets[m.GoName]++ }()

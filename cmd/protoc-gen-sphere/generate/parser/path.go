@@ -104,7 +104,13 @@ func GinURIParams(m *protogen.Method, route string) []URIParamsField {
 					Field:    field,
 				})
 			} else {
-				log.Warn("%s `%s`: field `%s` is not bound to URI, but it is used in method `%s`(%s)", m.Parent.Location.SourceFile, m.Parent.Desc.Name(), name, m.Desc.Name(), route)
+				log.Warn("%s `%s`: %s field `%s` is not bound to URI, but it is used in route `%s`",
+					m.Parent.Location.SourceFile,
+					m.Parent.Desc.Name(),
+					m.Desc.Name(),
+					name,
+					route,
+				)
 			}
 		}
 	}

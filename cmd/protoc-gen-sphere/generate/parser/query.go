@@ -37,7 +37,12 @@ func GinQueryForm(m *protogen.Method, method string, pathVars []URIParamsField) 
 					Field: field,
 				})
 			} else if method == http.MethodGet || method == http.MethodDelete {
-				log.Warn("%s `%s`: field `%s` is not bound to query, but it is used in method `%s`", m.Parent.Location.SourceFile, m.Parent.Desc.Name(), name, m.Desc.Name())
+				log.Warn("%s `%s`: %s field `%s` is not bound to query",
+					m.Parent.Location.SourceFile,
+					m.Parent.Desc.Name(),
+					m.Desc.Name(),
+					name,
+				)
 			}
 		}
 	}
