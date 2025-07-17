@@ -1,14 +1,16 @@
 package route
 
-import "github.com/TBXark/sphere/internal/protogo"
+import (
+	"google.golang.org/protobuf/compiler/protogen"
+)
 
 type Config struct {
 	OptionsKey   string
 	FileSuffix   string
 	TemplateFile string
 
-	RequestType      *protogo.GoIdent
-	ResponseType     *protogo.GoIdent
-	ExtraType        *protogo.GoIdent
-	ExtraConstructor *protogo.GoIdent
+	RequestType      protogen.GoIdent
+	ResponseType     protogen.GoIdent
+	ExtraType        protogen.GoIdent
+	ExtraConstructor protogen.GoIdent
 }

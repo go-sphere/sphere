@@ -1,8 +1,11 @@
 package http
 
 import (
-	validatepb "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"fmt"
+	"net/http"
+	"slices"
+
+	validatepb "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/log"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/parser"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/template"
@@ -11,8 +14,6 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
-	"net/http"
-	"slices"
 )
 
 const (

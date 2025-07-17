@@ -6,7 +6,6 @@ import (
 	"unicode"
 
 	"github.com/TBXark/sphere/cmd/protoc-gen-route/generate/template"
-	"github.com/TBXark/sphere/internal/protogo"
 	"github.com/TBXark/sphere/proto/options/sphere/options"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
@@ -61,22 +60,17 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 }
 
 func generateGoImports(g *protogen.GeneratedFile, conf *Config) {
-	idents := []*protogo.GoIdent{
-		conf.RequestType,
-		conf.ResponseType,
-		conf.ExtraType,
-		conf.ExtraConstructor,
+	didImport := make(map[protogen.GoImportPath]bool)
+	for _, ident := range []protogen.GoIdent{conf.RequestType, conf.ResponseType, conf.ExtraType} {
+		if !didImport[ident.GoImportPath] {
+			didImport[ident.GoImportPath] = true
+			g.P("var _ = new(", ident, ")")
+		}
 	}
-	imported := make(map[string]struct{}, len(idents))
-	for _, i := range idents {
-		_, exist := imported[string(i.Path)]
-		if !exist {
-			if i.IsFunc {
-				g.P("var _ = ", i.GoIdent())
-			} else {
-				g.P("var _ = new(", i.GoIdent(), ")")
-			}
-			imported[string(i.Path)] = struct{}{}
+	for _, ident := range []protogen.GoIdent{conf.ExtraConstructor} {
+		if !didImport[ident.GoImportPath] {
+			didImport[ident.GoImportPath] = true
+			g.P("var _ = ", ident)
 		}
 	}
 }
@@ -92,12 +86,12 @@ func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.Genera
 		Metadata:    file.Desc.Path(),
 
 		OptionsKey:   pascalCase(conf.OptionsKey),
-		RequestType:  g.QualifiedGoIdent(conf.RequestType.GoIdent()),
-		ResponseType: g.QualifiedGoIdent(conf.ResponseType.GoIdent()),
+		RequestType:  g.QualifiedGoIdent(conf.RequestType),
+		ResponseType: g.QualifiedGoIdent(conf.ResponseType),
 	}
-	if conf.ExtraType != nil {
-		sd.ExtraDataType = g.QualifiedGoIdent(conf.ExtraType.GoIdent())
-		sd.NewExtraDataFunc = g.QualifiedGoIdent(conf.ExtraConstructor.GoIdent())
+	if conf.ExtraType.GoName != "" {
+		sd.ExtraDataType = g.QualifiedGoIdent(conf.ExtraType)
+		sd.NewExtraDataFunc = g.QualifiedGoIdent(conf.ExtraConstructor)
 	}
 
 	for _, method := range service.Methods {

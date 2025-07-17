@@ -1,12 +1,13 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/TBXark/sphere/cmd/protoc-gen-route/generate/route"
 	"github.com/TBXark/sphere/cmd/protoc-gen-route/generate/template"
-	"github.com/TBXark/sphere/internal/protogo"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/types/pluginpb"
 )
@@ -34,25 +35,9 @@ func main() {
 	protogen.Options{
 		ParamFunc: flag.CommandLine.Set,
 	}.Run(func(gen *protogen.Plugin) error {
-		conf := route.Config{
-			OptionsKey:   *optionsKey,
-			FileSuffix:   *fileSuffix,
-			TemplateFile: *templateFile,
-
-			RequestType:  protogo.NewGoIdent(*requestModel),
-			ResponseType: protogo.NewGoIdent(*responseModel),
-			ExtraType:    protogo.NewGoIdent(*extraDataModel),
-
-			ExtraConstructor: protogo.NewGoIdent(*extraDataConstructor, protogo.IsFunc()),
-		}
-		if conf.RequestType == nil {
-			return fmt.Errorf("flag request_model must be set")
-		}
-		if conf.ResponseType == nil {
-			return fmt.Errorf("flag response_model must be set")
-		}
-		if conf.ExtraType != nil && conf.ExtraConstructor == nil {
-			return fmt.Errorf("flag extra_data_constructor must be set if extra_data_model is set")
+		conf, err := extractConfig()
+		if err != nil {
+			return err
 		}
 		gen.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
 		template.ReplaceTemplateIfNeed(conf.TemplateFile)
@@ -60,8 +45,56 @@ func main() {
 			if !f.Generate {
 				continue
 			}
-			route.GenerateFile(gen, f, &conf)
+			route.GenerateFile(gen, f, conf)
 		}
 		return nil
 	})
+}
+
+func parseGoIdent(raw string) (protogen.GoIdent, error) {
+	parts := strings.Split(raw, ";")
+	if len(parts) != 2 {
+		return protogen.GoIdent{}, errors.New("invalid GoIdent format, expected 'path;ident'")
+	}
+	return protogen.GoIdent{
+		GoName:       parts[1],
+		GoImportPath: protogen.GoImportPath(parts[0]),
+	}, nil
+}
+
+func extractConfig() (*route.Config, error) {
+	_requestModel, err := parseGoIdent(*requestModel)
+	if err != nil {
+		return nil, err
+	}
+	_responseModel, err := parseGoIdent(*responseModel)
+	if err != nil {
+		return nil, err
+	}
+
+	conf := &route.Config{
+		OptionsKey:   *optionsKey,
+		FileSuffix:   *fileSuffix,
+		TemplateFile: *templateFile,
+
+		RequestType:  _requestModel,
+		ResponseType: _responseModel,
+	}
+
+	if *extraDataModel == "" {
+		return conf, nil
+	}
+
+	_extraDataModel, err := parseGoIdent(*extraDataModel)
+	if err != nil {
+		return nil, err
+	}
+	_extraDataConstructor, err := parseGoIdent(*extraDataConstructor)
+	if err != nil {
+		return nil, err
+	}
+	conf.ExtraType = _extraDataModel
+	conf.ExtraConstructor = _extraDataConstructor
+
+	return conf, nil
 }

@@ -21,7 +21,6 @@ fmt: ## Format code
 	$(call fmt_mod,cmd/protoc-gen-sphere-binding)
 	$(call fmt_mod,cmd/protoc-gen-sphere-errors)
 	$(call fmt_mod,cmd/sphere-cli)
-	$(call fmt_mod,internal/protogo)
 	$(call fmt_mod,internal/tags)
 	$(call fmt_mod,proto/errors)
 	$(call fmt_mod,proto/options)

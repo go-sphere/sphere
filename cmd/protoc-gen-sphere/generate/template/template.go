@@ -37,7 +37,7 @@ type MethodDesc struct {
 	HasBody      bool
 	Body         string
 	ResponseBody string
-	// Temp
+	// temp
 	Swagger      string
 	GinPath      string
 	NeedValidate bool

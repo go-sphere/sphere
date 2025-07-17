@@ -18,8 +18,8 @@ type ServiceDesc struct {
 	Metadata    string
 	Methods     []*MethodDesc
 	MethodSets  map[string]*MethodDesc
+	OptionsKey  string
 
-	OptionsKey       string
 	RequestType      string
 	ResponseType     string
 	ExtraDataType    string
