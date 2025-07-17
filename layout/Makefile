@@ -75,8 +75,7 @@ gen/db: ## Generate ent code
 gen/proto: gen/db ## Generate proto files and run protoc plugins
 	$(SPHERE_CLI) entproto --path=./internal/pkg/database/schema
 	$(BUF_CLI) generate
-	$(BUF_CLI) generate --template buf.binding.yaml # If using binding, use this command.
-	#$(SPHERE_CLI) retags --input="./api/*/*/*.pb.go" --remove_tag_comment # If using the @sphere method, use this command.
+	$(BUF_CLI) generate --template buf.binding.yaml
 	$(INTERNAL_TOOLS) ./cmd/tools/bind
 
 gen/docs: gen/proto ## Generate swagger docs
@@ -106,7 +105,6 @@ endif
 
 build/assets: ## Build assets
 ifneq ($(wildcard $(DASH_DIR)),)
-	# You can `git clone https://github.com/pure-admin/vue-pure-admin.git $(DASH_DIR)` to get the dash project
 	mkdir -p $(DASH_DIST)
 	cd $(DASH_DIR) && pnpm build
 	rm -rf $(DASH_DIST)/*
@@ -169,6 +167,7 @@ else
 	$(GO_INSTALL) github.com/TBXark/sphere/cmd/protoc-gen-route@latest
 	$(GO_INSTALL) github.com/TBXark/sphere/cmd/protoc-gen-sphere@latest
 	$(GO_INSTALL) github.com/TBXark/sphere/cmd/protoc-gen-sphere-errors@latest
+	$(GO_INSTALL) github.com/TBXark/sphere/cmd/protoc-gen-sphere-binding@latest
 endif
 
 init: ## Init all dependencies

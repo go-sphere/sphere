@@ -108,6 +108,8 @@ sphere-cli service golang --name <service-name> [--package <package-name>] [--mo
 
 ### `retags`
 
+> Deprecated: Use [`protoc-gen-sphere-binding`](../protoc-gen-sphere-binding/README.md) instead.
+
 Injects struct tags into generated Protobuf message files (`.pb.go`). This command is an optimization for the Sphere framework, inspired by `favadi/protoc-go-inject-tag`.
 
 It supports special `// @sphere:` comments to inject tags. For example, a comment `// @sphere:json="name"` on a field
