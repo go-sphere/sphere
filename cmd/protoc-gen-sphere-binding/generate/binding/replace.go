@@ -11,30 +11,36 @@ import (
 
 type StructTags map[string]map[string]*structtag.Tags
 
-func ReTags(n ast.Node, tags StructTags) error {
-	var err error
-	ast.Inspect(n, func(node ast.Node) bool {
-		if err != nil {
-			return false
+func ReTags(file *ast.File, tags StructTags) error {
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok {
+			continue
 		}
 
-		typeSpec, ok := node.(*ast.TypeSpec)
-		if !ok {
-			return true
+		var typeSpec *ast.TypeSpec
+		for _, spec := range genDecl.Specs {
+			if ts, tsOK := spec.(*ast.TypeSpec); tsOK {
+				typeSpec = ts
+				break
+			}
+		}
+		if typeSpec == nil {
+			continue
 		}
 
-		structType, ok := typeSpec.Type.(*ast.StructType)
+		structDecl, ok := typeSpec.Type.(*ast.StructType)
 		if !ok {
-			return true
+			continue
 		}
 
 		structName := typeSpec.Name.String()
 		fieldsToRetag, structFound := tags[structName]
 		if !structFound {
-			return true
+			continue
 		}
 
-		for _, field := range structType.Fields.List {
+		for _, field := range structDecl.Fields.List {
 			for _, fieldName := range field.Names {
 				newTags, fieldFound := fieldsToRetag[fieldName.String()]
 				if !fieldFound || newTags == nil {
@@ -48,24 +54,18 @@ func ReTags(n ast.Node, tags StructTags) error {
 				currentTagValue := strings.Trim(field.Tag.Value, "`")
 				oldTags, parseErr := structtag.Parse(currentTagValue)
 				if parseErr != nil {
-					err = parseErr
-					return false
+					return parseErr
 				}
 
 				sort.Stable(newTags)
 				for _, t := range newTags.Tags() {
 					if setErr := oldTags.Set(t); setErr != nil {
-						err = setErr
-						return false
+						return setErr
 					}
 				}
-
 				field.Tag.Value = "`" + oldTags.String() + "`"
 			}
 		}
-
-		return false
-	})
-
-	return err
+	}
+	return nil
 }
