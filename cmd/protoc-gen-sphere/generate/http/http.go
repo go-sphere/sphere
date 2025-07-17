@@ -195,7 +195,7 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 	if err != nil {
 		return nil, err
 	}
-	if res.Method == http.MethodGet || res.Method == http.MethodDelete {
+	if _, ok := parser.NoBodyMethods[res.Method]; ok {
 		if rule.Body != "" {
 			log.Warn("%s `%s`: %s body should not be declared",
 				m.Parent.Location.SourceFile,
@@ -205,10 +205,11 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 		}
 	} else {
 		if rule.Body == "" {
-			log.Warn("%s `%s`: %s does not declare a body, it is recommended to declare a body for non-GET/DELETE methods.",
+			log.Warn("%s `%s`: %s does not declare a body, it is recommended to declare a body for %s methods.",
 				m.Parent.Location.SourceFile,
 				m.Parent.Desc.Name(),
 				m.Desc.Name(),
+				res.Method,
 			)
 		}
 	}

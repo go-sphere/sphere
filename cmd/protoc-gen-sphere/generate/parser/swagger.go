@@ -46,7 +46,7 @@ type SwagParams struct {
 	ErrorResponse string
 }
 
-var noBodyMethods = map[string]struct{}{
+var NoBodyMethods = map[string]struct{}{
 	http.MethodGet:     {},
 	http.MethodHead:    {},
 	http.MethodDelete:  {},
@@ -79,11 +79,11 @@ func BuildAnnotations(m *protogen.Method, config *SwagParams) string {
 	// Add query parameters
 	for _, param := range config.QueryVars {
 		paramType := buildSwaggerParamType(param.Field)
-		required := isFieldRequired(param.Field.Desc)
+		required := isFieldRequired(param.Field)
 		builder.WriteString(fmt.Sprintf("// @Param %s query %s %v \"%s\"\n", param.Name, paramType, required, param.Name))
 	}
 	// Add a request body
-	if _, ok := noBodyMethods[config.Method]; !ok {
+	if _, ok := NoBodyMethods[config.Method]; !ok {
 		builder.WriteString("// @Param request body " + m.Input.GoIdent.GoName + " true \"request body\"\n")
 	}
 	builder.WriteString("// @Success 200 {object} " + config.DataResponse + "[" + m.Output.GoIdent.GoName + "]\n")
@@ -130,8 +130,8 @@ func buildSingularSwaggerParamType(field *protogen.Field) string {
 	}
 }
 
-func isFieldRequired(field protoreflect.FieldDescriptor) bool {
-	opts := field.Options()
+func isFieldRequired(field *protogen.Field) bool {
+	opts := field.Desc.Options()
 	if opts == nil {
 		return false
 	}
