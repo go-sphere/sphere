@@ -54,13 +54,12 @@ type PackageDesc struct {
 	ErrorResponseType string
 	DataResponseType  string
 
-	ServerHandlerWrapperFunc string
-
 	ParseJsonFunc string
 	ParseUriFunc  string
 	ParseFormFunc string
+	ValidateFunc  string
 
-	ValidateFunc string
+	ServerHandlerWrapperFunc string
 }
 
 func (s *ServiceDesc) Execute() string {

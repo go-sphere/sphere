@@ -31,14 +31,16 @@ type GenConfig struct {
 
 func NewGenConf(g *protogen.GeneratedFile, conf *Config) *GenConfig {
 	pkgDesc := &template.PackageDesc{
-		RouterType:               g.QualifiedGoIdent(conf.RouterType),
-		ContextType:              g.QualifiedGoIdent(conf.ContextType),
-		ErrorResponseType:        g.QualifiedGoIdent(conf.ErrorRespType),
-		DataResponseType:         g.QualifiedGoIdent(conf.DataRespType),
-		ServerHandlerWrapperFunc: g.QualifiedGoIdent(conf.ServerHandlerFunc),
+		RouterType:  g.QualifiedGoIdent(conf.RouterType),
+		ContextType: g.QualifiedGoIdent(conf.ContextType),
+
+		ErrorResponseType: g.QualifiedGoIdent(conf.ErrorRespType),
+		DataResponseType:  g.QualifiedGoIdent(conf.DataRespType),
+
 		ParseJsonFunc:            g.QualifiedGoIdent(conf.ParseJsonFunc),
 		ParseUriFunc:             g.QualifiedGoIdent(conf.ParseUriFunc),
 		ParseFormFunc:            g.QualifiedGoIdent(conf.ParseFormFunc),
+		ServerHandlerWrapperFunc: g.QualifiedGoIdent(conf.ServerHandlerFunc),
 	}
 	genConf := &GenConfig{
 		omitempty:       conf.Omitempty,

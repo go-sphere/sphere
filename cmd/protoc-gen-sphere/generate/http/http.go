@@ -118,7 +118,7 @@ func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.Genera
 	}
 	for _, method := range service.Methods {
 		if method.Desc.IsStreamingClient() || method.Desc.IsStreamingServer() {
-			log.Warn("Method `%s.%s` is streaming, it will be ignored. File: `%s`",
+			log.Warn("method `%s.%s` is streaming, it will be ignored. File: `%s`",
 				method.Parent.Desc.Name(),
 				method.Desc.Name(),
 				method.Parent.Location.SourceFile,

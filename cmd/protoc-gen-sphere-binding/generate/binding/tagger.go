@@ -9,18 +9,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/TBXark/sphere/cmd/protoc-gen-sphere-binding/generate/log"
 	"github.com/TBXark/sphere/proto/binding/sphere/binding"
 	"github.com/fatih/structtag"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
 )
 
-func GenerateFile(gen *protogen.Plugin, file *protogen.File, out string) {
+func GenerateFile(gen *protogen.Plugin, file *protogen.File, out string) error {
 	err := generateFile(gen, file, out)
 	if err != nil {
-		log.Warn("failed to generate file %s: %v", file.GeneratedFilenamePrefix, err)
+		return err
 	}
+	return nil
 }
 
 func generateFile(gen *protogen.Plugin, file *protogen.File, out string) error {
