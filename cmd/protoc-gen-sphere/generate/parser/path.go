@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/log"
 	bindingpb "github.com/TBXark/sphere/proto/binding/sphere/binding"
 	"google.golang.org/protobuf/compiler/protogen"
 )
@@ -90,7 +89,7 @@ type URIParamsField struct {
 	Field    *protogen.Field
 }
 
-func GinURIParams(m *protogen.Method, route string) []URIParamsField {
+func GinURIParams(m *protogen.Method, route string) ([]URIParamsField, error) {
 	var fields []URIParamsField
 	params := parseGinRoutePath(route)
 	for _, field := range m.Input.Fields {
@@ -104,7 +103,7 @@ func GinURIParams(m *protogen.Method, route string) []URIParamsField {
 					Field:    field,
 				})
 			} else {
-				log.Error("Method `%s.%s` parameter `%s` is not bound to URI, but it is used in route `%s`. File: `%s`, Field: `%s`",
+				return nil, fmt.Errorf("method `%s.%s` parameter `%s` is not bound to URI, but it is used in route `%s`. File: `%s`, Field: `%s`",
 					m.Parent.Desc.Name(),
 					m.Desc.Name(),
 					name,
@@ -115,7 +114,7 @@ func GinURIParams(m *protogen.Method, route string) []URIParamsField {
 			}
 		}
 	}
-	return fields
+	return fields, nil
 }
 
 func parseGinRoutePath(route string) map[string]bool {

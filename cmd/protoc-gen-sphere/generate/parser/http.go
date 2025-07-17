@@ -3,7 +3,6 @@ package parser
 import (
 	"net/http"
 
-	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/utils"
 	"google.golang.org/genproto/googleapis/api/annotations"
 )
 
@@ -45,9 +44,9 @@ func ParseHttpRule(rule *annotations.HttpRule) *HttpRule {
 	if rule.Body == "*" {
 		res.HasBody = true
 		res.Body = ""
-	} else if res.Body != "" {
+	} else if rule.Body != "" {
 		res.HasBody = true
-		res.Body = "." + utils.CamelCaseVars(rule.Body)
+		res.Body = rule.Body
 	} else {
 		res.HasBody = false
 	}
@@ -55,7 +54,7 @@ func ParseHttpRule(rule *annotations.HttpRule) *HttpRule {
 	if rule.ResponseBody == "*" {
 		res.ResponseBody = ""
 	} else if rule.ResponseBody != "" {
-		res.ResponseBody = "." + utils.CamelCaseVars(rule.ResponseBody)
+		res.ResponseBody = rule.ResponseBody
 	}
 	return &res
 }

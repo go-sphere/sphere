@@ -23,15 +23,25 @@ func ConvertGinToSwaggerPath(ginPath string) string {
 }
 
 func MethodCommend(m *protogen.Method) string {
-	leading := m.Comments.Leading.String()
+	leading := string(m.Comments.Leading)
 	if leading == "" {
 		return ""
 	}
-	comment := strings.TrimSpace(strings.ReplaceAll(leading, "\n", " "))
-	if comment != "" {
-		comment = "// " + m.GoName + strings.TrimPrefix(strings.TrimSuffix(comment, "\n"), "//")
+	cmp := strings.Split(strings.TrimSuffix(leading, "\n"), "\n")
+	if len(cmp) == 0 {
+		return ""
 	}
-	return comment
+	var lines []string
+	lines = append(lines, fmt.Sprintf("// %s %s", m.Desc.Name(), strings.TrimSpace(cmp[0])))
+	if len(cmp) > 1 {
+		for _, line := range cmp[1:] {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			lines = append(lines, fmt.Sprintf("// %s", strings.TrimSpace(line)))
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 type SwagParams struct {
@@ -41,6 +51,9 @@ type SwagParams struct {
 
 	PathVars  []URIParamsField
 	QueryVars []QueryFormField
+
+	Body         string
+	ResponseBody string
 
 	DataResponse  string
 	ErrorResponse string
@@ -53,60 +66,96 @@ var NoBodyMethods = map[string]struct{}{
 	http.MethodOptions: {},
 }
 
-func BuildAnnotations(m *protogen.Method, config *SwagParams) string {
+func BuildAnnotations(g *protogen.GeneratedFile, m *protogen.Method, config *SwagParams) (string, error) {
 	var builder strings.Builder
 	builder.WriteString("// @Summary " + string(m.Desc.Name()) + "\n")
-	desc := MethodCommend(m)
+	desc := string(m.Comments.Leading)
 	if desc != "" {
-		desc = strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(desc, "\n"), "//"))
+		desc = strings.Join(strings.Split(desc, "\n"), ",")
 		builder.WriteString("// @Description " + desc + "\n")
 	}
+
 	pkgName := string(m.Parent.Desc.ParentFile().Package())
 	builder.WriteString("// @Tags " + strings.Join([]string{
 		pkgName,
 		pkgName + "." + string(m.Parent.Desc.Name()),
 	}, ",") + "\n")
+
 	builder.WriteString("// @Accept json\n")
 	builder.WriteString("// @Produce json\n")
+
+	// Add authentication if specified
 	if config.Auth != "" {
 		builder.WriteString(config.Auth + "\n")
 	}
+
 	// Add path parameters
 	for _, param := range config.PathVars {
-		paramType := buildSwaggerParamType(param.Field)
+		paramType := buildSwaggerParamType(g, param.Field)
 		builder.WriteString(fmt.Sprintf("// @Param %s path %s true \"%s\"\n", param.Name, paramType, param.Name))
 	}
 	// Add query parameters
 	for _, param := range config.QueryVars {
-		paramType := buildSwaggerParamType(param.Field)
+		paramType := buildSwaggerParamType(g, param.Field)
 		required := isFieldRequired(param.Field)
 		builder.WriteString(fmt.Sprintf("// @Param %s query %s %v \"%s\"\n", param.Name, paramType, required, param.Name))
 	}
 	// Add a request body
 	if _, ok := NoBodyMethods[config.Method]; !ok {
-		builder.WriteString("// @Param request body " + m.Input.GoIdent.GoName + " true \"request body\"\n")
+		bodyType, err := buildSwaggerParamTypeByPath(g, m, m.Input, config.Body)
+		if err != nil {
+			return "", err
+		}
+		builder.WriteString("// @Param request body " + bodyType + " true \"request body\"\n")
 	}
-	builder.WriteString("// @Success 200 {object} " + config.DataResponse + "[" + m.Output.GoIdent.GoName + "]\n")
+
+	// Add a response body
+	responseType, err := buildSwaggerParamTypeByPath(g, m, m.Output, config.ResponseBody)
+	if err != nil {
+		return "", err
+	}
+	builder.WriteString("// @Success 200 {object} " + config.DataResponse + "[" + responseType + "]\n")
 	builder.WriteString("// @Failure 400,401,403,500,default {object} " + config.ErrorResponse + "\n")
+
 	builder.WriteString("// @Router " + config.Path + " [" + strings.ToLower(config.Method) + "]\n")
-	return builder.String()
+
+	return builder.String(), nil
 }
 
-func buildSwaggerParamType(field *protogen.Field) string {
+func buildSwaggerParamTypeByPath(g *protogen.GeneratedFile, m *protogen.Method, message *protogen.Message, path string) (string, error) {
+	name := g.QualifiedGoIdent(message.GoIdent)
+	if path != "" {
+		field := FindProtoField(message, strings.Split(path, "."))
+		if field == nil {
+			return "", fmt.Errorf("method `%s.%s` field `%s` not found in message `%s`. File: `%s`",
+				m.Parent.Desc.Name(),
+				m.Desc.Name(),
+				path,
+				message.Desc.Name(),
+				m.Parent.Location.SourceFile,
+			)
+		} else {
+			name = buildSwaggerParamType(g, field)
+		}
+	}
+	return name, nil
+}
+
+func buildSwaggerParamType(g *protogen.GeneratedFile, field *protogen.Field) string {
 	switch {
 	case field.Desc.IsMap():
-		key := buildSingularSwaggerParamType(field.Message.Fields[0])
-		val := buildSingularSwaggerParamType(field.Message.Fields[1])
+		key := buildSingularSwaggerParamType(g, field.Message.Fields[0])
+		val := buildSingularSwaggerParamType(g, field.Message.Fields[1])
 		return fmt.Sprintf("map[%s]%s", key, val)
 	case field.Desc.IsList():
-		elemType := buildSingularSwaggerParamType(field)
+		elemType := buildSingularSwaggerParamType(g, field)
 		return fmt.Sprintf("[]%s", elemType)
 	default:
-		return buildSingularSwaggerParamType(field)
+		return buildSingularSwaggerParamType(g, field)
 	}
 }
 
-func buildSingularSwaggerParamType(field *protogen.Field) string {
+func buildSingularSwaggerParamType(g *protogen.GeneratedFile, field *protogen.Field) string {
 	switch field.Desc.Kind() {
 	case protoreflect.BoolKind:
 		return "boolean"
@@ -122,9 +171,15 @@ func buildSingularSwaggerParamType(field *protogen.Field) string {
 	case protoreflect.BytesKind:
 		return "string" // Swagger doesn't have a specific type for bytes, so we use string
 	case protoreflect.EnumKind:
-		return field.Enum.GoIdent.GoName
+		if field.Enum != nil {
+			return g.QualifiedGoIdent(field.Enum.GoIdent)
+		}
+		return "integer"
 	case protoreflect.MessageKind:
-		return field.Message.GoIdent.GoName
+		if field.Message != nil {
+			return g.QualifiedGoIdent(field.Message.GoIdent)
+		}
+		return "any"
 	default:
 		return "any"
 	}

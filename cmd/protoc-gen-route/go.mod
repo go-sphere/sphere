@@ -5,6 +5,6 @@ go 1.23.2
 toolchain go1.24.4
 
 require (
-	github.com/TBXark/sphere/proto/options v0.0.0-20250717023127-c87329e19a4f
+	github.com/TBXark/sphere/proto/options v0.0.0-20250717091253-cbd097d15520
 	google.golang.org/protobuf v1.36.6
 )

@@ -26,9 +26,12 @@ type MethodDesc struct {
 	Name         string
 	OriginalName string
 	Num          int
-	Request      string
-	Reply        string
 	Comment      string
+
+	Request  string // rpc request type
+	Reply    string // rpc reply type
+	Response string // http response type
+
 	// http_rule
 	Path         string
 	Method       string
@@ -37,6 +40,7 @@ type MethodDesc struct {
 	HasBody      bool
 	Body         string
 	ResponseBody string
+
 	// temp
 	Swagger      string
 	GinPath      string

@@ -66,3 +66,32 @@ func TestService_RunTest(t *testing.T) {
 	assert.Equal(t, resp.Data.EnumTest1, req.EnumTest1)
 	assert.Equal(t, http.StatusOK, recorder.Code, "Expected status code 200, got %d", recorder.Code)
 }
+
+func TestService_BodyPathTest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+	sharedv1.RegisterTestServiceHTTPServer(router, &Service{})
+
+	req := sharedv1.BodyPathTestRequest_Request{
+		FieldTest1: "test1",
+		FieldTest2: 123,
+	}
+	body, _ := json.Marshal(&req)
+
+	request, err := http.NewRequest("POST", "/api/test/body_path_test", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	var resp ginx.DataResponse[sharedv1.BodyPathTestResponse_Response]
+	err = json.Unmarshal(recorder.Body.Bytes(), &resp)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	assert.Equal(t, resp.Data.FieldTest1, req.FieldTest1)
+	assert.Equal(t, resp.Data.FieldTest2, req.FieldTest2)
+	assert.Equal(t, http.StatusOK, recorder.Code, "Expected status code 200, got %d", recorder.Code)
+}

@@ -26,7 +26,7 @@ type {{.ServiceType}}HTTPServer interface {
 	{{.Swagger}}
 	{{- end -}}
 func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) func(ctx *{{$packageDesc.ContextType}})  {
-	return {{$packageDesc.ServerHandlerWrapperFunc}}(func(ctx *{{$packageDesc.ContextType}}) (*{{.Reply}}, error) {
+	return {{$packageDesc.ServerHandlerWrapperFunc}}(func(ctx *{{$packageDesc.ContextType}}) ({{.Response}}, error) {
 		var in {{.Request}}
 		{{- if .HasBody}}
 		if err := {{$packageDesc.ParseJsonFunc}}(ctx, &in{{.Body}}); err != nil {
@@ -52,7 +52,7 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) fu
 		if err != nil {
 			return nil, err
 		}
-		return out, nil
+		return out{{.ResponseBody}}, nil
 	})
 }
 {{end}}

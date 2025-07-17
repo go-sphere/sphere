@@ -14,6 +14,17 @@ service TestService {
       body: "*"
     };
   }
+
+  // test comment line1
+  // test comment line2
+  // test comment line3
+  rpc BodyPathTest(BodyPathTestRequest) returns (BodyPathTestResponse) {
+    option (google.api.http) = {
+      post: "/api/test/body_path_test"
+      body: "request"
+      response_body: "response"
+    };
+  }
 }
 
 enum TestEnum {
@@ -43,6 +54,22 @@ message RunTestResponse {
   string query_test1 = 5;
   int64 query_test2 = 6;
   repeated TestEnum enum_test1 = 7;
+}
+
+message BodyPathTestRequest {
+  message Request {
+    string field_test1 = 1;
+    int64 field_test2 = 2;
+  }
+  Request request = 1;
+}
+
+message BodyPathTestResponse {
+  message Response {
+    string field_test1 = 1;
+    int64 field_test2 = 2;
+  }
+  Response response = 1;
 }
 
 enum TestError {
