@@ -11,10 +11,10 @@ require (
 	buf.build/go/protovalidate v0.13.1
 	entgo.io/ent v0.14.4
 	github.com/TBXark/confstore v0.0.5
-	github.com/TBXark/sphere v0.0.0-20250716142639-d0b6e650b7fe
-	github.com/TBXark/sphere/proto/binding v0.0.0-20250716142639-d0b6e650b7fe
-	github.com/TBXark/sphere/proto/errors v0.0.0-20250716142639-d0b6e650b7fe
-	github.com/TBXark/sphere/proto/options v0.0.0-20250716142639-d0b6e650b7fe
+	github.com/TBXark/sphere v0.0.0-20250717023127-c87329e19a4f
+	github.com/TBXark/sphere/proto/binding v0.0.0-20250716151936-cff5e88f9ae1
+	github.com/TBXark/sphere/proto/errors v0.0.0-20250717023127-c87329e19a4f
+	github.com/TBXark/sphere/proto/options v0.0.0-20250716151936-cff5e88f9ae1
 	github.com/alitto/pond/v2 v2.5.0
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.10.1
@@ -23,7 +23,7 @@ require (
 	github.com/google/wire v0.6.0
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
-	github.com/swaggo/swag v1.16.4
+	github.com/swaggo/swag v1.16.5
 	golang.org/x/sync v0.16.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79
 	google.golang.org/protobuf v1.36.6
@@ -81,7 +81,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/stoewer/go-strcase v1.3.1 // indirect
 	github.com/swaggo/files v1.0.1 // indirect
 	github.com/swaggo/gin-swagger v1.6.0 // indirect

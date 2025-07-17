@@ -97,20 +97,29 @@ func GinURIParams(m *protogen.Method, route string) []URIParamsField {
 		name := string(field.Desc.Name())
 		wildcard, exist := params[name]
 		if exist {
-			if checkBindingLocation(m.Input, field, bindingpb.BindingLocation_BINDING_LOCATION_URI) || parseFieldSphereTag(field, "uri", name) != "" {
+			if checkBindingLocation(m.Input, field, bindingpb.BindingLocation_BINDING_LOCATION_URI) {
 				fields = append(fields, URIParamsField{
 					Name:     name,
 					Wildcard: wildcard,
 					Field:    field,
 				})
 			} else {
-				log.Warn("%s `%s`: %s field `%s` is not bound to URI, but it is used in route `%s`",
-					m.Parent.Location.SourceFile,
-					m.Parent.Desc.Name(),
-					m.Desc.Name(),
-					name,
-					route,
-				)
+				formName := parseFieldSphereTag(field, "uri", name)
+				if formName != "" {
+					fields = append(fields, URIParamsField{
+						Name:     formName,
+						Wildcard: wildcard,
+						Field:    field,
+					})
+				} else {
+					log.Warn("%s `%s`: %s field `%s` is not bound to URI, but it is used in route `%s`",
+						m.Parent.Location.SourceFile,
+						m.Parent.Desc.Name(),
+						m.Desc.Name(),
+						name,
+						route,
+					)
+				}
 			}
 		}
 	}

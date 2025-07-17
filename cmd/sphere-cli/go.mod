@@ -7,7 +7,7 @@ toolchain go1.24.5
 require (
 	entgo.io/contrib v0.6.0
 	entgo.io/ent v0.14.4
-	github.com/TBXark/sphere/internal/tags v0.0.0-20250716142639-d0b6e650b7fe
+	github.com/TBXark/sphere/internal/tags v0.0.0-20250717023127-c87329e19a4f
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jhump/protoreflect v1.17.0
 	github.com/mitchellh/mapstructure v1.5.0
@@ -29,7 +29,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/zclconf/go-cty v1.16.3 // indirect
 	github.com/zclconf/go-cty-yaml v1.1.0 // indirect
 	golang.org/x/mod v0.26.0 // indirect

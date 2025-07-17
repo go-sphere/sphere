@@ -17,7 +17,7 @@ var (
 func main() {
 	flag.Parse()
 	if *showVersion {
-		fmt.Printf("protoc-gen-sphere %v\n", "0.0.1")
+		fmt.Printf("protoc-gen-sphere-binding %v\n", "0.0.1")
 		return
 	}
 	protogen.Options{
