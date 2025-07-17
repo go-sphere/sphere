@@ -16,5 +16,6 @@ func (s *Service) RunTest(ctx context.Context, req *sharedv1.RunTestRequest) (*s
 		PathTest2:  req.PathTest2,
 		QueryTest1: req.QueryTest1,
 		QueryTest2: req.QueryTest2,
+		EnumTest1:  req.EnumTest1,
 	}, nil
 }

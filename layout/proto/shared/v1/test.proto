@@ -42,6 +42,7 @@ message RunTestResponse {
   int64 path_test2 = 4;
   string query_test1 = 5;
   int64 query_test2 = 6;
+  repeated TestEnum enum_test1 = 7;
 }
 
 enum TestError {

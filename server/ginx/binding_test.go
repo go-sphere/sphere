@@ -23,24 +23,28 @@ func TestShouldBind(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.Default()
+
 	type Request struct {
-		state         any    `protogen:"open.v1"` //nolint
-		FieldTest1    string `protobuf:"bytes,1,opt,name=field_test1,json=fieldTest1,proto3" json:"field_test1,omitempty"`
-		FieldTest2    int64  `protobuf:"varint,2,opt,name=field_test2,json=fieldTest2,proto3" json:"field_test2,omitempty"`
-		PathTest1     string `protobuf:"bytes,3,opt,name=path_test1,json=pathTest1,proto3" json:"path_test1,omitempty"`
-		PathTest2     int64  `protobuf:"varint,4,opt,name=path_test2,json=pathTest2,proto3" json:"-" uri:"path_test2"`
-		QueryTest1    string `protobuf:"bytes,5,opt,name=query_test1,json=queryTest1,proto3" json:"query_test1,omitempty"`
-		QueryTest2    *int64 `protobuf:"varint,6,opt,name=query_test2,json=queryTest2,proto3" json:"-" form:"query_test2,omitempty"`
-		unknownFields any    //nolint
-		sizeCache     any    //nolint
+		state         any      `protogen:"open.v1"` //nolint
+		FieldTest1    string   `protobuf:"bytes,1,opt,name=field_test1,json=fieldTest1,proto3" json:"field_test1,omitempty"`
+		FieldTest2    int64    `protobuf:"varint,2,opt,name=field_test2,json=fieldTest2,proto3" json:"field_test2,omitempty"`
+		PathTest1     string   `protobuf:"bytes,3,opt,name=path_test1,json=pathTest1,proto3" json:"path_test1,omitempty"`
+		PathTest2     int64    `protobuf:"varint,4,opt,name=path_test2,json=pathTest2,proto3" json:"-" uri:"path_test2"`
+		QueryTest1    string   `protobuf:"bytes,5,opt,name=query_test1,json=queryTest1,proto3" json:"query_test1,omitempty"`
+		QueryTest2    *int64   `protobuf:"varint,6,opt,name=query_test2,json=queryTest2,proto3" json:"-" form:"query_test2,omitempty"`
+		QueryArray    []string `protobuf:"bytes,7,rep,name=query_array,json=queryArray,proto3" json:"query_array,omitempty" form:"query_array,omitempty"`
+		unknownFields any      //nolint
+		sizeCache     any      //nolint
 	}
+
 	type Response struct {
-		FieldTest1 string `json:"field_test1,omitempty"`
-		FieldTest2 int64  `json:"field_test2,omitempty"`
-		PathTest1  string `json:"path_test1,omitempty"`
-		PathTest2  int64  `json:"path_test2,omitempty"`
-		QueryTest1 string `json:"query_test1,omitempty"`
-		QueryTest2 *int64 `json:"query_test2,omitempty"`
+		FieldTest1 string   `json:"field_test1,omitempty"`
+		FieldTest2 int64    `json:"field_test2,omitempty"`
+		PathTest1  string   `json:"path_test1,omitempty"`
+		PathTest2  int64    `json:"path_test2,omitempty"`
+		QueryTest1 string   `json:"query_test1,omitempty"`
+		QueryTest2 *int64   `json:"query_test2,omitempty"`
+		QueryArray []string `json:"query_array,omitempty"`
 	}
 
 	params := &Request{
@@ -50,7 +54,9 @@ func TestShouldBind(t *testing.T) {
 		PathTest2:  456,
 		QueryTest1: "query",
 		QueryTest2: ptr[int64](789),
+		QueryArray: []string{"value1", "value2"},
 	}
+
 	paramsRaw, err := json.Marshal(map[string]any{
 		"field_test1": params.FieldTest1,
 		"field_test2": params.FieldTest2,
@@ -58,7 +64,7 @@ func TestShouldBind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to marshal params: %v", err)
 	}
-	router.GET("/api/test/:path_test1/second/:path_test2", func(c *gin.Context) {
+	router.POST("/api/test/:path_test1/second/:path_test2", func(c *gin.Context) {
 		var input Request
 		if ShouldUniverseBind(c, &input, true, true, true) != nil {
 			c.AbortWithStatus(400)
@@ -76,8 +82,12 @@ func TestShouldBind(t *testing.T) {
 	query := url.Values{}
 	query.Add("query_test1", params.QueryTest1)
 	query.Add("query_test2", fmt.Sprintf("%d", *params.QueryTest2))
+	for _, v := range params.QueryArray {
+		query.Add("query_array", v)
+	}
+
 	uri := fmt.Sprintf("/api/test/%s/second/%d?%s", params.PathTest1, params.PathTest2, query.Encode())
-	req, err := http.NewRequest("GET", uri, bytes.NewReader(paramsRaw))
+	req, err := http.NewRequest("POST", uri, bytes.NewReader(paramsRaw))
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -94,6 +104,8 @@ func TestShouldBind(t *testing.T) {
 	assert.Equal(t, params.PathTest1, resp.PathTest1, "Expected PathTest1 to match")
 	assert.Equal(t, params.PathTest2, resp.PathTest2, "Expected PathTest2 to match")
 	assert.Equal(t, params.QueryTest1, resp.QueryTest1, "Expected QueryTest1 to match")
+	assert.Equal(t, params.QueryArray, resp.QueryArray, "Expected QueryArray to match")
+
 	if params.QueryTest2 != nil {
 		assert.Equal(t, *params.QueryTest2, *resp.QueryTest2, "Expected QueryTest2 to match")
 	} else {
@@ -110,6 +122,7 @@ func TestUniverseBinding_analyzeFields(t *testing.T) {
 		Inner
 		OuterField string `protobuf:"bytes,2,opt,name=outer_field,json=outerField,proto3" json:"outer_field,omitempty"`
 	}
+
 	var outer Outer
 	info := uriBinding.analyzeFields(reflect.TypeOf(outer))
 	assert.Equal(t, 2, len(info), "Expected 2 fields in the binding info")

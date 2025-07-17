@@ -21,7 +21,7 @@ var invalidTags = map[string]bool{
 	"-": true,
 }
 
-type ValueGetterFunc = func(ctx *gin.Context, name string) (string, bool)
+type ValueGetterFunc = func(ctx *gin.Context, name string) ([]string, bool)
 
 type TagNameGetter interface {
 	Get(f reflect.StructField) (string, bool)
@@ -165,14 +165,50 @@ func (u *UniverseBinding) recursiveAnalyze(typ reflect.Type, parentIndex []int) 
 	return fields
 }
 
-func (u *UniverseBinding) setFieldValue(fieldValue reflect.Value, val string) error {
+func (u *UniverseBinding) setFieldValue(fieldValue reflect.Value, vals []string) error {
+	if len(vals) == 0 {
+		return nil
+	}
+
 	kind := fieldValue.Kind()
 	if kind == reflect.Ptr {
 		if fieldValue.IsNil() {
 			newVal := reflect.New(fieldValue.Type().Elem())
 			fieldValue.Set(newVal)
 		}
-		return u.setFieldValue(fieldValue.Elem(), val)
+		return u.setFieldValue(fieldValue.Elem(), vals)
+	}
+
+	switch kind {
+	case reflect.Slice:
+		sliceType := fieldValue.Type()
+		newSlice := reflect.MakeSlice(sliceType, len(vals), len(vals))
+		for i, v := range vals {
+			if err := u.setPrimitiveFieldValue(newSlice.Index(i), v); err != nil {
+				return err
+			}
+		}
+		fieldValue.Set(newSlice)
+	case reflect.Array:
+		for i := 0; i < fieldValue.Len() && i < len(vals); i++ {
+			if err := u.setPrimitiveFieldValue(fieldValue.Index(i), vals[i]); err != nil {
+				return err
+			}
+		}
+	default:
+		return u.setPrimitiveFieldValue(fieldValue, vals[0])
+	}
+	return nil
+}
+
+func (u *UniverseBinding) setPrimitiveFieldValue(fieldValue reflect.Value, val string) error {
+	kind := fieldValue.Kind()
+	if kind == reflect.Ptr {
+		if fieldValue.IsNil() {
+			newVal := reflect.New(fieldValue.Type().Elem())
+			fieldValue.Set(newVal)
+		}
+		return u.setPrimitiveFieldValue(fieldValue.Elem(), val)
 	}
 	switch kind {
 	case reflect.String:
@@ -211,16 +247,20 @@ var (
 	uriBinding = &UniverseBinding{
 		tagName:   "uri",
 		tagGetter: multiTagNameFunc(simpleTagNameFunc("uri"), protobufTagNameFunc),
-		valueGetter: func(ctx *gin.Context, name string) (string, bool) {
-			return ctx.Params.Get(name)
+		valueGetter: func(ctx *gin.Context, name string) ([]string, bool) {
+			val, ok := ctx.Params.Get(name)
+			if !ok {
+				return nil, false
+			}
+			return []string{val}, true
 		},
 		fieldCache: make(map[reflect.Type][]*fieldInfo, 32),
 	}
 	queryBinding = &UniverseBinding{
 		tagName:   "form",
 		tagGetter: multiTagNameFunc(simpleTagNameFunc("form"), protobufTagNameFunc),
-		valueGetter: func(ctx *gin.Context, name string) (string, bool) {
-			return ctx.GetQuery(name)
+		valueGetter: func(ctx *gin.Context, name string) ([]string, bool) {
+			return ctx.GetQueryArray(name)
 		},
 		fieldCache: make(map[reflect.Type][]*fieldInfo, 32),
 	}

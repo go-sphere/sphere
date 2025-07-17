@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"testing"
 
 	sharedv1 "github.com/TBXark/sphere/layout/api/shared/v1"
@@ -27,11 +28,18 @@ func TestService_RunTest(t *testing.T) {
 		PathTest2:  200,
 		QueryTest1: "query1",
 		QueryTest2: 2000,
+		EnumTest1: []sharedv1.TestEnum{
+			sharedv1.TestEnum_TEST_ENUM_VALUE1,
+			sharedv1.TestEnum_TEST_ENUM_VALUE2,
+		},
 	}
 
 	query := url.Values{}
 	query.Add("query_test1", req.QueryTest1)
 	query.Add("query_test2", fmt.Sprintf("%d", req.QueryTest2))
+	for _, enum := range req.EnumTest1 {
+		query.Add("enum_test1", strconv.Itoa(int(enum)))
+	}
 
 	body, _ := json.Marshal(&req)
 
@@ -55,5 +63,6 @@ func TestService_RunTest(t *testing.T) {
 	assert.Equal(t, resp.Data.PathTest2, req.PathTest2)
 	assert.Equal(t, resp.Data.QueryTest1, req.QueryTest1)
 	assert.Equal(t, resp.Data.QueryTest2, req.QueryTest2)
+	assert.Equal(t, resp.Data.EnumTest1, req.EnumTest1)
 	assert.Equal(t, http.StatusOK, recorder.Code, "Expected status code 200, got %d", recorder.Code)
 }
