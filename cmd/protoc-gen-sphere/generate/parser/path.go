@@ -104,22 +104,14 @@ func GinURIParams(m *protogen.Method, route string) []URIParamsField {
 					Field:    field,
 				})
 			} else {
-				formName := parseFieldSphereTag(field, "uri", name)
-				if formName != "" {
-					fields = append(fields, URIParamsField{
-						Name:     formName,
-						Wildcard: wildcard,
-						Field:    field,
-					})
-				} else {
-					log.Warn("%s `%s`: %s field `%s` is not bound to URI, but it is used in route `%s`",
-						m.Parent.Location.SourceFile,
-						m.Parent.Desc.Name(),
-						m.Desc.Name(),
-						name,
-						route,
-					)
-				}
+				log.Error("Method `%s.%s` parameter `%s` is not bound to URI, but it is used in route `%s`. File: `%s`, Field: `%s`",
+					m.Parent.Desc.Name(),
+					m.Desc.Name(),
+					name,
+					route,
+					m.Parent.Location.SourceFile,
+					m.Input.Desc.Name(),
+				)
 			}
 		}
 	}

@@ -3,8 +3,6 @@ package tags
 import (
 	"fmt"
 	"regexp"
-
-	"github.com/TBXark/sphere/internal/tags"
 )
 
 var (
@@ -20,9 +18,9 @@ var omitJsonTagKey = map[string]bool{
 func injectTag(contents []byte, area textArea, removeTagComment, autoOmitJSON bool) []byte {
 	expr := make([]byte, area.End-area.Start)
 	copy(expr, contents[area.Start-1:area.End-1])
-	cti := tags.NewTagItems(area.CurrentTag)
-	protoName := tags.GetProtoTagName(cti)
-	iti := tags.NewSphereTagItems(area.InjectTag, protoName)
+	cti := NewTagItems(area.CurrentTag)
+	protoName := GetProtoTagName(cti)
+	iti := NewSphereTagItems(area.InjectTag, protoName)
 	if autoOmitJSON {
 		jsonIndex := -1
 		needOmit := false
@@ -34,7 +32,7 @@ func injectTag(contents []byte, area textArea, removeTagComment, autoOmitJSON bo
 			}
 		}
 		if jsonIndex == -1 && needOmit {
-			iti = append(iti, tags.Item{
+			iti = append(iti, Item{
 				Key:   "json",
 				Value: `"-"`,
 			})

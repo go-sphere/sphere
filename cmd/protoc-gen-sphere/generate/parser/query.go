@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"net/http"
-
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/log"
 	bindingpb "github.com/TBXark/sphere/proto/binding/sphere/binding"
 	"google.golang.org/protobuf/compiler/protogen"
@@ -30,18 +28,13 @@ func GinQueryForm(m *protogen.Method, method string, pathVars []URIParamsField) 
 				Field: field,
 			})
 		} else {
-			formName := parseFieldSphereTag(field, "form", name)
-			if formName != "" {
-				fields = append(fields, QueryFormField{
-					Name:  formName,
-					Field: field,
-				})
-			} else if method == http.MethodGet || method == http.MethodDelete {
-				log.Warn("%s `%s`: %s field `%s` is not bound to query",
-					m.Parent.Location.SourceFile,
+			if _, ok := NoBodyMethods[method]; ok {
+				log.Error("Method `%s.%s` parameter `%s` is not bound to either query or uri. File: `%s`, Field: `%s`",
 					m.Parent.Desc.Name(),
 					m.Desc.Name(),
 					name,
+					m.Parent.Location.SourceFile,
+					m.Input.Desc.Name(),
 				)
 			}
 		}

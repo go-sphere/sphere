@@ -183,19 +183,18 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 	}
 	if _, ok := parser.NoBodyMethods[res.Method]; ok {
 		if rule.Body != "" {
-			log.Warn("%s `%s`: %s body should not be declared",
-				m.Parent.Location.SourceFile,
+			log.Warn("Method `%s.%s` body should not be declared. File: `%s`",
 				m.Parent.Desc.Name(),
 				m.Desc.Name(),
+				m.Parent.Location.SourceFile,
 			)
 		}
 	} else {
 		if rule.Body == "" {
-			log.Warn("%s `%s`: %s does not declare a body, it is recommended to declare a body for %s methods.",
-				m.Parent.Location.SourceFile,
+			log.Warn("Method `%s.%s` body is not declared. File: `%s`",
 				m.Parent.Desc.Name(),
 				m.Desc.Name(),
-				res.Method,
+				m.Parent.Location.SourceFile,
 			)
 		}
 	}
@@ -205,11 +204,12 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, rule *parser.HttpRule, conf *GenConfig) (*template.MethodDesc, error) {
 	route, err := parser.GinRoute(rule.Path)
 	if err != nil {
-		log.Warn("%s `%s`: %s route parse error: %v",
-			m.Parent.Location.SourceFile,
+		log.Error("Method `%s.%s` route `%s` parse error: %v. File: `%s`",
 			m.Parent.Desc.Name(),
 			m.Desc.Name(),
+			rule.Path,
 			err,
+			m.Parent.Location.SourceFile,
 		)
 		return nil, err
 	}
