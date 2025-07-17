@@ -1,21 +1,18 @@
 package http
 
 import (
-	"fmt"
-	"net/http"
-	"slices"
-	"strings"
-
 	validatepb "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
+	"fmt"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/log"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/parser"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/template"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/utils"
-	"github.com/TBXark/sphere/internal/protogo"
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
+	"net/http"
+	"slices"
 )
 
 const (
@@ -68,41 +65,29 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 }
 
 func generateGoImport(file *protogen.File, g *protogen.GeneratedFile, conf *Config, genConf *GenConfig) {
-	idents := []*protogo.GoIdent{
-		conf.RouterType,
-		conf.ContextType,
-		conf.ErrorRespType,
-		conf.DataRespType,
-		conf.ServerHandlerFunc,
-		conf.ParseJsonFunc,
-		conf.ParseUriFunc,
-		conf.ParseFormFunc,
-	}
-	genericGen := func(i int) string {
-		if i == 0 {
-			return ""
+	didImport := make(map[protogen.GoImportPath]bool)
+	for _, ident := range []protogen.GoIdent{conf.RouterType, conf.ContextType, conf.ErrorRespType} {
+		if !didImport[ident.GoImportPath] {
+			didImport[ident.GoImportPath] = true
+			g.P("var _ = new(", ident, ")")
 		}
-		var sb strings.Builder
-		sb.WriteString("[")
-		for j := 0; j < i; j++ {
-			if j > 0 {
-				sb.WriteString(",")
-			}
-			sb.WriteString("string")
-		}
-		sb.WriteString("]")
-		return sb.String()
 	}
-	imported := make(map[string]struct{}, len(idents))
-	for _, i := range idents {
-		_, exist := imported[string(i.Path)]
-		if !exist {
-			if i.IsFunc {
-				g.P("var _ = ", i.GoIdent())
-			} else {
-				g.P("var _ = new(", i.GoIdent(), genericGen(i.GenericCount), ")")
-			}
-			imported[string(i.Path)] = struct{}{}
+	for _, ident := range []protogen.GoIdent{conf.ParseFormFunc, conf.ParseUriFunc, conf.ParseJsonFunc} {
+		if !didImport[ident.GoImportPath] {
+			didImport[ident.GoImportPath] = true
+			g.P("var _ = ", ident)
+		}
+	}
+	for _, ident := range []protogen.GoIdent{conf.DataRespType} {
+		if !didImport[ident.GoImportPath] {
+			didImport[ident.GoImportPath] = true
+			g.P("var _ = new(", ident, "[int])")
+		}
+	}
+	for _, ident := range []protogen.GoIdent{conf.ServerHandlerFunc} {
+		if !didImport[ident.GoImportPath] {
+			didImport[ident.GoImportPath] = true
+			g.P("var _ = ", ident, "[int]")
 		}
 	}
 LOOP:

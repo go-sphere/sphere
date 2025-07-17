@@ -1,7 +1,5 @@
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250625184727-c923a0c2a132.1 h1:6tCo3lsKNLqUjRPhyc8JuYWYUiQkulufxSDOfG1zgWQ=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250625184727-c923a0c2a132.1/go.mod h1:avRlCjnFzl98VPaeCtJ24RrV/wwHFzB8sWXhj26+n/U=
-github.com/TBXark/sphere/internal/protogo v0.0.0-20250717023127-c87329e19a4f h1:9D1qrQT/px31ZByFbv7CCFOZjSeP28rN3Nsccp2LKQw=
-github.com/TBXark/sphere/internal/protogo v0.0.0-20250717023127-c87329e19a4f/go.mod h1:YXf/rwvoNOzQqCA16qkulYxstGc+PSo8vGXnIZhqY9o=
 github.com/TBXark/sphere/internal/tags v0.0.0-20250717023127-c87329e19a4f h1:eQMwwEY3GSP0pldei54m0VvA7tHwplWuj5j+FdqJKNE=
 github.com/TBXark/sphere/internal/tags v0.0.0-20250717023127-c87329e19a4f/go.mod h1:+Co4H83kvPLo5JB9kRqV6lXQ1BiqvLo+h97gOLagIYg=
 github.com/TBXark/sphere/proto/binding v0.0.0-20250717023127-c87329e19a4f h1:nzbw5fUQTPjcu1VdPt1Zk9uFEopuKSBbD8YitOmLGKQ=
