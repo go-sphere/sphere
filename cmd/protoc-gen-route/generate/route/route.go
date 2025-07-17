@@ -51,9 +51,7 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	if len(file.Services) == 0 {
 		return
 	}
-	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
-	generateGoImports(g, conf)
-	g.P()
+	generateGoImport(g, conf)
 	packageDesc := &template.PackageDesc{
 		RequestType:  g.QualifiedGoIdent(conf.RequestType),
 		ResponseType: g.QualifiedGoIdent(conf.ResponseType),
@@ -67,8 +65,9 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	}
 }
 
-func generateGoImports(g *protogen.GeneratedFile, conf *Config) {
+func generateGoImport(g *protogen.GeneratedFile, conf *Config) {
 	didImport := make(map[protogen.GoImportPath]bool)
+	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
 	for _, ident := range []protogen.GoIdent{conf.RequestType, conf.ResponseType, conf.ExtraType} {
 		if !didImport[ident.GoImportPath] {
 			didImport[ident.GoImportPath] = true
@@ -81,6 +80,7 @@ func generateGoImports(g *protogen.GeneratedFile, conf *Config) {
 			g.P("var _ = ", ident)
 		}
 	}
+	g.P()
 }
 
 func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, service *protogen.Service, conf *Config, packageDesc *template.PackageDesc) {

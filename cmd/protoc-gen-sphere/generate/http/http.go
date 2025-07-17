@@ -21,7 +21,7 @@ const (
 )
 
 const (
-	ctxPackage      = protogen.GoImportPath("context")
+	contextPackage  = protogen.GoImportPath("context")
 	validatePackage = protogen.GoImportPath("buf.build/go/protovalidate")
 )
 
@@ -56,10 +56,8 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	if len(file.Services) == 0 {
 		return
 	}
-	g.P("var _ = new(", ctxPackage.Ident("Context"), ")")
 	genConf := NewGenConf(g, conf)
 	generateGoImport(file, g, conf, genConf)
-	g.P()
 	for _, service := range file.Services {
 		generateService(gen, file, g, service, genConf)
 	}
@@ -67,6 +65,7 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 
 func generateGoImport(file *protogen.File, g *protogen.GeneratedFile, conf *Config, genConf *GenConfig) {
 	didImport := make(map[protogen.GoImportPath]bool)
+	g.P("var _ = new(", contextPackage.Ident("Context"), ")")
 	for _, ident := range []protogen.GoIdent{conf.RouterType, conf.ContextType, conf.ErrorRespType} {
 		if !didImport[ident.GoImportPath] {
 			didImport[ident.GoImportPath] = true
@@ -95,12 +94,14 @@ LOOP:
 	for _, service := range file.Services {
 		for _, method := range service.Methods {
 			if hasValidateOptionsInMessage(method.Input) || slices.ContainsFunc(method.Input.Fields, hasValidateOptions) {
-				g.P("var _ = new(", validatePackage.Ident("Validator"), ")")
-				genConf.packageDesc.ValidateFunc = g.QualifiedGoIdent(validatePackage.Ident("Validate"))
+				ident := validatePackage.Ident("Validate")
+				g.P("var _ = ", ident)
+				genConf.packageDesc.ValidateFunc = g.QualifiedGoIdent(ident)
 				break LOOP
 			}
 		}
 	}
+	g.P()
 }
 
 func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, service *protogen.Service, conf *GenConfig) {
