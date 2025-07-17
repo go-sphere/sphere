@@ -16,7 +16,7 @@ func RegisterPureRute(route gin.IRouter) {
 	}))
 }
 
-func NewPureAdminCookieAuthMiddleware[T authorizer.UID](authParser authorizer.Parser[T, jwtauth.RBACClaims[T]]) gin.HandlerFunc {
+func NewPureAdminCookieAuthMiddleware[T authorizer.UID](authParser authorizer.Parser[T, *jwtauth.RBACClaims[T]]) gin.HandlerFunc {
 	return auth.NewCookieAuthMiddleware("authorized-token", func(raw string) (string, error) {
 		var token struct {
 			AccessToken string `json:"accessToken"`

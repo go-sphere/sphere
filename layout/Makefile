@@ -148,10 +148,10 @@ lint: ## Run linter
 	$(BUF_CLI) lint
 
 fmt: ## Run formatter and fix issues
-	$(GOLANG_CI_LINT) run --fix
-	$(BUF_CLI) format -w
 	$(GO) mod tidy
 	$(GO) fmt ./...
+	$(BUF_CLI) format -w
+	$(GOLANG_CI_LINT) run --fix
 
 # ---------- Install Tools ----------
 install: ## Install dependencies tools
