@@ -97,7 +97,7 @@ HTTP method.
 
 * **POST / PUT / PATCH**:
     * By default, all fields in the request message not bound to the URL path are expected in the JSON request body.
-  * To bind a field to a URL query parameter, you can use field binding annotations.
+  * To bind a field to a URL query parameter, you can use field-binding annotations.
 
 #### Field Binding Options
 
