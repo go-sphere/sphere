@@ -13,22 +13,31 @@ type Config struct {
 	Token string `json:"token" yaml:"token"`
 }
 
-type Options struct {
-	botOptions []bot.Option
-
+type options struct {
+	botOptions                 []bot.Option
 	embedDefaultAuthMiddleware bool
 }
 
-type Option = func(*Options)
+type Option = func(*options)
+
+func newOptions(opts ...Option) *options {
+	opt := &options{
+		embedDefaultAuthMiddleware: true,
+	}
+	for _, o := range opts {
+		o(opt)
+	}
+	return opt
+}
 
 func WithoutEmbedDefaultAuthMiddleware() Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.embedDefaultAuthMiddleware = false
 	}
 }
 
 func WithBotOptions(opt ...bot.Option) Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.botOptions = append(o.botOptions, opt...)
 	}
 }
@@ -45,10 +54,7 @@ type Bot struct {
 }
 
 func NewApp(config *Config, opts ...Option) (*Bot, error) {
-	opt := &Options{embedDefaultAuthMiddleware: true}
-	for _, o := range opts {
-		o(opt)
-	}
+	opt := newOptions(opts...)
 	app := &Bot{
 		config: config,
 		noRouteHandler: func(ctx context.Context, bot *bot.Bot, update *Update) {

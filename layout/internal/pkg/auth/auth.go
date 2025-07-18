@@ -49,7 +49,7 @@ const (
 	LoginIfExist
 )
 
-type Options struct {
+type options struct {
 	mode                 Mode
 	throwOnNotFound      bool // 是否在登录时抛出用户不存在的错误
 	ignorePlatformIDCase bool // 是否忽略平台ID的大小写
@@ -59,45 +59,56 @@ type Options struct {
 	onCreatePlatform     func(platform *ent.UserPlatformCreate) *ent.UserPlatformCreate
 }
 
-type Option func(*Options)
+type Option func(*options)
+
+func newOptions(opts ...Option) *options {
+	defaults := &options{
+		mode:            CreateIfNotExist,
+		throwOnNotFound: false,
+	}
+	for _, opt := range opts {
+		opt(defaults)
+	}
+	return defaults
+}
 
 func WithAuthMode(mode Mode) Option {
-	return func(opts *Options) {
+	return func(opts *options) {
 		opts.mode = mode
 	}
 }
 
 func IgnorePlatformIDCase() Option {
-	return func(opts *Options) {
+	return func(opts *options) {
 		opts.ignorePlatformIDCase = true
 	}
 }
 
 func WithOnCreateUser(f func(user *ent.UserCreate) *ent.UserCreate) Option {
-	return func(opts *Options) {
+	return func(opts *options) {
 		opts.onCreateUser = f
 	}
 }
 
 func WithOnCreatePlatform(f func(platform *ent.UserPlatformCreate) *ent.UserPlatformCreate) Option {
-	return func(opts *Options) {
+	return func(opts *options) {
 		opts.onCreatePlatform = f
 	}
 }
 
 func WithBeforeCreate(f BeforeCreateFunc) Option {
-	return func(opts *Options) {
+	return func(opts *options) {
 		opts.beforeCreate = f
 	}
 }
 
 func WithAfterCreate(f AfterCreateFunc) Option {
-	return func(opts *Options) {
+	return func(opts *options) {
 		opts.afterCreate = f
 	}
 }
 
-func login(ctx context.Context, client *ent.Client, platformID, platformType string, opt *Options) (*Response, error) {
+func login(ctx context.Context, client *ent.Client, platformID, platformType string, opt *options) (*Response, error) {
 	userPlatPred := []predicate.UserPlatform{
 		userplatform.PlatformEQ(platformType),
 	}
@@ -125,7 +136,7 @@ func login(ctx context.Context, client *ent.Client, platformID, platformType str
 	}, nil
 }
 
-func create(ctx context.Context, client *ent.Client, platformID, platformType string, opt *Options) (*Response, error) {
+func create(ctx context.Context, client *ent.Client, platformID, platformType string, opt *options) (*Response, error) {
 	if opt.beforeCreate != nil {
 		if bErr := opt.beforeCreate(ctx, client); bErr != nil {
 			return nil, bErr
@@ -164,7 +175,7 @@ func create(ctx context.Context, client *ent.Client, platformID, platformType st
 }
 
 func Auth(ctx context.Context, db *dao.Dao, platformID, platformType string, options ...Option) (*Response, error) {
-	opt := &Options{}
+	opt := newOptions(options...)
 	for _, o := range options {
 		o(opt)
 	}

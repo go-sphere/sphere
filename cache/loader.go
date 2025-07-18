@@ -15,43 +15,43 @@ func IsZero[T any](t T) bool {
 	return reflect.DeepEqual(t, zero)
 }
 
-type Options struct {
+type options struct {
 	hasTTL        bool
 	expiration    time.Duration
 	singleflight  *singleflight.Group
 	ttlCalculator func(value any) (bool, time.Duration)
 }
 
-func newOptions(options ...Option) *Options {
-	opt := &Options{
+func newOptions(opts ...Option) *options {
+	opt := &options{
 		hasTTL:       false,
 		expiration:   -1,
 		singleflight: nil,
 	}
-	for _, option := range options {
+	for _, option := range opts {
 		option(opt)
 	}
 	return opt
 }
 
-type Option func(o *Options)
+type Option func(o *options)
 
 func WithExpiration(expiration time.Duration) Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.hasTTL = true
 		o.expiration = expiration
 	}
 }
 
 func WithNeverExpire() Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.hasTTL = false
 		o.expiration = -1
 	}
 }
 
 func WithSingleflight(single *singleflight.Group) Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.singleflight = single
 	}
 }
@@ -60,7 +60,7 @@ func WithSingleflight(single *singleflight.Group) Option {
 // The calculator function should return a boolean indicating whether the TTL is set,
 // and the duration for which the value should be cached.
 func WithDynamicTTL[T any](calculator func(value T) (bool, time.Duration)) Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.ttlCalculator = func(value any) (bool, time.Duration) {
 			return calculator(value.(T))
 		}

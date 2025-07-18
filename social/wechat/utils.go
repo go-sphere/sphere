@@ -2,38 +2,38 @@ package wechat
 
 import "unicode/utf8"
 
-type RequestOptions struct {
+type requestOptions struct {
 	retryable         bool
 	reloadAccessToken bool
 }
 
-func newRequestOptions(options ...RequestOption) *RequestOptions {
-	opts := &RequestOptions{
+func newRequestOptions(opts ...RequestOption) *requestOptions {
+	defaults := &requestOptions{
 		retryable:         true,
 		reloadAccessToken: false,
 	}
-	for _, opt := range options {
-		opt(opts)
+	for _, opt := range opts {
+		opt(defaults)
 	}
-	return opts
+	return defaults
 }
 
-type RequestOption = func(*RequestOptions)
+type RequestOption = func(*requestOptions)
 
 func WithRetryable(retryable bool) RequestOption {
-	return func(opts *RequestOptions) {
+	return func(opts *requestOptions) {
 		opts.retryable = retryable
 	}
 }
 
 func WithReloadAccessToken(reload bool) RequestOption {
-	return func(opts *RequestOptions) {
+	return func(opts *requestOptions) {
 		opts.reloadAccessToken = reload
 	}
 }
 
-func WithClone(opts *RequestOptions) RequestOption {
-	return func(o *RequestOptions) {
+func WithClone(opts *requestOptions) RequestOption {
+	return func(o *requestOptions) {
 		o.retryable = opts.retryable
 		o.reloadAccessToken = opts.reloadAccessToken
 	}

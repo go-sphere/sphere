@@ -14,7 +14,7 @@ import (
 
 type Hook = func(context.Context) error
 
-type Options struct {
+type options struct {
 	shutdownTimeout time.Duration
 	beforeStart     []Hook
 	beforeStop      []Hook
@@ -22,8 +22,8 @@ type Options struct {
 	signals         []os.Signal
 }
 
-func newOptions(opts ...Option) *Options {
-	opt := &Options{
+func newOptions(opts ...Option) *options {
+	opt := &options{
 		shutdownTimeout: 30 * time.Second,
 		signals:         []os.Signal{syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT},
 	}
@@ -33,40 +33,40 @@ func newOptions(opts ...Option) *Options {
 	return opt
 }
 
-type Option func(*Options)
+type Option func(*options)
 
 func WithShutdownTimeout(d time.Duration) Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.shutdownTimeout = d
 	}
 }
 
 func WithShutdownSignals(sigs ...os.Signal) Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.signals = sigs
 	}
 }
 
 func AddBeforeStart(f Hook) Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.beforeStart = append(o.beforeStart, f)
 	}
 }
 
 func AddBeforeStop(f Hook) Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.beforeStop = append(o.beforeStop, f)
 	}
 }
 
 func AddAfterStop(f Hook) Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.afterStop = append(o.afterStop, f)
 	}
 }
 
 func WithLoggerInit(ver string, conf *log.Options) Option {
-	return func(o *Options) {
+	return func(o *options) {
 		o.beforeStart = append(o.beforeStart, func(context.Context) error {
 			log.Init(conf, logfields.String("version", ver))
 			return nil

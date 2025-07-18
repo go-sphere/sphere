@@ -12,7 +12,7 @@ import (
 	"github.com/TBXark/sphere/log/logfields"
 )
 
-func run(ctx context.Context, t task.Task, options *Options) error {
+func run(ctx context.Context, t task.Task, options *options) error {
 	// Execute before start hooks
 	if err := runHooks(ctx, options.beforeStart, "beforeStart"); err != nil {
 		return fmt.Errorf("before start hooks failed: %w", err)

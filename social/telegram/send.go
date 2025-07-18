@@ -63,27 +63,38 @@ func SendErrorMessage(ctx context.Context, b *bot.Bot, update *Update, err error
 	}
 }
 
-type BroadcastOptions struct {
+type broadcastOptions struct {
 	progress            func(int, int, int)
 	terminalOnSendError bool
 }
 
-type BroadcastOption func(*BroadcastOptions)
+type BroadcastOption func(*broadcastOptions)
+
+func newBroadcastOptions(opts ...BroadcastOption) *broadcastOptions {
+	defaults := &broadcastOptions{
+		progress:            nil,
+		terminalOnSendError: false,
+	}
+	for _, opt := range opts {
+		opt(defaults)
+	}
+	return defaults
+}
 
 func WithProgress(progress func(int, int, int)) BroadcastOption {
-	return func(o *BroadcastOptions) {
+	return func(o *broadcastOptions) {
 		o.progress = progress
 	}
 }
 
 func WithTerminalOnSendError(terminalOnSendError bool) BroadcastOption {
-	return func(o *BroadcastOptions) {
+	return func(o *broadcastOptions) {
 		o.terminalOnSendError = terminalOnSendError
 	}
 }
 
 func BroadcastMessage[T any](ctx context.Context, b *bot.Bot, data []T, rateLimiter *rate.Limiter, send func(context.Context, *bot.Bot, T) error, options ...BroadcastOption) error {
-	opts := &BroadcastOptions{}
+	opts := &broadcastOptions{}
 	for _, opt := range options {
 		opt(opts)
 	}

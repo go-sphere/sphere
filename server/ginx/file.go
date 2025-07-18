@@ -18,15 +18,15 @@ type WithFormOptions struct {
 type WithFormOption func(*WithFormOptions)
 
 func newWithFormOptions(opts ...WithFormOption) *WithFormOptions {
-	options := &WithFormOptions{
+	defaults := &WithFormOptions{
 		maxSize:         10 * 1024 * 1024, // 10MB
 		fileFormKey:     "file",
 		allowExtensions: nil,
 	}
 	for _, opt := range opts {
-		opt(options)
+		opt(defaults)
 	}
-	return options
+	return defaults
 }
 
 func WithFormMaxSize(maxSize int64) WithFormOption {

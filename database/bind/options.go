@@ -8,11 +8,11 @@ type Options struct {
 }
 
 func NewBindOptions(options ...Option) *Options {
-	o := &Options{}
+	defaults := &Options{}
 	for _, opt := range options {
-		opt(o)
+		opt(defaults)
 	}
-	return o
+	return defaults
 }
 
 type Option func(*Options)

@@ -43,16 +43,16 @@ func WithTxRollbackHook(hook ent.RollbackHook) Option {
 }
 
 func newTxOptions(opts ...Option) *txOptions {
-	txOpts := &txOptions{
+	defaults := &txOptions{
 		Isolation:    sql.LevelDefault,
 		ReadOnly:     false,
 		CommitHook:   nil,
 		RollbackHook: nil,
 	}
 	for _, opt := range opts {
-		opt(txOpts)
+		opt(defaults)
 	}
-	return txOpts
+	return defaults
 }
 
 func WithTx[T any](ctx context.Context, db *ent.Client, exe func(ctx context.Context, tx *ent.Client) (*T, error), opts ...Option) (*T, error) {
