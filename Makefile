@@ -1,4 +1,14 @@
 GOLANG_CI_LINT = golangci-lint
+MODULES := . \
+	layout \
+	cmd/protoc-gen-route \
+	cmd/protoc-gen-sphere \
+	cmd/protoc-gen-sphere-binding \
+	cmd/protoc-gen-sphere-errors \
+	cmd/sphere-cli \
+	proto/binding \
+	proto/errors \
+	proto/options
 
 .PHONY: install
 install: ## Install all dependencies
@@ -9,38 +19,28 @@ install: ## Install all dependencies
 	 cd cmd/sphere-cli && go mod tidy && go install .
 
 define fmt_mod
-	cd $1 && go mod tidy && go fmt ./... && go test ./... && $(GOLANG_CI_LINT) fmt && $(GOLANG_CI_LINT) run --fix
+	cd $1 && go fmt ./... && $(GOLANG_CI_LINT) fmt && $(GOLANG_CI_LINT) run --fix && cd -
 endef
 
 define upgrade_mod
-	cd $1 && go mod tidy && go get -u ./... && go test ./... && $(GOLANG_CI_LINT) run --fix
+	cd $1 && go get -u ./... && go mod tidy && cd -
+endef
+
+define test_mod
+	cd $1 && go test -v ./... && cd -
 endef
 
 .PHONY: fmt
 fmt: ## Format code
-	$(call fmt_mod,.)
-	$(call fmt_mod,layout)
-	$(call fmt_mod,cmd/protoc-gen-route)
-	$(call fmt_mod,cmd/protoc-gen-sphere)
-	$(call fmt_mod,cmd/protoc-gen-sphere-binding)
-	$(call fmt_mod,cmd/protoc-gen-sphere-errors)
-	$(call fmt_mod,cmd/sphere-cli)
-	$(call fmt_mod,proto/binding)
-	$(call fmt_mod,proto/errors)
-	$(call fmt_mod,proto/options)
+	$(foreach mod,$(MODULES),$(call fmt_mod,$(mod)) && ) true
 
 .PHONY: upgrade
 upgrade: ## Upgrade dependencies
-	$(call upgrade_mod,.)
-	$(call upgrade_mod,layout)
-	$(call upgrade_mod,cmd/protoc-gen-route)
-	$(call upgrade_mod,cmd/protoc-gen-sphere)
-	$(call upgrade_mod,cmd/protoc-gen-sphere-binding)
-	$(call upgrade_mod,cmd/protoc-gen-sphere-errors)
-	$(call upgrade_mod,cmd/sphere-cli)
-	$(call upgrade_mod,proto/binding)
-	$(call upgrade_mod,proto/errors)
-	$(call upgrade_mod,proto/options)
+	$(foreach mod,$(MODULES),$(call upgrade_mod,$(mod)) && ) true
+
+.PHONY: test
+test: ## Run tests
+	$(foreach mod,$(MODULES),$(call test_mod,$(mod)) && ) true
 
 .PHONY: cli/service/test
 cli/service/test: ## Test sphere-cli service generation

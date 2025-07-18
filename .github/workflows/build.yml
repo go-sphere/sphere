@@ -18,6 +18,6 @@ jobs:
       with:
         go-version: '>=1.24'
     - name: Build
-      run: make install && cd layout && IGNORE_INSTALL_SPHERE_TOOLS=1 make init && make build
+      run: make install && cd layout && IGNORE_INSTALL_SPHERE_TOOLS=1 make init && make build && cd -
     - name: Test
-      run: go test -v ./...
+      run: make test
