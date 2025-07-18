@@ -10,7 +10,7 @@ import (
 	"github.com/TBXark/sphere/cache/mcache"
 	"github.com/TBXark/sphere/cache/memory"
 	"github.com/TBXark/sphere/cache/redis"
-	redisConn "github.com/TBXark/sphere/server/conn/redis"
+	redisConn "github.com/TBXark/sphere/infra/redis"
 )
 
 func testCache(ctx context.Context, t *testing.T, byteCache cache.ByteCache) {

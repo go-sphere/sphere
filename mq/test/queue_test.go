@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/TBXark/sphere/infra/redis"
 	"github.com/TBXark/sphere/mq"
 	"github.com/TBXark/sphere/mq/memory"
 	redismq "github.com/TBXark/sphere/mq/redis"
-	"github.com/TBXark/sphere/server/conn/redis"
 )
 
 func testQueue(t *testing.T, queue mq.Queue[int]) {

@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/TBXark/sphere/server/ginx"
-	"github.com/TBXark/sphere/server/route/pprof"
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,7 +37,7 @@ func (w *Web) Start(ctx context.Context) error {
 	}
 
 	engine := gin.Default()
-	pprof.SetupPProf(engine)
+	SetupPProf(engine)
 
 	w.server = &http.Server{
 		Addr:    w.config.HTTP.Address,

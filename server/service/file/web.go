@@ -6,7 +6,7 @@ import (
 
 	"github.com/TBXark/sphere/cache/memory"
 	"github.com/TBXark/sphere/server/ginx"
-	"github.com/TBXark/sphere/server/route/cors"
+	"github.com/TBXark/sphere/server/middleware/cors"
 	"github.com/TBXark/sphere/storage/fileserver"
 	"github.com/TBXark/sphere/storage/local"
 	"github.com/gin-gonic/gin"

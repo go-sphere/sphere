@@ -1,4 +1,4 @@
-package pprof
+package debug
 
 import (
 	"github.com/gin-contrib/pprof"

@@ -15,10 +15,10 @@ import (
 	"github.com/TBXark/sphere/server/auth/jwtauth"
 	"github.com/TBXark/sphere/server/ginx"
 	"github.com/TBXark/sphere/server/middleware/auth"
+	"github.com/TBXark/sphere/server/middleware/cors"
 	"github.com/TBXark/sphere/server/middleware/logger"
 	"github.com/TBXark/sphere/server/middleware/ratelimiter"
 	"github.com/TBXark/sphere/server/middleware/selector"
-	"github.com/TBXark/sphere/server/route/cors"
 	"github.com/TBXark/sphere/storage"
 	"github.com/gin-gonic/gin"
 )

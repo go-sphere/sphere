@@ -12,8 +12,7 @@ import (
 	"strings"
 
 	"github.com/TBXark/sphere/server/ginx"
-	"github.com/TBXark/sphere/server/route/cors"
-	"github.com/TBXark/sphere/server/route/docs"
+	"github.com/TBXark/sphere/server/middleware/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/swaggo/swag"
 )
@@ -83,7 +82,7 @@ func setup(spec *swag.Spec, router gin.IRouter, target string) error {
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
-	docs.Setup(route.Group("/doc"), spec)
+	Setup(route.Group("/doc"), spec)
 	route.Any("/api/*path", func(c *gin.Context) {
 		c.Request.URL.Path = c.Param("path")
 		proxy.ServeHTTP(c.Writer, c.Request)

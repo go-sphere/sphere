@@ -5,10 +5,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/TBXark/sphere/infra/redis"
 	"github.com/TBXark/sphere/mq"
 	"github.com/TBXark/sphere/mq/memory"
 	redismq "github.com/TBXark/sphere/mq/redis"
-	"github.com/TBXark/sphere/server/conn/redis"
 )
 
 func testPubSub(t *testing.T, pub mq.PubSub[int]) {
