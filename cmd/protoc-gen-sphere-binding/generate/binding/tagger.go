@@ -15,15 +15,15 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func GenerateFile(gen *protogen.Plugin, file *protogen.File, out string) error {
-	err := generateFile(gen, file, out)
+func GenerateFile(file *protogen.File, out string) error {
+	err := generateFile(file, out)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func generateFile(gen *protogen.Plugin, file *protogen.File, out string) error {
+func generateFile(file *protogen.File, out string) error {
 	tags := extractFile(file)
 	if len(tags) == 0 {
 		return nil

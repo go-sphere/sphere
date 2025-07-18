@@ -7,14 +7,14 @@ toolchain go1.24.5
 replace github.com/TBXark/sphere => ../
 
 require (
-	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250625184727-c923a0c2a132.1
-	buf.build/go/protovalidate v0.13.1
+	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250717185734-6c6e0d3c608e.1
+	buf.build/go/protovalidate v0.14.0
 	entgo.io/ent v0.14.4
 	github.com/TBXark/confstore v0.0.5
-	github.com/TBXark/sphere v0.0.0-20250717091253-cbd097d15520
-	github.com/TBXark/sphere/proto/binding v0.0.0-20250717091253-cbd097d15520
-	github.com/TBXark/sphere/proto/errors v0.0.0-20250717091253-cbd097d15520
-	github.com/TBXark/sphere/proto/options v0.0.0-20250717091253-cbd097d15520
+	github.com/TBXark/sphere v0.0.0-20250718012650-d4eea5713a8f
+	github.com/TBXark/sphere/proto/binding v0.0.0-20250718012650-d4eea5713a8f
+	github.com/TBXark/sphere/proto/errors v0.0.0-20250718012650-d4eea5713a8f
+	github.com/TBXark/sphere/proto/options v0.0.0-20250718012650-d4eea5713a8f
 	github.com/alitto/pond/v2 v2.5.0
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.10.1
@@ -94,7 +94,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/arch v0.19.0 // indirect
 	golang.org/x/crypto v0.40.0 // indirect
-	golang.org/x/exp v0.0.0-20250711185948-6ae5c78190dc // indirect
+	golang.org/x/exp v0.0.0-20250717185816-542afb5b7346 // indirect
 	golang.org/x/mod v0.26.0 // indirect
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect

@@ -29,7 +29,7 @@ func main() {
 			if !f.Generate {
 				continue
 			}
-			err := binding.GenerateFile(gen, f, *out)
+			err := binding.GenerateFile(f, *out)
 			if err != nil {
 				return err
 			}
