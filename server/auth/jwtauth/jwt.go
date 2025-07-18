@@ -34,7 +34,7 @@ func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims *T) (string, erro
 
 func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (*T, error) {
 	claims := new(T)
-	// magic, if you parse *claims, it will panic "token is malformed: could not JSON decode claim: json: cannot unmarshal object into Go value of type jwt.Claims"
+	// magically, if you parse *claims, it will panic "token is malformed: could not JSON decode claim: json: cannot unmarshal object into Go value of type jwt.Claims"
 	jwtClaims, ok := any(claims).(jwt.Claims)
 	if !ok {
 		return nil, fmt.Errorf("claims must be jwt.Claims")
