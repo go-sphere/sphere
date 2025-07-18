@@ -3,31 +3,28 @@ package ginx
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
-
-	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 )
 
 func ListenAndAutoShutdown(ctx context.Context, server *http.Server, closeTimeout time.Duration) error {
 	errChan := make(chan error, 1)
 	go func() {
+		defer close(errChan)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errChan <- fmt.Errorf("server listen error: %w", err)
+			errChan <- err
 		}
 	}()
 	select {
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), closeTimeout)
 		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			log.Errorw("graceful shutdown failed", logfields.Error(err))
-			return fmt.Errorf("server shutdown error: %w", err)
+		shutdownErr := server.Shutdown(shutdownCtx)
+		listenErr := <-errChan
+		if listenErr != nil {
+			return listenErr
 		}
-		log.Info("server shutdown gracefully")
-		return nil
+		return shutdownErr
 	case err := <-errChan:
 		return err
 	}
