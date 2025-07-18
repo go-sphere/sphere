@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/TBXark/sphere/server/ginx"
+	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,4 +49,8 @@ func (w *Web) Start(ctx context.Context) error {
 
 func (w *Web) Stop(ctx context.Context) error {
 	return ginx.Close(ctx, w.server)
+}
+
+func SetupPProf(route gin.IRouter, prefixOptions ...string) {
+	pprof.Register(route, prefixOptions...)
 }
