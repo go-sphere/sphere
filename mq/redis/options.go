@@ -12,6 +12,16 @@ type options struct {
 	codec  codec.Codec
 }
 
+func newOptions(opt ...Option) *options {
+	opts := &options{
+		codec: codec.JsonCodec(),
+	}
+	for _, o := range opt {
+		o(opts)
+	}
+	return opts
+}
+
 type Option func(*options)
 
 func WithClient(client *redis.Client) Option {
@@ -24,16 +34,6 @@ func WithCodec(codec codec.Codec) Option {
 	return func(o *options) {
 		o.codec = codec
 	}
-}
-
-func newOptions(opt ...Option) *options {
-	opts := &options{
-		codec: codec.JsonCodec(),
-	}
-	for _, o := range opt {
-		o(opts)
-	}
-	return opts
 }
 
 func (o *options) validate() error {

@@ -59,8 +59,6 @@ type options struct {
 	onCreatePlatform     func(platform *ent.UserPlatformCreate) *ent.UserPlatformCreate
 }
 
-type Option func(*options)
-
 func newOptions(opts ...Option) *options {
 	defaults := &options{
 		mode:            CreateIfNotExist,
@@ -71,6 +69,8 @@ func newOptions(opts ...Option) *options {
 	}
 	return defaults
 }
+
+type Option func(*options)
 
 func WithAuthMode(mode Mode) Option {
 	return func(opts *options) {

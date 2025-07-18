@@ -4,14 +4,6 @@ type options struct {
 	queueSize int
 }
 
-type Option func(*options)
-
-func WithQueueSize(size int) Option {
-	return func(o *options) {
-		o.queueSize = size
-	}
-}
-
 func newOptions(opts ...Option) *options {
 	o := &options{
 		queueSize: 100, // default queue size
@@ -20,4 +12,12 @@ func newOptions(opts ...Option) *options {
 		opt(o)
 	}
 	return o
+}
+
+type Option func(*options)
+
+func WithQueueSize(size int) Option {
+	return func(o *options) {
+		o.queueSize = size
+	}
 }

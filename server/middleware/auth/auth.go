@@ -50,8 +50,6 @@ type options struct {
 	abortOnError   bool
 }
 
-type Option func(*options)
-
 func newOptions(opts ...Option) *options {
 	defaults := &options{
 		abortWithError: func(ctx *gin.Context, err error) {
@@ -73,6 +71,8 @@ func newOptions(opts ...Option) *options {
 	}
 	return defaults
 }
+
+type Option func(*options)
 
 func WithAbortWithError(f func(ctx *gin.Context, err error)) Option {
 	return func(opts *options) {

@@ -16,6 +16,19 @@ type txOptions struct {
 	RollbackHook ent.RollbackHook
 }
 
+func newTxOptions(opts ...Option) *txOptions {
+	defaults := &txOptions{
+		Isolation:    sql.LevelDefault,
+		ReadOnly:     false,
+		CommitHook:   nil,
+		RollbackHook: nil,
+	}
+	for _, opt := range opts {
+		opt(defaults)
+	}
+	return defaults
+}
+
 type Option func(*txOptions)
 
 func WithTxIsolation(level sql.IsolationLevel) Option {
@@ -40,19 +53,6 @@ func WithTxRollbackHook(hook ent.RollbackHook) Option {
 	return func(opts *txOptions) {
 		opts.RollbackHook = hook
 	}
-}
-
-func newTxOptions(opts ...Option) *txOptions {
-	defaults := &txOptions{
-		Isolation:    sql.LevelDefault,
-		ReadOnly:     false,
-		CommitHook:   nil,
-		RollbackHook: nil,
-	}
-	for _, opt := range opts {
-		opt(defaults)
-	}
-	return defaults
 }
 
 func WithTx[T any](ctx context.Context, db *ent.Client, exe func(ctx context.Context, tx *ent.Client) (*T, error), opts ...Option) (*T, error) {
