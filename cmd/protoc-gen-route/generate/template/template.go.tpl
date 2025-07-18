@@ -48,6 +48,9 @@ func GetAll{{$optionsKey}}{{$svrType}}Operations() []string {
 
 type {{.ServiceType}}{{$optionsKey}}Server interface {
 {{- range .MethodSets}}
+	{{- if ne .Comment ""}}
+	{{.Comment}}
+	{{- end}}
 	{{.Name}}(context.Context, *{{.Request}}) (*{{.Reply}}, error)
 {{- end}}
 }

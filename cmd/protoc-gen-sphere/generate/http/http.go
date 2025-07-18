@@ -13,7 +13,6 @@ import (
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -35,7 +34,7 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File, conf *Config) *prot
 	filename := file.GeneratedFilenamePrefix + "_sphere.pb.go"
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 	generateFileHeader(gen, file, g)
-	generateFileContent(gen, file, g, conf)
+	generateFileContent(file, g, conf)
 	return g
 }
 
@@ -53,14 +52,14 @@ func generateFileHeader(gen *protogen.Plugin, file *protogen.File, g *protogen.G
 	g.P()
 }
 
-func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, conf *Config) {
+func generateFileContent(file *protogen.File, g *protogen.GeneratedFile, conf *Config) {
 	if len(file.Services) == 0 {
 		return
 	}
 	genConf := NewGenConf(g, conf)
 	generateGoImport(file, g, conf, genConf)
 	for _, service := range file.Services {
-		generateService(gen, file, g, service, genConf)
+		generateService(g, service, genConf)
 	}
 }
 
@@ -105,7 +104,7 @@ LOOP:
 	g.P()
 }
 
-func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, service *protogen.Service, conf *GenConfig) {
+func generateService(g *protogen.GeneratedFile, service *protogen.Service, conf *GenConfig) {
 	if service.Desc.Options().(*descriptorpb.ServiceOptions).GetDeprecated() {
 		g.P("//")
 		g.P(deprecationComment)
@@ -113,7 +112,6 @@ func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.Genera
 	sd := &template.ServiceDesc{
 		ServiceType: service.GoName,
 		ServiceName: string(service.Desc.FullName()),
-		Metadata:    file.Desc.Path(),
 		Package:     conf.packageDesc,
 	}
 	for _, method := range service.Methods {
@@ -276,33 +274,33 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, rule *parser
 				m.Parent.Location.SourceFile,
 			)
 		}
-		response = parser.ProtoTypeToGoType(g, responseField)
-		if responseField.Desc.Kind() == protoreflect.MessageKind {
-			response = "*" + response
-		}
+		response = parser.ProtoTypeToGoType(g, responseField, true)
 	} else {
 		response = "*" + response
 	}
+
 	return &template.MethodDesc{
 		Name:         m.GoName,
 		OriginalName: string(m.Desc.Name()),
 		Num:          methodSets[m.GoName],
-		Request:      g.QualifiedGoIdent(m.Input.GoIdent),
-		Response:     response,
-		Reply:        g.QualifiedGoIdent(m.Output.GoIdent),
 		Comment:      comment,
 
-		Path:         rule.Path,
-		Method:       rule.Method,
+		Request:  g.QualifiedGoIdent(m.Input.GoIdent),
+		Response: response,
+		Reply:    g.QualifiedGoIdent(m.Output.GoIdent),
+
+		Path:   route,
+		Method: rule.Method,
+
 		HasVars:      len(vars) > 0,
 		HasQuery:     len(forms) > 0,
 		HasBody:      rule.HasBody,
+		NeedValidate: needValidate,
+
+		Swagger: swagger,
+
 		Body:         bodyPath,
 		ResponseBody: responsePath,
-
-		Swagger:      swagger,
-		GinPath:      route,
-		NeedValidate: needValidate,
 	}, nil
 }
 

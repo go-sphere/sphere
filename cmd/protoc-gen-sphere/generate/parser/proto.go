@@ -57,21 +57,21 @@ func ProtoKeyPath2GoKeyPath(message *protogen.Message, keypath []string) []strin
 	return goKeyPath
 }
 
-func ProtoTypeToGoType(g *protogen.GeneratedFile, field *protogen.Field) string {
+func ProtoTypeToGoType(g *protogen.GeneratedFile, field *protogen.Field, usePtrForMessage bool) string {
 	switch {
 	case field.Desc.IsMap():
-		key := singularProtoTypeToGoType(g, field.Message.Fields[0])
-		val := singularProtoTypeToGoType(g, field.Message.Fields[1])
+		key := singularProtoTypeToGoType(g, field.Message.Fields[0], usePtrForMessage)
+		val := singularProtoTypeToGoType(g, field.Message.Fields[1], usePtrForMessage)
 		return fmt.Sprintf("map[%s]%s", key, val)
 	case field.Desc.IsList():
-		elemType := singularProtoTypeToGoType(g, field)
+		elemType := singularProtoTypeToGoType(g, field, usePtrForMessage)
 		return fmt.Sprintf("[]%s", elemType)
 	default:
-		return singularProtoTypeToGoType(g, field)
+		return singularProtoTypeToGoType(g, field, usePtrForMessage)
 	}
 }
 
-func singularProtoTypeToGoType(g *protogen.GeneratedFile, field *protogen.Field) string {
+func singularProtoTypeToGoType(g *protogen.GeneratedFile, field *protogen.Field, usePtrForMessage bool) string {
 	switch field.Desc.Kind() {
 	case protoreflect.BoolKind:
 		return "bool"
@@ -110,7 +110,11 @@ func singularProtoTypeToGoType(g *protogen.GeneratedFile, field *protogen.Field)
 		return "int32" // Fallback for unknown enum types
 	case protoreflect.MessageKind:
 		if field.Message != nil {
-			return g.QualifiedGoIdent(field.Message.GoIdent)
+			ident := g.QualifiedGoIdent(field.Message.GoIdent)
+			if usePtrForMessage {
+				return "*" + ident
+			}
+			return ident
 		}
 		return "any" // Fallback for unknown message types
 	default:

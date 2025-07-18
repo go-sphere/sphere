@@ -29,7 +29,7 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File, conf *Config) *prot
 	filename := file.GeneratedFilenamePrefix + conf.FileSuffix
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 	generateFileHeader(gen, file, g)
-	generateFileContent(gen, file, g, conf)
+	generateFileContent(file, g, conf)
 	return g
 }
 
@@ -47,7 +47,7 @@ func generateFileHeader(gen *protogen.Plugin, file *protogen.File, g *protogen.G
 	g.P()
 }
 
-func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, conf *Config) {
+func generateFileContent(file *protogen.File, g *protogen.GeneratedFile, conf *Config) {
 	if len(file.Services) == 0 {
 		return
 	}
@@ -61,7 +61,7 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 		packageDesc.NewExtraDataFunc = g.QualifiedGoIdent(conf.ExtraConstructor)
 	}
 	for _, service := range file.Services {
-		generateService(gen, file, g, service, conf, packageDesc)
+		generateService(g, service, conf, packageDesc)
 	}
 }
 
@@ -83,7 +83,7 @@ func generateGoImport(g *protogen.GeneratedFile, conf *Config) {
 	g.P()
 }
 
-func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, service *protogen.Service, conf *Config, packageDesc *template.PackageDesc) {
+func generateService(g *protogen.GeneratedFile, service *protogen.Service, conf *Config, packageDesc *template.PackageDesc) {
 	if service.Desc.Options().(*descriptorpb.ServiceOptions).GetDeprecated() {
 		g.P("//")
 		g.P(deprecationComment)
@@ -92,7 +92,6 @@ func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.Genera
 		OptionsKey:  pascalCase(conf.OptionsKey),
 		ServiceType: service.GoName,
 		ServiceName: string(service.Desc.FullName()),
-		Metadata:    file.Desc.Path(),
 		Package:     packageDesc,
 	}
 
@@ -105,9 +104,9 @@ func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.Genera
 			Name:         method.GoName,
 			OriginalName: string(method.Desc.Name()),
 			Num:          methodSets[method.GoName],
-			Request:      method.Input.GoIdent.GoName,
-			Reply:        method.Output.GoIdent.GoName,
-			Comment:      method.Comments.Leading.String(),
+			Request:      g.QualifiedGoIdent(method.Input.GoIdent),
+			Reply:        g.QualifiedGoIdent(method.Output.GoIdent),
+			Comment:      methodCommend(method),
 			Extra:        rule.Extra,
 		})
 		methodSets[method.GoName] += 1
@@ -115,6 +114,28 @@ func generateService(_ *protogen.Plugin, file *protogen.File, g *protogen.Genera
 	if len(sd.Methods) != 0 {
 		g.P(sd.Execute())
 	}
+}
+
+func methodCommend(m *protogen.Method) string {
+	leading := string(m.Comments.Leading)
+	if leading == "" {
+		return ""
+	}
+	cmp := strings.Split(strings.TrimSuffix(leading, "\n"), "\n")
+	if len(cmp) == 0 {
+		return ""
+	}
+	var lines []string
+	lines = append(lines, fmt.Sprintf("// %s %s", m.Desc.Name(), strings.TrimSpace(cmp[0])))
+	if len(cmp) > 1 {
+		for _, line := range cmp[1:] {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			lines = append(lines, fmt.Sprintf("// %s", strings.TrimSpace(line)))
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func hasOptionsRule(services []*protogen.Service, key string) bool {

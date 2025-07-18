@@ -1,6 +1,9 @@
 # protoc-gen-sphere
 
-`protoc-gen-sphere` is a protoc plugin that generates HTTP server code from `.proto` files. It is designed to inspect service definitions within your protobuf files and automatically generate corresponding HTTP handlers based on Google API annotations and a specified template. This code refers to [protoc-gen-go-http](https://github.com/go-kratos/kratos/tree/main/cmd/protoc-gen-go-http).
+`protoc-gen-sphere` is a protoc plugin that generates HTTP server code from `.proto` files. It is designed to inspect
+service definitions within your protobuf files and automatically generate corresponding HTTP handlers based on Google
+API annotations and a specified template. Inspired
+by [protoc-gen-go-http](https://github.com/go-kratos/kratos/tree/main/cmd/protoc-gen-go-http).
 
 
 ## Installation

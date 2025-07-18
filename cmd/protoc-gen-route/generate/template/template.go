@@ -12,25 +12,50 @@ import (
 //go:embed template.go.tpl
 var routeTemplate string
 
+/*
+service MenuService {
+  // test comment line1
+  // test comment line2
+  // test comment line3
+  rpc UpdateCount(UpdateCountRequest) returns (UpdateCountResponse) {
+    option (sphere.options.options) = {
+      key: "bot"
+      extra: [
+        {
+          key: "command"
+          value: "start"
+        },
+        {
+          key: "callback_query"
+          value: "start"
+        }
+      ]
+    };
+  }
+}
+*/
+
 type ServiceDesc struct {
-	OptionsKey  string
-	ServiceType string
-	ServiceName string
-	Metadata    string
-	Methods     []*MethodDesc
-	MethodSets  map[string]*MethodDesc
-	Package     *PackageDesc
+	OptionsKey string // bot
+
+	ServiceType string // MenuService
+	ServiceName string // bot.v1.MenuService
+
+	Methods    []*MethodDesc
+	MethodSets map[string]*MethodDesc
+
+	Package *PackageDesc
 }
 
 type MethodDesc struct {
-	// method
-	Name         string
-	OriginalName string
-	Num          int
-	Request      string
-	Reply        string
-	Comment      string
-	// extra data
+	Name         string // rpc method name: UpdateCount
+	OriginalName string // service and method name: MenuServiceUpdateCount
+	Num          int    // duplicate method number, used for generating unique method names
+
+	Request string // rpc request type: UpdateCountRequest
+	Reply   string // rpc reply type: UpdateCountResponse
+	Comment string
+
 	Extra map[string]string
 }
 

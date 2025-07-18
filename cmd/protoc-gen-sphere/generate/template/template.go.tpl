@@ -8,7 +8,7 @@ const Operation{{$svrType}}{{.OriginalName}} = "/{{$svrName}}/{{.OriginalName}}"
 
 var Endpoints{{.ServiceType}} = [...][3]string{
 	{{- range .Methods}}
-	{Operation{{$svrType}}{{.OriginalName}}, "{{.Method}}", "{{.GinPath}}" },
+	{Operation{{$svrType}}{{.OriginalName}}, "{{.Method}}", "{{.Path}}" },
 	{{- end}}
 }
 
@@ -60,6 +60,6 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) fu
 func Register{{.ServiceType}}HTTPServer(route {{.Package.RouterType}}, srv {{.ServiceType}}HTTPServer) {
 	r := route.Group("/")
 	{{- range .Methods}}
-	r.{{.Method}}("{{.GinPath}}", _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv))
+	r.{{.Method}}("{{.Path}}", _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv))
 	{{- end}}
 }
