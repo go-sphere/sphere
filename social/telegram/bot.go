@@ -4,81 +4,38 @@ import (
 	"context"
 	"strings"
 
-	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
 type Config struct {
 	Token string `json:"token" yaml:"token"`
 }
 
-type options struct {
-	botOptions                 []bot.Option
-	embedDefaultAuthMiddleware bool
-}
-
-type Option = func(*options)
-
-func newOptions(opts ...Option) *options {
-	opt := &options{
-		embedDefaultAuthMiddleware: true,
-	}
-	for _, o := range opts {
-		o(opt)
-	}
-	return opt
-}
-
-func WithoutEmbedDefaultAuthMiddleware() Option {
-	return func(o *options) {
-		o.embedDefaultAuthMiddleware = false
-	}
-}
-
-func WithBotOptions(opt ...bot.Option) Option {
-	return func(o *options) {
-		o.botOptions = append(o.botOptions, opt...)
-	}
-}
-
 type Bot struct {
 	config *Config
 	bot    *bot.Bot
 
-	middlewares []MiddlewareFunc
-
+	middlewares    []MiddlewareFunc
 	noRouteHandler bot.HandlerFunc
-	ErrorHandler   ErrorHandlerFunc
-	AuthExtractor  AuthExtractorFunc
+	errorHandler   ErrorHandlerFunc
+	authExtractor  AuthExtractorFunc
 }
 
 func NewApp(config *Config, opts ...Option) (*Bot, error) {
 	opt := newOptions(opts...)
 	app := &Bot{
-		config: config,
-		noRouteHandler: func(ctx context.Context, bot *bot.Bot, update *Update) {
-			if update.Message != nil {
-				log.Infof("receive message: %s", update.Message.Text)
-			}
-			if update.CallbackQuery != nil {
-				log.Infof("receive callback query: %s", update.CallbackQuery.Data)
-			}
+		config:         config,
+		middlewares:    opt.middlewares,
+		noRouteHandler: opt.noRouteHandler,
+		errorHandler:   opt.errorHandler,
+		authExtractor:  opt.authExtractor,
+	}
+	opt.botOptions = append(opt.botOptions, bot.WithDefaultHandler(
+		func(ctx context.Context, bot *bot.Bot, update *models.Update) {
+			app.noRouteHandler(ctx, bot, update)
 		},
-		ErrorHandler: func(ctx context.Context, bot *bot.Bot, update *Update, err error) {
-			log.Warnw("bot error", logfields.Error(err))
-		},
-	}
-	if len(opt.botOptions) == 0 {
-		opt.botOptions = []bot.Option{
-			bot.WithSkipGetMe(),
-			bot.WithMiddlewares(NewRecoveryMiddleware()),
-			bot.WithDefaultHandler(app.handleNoRouteMessage),
-		}
-	}
-	if opt.embedDefaultAuthMiddleware {
-		app.middlewares = append(app.middlewares, NewAuthMiddleware(app))
-	}
+	))
 	client, err := bot.New(config.Token, opt.botOptions...)
 	if err != nil {
 		return nil, err
@@ -113,21 +70,7 @@ func (b *Bot) SendMessage(ctx context.Context, update *Update, m *Message) error
 	return SendMessage(ctx, b.bot, update, m)
 }
 
-func (b *Bot) ExtractorAuth(ctx context.Context, update *Update) (map[string]any, error) {
-	if b.AuthExtractor == nil {
-		return nil, nil
-	}
-	return b.AuthExtractor(ctx, update)
-}
-
-func (b *Bot) handleNoRouteMessage(ctx context.Context, bot *bot.Bot, update *Update) {
-	if b.noRouteHandler == nil {
-		return
-	}
-	b.noRouteHandler(ctx, bot, update)
-}
-
-func (b *Bot) WithDefaultMiddlewares(middlewares []MiddlewareFunc) []MiddlewareFunc {
+func (b *Bot) withMiddlewares(middlewares ...MiddlewareFunc) []MiddlewareFunc {
 	mid := make([]MiddlewareFunc, 0, len(middlewares)+len(b.middlewares))
 	mid = append(mid, b.middlewares...)
 	mid = append(mid, middlewares...)
@@ -135,17 +78,17 @@ func (b *Bot) WithDefaultMiddlewares(middlewares []MiddlewareFunc) []MiddlewareF
 }
 
 func (b *Bot) BindNoRoute(handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
-	b.noRouteHandler = WithMiddleware(handlerFunc, b.ErrorHandler, b.WithDefaultMiddlewares(middlewares)...)
+	b.noRouteHandler = WithMiddleware(handlerFunc, b.errorHandler, b.withMiddlewares(middlewares...)...)
 }
 
 func (b *Bot) BindCommand(command string, handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
-	fn := WithMiddleware(handlerFunc, b.ErrorHandler, b.WithDefaultMiddlewares(middlewares)...)
+	fn := WithMiddleware(handlerFunc, b.errorHandler, b.withMiddlewares(middlewares...)...)
 	command = "/" + strings.TrimPrefix(command, "/")
 	b.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypePrefix, fn)
 }
 
 func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
-	fn := WithMiddleware(handlerFunc, b.ErrorHandler, b.WithDefaultMiddlewares(middlewares)...)
+	fn := WithMiddleware(handlerFunc, b.errorHandler, b.withMiddlewares(middlewares...)...)
 	b.bot.RegisterHandler(bot.HandlerTypeCallbackQueryData, route+":", bot.MatchTypePrefix, fn)
 }
 
