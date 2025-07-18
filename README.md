@@ -44,8 +44,8 @@ For guidelines on error handling and how to define errors in your API, please re
 - [`protoc-gen-sphere`](cmd/protoc-gen-sphere/README.md) : A plugin for generating HTTP server code from `.proto` files.
 - [`protoc-gen-sphere-binding`](cmd/protoc-gen-sphere-binding/README.md) : A plugin for replacing go struct binding tags
   with `proto` field options.
-  - [`protoc-gen-sphere-errors`](cmd/protoc-gen-sphere-errors/README.md) : A plugin for generating error handling code
-    from `.proto` files.
+- [`protoc-gen-sphere-errors`](cmd/protoc-gen-sphere-errors/README.md) : A plugin for generating error handling code
+  from `.proto` files.
 
 ## Documentation
 
