@@ -1,4 +1,5 @@
 GOLANG_CI_LINT = golangci-lint
+
 MODULES := . \
 	layout \
 	cmd/protoc-gen-route \
@@ -10,25 +11,31 @@ MODULES := . \
 	proto/errors \
 	proto/options
 
-.PHONY: install
-install: ## Install all dependencies
-	 cd cmd/protoc-gen-sphere-binding && go mod tidy && go install .
-	 cd cmd/protoc-gen-sphere-errors && go mod tidy && go install .
-	 cd cmd/protoc-gen-sphere && go mod tidy && go install .
-	 cd cmd/protoc-gen-route && go mod tidy && go install .
-	 cd cmd/sphere-cli && go mod tidy && go install .
+COMMANDS := cmd/protoc-gen-route \
+			cmd/protoc-gen-sphere \
+			cmd/protoc-gen-sphere-binding \
+			cmd/protoc-gen-sphere-errors \
+			cmd/sphere-cli
+
+define install_mod
+	echo "install $1" && (cd $1 && go mod tidy && go install ./...)
+endef
 
 define fmt_mod
-	cd $1 && go fmt ./... && $(GOLANG_CI_LINT) fmt && $(GOLANG_CI_LINT) run --fix && cd -
+	echo "fmt $1" && (cd $1 && go fmt ./... && $(GOLANG_CI_LINT) fmt && $(GOLANG_CI_LINT) run --fix)
 endef
 
 define upgrade_mod
-	cd $1 && go get -u ./... && go mod tidy && cd -
+	echo "upgrade $1" && (cd $1 && go get -u ./... && go mod tidy)
 endef
 
 define test_mod
-	cd $1 && go test -v ./... && cd -
+	echo "test $1" && (cd $1 && go test -v ./...)
 endef
+
+.PHONY: install
+install: ## Install all dependencies
+	$(foreach mod,$(COMMANDS),$(call install_mod,$(mod)) && ) true
 
 .PHONY: fmt
 fmt: ## Format code
