@@ -12,13 +12,6 @@ const (
 	AuthorizationHeader = "Authorization"
 )
 
-func abortUnauthorized(ctx *gin.Context) {
-	ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-		"error":   "unauthorized",
-		"message": "没有提供有效的认证信息",
-	})
-}
-
 func parserToken[T authorizer.UID, C authorizer.Claims[T]](ctx *gin.Context, token string, transform func(text string) (string, error), parser authorizer.Parser[T, C]) error {
 	if token == "" {
 		return authorizer.TokenNotFoundError
@@ -50,44 +43,106 @@ func parserToken[T authorizer.UID, C authorizer.Claims[T]](ctx *gin.Context, tok
 	return nil
 }
 
-func NewCookieAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](cookieName string, transform func(raw string) (string, error), parser authorizer.Parser[T, C], abortOnError bool) gin.HandlerFunc {
-	return NewCommonAuthMiddleware[T](func(ctx *gin.Context) (string, error) {
-		return ctx.Cookie(cookieName)
-	}, transform, parser, abortOnError)
+type options struct {
+	abortWithError func(ctx *gin.Context, err error)
+	loader         func(ctx *gin.Context) (string, error)
+	transform      func(text string) (string, error)
+	abortOnError   bool
 }
 
-func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](prefix string, parser authorizer.Parser[T, C], abortOnError bool) gin.HandlerFunc {
-	prefix = strings.TrimSpace(prefix)
-	if len(prefix) > 0 {
-		prefix = prefix + " "
+type Option func(*options)
+
+func newOptions(opts ...Option) *options {
+	defaults := &options{
+		abortWithError: func(ctx *gin.Context, err error) {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error":   err.Error(),
+				"message": "没有提供有效的认证信息",
+			})
+		},
+		loader: func(ctx *gin.Context) (string, error) {
+			return "", nil
+		},
+		transform: func(text string) (string, error) {
+			return text, nil
+		},
+		abortOnError: true,
 	}
-	return NewCommonAuthMiddleware[T](
-		func(ctx *gin.Context) (string, error) {
-			return ctx.GetHeader(AuthorizationHeader), nil
-		},
-		func(token string) (string, error) {
-			if len(prefix) > 0 && strings.HasPrefix(token, prefix) {
-				token = strings.TrimSpace(strings.TrimPrefix(token, prefix))
-			}
-			return token, nil
-		},
-		parser,
-		abortOnError,
-	)
+	for _, opt := range opts {
+		opt(defaults)
+	}
+	return defaults
 }
 
-func NewCommonAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](loader func(ctx *gin.Context) (string, error), transform func(text string) (string, error), parser authorizer.Parser[T, C], abortOnError bool) gin.HandlerFunc {
+func WithAbortWithError(f func(ctx *gin.Context, err error)) Option {
+	return func(opts *options) {
+		opts.abortWithError = f
+	}
+}
+
+func WithLoader(f func(ctx *gin.Context) (string, error)) Option {
+	return func(opts *options) {
+		opts.loader = f
+	}
+}
+
+func WithTransform(f func(text string) (string, error)) Option {
+	return func(opts *options) {
+		opts.transform = f
+	}
+}
+
+func WithAbortOnError(abort bool) Option {
+	return func(opts *options) {
+		opts.abortOnError = abort
+	}
+}
+
+func NewCommonAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authorizer.Parser[T, C], options ...Option) gin.HandlerFunc {
+	opts := newOptions(options...)
 	return func(ctx *gin.Context) {
-		token, err := loader(ctx)
-		if err != nil && abortOnError {
-			abortUnauthorized(ctx)
+		token, err := opts.loader(ctx)
+		if err != nil && opts.abortOnError {
+			opts.abortWithError(ctx, err)
 			return
 		}
-		err = parserToken(ctx, token, transform, parser)
-		if err != nil && abortOnError {
-			abortUnauthorized(ctx)
+		err = parserToken(ctx, token, opts.transform, parser)
+		if err != nil && opts.abortOnError {
+			opts.abortWithError(ctx, err)
 			return
 		}
 		ctx.Next()
 	}
+}
+
+func NewCookieAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](cookieName string, parser authorizer.Parser[T, C], options ...Option) gin.HandlerFunc {
+	opts := append(options,
+		WithLoader(func(ctx *gin.Context) (string, error) {
+			cookie, err := ctx.Cookie(cookieName)
+			if err != nil {
+				return "", err
+			}
+			return cookie, nil
+		}),
+	)
+	return NewCommonAuthMiddleware[T, C](parser, opts...)
+}
+
+func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](prefix string, parser authorizer.Parser[T, C], options ...Option) gin.HandlerFunc {
+	prefix = strings.TrimSpace(prefix)
+	if len(prefix) > 0 {
+		prefix = prefix + " "
+	}
+	opts := append(options,
+		WithLoader(func(ctx *gin.Context) (string, error) {
+			return ctx.GetHeader(AuthorizationHeader), nil
+		}),
+		WithTransform(func(text string) (string, error) {
+			if len(prefix) > 0 && strings.HasPrefix(text, prefix) {
+				text = strings.TrimSpace(strings.TrimPrefix(text, prefix))
+			}
+			return text, nil
+		}),
+	)
+	return NewCommonAuthMiddleware[T, C](parser, opts...)
 }

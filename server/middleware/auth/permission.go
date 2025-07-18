@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/TBXark/sphere/server/auth/authorizer"
@@ -11,14 +12,34 @@ type AccessControl interface {
 	IsAllowed(role, resource string) bool
 }
 
-func abortForbidden(ctx *gin.Context) {
-	ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-		"error":   "forbidden",
-		"message": "没有权限访问该资源",
-	})
+type permissionOptions struct {
+	abortWithError func(ctx *gin.Context, status int, err error)
 }
 
-func NewPermissionMiddleware(resource string, acl AccessControl) gin.HandlerFunc {
+type PermissionOption func(*permissionOptions)
+
+func WithAbortForbidden(fn func(ctx *gin.Context, status int, err error)) PermissionOption {
+	return func(opts *permissionOptions) {
+		opts.abortWithError = fn
+	}
+}
+
+func newPermissionOptions(opts ...PermissionOption) *permissionOptions {
+	defaults := &permissionOptions{
+		abortWithError: func(ctx *gin.Context, status int, err error) {
+			ctx.AbortWithStatusJSON(status, gin.H{
+				"error": err.Error(),
+			})
+		},
+	}
+	for _, opt := range opts {
+		opt(defaults)
+	}
+	return defaults
+}
+
+func NewPermissionMiddleware(resource string, acl AccessControl, options ...PermissionOption) gin.HandlerFunc {
+	opts := newPermissionOptions(options...)
 	return func(ctx *gin.Context) {
 		isAllowed := false
 		for _, r := range authorizer.GetCurrentRoles(ctx) {
@@ -30,7 +51,7 @@ func NewPermissionMiddleware(resource string, acl AccessControl) gin.HandlerFunc
 		if isAllowed {
 			ctx.Next()
 		} else {
-			abortForbidden(ctx)
+			opts.abortWithError(ctx, http.StatusForbidden, errors.New("no permission to access this resource"))
 			return
 		}
 	}

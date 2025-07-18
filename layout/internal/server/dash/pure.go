@@ -17,14 +17,19 @@ func RegisterPureRute(route gin.IRouter) {
 }
 
 func NewPureAdminCookieAuthMiddleware[T authorizer.UID](authParser authorizer.Parser[T, *jwtauth.RBACClaims[T]]) gin.HandlerFunc {
-	return auth.NewCookieAuthMiddleware("authorized-token", func(raw string) (string, error) {
-		var token struct {
-			AccessToken string `json:"accessToken"`
-		}
-		err := json.Unmarshal([]byte(raw), &token)
-		if err != nil {
-			return "", err
-		}
-		return token.AccessToken, nil
-	}, authParser, true)
+	return auth.NewCookieAuthMiddleware(
+		"authorized-token",
+		authParser,
+		auth.WithTransform(func(raw string) (string, error) {
+			var token struct {
+				AccessToken string `json:"accessToken"`
+			}
+			err := json.Unmarshal([]byte(raw), &token)
+			if err != nil {
+				return "", err
+			}
+			return token.AccessToken, nil
+		}),
+		auth.WithAbortOnError(true),
+	)
 }

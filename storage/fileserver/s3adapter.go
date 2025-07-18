@@ -65,41 +65,39 @@ func (a *S3Adapter) GenerateUploadToken(ctx context.Context, fileName string, di
 	}, nil
 }
 
-func (a *S3Adapter) RegisterPutFileUploader(route gin.IRouter) {
+func (a *S3Adapter) RegisterPutFileUploader(route gin.IRouter, options ...UploadOption) {
+	opts := newUploadOptions(options...)
 	route.PUT("/:key", func(ctx *gin.Context) {
 		key := ctx.Param("key")
 		if key == "" {
-			abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key is required"))
+			opts.abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key is required"))
 			return
 		}
 		filename, found, err := a.cache.Get(ctx, key)
 		if err != nil {
-			abortWithError(ctx, http.StatusBadRequest, err)
+			opts.abortWithError(ctx, http.StatusBadRequest, err)
 			return
 		}
 		if !found {
-			abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key expires or not found"))
+			opts.abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key expires or not found"))
 			return
 		}
 		err = a.cache.Del(ctx, key)
 		if err != nil {
-			abortWithError(ctx, http.StatusInternalServerError, err)
+			opts.abortWithError(ctx, http.StatusInternalServerError, err)
 			return
 		}
 		data, err := ctx.GetRawData()
 		if err != nil {
-			abortWithError(ctx, http.StatusInternalServerError, err)
+			opts.abortWithError(ctx, http.StatusInternalServerError, err)
 			return
 		}
 		uploadKey, err := a.UploadFile(ctx, bytes.NewReader(data), string(filename))
 		if err != nil {
-			abortWithError(ctx, http.StatusInternalServerError, err)
+			opts.abortWithError(ctx, http.StatusInternalServerError, err)
 			return
 		}
-		successWithData(ctx, gin.H{
-			"key": uploadKey,
-			"url": a.GenerateURL(uploadKey),
-		})
+		opts.successWithData(ctx, uploadKey, a.GenerateURL(uploadKey))
 	})
 }
 

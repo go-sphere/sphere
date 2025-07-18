@@ -44,8 +44,12 @@ func (w *Web) Start(ctx context.Context) error {
 	zapLogger := log.ZapLogger().With(logfields.String("module", "api"))
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
-	authMiddleware := auth.NewAuthMiddleware[int64, *jwtauth.RBACClaims[int64]](jwtauth.AuthorizationPrefixBearer, jwtAuthorizer, false)
-	// rateLimiter := middleware.NewNewRateLimiterByClientIP(100*time.Millisecond, 10, time.Hour)
+	authMiddleware := auth.NewAuthMiddleware[int64, *jwtauth.RBACClaims[int64]](
+		jwtauth.AuthorizationPrefixBearer,
+		jwtAuthorizer,
+		auth.WithAbortWithError(ginx.AbortWithJsonError),
+		auth.WithAbortOnError(false),
+	)
 
 	engine := gin.New()
 	engine.Use(loggerMiddleware, recoveryMiddleware)

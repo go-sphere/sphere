@@ -28,3 +28,9 @@ type TokenAuthorizer[I UID, T Claims[I]] interface {
 	Parser[I, T]
 	Generator[I, T]
 }
+
+type ParserFunc[I UID, T Claims[I]] func(ctx context.Context, token string) (T, error)
+
+func (f ParserFunc[I, T]) ParseToken(ctx context.Context, token string) (T, error) {
+	return f(ctx, token)
+}
