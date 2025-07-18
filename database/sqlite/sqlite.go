@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"database/sql"
 	"database/sql/driver"
 	"fmt"
 
@@ -30,4 +31,8 @@ func (d Driver) Open(name string) (driver.Conn, error) {
 		return nil, fmt.Errorf("failed to enable enable foreign keys: %w", e)
 	}
 	return conn, nil
+}
+
+func Register(name string) {
+	sql.Register(name, NewDriver())
 }

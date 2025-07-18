@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"database/sql"
 
 	"entgo.io/ent/dialect"
 	"github.com/TBXark/sphere/database/sqlite"
@@ -12,7 +11,7 @@ import (
 )
 
 func init() {
-	sql.Register(dialect.SQLite, sqlite.NewDriver())
+	sqlite.Register(dialect.SQLite)
 }
 
 type Config struct {
