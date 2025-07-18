@@ -9,7 +9,11 @@ install: ## Install all dependencies
 	 cd cmd/sphere-cli && go mod tidy && go install .
 
 define fmt_mod
-	cd $1 && go get -u ./... && go mod tidy && go fmt ./... && go test ./... && $(GOLANG_CI_LINT) fmt && $(GOLANG_CI_LINT) run --fix
+	cd $1 && go mod tidy && go fmt ./... && go test ./... && $(GOLANG_CI_LINT) fmt && $(GOLANG_CI_LINT) run --fix
+endef
+
+define upgrade_mod
+	cd $1 && go mod tidy && go get -u ./... && go test ./... && $(GOLANG_CI_LINT) run --fix
 endef
 
 .PHONY: fmt
@@ -24,6 +28,19 @@ fmt: ## Format code
 	$(call fmt_mod,proto/binding)
 	$(call fmt_mod,proto/errors)
 	$(call fmt_mod,proto/options)
+
+.PHONY: upgrade
+upgrade: ## Upgrade dependencies
+	$(call upgrade_mod,.)
+	$(call upgrade_mod,layout)
+	$(call upgrade_mod,cmd/protoc-gen-route)
+	$(call upgrade_mod,cmd/protoc-gen-sphere)
+	$(call upgrade_mod,cmd/protoc-gen-sphere-binding)
+	$(call upgrade_mod,cmd/protoc-gen-sphere-errors)
+	$(call upgrade_mod,cmd/sphere-cli)
+	$(call upgrade_mod,proto/binding)
+	$(call upgrade_mod,proto/errors)
+	$(call upgrade_mod,proto/options)
 
 .PHONY: cli/service/test
 cli/service/test: ## Test sphere-cli service generation

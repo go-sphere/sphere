@@ -1,9 +1,9 @@
 package fileserver
 
 import (
+	"errors"
 	"maps"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/TBXark/sphere/storage"
@@ -47,7 +47,7 @@ func RegisterFileDownloader(route gin.IRouter, storage storage.Storage, options 
 	route.GET("/*filename", func(ctx *gin.Context) {
 		param := ctx.Param("filename")
 		if param == "" {
-			opts.abortWithError(ctx, http.StatusNotFound, os.ErrNotExist)
+			opts.abortWithError(ctx, http.StatusNotFound, errors.New("filename is required"))
 		}
 		param = param[1:]
 		reader, mime, size, err := storage.DownloadFile(ctx, param)

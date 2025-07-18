@@ -94,10 +94,7 @@ func WithTerminalOnSendError(terminalOnSendError bool) BroadcastOption {
 }
 
 func BroadcastMessage[T any](ctx context.Context, b *bot.Bot, data []T, rateLimiter *rate.Limiter, send func(context.Context, *bot.Bot, T) error, options ...BroadcastOption) error {
-	opts := &broadcastOptions{}
-	for _, opt := range options {
-		opt(opts)
-	}
+	opts := newBroadcastOptions(options...)
 	total := len(data)
 	errCount := 0
 	for i, d := range data {
