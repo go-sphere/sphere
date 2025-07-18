@@ -26,7 +26,7 @@ func NewAuthMiddleware(auth AuthExtractor) MiddlewareFunc {
 			}
 			c := metadata.NewContext(ctx)
 			for k, v := range info {
-				c.SetValue(k, v)
+				c.Set(k, v)
 			}
 			return next(ctx, update)
 		}

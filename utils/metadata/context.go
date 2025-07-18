@@ -60,29 +60,15 @@ func (c *Context) Value(key any) any {
 	return c.ctx.Value(key)
 }
 
-func (c *Context) SetValue(key string, value any) {
+func (c *Context) Get(key string) (value any, exist bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	value, exist = c.metadata[key]
+	return
+}
+
+func (c *Context) Set(key string, value any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.metadata[key] = value
-}
-
-func (c *Context) Metadata() map[string]any {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	metadataCopy := make(map[string]any, len(c.metadata))
-	for k, v := range c.metadata {
-		metadataCopy[k] = v
-	}
-	return metadataCopy
-}
-
-func GetMetadata(ctx context.Context) map[string]any {
-	if ctx == nil {
-		return nil
-	}
-	mCtx, ok := ctx.(*Context)
-	if !ok {
-		return nil
-	}
-	return mCtx.Metadata()
 }
