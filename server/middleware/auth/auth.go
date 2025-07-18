@@ -61,7 +61,7 @@ func newOptions(opts ...Option) *options {
 			})
 		},
 		loader: func(ctx *gin.Context) (string, error) {
-			return "", nil
+			return ctx.GetHeader(AuthorizationHeader), nil
 		},
 		transform: func(text string) (string, error) {
 			return text, nil
@@ -86,10 +86,39 @@ func WithLoader(f func(ctx *gin.Context) (string, error)) Option {
 	}
 }
 
+func WithHeaderLoader(header string) Option {
+	return WithLoader(func(ctx *gin.Context) (string, error) {
+		return ctx.GetHeader(header), nil
+	})
+}
+
+func WithCookieLoader(cookieName string) Option {
+	return WithLoader(func(ctx *gin.Context) (string, error) {
+		cookie, err := ctx.Cookie(cookieName)
+		if err != nil {
+			return "", err
+		}
+		return cookie, nil
+	})
+}
+
 func WithTransform(f func(text string) (string, error)) Option {
 	return func(opts *options) {
 		opts.transform = f
 	}
+}
+
+func WithPrefixTransform(prefix string) Option {
+	prefix = strings.TrimSpace(prefix)
+	if len(prefix) > 0 {
+		prefix = prefix + " "
+	}
+	return WithTransform(func(text string) (string, error) {
+		if len(prefix) > 0 && strings.HasPrefix(text, prefix) {
+			text = strings.TrimSpace(strings.TrimPrefix(text, prefix))
+		}
+		return text, nil
+	})
 }
 
 func WithAbortOnError(abort bool) Option {
@@ -98,7 +127,7 @@ func WithAbortOnError(abort bool) Option {
 	}
 }
 
-func NewCommonAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authorizer.Parser[T, C], options ...Option) gin.HandlerFunc {
+func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authorizer.Parser[T, C], options ...Option) gin.HandlerFunc {
 	opts := newOptions(options...)
 	return func(ctx *gin.Context) {
 		token, err := opts.loader(ctx)
@@ -113,36 +142,4 @@ func NewCommonAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser au
 		}
 		ctx.Next()
 	}
-}
-
-func NewCookieAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](cookieName string, parser authorizer.Parser[T, C], options ...Option) gin.HandlerFunc {
-	opts := append(options,
-		WithLoader(func(ctx *gin.Context) (string, error) {
-			cookie, err := ctx.Cookie(cookieName)
-			if err != nil {
-				return "", err
-			}
-			return cookie, nil
-		}),
-	)
-	return NewCommonAuthMiddleware[T, C](parser, opts...)
-}
-
-func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](prefix string, parser authorizer.Parser[T, C], options ...Option) gin.HandlerFunc {
-	prefix = strings.TrimSpace(prefix)
-	if len(prefix) > 0 {
-		prefix = prefix + " "
-	}
-	opts := append(options,
-		WithLoader(func(ctx *gin.Context) (string, error) {
-			return ctx.GetHeader(AuthorizationHeader), nil
-		}),
-		WithTransform(func(text string) (string, error) {
-			if len(prefix) > 0 && strings.HasPrefix(text, prefix) {
-				text = strings.TrimSpace(strings.TrimPrefix(text, prefix))
-			}
-			return text, nil
-		}),
-	)
-	return NewCommonAuthMiddleware[T, C](parser, opts...)
 }

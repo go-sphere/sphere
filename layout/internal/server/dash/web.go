@@ -52,8 +52,9 @@ func (w *Web) Start(ctx context.Context) error {
 	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
 	authMiddleware := auth.NewAuthMiddleware[int64, *jwtauth.RBACClaims[int64]](
-		jwtauth.AuthorizationPrefixBearer,
 		jwtAuthorizer,
+		auth.WithHeaderLoader(auth.AuthorizationHeader),
+		auth.WithPrefixTransform(jwtauth.AuthorizationPrefixBearer),
 		auth.WithAbortWithError(ginx.AbortWithJsonError),
 		auth.WithAbortOnError(true),
 	)
