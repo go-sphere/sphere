@@ -4,7 +4,8 @@
 
 **Sphere** is a project template for building monolithic applications with a focus on simplicity, maintainability, and scalability. It uses `ent` for schema management and `proto` for API definitions, providing a solid foundation that can be adapted for microservices as your project evolves.
 
-Sphere comes with powerful code generation tools to create `proto` files, `Swagger` documents, `TypeScript` clients, and more, accelerating your development workflow.
+Sphere comes with powerful code generation tools to create `proto` files, `Swagger` documents, `TypeScript` clients, and
+more, speeding up your development workflow.
 
 ## Quick Start
 
@@ -22,7 +23,7 @@ For guidelines on error handling and how to define errors in your API, please re
 
 ## Features
 
-- **Simple & Maintainable**: A clean and straightforward codebase that is easy to understand and extend.
+- **Simple & Maintainable**: A clean and straightforward codebase that is straightforward to understand and extend.
 - **Rapid Development**: Use the code generator to quickly scaffold project components.
 - **Modular Design**: All modules are designed to be replaceable to fit your specific needs.
 - **Single-File Deployment**: The entire project can be deployed as a single file for easy management.
@@ -47,11 +48,11 @@ For guidelines on error handling and how to define errors in your API, please re
 
 ## Documentation
 
-- [Standard Layout](./layout/README.md). - Default sphere project template layout.
-- [Quick Start Guide](docs/QUICK_START.md) - A step-by-step guide to setting up a new Sphere project.
-- [API Definitions](docs/API_DEFINITIONS.md) - Guidelines for writing API definitions `.proto` files in Sphere.
-- [Error Handling](docs/ERROR_HANDLING.md) - Guidelines for error handling in Sphere applications.
+- [Standard Layout](./layout/README.md)—: Default sphere project template layout.
+- [Quick Start Guide](docs/QUICK_START.md)-: A step-by-step guide to setting up a new Sphere project.
+- [API Definitions](docs/API_DEFINITIONS.md)-: Guidelines for writing API definitions `.proto` files in Sphere.
+- [Error Handling](docs/ERROR_HANDLING.md)—: Guidelines for error handling in Sphere applications.
 
 ## License
 
-**Sphere**  is released under the MIT license. See [LICENSE](LICENSE) for details.
+**Sphere** is released under the MIT license. See [LICENSE](LICENSE) for details.

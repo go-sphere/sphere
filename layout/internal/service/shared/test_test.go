@@ -85,13 +85,14 @@ func TestService_BodyPathTest(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
-	var resp ginx.DataResponse[sharedv1.BodyPathTestResponse_Response]
+	var resp ginx.DataResponse[[]*sharedv1.BodyPathTestResponse_Response]
 	err = json.Unmarshal(recorder.Body.Bytes(), &resp)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	assert.Equal(t, resp.Data.FieldTest1, req.FieldTest1)
-	assert.Equal(t, resp.Data.FieldTest2, req.FieldTest2)
+	data := resp.Data[0]
+	assert.Equal(t, data.FieldTest1, req.FieldTest1)
+	assert.Equal(t, data.FieldTest2, req.FieldTest2)
 	assert.Equal(t, http.StatusOK, recorder.Code, "Expected status code 200, got %d", recorder.Code)
 }

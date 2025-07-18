@@ -22,9 +22,11 @@ func (s *Service) RunTest(ctx context.Context, req *sharedv1.RunTestRequest) (*s
 
 func (s *Service) BodyPathTest(ctx context.Context, request *sharedv1.BodyPathTestRequest) (*sharedv1.BodyPathTestResponse, error) {
 	return &sharedv1.BodyPathTestResponse{
-		Response: &sharedv1.BodyPathTestResponse_Response{
-			FieldTest1: request.Request.FieldTest1,
-			FieldTest2: request.Request.FieldTest2,
+		Response: []*sharedv1.BodyPathTestResponse_Response{
+			{
+				FieldTest1: request.Request.FieldTest1,
+				FieldTest2: request.Request.FieldTest2,
+			},
 		},
 	}, nil
 }

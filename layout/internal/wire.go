@@ -23,6 +23,8 @@ var cacheSet = wire.NewSet(
 var storageSet = wire.NewSet(
 	file.NewWebServer,        // If you want to use the local file to s3 adapter server, you can use this line
 	file.NewLocalFileService, // Wrapper for local file storage to S3 adapter
+	wire.Bind(new(storage.URLHandler), new(*fileserver.S3Adapter)), // Bind the S3Adapter to the URLHandler interface
+	wire.Bind(new(storage.Storage), new(*fileserver.S3Adapter)),    // Bind the S3Adapter to the Storage interface
 	wire.Bind(new(storage.CDNStorage), new(*fileserver.S3Adapter)), // Bind the S3Adapter to the CDNStorage interface
 )
 

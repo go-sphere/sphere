@@ -50,22 +50,19 @@ Next, define an `enum` for your errors.
 Here is an example of an error enum from `layout/proto/shared/v1/test.proto`:
 
 ```protobuf
+syntax = "proto3";
+
+import "sphere/errors/errors.proto";
+
 enum TestError {
-  // Sets a default HTTP status code for all errors in this enum.
   option (sphere.errors.default_status) = 500;
-
-  // An error with default behavior.
-  UNKNOWN_TEST_ERROR = 0;
-
-  // A specific error with a custom status, reason, and message.
-  INVALID_FIELD_TEST1 = 1000 [(sphere.errors.options) = {
+  TEST_ERROR_UNSPECIFIED = 0;
+  TEST_ERROR_INVALID_FIELD_TEST1 = 1000 [(sphere.errors.options) = {
     status: 400
     reason: "INVALID_ARGUMENT"
     message: "无效的 field_test1"
   }];
-
-  // An error that only overrides the status code.
-  INVALID_PATH_TEST2 = 1001 [(sphere.errors.options) = {status: 400}];
+  TEST_ERROR_INVALID_PATH_TEST2 = 1001 [(sphere.errors.options) = {status: 400}];
 }
 ```
 
@@ -97,9 +94,11 @@ For each `enum TestError`, the following methods are generated:
 In your service implementation, you can now return one of the generated errors.
 
 ```go
+package layout
+
 import (
     "fmt"
-    "yourapp/api/shared/v1" // Import the generated package
+	sharedv1 "layout/api/shared/v1" // Import the generated package
 )
 
 func (s *MyService) SomeBusinessLogic(input string) error {
@@ -108,7 +107,7 @@ func (s *MyService) SomeBusinessLogic(input string) error {
         originalErr := fmt.Errorf("input cannot be empty")
 
         // Return the typed error, wrapping the original for context.
-        return sharedv1.TestError_INVALID_FIELD_TEST1.Join(originalErr)
+		return sharedv1.TestError_TEST_ERROR_INVALID_FIELD_TEST1.Join(originalErr)
     }
     return nil
 }

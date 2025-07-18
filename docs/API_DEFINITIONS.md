@@ -54,7 +54,8 @@ Sphere uses these definitions to automatically generate server-side stubs and ro
 
 ## API Definition Rules
 
-When defining HTTP transcoding rules, Sphere follows specific conventions to map your service methods to RESTful HTTP
+When defining HTTP transcoding rules, **Sphere** follows specific conventions to map your service methods to RESTful
+HTTP
 endpoints.
 
 ### URL Path Mapping
@@ -96,7 +97,7 @@ HTTP method.
 
 * **POST / PUT / PATCH**:
     * By default, all fields in the request message not bound to the URL path are expected in the JSON request body.
-    * To bind a field to URL query parameters instead, you can use a field binding annotation.
+  * To bind a field to a URL query parameter, you can use field binding annotations.
 
 #### Field Binding Options
 
