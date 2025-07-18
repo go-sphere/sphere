@@ -92,9 +92,13 @@ func NewRateLimiter(key func(*gin.Context) string, createLimiter func(*gin.Conte
 }
 
 func NewNewRateLimiterByClientIP(limit time.Duration, burst int, expire time.Duration, options ...Option) gin.HandlerFunc {
-	return NewRateLimiter(func(ctx *gin.Context) string {
-		return ctx.ClientIP()
-	}, func(ctx *gin.Context) (*rate.Limiter, time.Duration) {
-		return rate.NewLimiter(rate.Every(limit), burst), expire
-	}, options...)
+	return NewRateLimiter(
+		func(ctx *gin.Context) string {
+			return ctx.ClientIP()
+		},
+		func(ctx *gin.Context) (*rate.Limiter, time.Duration) {
+			return rate.NewLimiter(rate.Every(limit), burst), expire
+		},
+		options...,
+	)
 }
