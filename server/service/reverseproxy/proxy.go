@@ -21,8 +21,8 @@ type ProxyConfig struct {
 	checker  ResponseCacheCheckFunc
 }
 
-func NewProxyConfig() *ProxyConfig {
-	return &ProxyConfig{
+func NewProxyConfig(opts ...Option) *ProxyConfig {
+	conf := &ProxyConfig{
 		keygen: func(request *http.Request) string {
 			if request.Method != http.MethodGet {
 				return ""
@@ -39,11 +39,15 @@ func NewProxyConfig() *ProxyConfig {
 			return true
 		},
 	}
+	for _, opt := range opts {
+		opt(conf)
+	}
+	return conf
 }
 
-type ConfigOption = func(*ProxyConfig)
+type Option = func(*ProxyConfig)
 
-func WithTargetURL(target *url.URL) ConfigOption {
+func WithTargetURL(target *url.URL) Option {
 	return func(config *ProxyConfig) {
 		config.target = target
 		if config.director == nil {
@@ -65,19 +69,19 @@ func WithTargetURL(target *url.URL) ConfigOption {
 	}
 }
 
-func WithDirector(director func(*http.Request)) ConfigOption {
+func WithDirector(director func(*http.Request)) Option {
 	return func(config *ProxyConfig) {
 		config.director = director
 	}
 }
 
-func WithCacheKeyFunc(cacheKeyFunc RequestCacheKeyFunc) ConfigOption {
+func WithCacheKeyFunc(cacheKeyFunc RequestCacheKeyFunc) Option {
 	return func(config *ProxyConfig) {
 		config.keygen = cacheKeyFunc
 	}
 }
 
-func WithResponseCacheCheck(checker ResponseCacheCheckFunc) ConfigOption {
+func WithResponseCacheCheck(checker ResponseCacheCheckFunc) Option {
 	return func(config *ProxyConfig) {
 		config.checker = checker
 	}
@@ -87,11 +91,8 @@ func ignoreCloseError(closer func() error) {
 	_ = closer()
 }
 
-func CreateCacheReverseProxy(cache Cache, options ...ConfigOption) (*httputil.ReverseProxy, error) {
-	conf := NewProxyConfig()
-	for _, option := range options {
-		option(conf)
-	}
+func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProxy, error) {
+	conf := NewProxyConfig(opts...)
 	proxy := httputil.NewSingleHostReverseProxy(conf.target)
 	if conf.director != nil {
 		originalDirector := proxy.Director

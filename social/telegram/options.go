@@ -21,7 +21,7 @@ type options struct {
 type Option = func(*options)
 
 func newOptions(opts ...Option) *options {
-	opt := &options{
+	defaults := &options{
 		noRouteHandler: func(ctx context.Context, bot *bot.Bot, update *models.Update) {
 			if update.Message != nil {
 				log.Infof("receive message: %s", update.Message.Text)
@@ -40,10 +40,10 @@ func newOptions(opts ...Option) *options {
 		},
 		middlewares: []MiddlewareFunc{},
 	}
-	for _, o := range opts {
-		o(opt)
+	for _, opt := range opts {
+		opt(defaults)
 	}
-	return opt
+	return defaults
 }
 
 func WithErrorHandler(fn ErrorHandlerFunc) Option {

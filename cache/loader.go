@@ -23,15 +23,15 @@ type options struct {
 }
 
 func newOptions(opts ...Option) *options {
-	opt := &options{
+	defaults := &options{
 		hasTTL:       false,
 		expiration:   -1,
 		singleflight: nil,
 	}
-	for _, option := range opts {
-		option(opt)
+	for _, opt := range opts {
+		opt(defaults)
 	}
-	return opt
+	return defaults
 }
 
 type Option func(o *options)

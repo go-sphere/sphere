@@ -23,14 +23,14 @@ type options struct {
 }
 
 func newOptions(opts ...Option) *options {
-	opt := &options{
+	defaults := &options{
 		shutdownTimeout: 30 * time.Second,
 		signals:         []os.Signal{syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT},
 	}
-	for _, o := range opts {
-		o(opt)
+	for _, opt := range opts {
+		opt(defaults)
 	}
-	return opt
+	return defaults
 }
 
 type Option func(*options)
