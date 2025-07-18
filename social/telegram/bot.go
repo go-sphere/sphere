@@ -31,11 +31,20 @@ func NewApp(config *Config, opts ...Option) (*Bot, error) {
 		errorHandler:   opt.errorHandler,
 		authExtractor:  opt.authExtractor,
 	}
-	opt.botOptions = append(opt.botOptions, bot.WithDefaultHandler(
-		func(ctx context.Context, bot *bot.Bot, update *models.Update) {
-			app.noRouteHandler(ctx, bot, update)
-		},
-	))
+	opt.botOptions = append(opt.botOptions,
+		bot.WithDefaultHandler(
+			func(ctx context.Context, bot *bot.Bot, update *models.Update) {
+				app.noRouteHandler(ctx, bot, update)
+			},
+		),
+	)
+	app.middlewares = append(app.middlewares,
+		NewAuthMiddleware(
+			AuthExtractorFunc(func(ctx context.Context, update *Update) (map[string]any, error) {
+				return app.authExtractor(ctx, update)
+			}),
+		),
+	)
 	client, err := bot.New(config.Token, opt.botOptions...)
 	if err != nil {
 		return nil, err
@@ -70,7 +79,7 @@ func (b *Bot) SendMessage(ctx context.Context, update *Update, m *Message) error
 	return SendMessage(ctx, b.bot, update, m)
 }
 
-func (b *Bot) withMiddlewares(middlewares ...MiddlewareFunc) []MiddlewareFunc {
+func (b *Bot) appendMiddlewares(middlewares ...MiddlewareFunc) []MiddlewareFunc {
 	mid := make([]MiddlewareFunc, 0, len(middlewares)+len(b.middlewares))
 	mid = append(mid, b.middlewares...)
 	mid = append(mid, middlewares...)
@@ -78,17 +87,17 @@ func (b *Bot) withMiddlewares(middlewares ...MiddlewareFunc) []MiddlewareFunc {
 }
 
 func (b *Bot) BindNoRoute(handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
-	b.noRouteHandler = WithMiddleware(handlerFunc, b.errorHandler, b.withMiddlewares(middlewares...)...)
+	b.noRouteHandler = WithMiddleware(handlerFunc, b.errorHandler, b.appendMiddlewares(middlewares...)...)
 }
 
 func (b *Bot) BindCommand(command string, handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
-	fn := WithMiddleware(handlerFunc, b.errorHandler, b.withMiddlewares(middlewares...)...)
+	fn := WithMiddleware(handlerFunc, b.errorHandler, b.appendMiddlewares(middlewares...)...)
 	command = "/" + strings.TrimPrefix(command, "/")
 	b.bot.RegisterHandler(bot.HandlerTypeMessageText, command, bot.MatchTypePrefix, fn)
 }
 
 func (b *Bot) BindCallback(route string, handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
-	fn := WithMiddleware(handlerFunc, b.errorHandler, b.withMiddlewares(middlewares...)...)
+	fn := WithMiddleware(handlerFunc, b.errorHandler, b.appendMiddlewares(middlewares...)...)
 	b.bot.RegisterHandler(bot.HandlerTypeCallbackQueryData, route+":", bot.MatchTypePrefix, fn)
 }
 

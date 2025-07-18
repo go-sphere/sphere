@@ -58,6 +58,12 @@ func WithDefaultHandler(fn bot.HandlerFunc) Option {
 	}
 }
 
+func WithAuthExtractor(extractor AuthExtractorFunc) Option {
+	return func(o *options) {
+		o.authExtractor = extractor
+	}
+}
+
 func AppendBotOptions(opt ...bot.Option) Option {
 	return func(o *options) {
 		o.botOptions = append(o.botOptions, opt...)
