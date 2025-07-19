@@ -7,8 +7,6 @@ import (
 	"flag"
 	"log"
 	"os"
-	"path"
-	"runtime/debug"
 
 	"github.com/TBXark/sphere/database/bind"
 	"github.com/TBXark/sphere/layout/api/entpb"
@@ -22,15 +20,11 @@ import (
 
 func main() {
 	file := flag.String("file", "./internal/pkg/render/bind.go", "file path")
-	mod := flag.String("mod", currentModule(), "go module path")
 	flag.Parse()
 	if *file == "" {
 		log.Fatal("file is required")
 	}
-	if *mod == "" {
-		log.Fatal("mod is required")
-	}
-	content, err := bind.GenFile(*mod, bindItems(*mod))
+	content, err := bind.GenFile(bindItems())
 	if err != nil {
 		log.Fatalf("generate bind code failed: %v", err)
 	}
@@ -40,19 +34,8 @@ func main() {
 	}
 }
 
-func currentModule() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return ""
-	}
-	return info.Main.Path
-}
-
-func bindItems(mod string) *bind.GenFileConf {
+func bindItems() *bind.GenFileConf {
 	return &bind.GenFileConf{
-		ExtraImports: [][]string{
-			{path.Join(mod, "/api/shared/v1"), "sharedv1"},
-		},
 		Entities: []bind.GenFileEntityConf{
 			{
 				Entity:  ent.Admin{},
@@ -75,8 +58,7 @@ func bindItems(mod string) *bind.GenFileConf {
 				Actions: []any{ent.UserCreate{}, ent.UserUpdateOne{}},
 				ConfigBuilder: func(act any) *bind.GenFuncConf {
 					return bind.NewGenFuncConf(ent.User{}, sharedv1.User{}, act).
-						WithIgnoreFields(user.FieldCreatedAt, user.FieldUpdatedAt).
-						WithTargetPkgName("sharedv1")
+						WithIgnoreFields(user.FieldCreatedAt, user.FieldUpdatedAt)
 				},
 			},
 			{

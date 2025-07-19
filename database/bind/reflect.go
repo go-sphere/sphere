@@ -2,7 +2,10 @@ package bind
 
 import (
 	"fmt"
+	"path"
 	"reflect"
+	"sort"
+	"strings"
 	"unicode"
 )
 
@@ -129,4 +132,75 @@ func genNotZeroCheck(sourceName string, field reflect.StructField) string {
 	default:
 		return fmt.Sprintf("!reflect.ValueOf(%s.%s).IsZero()", sourceName, field.Name)
 	}
+}
+
+func packagePath(val any) string {
+	value := reflect.ValueOf(val)
+	if value.Kind() == reflect.Ptr {
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return ""
+	}
+	typeOf := value.Type()
+	return typeOf.PkgPath()
+}
+
+func packageName(val any) string {
+	value := reflect.ValueOf(val)
+	if value.Kind() == reflect.Ptr {
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return ""
+	}
+	typeOf := value.Type()
+	fullName := typeOf.String()
+	if !strings.Contains(fullName, ".") {
+		return ""
+	}
+	parts := strings.Split(fullName, ".")
+	return parts[0]
+}
+
+func typeName(val any) string {
+	value := reflect.ValueOf(val)
+	if value.Kind() == reflect.Ptr {
+		value = value.Elem()
+	}
+	typeOf := value.Type()
+	return typeOf.Name()
+}
+
+func extraImport(val any) [2]string {
+	pkgName := packageName(val)
+	pkgPath := packagePath(val)
+	return [2]string{
+		pkgPath,
+		pkgName,
+	}
+}
+
+func compressedImports(extraImports [][2]string) [][2]string {
+	seen := make(map[[2]string]bool)
+	result := make([][2]string, 0, len(extraImports))
+	for _, item := range extraImports {
+		if !seen[item] {
+			seen[item] = true
+			result = append(result, item)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i][0] == result[j][0] {
+			return result[i][1] < result[j][1]
+		}
+		return result[i][0] < result[j][0]
+	})
+	for i, item := range result {
+		_, name := path.Split(item[0])
+		if item[1] == name {
+			result[i][1] = ""
+		}
+	}
+	return result
 }

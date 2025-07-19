@@ -24,8 +24,8 @@ func NewGenFuncConf(source, target, action any) *GenFuncConf {
 		target:        target,
 		action:        action,
 		IgnoreFields:  nil,
-		SourcePkgName: "ent",
-		TargetPkgName: "entpb",
+		SourcePkgName: packageName(source),
+		TargetPkgName: packageName(target),
 	}
 }
 
