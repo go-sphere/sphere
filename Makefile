@@ -22,7 +22,7 @@ define install_mod
 endef
 
 define fmt_mod
-	echo "fmt $1" && (cd $1 && go fmt ./... && $(GOLANG_CI_LINT) fmt && $(GOLANG_CI_LINT) run --fix)
+	echo "fmt $1" && (cd $1 && go mod tidy && go fmt ./... && $(GOLANG_CI_LINT) fmt && $(GOLANG_CI_LINT) run --fix)
 endef
 
 define upgrade_mod

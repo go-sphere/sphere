@@ -38,7 +38,6 @@ func bindItems() *bind.GenFileConf {
 	return &bind.GenFileConf{
 		Entities: []bind.GenFileEntityConf{
 			{
-				Entity:  ent.Admin{},
 				Actions: []any{ent.AdminCreate{}, ent.AdminUpdateOne{}},
 				ConfigBuilder: func(act any) *bind.GenFuncConf {
 					return bind.NewGenFuncConf(ent.Admin{}, entpb.Admin{}, act).
@@ -46,7 +45,6 @@ func bindItems() *bind.GenFileConf {
 				},
 			},
 			{
-				Entity:  ent.AdminSession{},
 				Actions: []any{ent.AdminSessionCreate{}, ent.AdminSessionUpdateOne{}},
 				ConfigBuilder: func(act any) *bind.GenFuncConf {
 					return bind.NewGenFuncConf(ent.AdminSession{}, entpb.AdminSession{}, act).
@@ -54,7 +52,6 @@ func bindItems() *bind.GenFileConf {
 				},
 			},
 			{
-				Entity:  ent.User{},
 				Actions: []any{ent.UserCreate{}, ent.UserUpdateOne{}},
 				ConfigBuilder: func(act any) *bind.GenFuncConf {
 					return bind.NewGenFuncConf(ent.User{}, sharedv1.User{}, act).
@@ -62,7 +59,6 @@ func bindItems() *bind.GenFileConf {
 				},
 			},
 			{
-				Entity:  ent.KeyValueStore{},
 				Actions: []any{ent.KeyValueStoreCreate{}, ent.KeyValueStoreUpdateOne{}, ent.KeyValueStoreUpsertOne{}},
 				ConfigBuilder: func(act any) *bind.GenFuncConf {
 					return bind.NewGenFuncConf(ent.KeyValueStore{}, entpb.KeyValueStore{}, act).

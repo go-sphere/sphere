@@ -14,7 +14,6 @@ type GenFileConf struct {
 }
 
 type GenFileEntityConf struct {
-	Entity        any
 	Actions       []any
 	ConfigBuilder func(act any) *GenFuncConf
 }
@@ -29,24 +28,21 @@ func GenFile(config *GenFileConf) (string, error) {
 	}
 	entity.WriteString("const (\n")
 	for _, item := range config.Entities {
-		entityName := strings.ToLower(typeName(item.Entity))
-		imports = append(imports, PackageImport(item.Entity))
-		for _, act := range item.Actions {
+		for i, act := range item.Actions {
 			conf := item.ConfigBuilder(act)
-			source := PackageImport(conf.source)
 			imports = append(imports,
-				source,
 				PackageImport(act),
+				PackageImport(conf.source),
 				PackageImport(conf.target),
 			)
-			if entityName != "" {
+			if i == 0 {
+				entityName := strings.ToLower(typeName(conf.source))
 				imp := "\t_ = " + entityName + ".Label\n"
 				entity.WriteString(imp)
 				imports = append(imports, [2]string{
-					path.Join(source[0], entityName),
+					path.Join(packagePath(conf.source), entityName),
 					entityName,
 				})
-				entityName = ""
 			}
 			body.WriteString(GenBindFunc(conf))
 		}
