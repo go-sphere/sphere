@@ -25,19 +25,19 @@ func GenFile(config *GenFileConf) (string, error) {
 	var entity strings.Builder
 
 	imports := [][2]string{
-		packageImport(Options{}),
+		PackageImport(Options{}),
 	}
 	entity.WriteString("const (\n")
 	for _, item := range config.Entities {
 		entityName := strings.ToLower(typeName(item.Entity))
-		imports = append(imports, packageImport(item.Entity))
+		imports = append(imports, PackageImport(item.Entity))
 		for _, act := range item.Actions {
 			conf := item.ConfigBuilder(act)
-			source := packageImport(conf.source)
+			source := PackageImport(conf.source)
 			imports = append(imports,
 				source,
-				packageImport(act),
-				packageImport(conf.target),
+				PackageImport(act),
+				PackageImport(conf.target),
 			)
 			if entityName != "" {
 				imp := "\t_ = " + entityName + ".Label\n"

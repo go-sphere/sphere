@@ -172,7 +172,7 @@ func packageName(val any) string {
 	return parts[0]
 }
 
-func packageImport(val any) [2]string {
+func PackageImport(val any) [2]string {
 	pkgName := packageName(val)
 	pkgPath := packagePath(val)
 	return [2]string{
