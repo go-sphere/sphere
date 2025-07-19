@@ -134,6 +134,15 @@ func genNotZeroCheck(sourceName string, field reflect.StructField) string {
 	}
 }
 
+func typeName(val any) string {
+	value := reflect.ValueOf(val)
+	if value.Kind() == reflect.Ptr {
+		value = value.Elem()
+	}
+	typeOf := value.Type()
+	return typeOf.Name()
+}
+
 func packagePath(val any) string {
 	value := reflect.ValueOf(val)
 	if value.Kind() == reflect.Ptr {
@@ -163,16 +172,7 @@ func packageName(val any) string {
 	return parts[0]
 }
 
-func typeName(val any) string {
-	value := reflect.ValueOf(val)
-	if value.Kind() == reflect.Ptr {
-		value = value.Elem()
-	}
-	typeOf := value.Type()
-	return typeOf.Name()
-}
-
-func extraImport(val any) [2]string {
+func packageImport(val any) [2]string {
 	pkgName := packageName(val)
 	pkgPath := packagePath(val)
 	return [2]string{
