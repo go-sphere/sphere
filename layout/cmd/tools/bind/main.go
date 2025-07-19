@@ -16,6 +16,7 @@ import (
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/adminsession"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/keyvaluestore"
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent/user"
+	"golang.org/x/tools/imports"
 )
 
 func main() {
@@ -28,7 +29,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("generate bind code failed: %v", err)
 	}
-	err = os.WriteFile(*file, []byte(content), 0o644)
+	formattedSrc, err := imports.Process(*file, []byte(content), nil)
+	if err != nil {
+		log.Fatalf("format code failed: %v", err)
+	}
+	err = os.WriteFile(*file, formattedSrc, 0o644)
 	if err != nil {
 		log.Fatalf("write file failed: %v", err)
 	}
