@@ -20,7 +20,11 @@ func (e *Error) Add(err error) {
 }
 
 func (e *Error) Errors() string {
-	return e.Unwrap().Error()
+	err := e.Unwrap()
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func (e *Error) Unwrap() error {

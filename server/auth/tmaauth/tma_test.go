@@ -37,6 +37,7 @@ func TestTmaAuth_ParseToken(t *testing.T) {
 	parsedClaims, err := tmaAuth.ParseToken(ctx, token)
 	if err != nil {
 		t.Error(err)
+		return
 	}
 	if parsedClaims.User.ID != claims.User.ID {
 		t.Errorf("expected %d, got %d", claims.User.ID, parsedClaims.User.ID)

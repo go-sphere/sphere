@@ -6,19 +6,18 @@ const (
 )
 
 var (
-	Std32Encoding    *BaseEncoding
-	StdRaw32Encoding *BaseEncoding
+	Std32Encoding    = must(NewBaseEncoding(AlphabetBase32))
+	StdRaw32Encoding = must(NewBaseEncodingWithPadding(AlphabetBase32, '='))
 )
 
 var (
-	Std62Encoding    *BaseEncoding
-	StdRaw62Encoding *BaseEncoding
+	Std62Encoding    = must(NewBaseEncoding(AlphabetBase62))
+	StdRaw62Encoding = must(NewBaseEncodingWithPadding(AlphabetBase62, '='))
 )
 
-func init() {
-	Std32Encoding, _ = NewBaseEncoding(AlphabetBase32)
-	StdRaw32Encoding, _ = NewBaseEncodingWithPadding(AlphabetBase32, '=')
-
-	Std62Encoding, _ = NewBaseEncoding(AlphabetBase62)
-	StdRaw62Encoding, _ = NewBaseEncodingWithPadding(AlphabetBase62, '=')
+func must(e *BaseEncoding, err error) *BaseEncoding {
+	if err != nil {
+		panic(err)
+	}
+	return e
 }

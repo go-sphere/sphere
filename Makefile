@@ -1,4 +1,8 @@
-GOLANG_CI_LINT = golangci-lint
+SPHERE_CLI      ?= sphere-cli
+NILAWAY_CLI     ?= nilaway
+GOLANG_CI_LINT  ?= golangci-lint
+
+MODULE := $(shell go list -m)
 
 MODULES := . \
 	layout \
@@ -33,6 +37,10 @@ define test_mod
 	echo "test $1" && (cd $1 && go test -v ./...)
 endef
 
+define nil_check
+	echo "nilaway check $1" && (cd $1 && $(NILAWAY_CLI) -include-pkgs="$(MODULE)" ./... )
+endef
+
 .PHONY: install
 install: ## Install all dependencies
 	$(foreach mod,$(COMMANDS),$(call install_mod,$(mod)) && ) true
@@ -49,10 +57,14 @@ upgrade: ## Upgrade dependencies
 test: ## Run tests
 	$(foreach mod,$(MODULES),$(call test_mod,$(mod)) && ) true
 
+.PHONY: nilaway
+nilaway: ## Run nilaway checks
+	$(foreach mod,$(MODULES),$(call nil_check,$(mod)) && ) true
+
 .PHONY: cli/service/test
 cli/service/test: ## Test sphere-cli service generation
-	sphere-cli service golang --name KeyValueStore &> layout/internal/service/dash/keyvaluestore.go
-	sphere-cli service proto --name KeyValueStore &> layout/proto/dash/v1/keyvaluestore.proto
+	$(SPHERE_CLI) service golang --name KeyValueStore &> layout/internal/service/dash/keyvaluestore.go
+	$(SPHERE_CLI) service proto --name KeyValueStore &> layout/proto/dash/v1/keyvaluestore.proto
 	cd layout && make gen/all && make build
 
 .PHONY: hook/before/commit

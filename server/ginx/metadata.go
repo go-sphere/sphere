@@ -28,10 +28,13 @@ func EndpointsToMatches(base string, endpoints ...[][3]string) map[string]map[st
 	matches := make(map[string]map[string]string)
 	for _, list := range endpoints {
 		for _, route := range list {
-			if _, ok := matches[route[1]]; !ok {
-				matches[route[1]] = make(map[string]string)
+			key := route[1]
+			inner, ok := matches[key]
+			if !ok || inner == nil {
+				inner = make(map[string]string)
+				matches[key] = inner
 			}
-			matches[route[1]][joinPaths(base, route[2])] = route[0]
+			inner[joinPaths(base, route[2])] = route[0]
 		}
 	}
 	return matches

@@ -1,3 +1,5 @@
 package scache
 
-// generate cache key
+func UserIDKeyExample(userID string) string {
+	return "user:" + userID
+}

@@ -1,3 +1,4 @@
+version: "2"
 severity:
   default: error
   rules:
@@ -11,4 +12,3 @@ formatters:
     - gofmt
     - gofumpt
     - goimports
-version: "2"

@@ -27,6 +27,9 @@ func TestUnmarshalData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unmarshal failed: %v", err)
 	}
+	if data == nil {
+		t.Fatal("Unmarshaled data is nil")
+	}
 	if route != "test" {
 		t.Errorf("Unmarshaled route is invalid, got: %s", route)
 	}

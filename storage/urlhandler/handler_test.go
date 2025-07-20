@@ -11,7 +11,10 @@ const (
 )
 
 func TestHandler_ExtractKeyFromURLWithMode(t *testing.T) {
-	handler, _ := NewHandler(testPublicURL)
+	handler, err := NewHandler(testPublicURL)
+	if err != nil {
+		t.Fatal(err)
+	}
 	key, err := handler.ExtractKeyFromURLWithMode(testURI, true)
 	if err != nil {
 		t.Fatal(err)
@@ -20,7 +23,10 @@ func TestHandler_ExtractKeyFromURLWithMode(t *testing.T) {
 }
 
 func TestHandler_GenerateURL(t *testing.T) {
-	handler, _ := NewHandler(testPublicURL)
+	handler, err := NewHandler(testPublicURL)
+	if err != nil {
+		t.Fatal(err)
+	}
 	url := handler.GenerateURL("test")
 	log.Print(url)
 }

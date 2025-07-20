@@ -17,6 +17,9 @@ func (s *Service) AuthWithWxMini(ctx context.Context, request *apiv1.AuthWithWxM
 	if err != nil {
 		return nil, err
 	}
+	if data == nil {
+		return nil, fmt.Errorf("failed to get session data from WeChat")
+	}
 	res, err := auth.Auth(
 		ctx, s.db, data.OpenID, auth.PlatformWechatMini,
 		auth.WithAuthMode(auth.CreateWithoutCheck),
