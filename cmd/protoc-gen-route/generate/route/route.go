@@ -153,6 +153,9 @@ func extractOptionsRule(method *protogen.Method, key string) *options.KeyValuePa
 	if method.Desc.IsStreamingClient() || method.Desc.IsStreamingServer() {
 		return nil
 	}
+	if !proto.HasExtension(method.Desc.Options(), options.E_Options) {
+		return nil
+	}
 	rules, ok := proto.GetExtension(method.Desc.Options(), options.E_Options).([]*options.KeyValuePair)
 	if rules == nil || !ok {
 		return nil
