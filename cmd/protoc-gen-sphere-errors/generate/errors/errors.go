@@ -27,7 +27,7 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File) *protogen.Generated
 	filename := file.GeneratedFilenamePrefix + "_errors.pb.go"
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 	generateFileHeader(gen, file, g)
-	generateFileContent(gen, file, g)
+	generateFileContent(file, g)
 	return g
 }
 
@@ -45,7 +45,7 @@ func generateFileHeader(gen *protogen.Plugin, file *protogen.File, g *protogen.G
 	g.P()
 }
 
-func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile) {
+func generateFileContent(file *protogen.File, g *protogen.GeneratedFile) {
 	if len(file.Enums) == 0 {
 		return
 	}
@@ -53,11 +53,11 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 	g.QualifiedGoIdent(statusErrorsPackage.Ident("Error"))
 	g.P()
 	for _, enum := range file.Enums {
-		generateErrorsReason(gen, file, g, enum)
+		generateErrorsReason(g, enum)
 	}
 }
 
-func generateErrorsReason(_ *protogen.Plugin, _ *protogen.File, g *protogen.GeneratedFile, enum *protogen.Enum) bool {
+func generateErrorsReason(g *protogen.GeneratedFile, enum *protogen.Enum) bool {
 	if !proto.HasExtension(enum.Desc.Options(), errors.E_DefaultStatus) {
 		return false
 	}
