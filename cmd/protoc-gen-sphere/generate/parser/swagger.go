@@ -69,9 +69,9 @@ var NoBodyMethods = map[string]struct{}{
 func BuildAnnotations(g *protogen.GeneratedFile, m *protogen.Method, config *SwagParams) (string, error) {
 	var builder strings.Builder
 	builder.WriteString("// @Summary " + string(m.Desc.Name()) + "\n")
-	desc := string(m.Comments.Leading)
+	desc := strings.TrimSpace(string(m.Comments.Leading))
 	if desc != "" {
-		desc = strings.Join(strings.Split(desc, "\n"), ",")
+		desc = strings.TrimSpace(strings.Join(strings.Split(desc, "\n"), ","))
 		builder.WriteString("// @Description " + desc + "\n")
 	}
 
