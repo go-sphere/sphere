@@ -10,12 +10,12 @@ import (
 )
 
 type GenFuncConf struct {
-	source        any
-	target        any
-	action        any
-	IgnoreFields  []string
-	SourcePkgName string
-	TargetPkgName string
+	source        any      // ent entity, e.g. ent.Example
+	target        any      // protobuf entity, e.g. entpb.Example
+	action        any      // ent operation, e.g. ent.ExampleCreate, ent.ExampleUpdateOne
+	IgnoreFields  []string // fields to ignore, e.g.  example.FieldID, example.FieldCreatedAt
+	SourcePkgName string   // package name of source, e.g. "ent"
+	TargetPkgName string   // package name of target, e.g. "entpb"
 }
 
 func NewGenFuncConf(source, target, action any) *GenFuncConf {
@@ -69,29 +69,32 @@ func GenBindFunc(conf *GenFuncConf) string {
 	for _, field := range conf.IgnoreFields {
 		ignoreFields[strings.ToLower(field)] = true
 	}
+	table := getStructName(conf.source)
 
 	for _, n := range keys {
 		if ignoreFields[n] {
 			continue
 		}
-		targetField, ok := targetFields[n]
+		sourceField, ok := sourceFields[n] // ent.Example
 		if !ok {
 			continue
 		}
-		sourceField, ok := sourceFields[n]
+		targetField, ok := targetFields[n] // entpb.Example
 		if !ok {
 			continue
 		}
 
-		setter, hasSetter := actionMethods[strcase.ToSnake(fmt.Sprintf("Set%s", targetField.Name))]
+		setter, hasSetter := actionMethods[strcase.ToSnake(fmt.Sprintf("Set%s", sourceField.Name))]
 		if !hasSetter {
 			continue
 		}
-		settNillable, hasSettNillable := actionMethods[strcase.ToSnake(fmt.Sprintf("SetNillable%s", targetField.Name))]
-		clearOnNil, hasClearOnNil := actionMethods[strcase.ToSnake(fmt.Sprintf("Clear%s", targetField.Name))]
+		settNillable, hasSettNillable := actionMethods[strcase.ToSnake(fmt.Sprintf("SetNillable%s", sourceField.Name))]
+		clearOnNil, hasClearOnNil := actionMethods[strcase.ToSnake(fmt.Sprintf("Clear%s", sourceField.Name))]
 		targetFieldIsPtr := targetField.Type.Kind() == reflect.Ptr
 
 		field := fieldContext{
+			FieldKeyPath: fmt.Sprintf("%s.Field%s", strings.ToLower(table), sourceField.Name),
+
 			TargetField: targetField,
 			SourceField: sourceField,
 
@@ -104,6 +107,7 @@ func GenBindFunc(conf *GenFuncConf) string {
 			TargetFieldIsPtr:       targetFieldIsPtr,
 			TargetSourceIsSomeType: false,
 		}
+
 		if targetFieldIsPtr {
 			elem := targetField.Type.Elem()
 			field.TargetSourceIsSomeType = elem.Kind() == sourceField.Type.Kind() && elem.String() == sourceField.Type.String()
@@ -142,6 +146,8 @@ type bindContext struct {
 }
 
 type fieldContext struct {
+	FieldKeyPath string
+
 	TargetField reflect.StructField
 	SourceField reflect.StructField
 
@@ -160,11 +166,11 @@ const genBindFuncTemplate = `
 func {{.FuncName}}(source *{{.SourcePkgName}}.{{.ActionName}}, target *{{.TargetPkgName}}.{{.TargetName}}, options ...bind.Option) *{{.SourcePkgName}}.{{.ActionName}} {
 	option := bind.NewBindOptions(options...)
 {{- range .Fields}}
-	if option.CanSetField("{{ToSnakeCase .SourceField.Name}}") {
+	if option.CanSetField({{.FieldKeyPath}}) {
 		{{- if .TargetFieldIsPtr}} {{/* 当目标字段是指针类型 */}}
 			{{- if .CanSettNillable}} {{/* 如果存在SetNillable方法，直接使用 */}}
 				{{- if .CanClearOnNil}} {{/* 如果存在ClearOnNil，判断是否需要使用 */}}
-					if target.{{.TargetField.Name}} == nil && option.ClearOnNil("{{ToSnakeCase .SourceField.Name}}") {
+					if target.{{.TargetField.Name}} == nil && option.ClearOnNil({{.FieldKeyPath}}) {
 						source.{{.ClearOnNilFuncName}}()
 					} else {
 						source.{{.SettNillableFuncName}}(target.{{.TargetField.Name}})
@@ -182,7 +188,7 @@ func {{.FuncName}}(source *{{.SourcePkgName}}.{{.ActionName}}, target *{{.Target
 				}
 			{{- end}}
 		{{- else -}} {{/* 当目标字段不是指针类型 */}}
-			if !option.IgnoreSetZero("{{ToSnakeCase .SourceField.Name}}") || {{GenNotZeroCheck "target" .TargetField}} {
+			if !option.IgnoreSetZero({{.FieldKeyPath}}) || {{GenNotZeroCheck "target" .TargetField}} {
         		{{- if .TargetSourceIsSomeType}} {{/* 如果源和目标是相同类型，直接赋值 */}}
 					source.{{.SetterFuncName}}(target.{{.TargetField.Name}}) 
         		{{- else}} {{/* 如果类型不同，需要进行类型转换 */}}
