@@ -2,6 +2,7 @@ package service
 
 import (
 	_ "embed"
+	"github.com/go-openapi/inflect"
 	"strings"
 	"text/template"
 
@@ -25,9 +26,10 @@ func GenServiceProto(name, pkg string) (string, error) {
 		RouteName:   strcase.ToKebab(name),
 		EntityName:  strcase.ToSnake(name),
 	}
+	rules := inflect.NewDefaultRuleset()
 
 	tmpl := template.New("proto").Funcs(template.FuncMap{
-		"plural": Plural,
+		"plural": rules.Pluralize,
 	})
 	tmpl, err := tmpl.Parse(protoTemplate)
 	if err != nil {

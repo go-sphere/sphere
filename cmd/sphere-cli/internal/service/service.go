@@ -6,6 +6,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/go-openapi/inflect"
 	"github.com/iancoleman/strcase"
 )
 
@@ -28,9 +29,10 @@ func GenServiceGolang(name, pkg, mod string) (string, error) {
 		BizPackagePath:  mod,
 		ServiceFileName: strings.ToLower(name),
 	}
+	rules := inflect.NewDefaultRuleset()
 
 	tmpl := template.New("service").Funcs(template.FuncMap{
-		"plural": Plural,
+		"plural": rules.Pluralize,
 	})
 	tmpl, err := tmpl.Parse(serviceTemplate)
 	if err != nil {
