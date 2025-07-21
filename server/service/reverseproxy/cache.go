@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/TBXark/sphere/cache"
 	"github.com/TBXark/sphere/storage"
@@ -23,16 +22,16 @@ type Cache interface {
 }
 
 type CommonCache struct {
-	expiration time.Duration
-	cache      cache.ByteCache
-	storage    storage.Storage
+	cache           cache.ByteCache
+	storage         storage.Storage
+	setCacheOptions []cache.Option
 }
 
-func NewByteCache(expiration time.Duration, cache cache.ByteCache, storage storage.Storage) *CommonCache {
+func NewByteCache(cache cache.ByteCache, storage storage.Storage, setCacheOptions ...cache.Option) *CommonCache {
 	return &CommonCache{
-		expiration: expiration,
-		cache:      cache,
-		storage:    storage,
+		cache:           cache,
+		storage:         storage,
+		setCacheOptions: setCacheOptions,
 	}
 }
 
@@ -74,7 +73,7 @@ func (c *CommonCache) Save(ctx context.Context, key string, header http.Header, 
 	if err != nil {
 		return err
 	}
-	err = c.cache.SetWithTTL(ctx, key, headerRaw, c.expiration)
+	err = cache.Set(ctx, c.cache, key, headerRaw, c.setCacheOptions...)
 	if err != nil {
 		return err
 	}
