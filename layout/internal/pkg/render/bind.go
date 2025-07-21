@@ -15,32 +15,32 @@ import (
 func CreateAdmin(source *ent.AdminCreate, target *entpb.Admin, options ...bind.Option) *ent.AdminCreate {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField(admin.FieldID) {
-		if !option.IgnoreSetZero(admin.FieldID) || target.Id != 0 {
+		if option.CanSetZero(admin.FieldID) || target.Id != 0 {
 			source.SetID(target.Id)
 		}
 	}
 	if option.CanSetField(admin.FieldUsername) {
-		if !option.IgnoreSetZero(admin.FieldUsername) || target.Username != "" {
+		if option.CanSetZero(admin.FieldUsername) || target.Username != "" {
 			source.SetUsername(target.Username)
 		}
 	}
 	if option.CanSetField(admin.FieldNickname) {
-		if !option.IgnoreSetZero(admin.FieldNickname) || target.Nickname != "" {
+		if option.CanSetZero(admin.FieldNickname) || target.Nickname != "" {
 			source.SetNickname(target.Nickname)
 		}
 	}
 	if option.CanSetField(admin.FieldAvatar) {
-		if !option.IgnoreSetZero(admin.FieldAvatar) || target.Avatar != "" {
+		if option.CanSetZero(admin.FieldAvatar) || target.Avatar != "" {
 			source.SetAvatar(target.Avatar)
 		}
 	}
 	if option.CanSetField(admin.FieldPassword) {
-		if !option.IgnoreSetZero(admin.FieldPassword) || target.Password != "" {
+		if option.CanSetZero(admin.FieldPassword) || target.Password != "" {
 			source.SetPassword(target.Password)
 		}
 	}
 	if option.CanSetField(admin.FieldRoles) {
-		if !option.IgnoreSetZero(admin.FieldRoles) || target.Roles != nil {
+		if option.CanSetZero(admin.FieldRoles) || target.Roles != nil {
 			source.SetRoles(target.Roles)
 		}
 	}
@@ -50,27 +50,27 @@ func CreateAdmin(source *ent.AdminCreate, target *entpb.Admin, options ...bind.O
 func UpdateOneAdmin(source *ent.AdminUpdateOne, target *entpb.Admin, options ...bind.Option) *ent.AdminUpdateOne {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField(admin.FieldUsername) {
-		if !option.IgnoreSetZero(admin.FieldUsername) || target.Username != "" {
+		if option.CanSetZero(admin.FieldUsername) || target.Username != "" {
 			source.SetUsername(target.Username)
 		}
 	}
 	if option.CanSetField(admin.FieldNickname) {
-		if !option.IgnoreSetZero(admin.FieldNickname) || target.Nickname != "" {
+		if option.CanSetZero(admin.FieldNickname) || target.Nickname != "" {
 			source.SetNickname(target.Nickname)
 		}
 	}
 	if option.CanSetField(admin.FieldAvatar) {
-		if !option.IgnoreSetZero(admin.FieldAvatar) || target.Avatar != "" {
+		if option.CanSetZero(admin.FieldAvatar) || target.Avatar != "" {
 			source.SetAvatar(target.Avatar)
 		}
 	}
 	if option.CanSetField(admin.FieldPassword) {
-		if !option.IgnoreSetZero(admin.FieldPassword) || target.Password != "" {
+		if option.CanSetZero(admin.FieldPassword) || target.Password != "" {
 			source.SetPassword(target.Password)
 		}
 	}
 	if option.CanSetField(admin.FieldRoles) {
-		if !option.IgnoreSetZero(admin.FieldRoles) || target.Roles != nil {
+		if option.CanSetZero(admin.FieldRoles) || target.Roles != nil {
 			source.SetRoles(target.Roles)
 		}
 	}
@@ -80,37 +80,37 @@ func UpdateOneAdmin(source *ent.AdminUpdateOne, target *entpb.Admin, options ...
 func CreateAdminSession(source *ent.AdminSessionCreate, target *entpb.AdminSession, options ...bind.Option) *ent.AdminSessionCreate {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField(adminsession.FieldID) {
-		if !option.IgnoreSetZero(adminsession.FieldID) || target.Id != 0 {
+		if option.CanSetZero(adminsession.FieldID) || target.Id != 0 {
 			source.SetID(target.Id)
 		}
 	}
 	if option.CanSetField(adminsession.FieldUID) {
-		if !option.IgnoreSetZero(adminsession.FieldUID) || target.Uid != 0 {
+		if option.CanSetZero(adminsession.FieldUID) || target.Uid != 0 {
 			source.SetUID(target.Uid)
 		}
 	}
 	if option.CanSetField(adminsession.FieldSessionKey) {
-		if !option.IgnoreSetZero(adminsession.FieldSessionKey) || target.SessionKey != "" {
+		if option.CanSetZero(adminsession.FieldSessionKey) || target.SessionKey != "" {
 			source.SetSessionKey(target.SessionKey)
 		}
 	}
 	if option.CanSetField(adminsession.FieldExpires) {
-		if !option.IgnoreSetZero(adminsession.FieldExpires) || target.Expires != 0 {
+		if option.CanSetZero(adminsession.FieldExpires) || target.Expires != 0 {
 			source.SetExpires(target.Expires)
 		}
 	}
 	if option.CanSetField(adminsession.FieldIsRevoked) {
-		if !option.IgnoreSetZero(adminsession.FieldIsRevoked) || target.IsRevoked {
+		if option.CanSetZero(adminsession.FieldIsRevoked) || target.IsRevoked {
 			source.SetIsRevoked(target.IsRevoked)
 		}
 	}
 	if option.CanSetField(adminsession.FieldDeviceInfo) {
-		if !option.IgnoreSetZero(adminsession.FieldDeviceInfo) || target.DeviceInfo != "" {
+		if option.CanSetZero(adminsession.FieldDeviceInfo) || target.DeviceInfo != "" {
 			source.SetDeviceInfo(target.DeviceInfo)
 		}
 	}
 	if option.CanSetField(adminsession.FieldIPAddress) {
-		if !option.IgnoreSetZero(adminsession.FieldIPAddress) || target.IpAddress != "" {
+		if option.CanSetZero(adminsession.FieldIPAddress) || target.IpAddress != "" {
 			source.SetIPAddress(target.IpAddress)
 		}
 	}
@@ -120,17 +120,17 @@ func CreateAdminSession(source *ent.AdminSessionCreate, target *entpb.AdminSessi
 func UpdateOneAdminSession(source *ent.AdminSessionUpdateOne, target *entpb.AdminSession, options ...bind.Option) *ent.AdminSessionUpdateOne {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField(adminsession.FieldIsRevoked) {
-		if !option.IgnoreSetZero(adminsession.FieldIsRevoked) || target.IsRevoked {
+		if option.CanSetZero(adminsession.FieldIsRevoked) || target.IsRevoked {
 			source.SetIsRevoked(target.IsRevoked)
 		}
 	}
 	if option.CanSetField(adminsession.FieldDeviceInfo) {
-		if !option.IgnoreSetZero(adminsession.FieldDeviceInfo) || target.DeviceInfo != "" {
+		if option.CanSetZero(adminsession.FieldDeviceInfo) || target.DeviceInfo != "" {
 			source.SetDeviceInfo(target.DeviceInfo)
 		}
 	}
 	if option.CanSetField(adminsession.FieldIPAddress) {
-		if !option.IgnoreSetZero(adminsession.FieldIPAddress) || target.IpAddress != "" {
+		if option.CanSetZero(adminsession.FieldIPAddress) || target.IpAddress != "" {
 			source.SetIPAddress(target.IpAddress)
 		}
 	}
@@ -140,17 +140,17 @@ func UpdateOneAdminSession(source *ent.AdminSessionUpdateOne, target *entpb.Admi
 func CreateUser(source *ent.UserCreate, target *sharedv1.User, options ...bind.Option) *ent.UserCreate {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField(user.FieldID) {
-		if !option.IgnoreSetZero(user.FieldID) || target.Id != 0 {
+		if option.CanSetZero(user.FieldID) || target.Id != 0 {
 			source.SetID(target.Id)
 		}
 	}
 	if option.CanSetField(user.FieldUsername) {
-		if !option.IgnoreSetZero(user.FieldUsername) || target.Username != "" {
+		if option.CanSetZero(user.FieldUsername) || target.Username != "" {
 			source.SetUsername(target.Username)
 		}
 	}
 	if option.CanSetField(user.FieldAvatar) {
-		if !option.IgnoreSetZero(user.FieldAvatar) || target.Avatar != "" {
+		if option.CanSetZero(user.FieldAvatar) || target.Avatar != "" {
 			source.SetAvatar(target.Avatar)
 		}
 	}
@@ -160,12 +160,12 @@ func CreateUser(source *ent.UserCreate, target *sharedv1.User, options ...bind.O
 func UpdateOneUser(source *ent.UserUpdateOne, target *sharedv1.User, options ...bind.Option) *ent.UserUpdateOne {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField(user.FieldUsername) {
-		if !option.IgnoreSetZero(user.FieldUsername) || target.Username != "" {
+		if option.CanSetZero(user.FieldUsername) || target.Username != "" {
 			source.SetUsername(target.Username)
 		}
 	}
 	if option.CanSetField(user.FieldAvatar) {
-		if !option.IgnoreSetZero(user.FieldAvatar) || target.Avatar != "" {
+		if option.CanSetZero(user.FieldAvatar) || target.Avatar != "" {
 			source.SetAvatar(target.Avatar)
 		}
 	}
@@ -175,12 +175,12 @@ func UpdateOneUser(source *ent.UserUpdateOne, target *sharedv1.User, options ...
 func CreateKeyValueStore(source *ent.KeyValueStoreCreate, target *entpb.KeyValueStore, options ...bind.Option) *ent.KeyValueStoreCreate {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField(keyvaluestore.FieldKey) {
-		if !option.IgnoreSetZero(keyvaluestore.FieldKey) || target.Key != "" {
+		if option.CanSetZero(keyvaluestore.FieldKey) || target.Key != "" {
 			source.SetKey(target.Key)
 		}
 	}
 	if option.CanSetField(keyvaluestore.FieldValue) {
-		if !option.IgnoreSetZero(keyvaluestore.FieldValue) || target.Value != nil {
+		if option.CanSetZero(keyvaluestore.FieldValue) || target.Value != nil {
 			source.SetValue(target.Value)
 		}
 	}
@@ -190,12 +190,12 @@ func CreateKeyValueStore(source *ent.KeyValueStoreCreate, target *entpb.KeyValue
 func UpdateOneKeyValueStore(source *ent.KeyValueStoreUpdateOne, target *entpb.KeyValueStore, options ...bind.Option) *ent.KeyValueStoreUpdateOne {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField(keyvaluestore.FieldKey) {
-		if !option.IgnoreSetZero(keyvaluestore.FieldKey) || target.Key != "" {
+		if option.CanSetZero(keyvaluestore.FieldKey) || target.Key != "" {
 			source.SetKey(target.Key)
 		}
 	}
 	if option.CanSetField(keyvaluestore.FieldValue) {
-		if !option.IgnoreSetZero(keyvaluestore.FieldValue) || target.Value != nil {
+		if option.CanSetZero(keyvaluestore.FieldValue) || target.Value != nil {
 			source.SetValue(target.Value)
 		}
 	}
@@ -205,12 +205,12 @@ func UpdateOneKeyValueStore(source *ent.KeyValueStoreUpdateOne, target *entpb.Ke
 func UpsertOneKeyValueStore(source *ent.KeyValueStoreUpsertOne, target *entpb.KeyValueStore, options ...bind.Option) *ent.KeyValueStoreUpsertOne {
 	option := bind.NewBindOptions(options...)
 	if option.CanSetField(keyvaluestore.FieldKey) {
-		if !option.IgnoreSetZero(keyvaluestore.FieldKey) || target.Key != "" {
+		if option.CanSetZero(keyvaluestore.FieldKey) || target.Key != "" {
 			source.SetKey(target.Key)
 		}
 	}
 	if option.CanSetField(keyvaluestore.FieldValue) {
-		if !option.IgnoreSetZero(keyvaluestore.FieldValue) || target.Value != nil {
+		if option.CanSetZero(keyvaluestore.FieldValue) || target.Value != nil {
 			source.SetValue(target.Value)
 		}
 	}

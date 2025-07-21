@@ -77,6 +77,10 @@ func (o *Options) IgnoreSetZero(field string) bool {
 	return ok
 }
 
+func (o *Options) CanSetZero(field string) bool {
+	return !o.IgnoreSetZero(field)
+}
+
 func (o *Options) CanSetField(field string) bool {
 	if o.keepFieldsOnly != nil {
 		_, ok := o.keepFieldsOnly[field]

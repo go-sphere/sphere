@@ -173,10 +173,26 @@ func {{.FuncName}}(source *{{.SourcePkgName}}.{{.ActionName}}, target *{{.Target
 					if target.{{.TargetField.Name}} == nil && option.ClearOnNil({{.FieldKeyPath}}) {
 						source.{{.ClearOnNilFuncName}}()
 					} else {
-						source.{{.SettNillableFuncName}}(target.{{.TargetField.Name}})
+						{{- if .TargetSourceIsSomeType}}{{/* 如果源和目标是相同类型，直接赋值 */}}
+							source.{{.SettNillableFuncName}}(target.{{.TargetField.Name}})
+						{{- else}}{{/* 如果类型不同，需要进行类型转换 */}}
+							if target.{{.TargetField.Name}} != nil {
+								source.{{.SetterFuncName}}({{.SourceField.Type.String}}(*target.{{.TargetField.Name}}))
+							} else {
+								source.{{.SettNillableFuncName}}(nil)
+							}
+						{{- end}}
 					}
 				{{- else}}
-					source.{{.SettNillableFuncName}}(target.{{.TargetField.Name}})
+						{{- if .TargetSourceIsSomeType}}{{/* 如果源和目标是相同类型，直接赋值 */}}
+							source.{{.SettNillableFuncName}}(target.{{.TargetField.Name}})
+						{{- else}}{{/* 如果类型不同，需要进行类型转换 */}}
+							if target.{{.TargetField.Name}} != nil {
+								source.{{.SetterFuncName}}({{.SourceField.Type.String}}(*target.{{.TargetField.Name}}))
+							} else {
+								source.{{.SettNillableFuncName}}(nil)
+							}
+						{{- end}}
 				{{- end}}
 			{{- else}} {{/* 否则使用普通Setter方法，但需要解引用 */}}
 				if target.{{.TargetField.Name}} != nil {
@@ -187,11 +203,12 @@ func {{.FuncName}}(source *{{.SourcePkgName}}.{{.ActionName}}, target *{{.Target
         			{{- end}}
 				}
 			{{- end}}
-		{{- else -}} {{/* 当目标字段不是指针类型 */}}
-			if !option.IgnoreSetZero({{.FieldKeyPath}}) || {{GenNotZeroCheck "target" .TargetField}} {
-        		{{- if .TargetSourceIsSomeType}} {{/* 如果源和目标是相同类型，直接赋值 */}}
+		{{- else -}} 
+			{{/* 当目标字段不是指针类型 */}}
+			if option.CanSetZero({{.FieldKeyPath}}) || {{GenNotZeroCheck "target" .TargetField}} {
+        		{{- if .TargetSourceIsSomeType}}{{/* 如果源和目标是相同类型，直接赋值 */}}
 					source.{{.SetterFuncName}}(target.{{.TargetField.Name}}) 
-        		{{- else}} {{/* 如果类型不同，需要进行类型转换 */}}
+        		{{- else}}{{/* 如果类型不同，需要进行类型转换 */}}
 					source.{{.SetterFuncName}}({{.SourceField.Type.String}}(target.{{.TargetField.Name}}))
         		{{- end}}
     		}
