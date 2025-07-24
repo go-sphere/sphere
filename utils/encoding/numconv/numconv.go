@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math/rand/v2"
 
-	"github.com/TBXark/sphere/utils/baseconv"
+	"github.com/TBXark/sphere/utils/encoding/baseconv"
 )
 
 func int64ToBytes(n int64) []byte {
