@@ -43,17 +43,22 @@ plugins:
 ```protobuf
 syntax = "proto3";
 
+package shared.v1;
+
 import "sphere/binding/binding.proto";
 
 message RunTestRequest {
-  option (sphere.binding.default_location) = BINDING_LOCATION_BODY;
-
   string field_test1 = 1;
   int64 field_test2 = 2;
   string path_test1 = 3 [(sphere.binding.location) = BINDING_LOCATION_URI];
   int64 path_test2 = 4 [(sphere.binding.location) = BINDING_LOCATION_URI];
-  string query_test1 = 5 [(sphere.binding.location) = BINDING_LOCATION_QUERY];
-  int64 query_test2 = 6 [(sphere.binding.location) = BINDING_LOCATION_QUERY];
+  string query_test1 = 5 [
+    (sphere.binding.location) = BINDING_LOCATION_QUERY
+  ];
+  int64 query_test2 = 6 [
+    (sphere.binding.location) = BINDING_LOCATION_QUERY,
+    (sphere.binding.tags) = "sphere:\"query_test2\""
+  ];
 }
 
 ```

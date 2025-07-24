@@ -2,10 +2,10 @@ package service
 
 import (
 	_ "embed"
-	"github.com/go-openapi/inflect"
 	"strings"
 	"text/template"
 
+	"github.com/go-openapi/inflect"
 	"github.com/iancoleman/strcase"
 )
 
