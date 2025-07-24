@@ -43,7 +43,10 @@ message RunTestRequest {
     (sphere.binding.location) = BINDING_LOCATION_QUERY
   ];
   int64 query_test2 = 6 [(sphere.binding.location) = BINDING_LOCATION_QUERY];
-  repeated TestEnum enum_test1 = 7 [(sphere.binding.location) = BINDING_LOCATION_QUERY];
+  repeated TestEnum enum_test1 = 7 [
+    (sphere.binding.location) = BINDING_LOCATION_QUERY,
+    (sphere.binding.tags) = "sphere:\"enum_test1\""
+  ];
 }
 
 message RunTestResponse {

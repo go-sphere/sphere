@@ -24,7 +24,10 @@ func GenerateFile(file *protogen.File, out string) error {
 }
 
 func generateFile(file *protogen.File, out string) error {
-	tags := extractFile(file)
+	tags, err := extractFile(file)
+	if err != nil {
+		return err
+	}
 	if len(tags) == 0 {
 		return nil
 	}
@@ -60,19 +63,23 @@ func generateFile(file *protogen.File, out string) error {
 	return nil
 }
 
-func extractFile(file *protogen.File) StructTags {
+func extractFile(file *protogen.File) (StructTags, error) {
 	tags := make(StructTags)
 	for _, message := range file.Messages {
-		for name, tag := range extractMessage(message) {
+		extraTags, err := extractMessage(message)
+		if err != nil {
+			return nil, err
+		}
+		for name, tag := range extraTags {
 			if len(tag) > 0 {
 				tags[name] = tag
 			}
 		}
 	}
-	return tags
+	return tags, nil
 }
 
-func extractMessage(message *protogen.Message) StructTags {
+func extractMessage(message *protogen.Message) (StructTags, error) {
 	tags := make(StructTags)
 	defaultBindingLocation := binding.BindingLocation_BINDING_LOCATION_UNSPECIFIED
 	if proto.HasExtension(message.Desc.Options(), binding.E_DefaultLocation) {
@@ -81,7 +88,10 @@ func extractMessage(message *protogen.Message) StructTags {
 	messageTags := make(map[string]*structtag.Tags)
 	for _, field := range message.Fields {
 		bindingLocation := defaultBindingLocation
-		fieldTags := extractField(field, bindingLocation)
+		fieldTags, err := extractField(field, bindingLocation)
+		if err != nil {
+			return nil, err
+		}
 		if fieldTags.Len() > 0 {
 			messageTags[field.GoName] = fieldTags
 		}
@@ -93,22 +103,29 @@ func extractMessage(message *protogen.Message) StructTags {
 		}
 		for _, field := range oneOf.Fields {
 			bindingLocation := defaultOneOfBindingLocation
-			fieldTags := extractField(field, bindingLocation)
+			fieldTags, err := extractField(field, bindingLocation)
+			if err != nil {
+				return nil, err
+			}
 			if fieldTags.Len() > 0 {
 				messageTags[field.GoName] = fieldTags
 			}
 		}
 	}
 	for _, nested := range message.Messages {
-		for name, tag := range extractMessage(nested) {
+		extraTags, err := extractMessage(nested)
+		if err != nil {
+			return nil, err
+		}
+		for name, tag := range extraTags {
 			tags[name] = tag
 		}
 	}
 	tags[message.GoIdent.GoName] = messageTags
-	return tags
+	return tags, nil
 }
 
-func extractField(field *protogen.Field, defaultLocation binding.BindingLocation) *structtag.Tags {
+func extractField(field *protogen.Field, defaultLocation binding.BindingLocation) (*structtag.Tags, error) {
 	location := defaultLocation
 	if proto.HasExtension(field.Desc.Options(), binding.E_Location) {
 		location = proto.GetExtension(field.Desc.Options(), binding.E_Location).(binding.BindingLocation)
@@ -138,5 +155,17 @@ func extractField(field *protogen.Field, defaultLocation binding.BindingLocation
 			Options: nil,
 		})
 	}
-	return fieldTags
+	if proto.HasExtension(field.Desc.Options(), binding.E_Tags) {
+		tags := proto.GetExtension(field.Desc.Options(), binding.E_Tags).([]string)
+		for _, tag := range tags {
+			parse, err := structtag.Parse(tag)
+			if err != nil {
+				return nil, err
+			}
+			for _, t := range parse.Tags() {
+				_ = fieldTags.Set(t)
+			}
+		}
+	}
+	return fieldTags, nil
 }
