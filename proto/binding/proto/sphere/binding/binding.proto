@@ -23,4 +23,5 @@ extend google.protobuf.OneofOptions {
 
 extend google.protobuf.FieldOptions {
   optional BindingLocation location = 114523;
+  repeated string tags = 114524;
 }

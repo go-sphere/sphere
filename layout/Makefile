@@ -135,7 +135,7 @@ build/multi-docker: ## Build multi-arch docker image
 
 # ---------- Tools ----------
 run: ## Run the application
-	$(GO_RUN) $(MODULE)/cmd/app
+	$(GO_RUN) -race $(MODULE)/cmd/app
 
 run/swag: ## Run the swagger server
 	$(INTERNAL_TOOLS) $(MODULE)/cmd/tools/docs
