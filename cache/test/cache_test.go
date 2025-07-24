@@ -161,8 +161,7 @@ func testCache(ctx context.Context, t *testing.T, byteCache cache.ByteCache) {
 
 func TestRedisCache(t *testing.T) {
 	client, err := redisConn.NewClient(&redisConn.Config{
-		Addr: "localhost:6379",
-		DB:   0,
+		URL: "redis://localhost:6379/0",
 	})
 	if err != nil {
 		t.Skipf("Redis server not available, skipping test: %v", err)

@@ -69,8 +69,7 @@ func TestPubSub_Memory(t *testing.T) {
 
 func TestPubSub_Redis(t *testing.T) {
 	client, err := redis.NewClient(&redis.Config{
-		Addr: "localhost:6379",
-		DB:   0,
+		URL: "redis://localhost:6379/0",
 	})
 	if err != nil {
 		t.Skipf("Redis server not available, skipping test: %v", err)
