@@ -107,8 +107,8 @@ func extractMessage(message *protogen.Message, location binding.BindingLocation,
 		if proto.HasExtension(oneOf.Desc.Options(), binding.E_DefaultOneofLocation) {
 			defaultOneOfBindingLocation = proto.GetExtension(oneOf.Desc.Options(), binding.E_DefaultOneofLocation).(binding.BindingLocation)
 		}
-		if proto.HasExtension(oneOf.Desc.Options(), binding.E_DefaultAutoOneofTags) {
-			defaultOneOfAutoTags = proto.GetExtension(oneOf.Desc.Options(), binding.E_DefaultAutoOneofTags).([]string)
+		if proto.HasExtension(oneOf.Desc.Options(), binding.E_DefaultOneofAutoTags) {
+			defaultOneOfAutoTags = proto.GetExtension(oneOf.Desc.Options(), binding.E_DefaultOneofAutoTags).([]string)
 		}
 		for _, field := range oneOf.Fields {
 			fieldTags, err := extractField(field, defaultOneOfBindingLocation, defaultOneOfAutoTags)
