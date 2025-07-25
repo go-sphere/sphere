@@ -142,9 +142,21 @@ func extractField(field *protogen.Field, location binding.BindingLocation, autoT
 	if proto.HasExtension(field.Desc.Options(), binding.E_AutoTags) {
 		autoTags = proto.GetExtension(field.Desc.Options(), binding.E_AutoTags).([]string)
 	}
+	fieldTags := &structtag.Tags{}
+
+	// Add auto tags
+	for _, tag := range autoTags {
+		if tag == "" {
+			continue
+		}
+		_ = fieldTags.Set(&structtag.Tag{
+			Key:     tag,
+			Name:    string(field.Desc.Name()),
+			Options: nil,
+		})
+	}
 
 	// Add sphere binding tags
-	fieldTags := &structtag.Tags{}
 	switch location {
 	case binding.BindingLocation_BINDING_LOCATION_QUERY:
 		_ = fieldTags.Set(&structtag.Tag{
@@ -182,18 +194,6 @@ func extractField(field *protogen.Field, location binding.BindingLocation, autoT
 				_ = fieldTags.Set(t)
 			}
 		}
-	}
-
-	// Add auto tags
-	for _, tag := range autoTags {
-		if tag == "" {
-			continue
-		}
-		_ = fieldTags.Set(&structtag.Tag{
-			Key:     tag,
-			Name:    string(field.Desc.Name()),
-			Options: nil,
-		})
 	}
 	return fieldTags, nil
 }
