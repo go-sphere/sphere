@@ -140,16 +140,16 @@ var file_sphere_options_options_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
 		ExtensionType: ([]*KeyValuePair)(nil),
-		Field:         114514,
+		Field:         501319300,
 		Name:          "sphere.options.options",
-		Tag:           "bytes,114514,rep,name=options",
+		Tag:           "bytes,501319300,rep,name=options",
 		Filename:      "sphere/options/options.proto",
 	},
 }
 
 // Extension fields to descriptorpb.MethodOptions.
 var (
-	// repeated sphere.options.KeyValuePair options = 114514;
+	// repeated sphere.options.KeyValuePair options = 501319300;
 	E_Options = &file_sphere_options_options_proto_extTypes[0]
 )
 
@@ -168,8 +168,8 @@ const file_sphere_options_options_proto_rawDesc = "" +
 	"ExtraEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\a\n" +
-	"\x05value:X\n" +
-	"\aoptions\x12\x1e.google.protobuf.MethodOptions\x18\xd2\xfe\x06 \x03(\v2\x1c.sphere.options.KeyValuePairR\aoptionsB\xb2\x01\n" +
+	"\x05value:Z\n" +
+	"\aoptions\x12\x1e.google.protobuf.MethodOptions\x18\x84\x8d\x86\xef\x01 \x03(\v2\x1c.sphere.options.KeyValuePairR\aoptionsB\xb2\x01\n" +
 	"\x12com.sphere.optionsB\fOptionsProtoP\x01Z5github.com/TBXark/sphere/proto/options/sphere/options\xa2\x02\x03SOX\xaa\x02\x0eSphere.Options\xca\x02\x0eSphere\\Options\xe2\x02\x1aSphere\\Options\\GPBMetadata\xea\x02\x0fSphere::Optionsb\x06proto3"
 
 var (

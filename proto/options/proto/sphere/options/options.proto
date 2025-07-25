@@ -17,5 +17,5 @@ message KeyValuePair {
 }
 
 extend google.protobuf.MethodOptions {
-  repeated KeyValuePair options = 114514;
+  repeated KeyValuePair options = 501319300;
 }

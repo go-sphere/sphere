@@ -86,30 +86,30 @@ var file_sphere_errors_errors_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.EnumOptions)(nil),
 		ExtensionType: (*int32)(nil),
-		Field:         114515,
+		Field:         18534200,
 		Name:          "sphere.errors.default_status",
-		Tag:           "varint,114515,opt,name=default_status",
+		Tag:           "varint,18534200,opt,name=default_status",
 		Filename:      "sphere/errors/errors.proto",
 	},
 	{
 		ExtendedType:  (*descriptorpb.EnumValueOptions)(nil),
 		ExtensionType: (*Error)(nil),
-		Field:         114516,
+		Field:         18534210,
 		Name:          "sphere.errors.options",
-		Tag:           "bytes,114516,opt,name=options",
+		Tag:           "bytes,18534210,opt,name=options",
 		Filename:      "sphere/errors/errors.proto",
 	},
 }
 
 // Extension fields to descriptorpb.EnumOptions.
 var (
-	// optional int32 default_status = 114515;
+	// optional int32 default_status = 18534200;
 	E_DefaultStatus = &file_sphere_errors_errors_proto_extTypes[0]
 )
 
 // Extension fields to descriptorpb.EnumValueOptions.
 var (
-	// optional sphere.errors.Error options = 114516;
+	// optional sphere.errors.Error options = 18534210;
 	E_Options = &file_sphere_errors_errors_proto_extTypes[1]
 )
 
@@ -121,9 +121,9 @@ const file_sphere_errors_errors_proto_rawDesc = "" +
 	"\x05Error\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\x05R\x06status\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage:E\n" +
-	"\x0edefault_status\x12\x1c.google.protobuf.EnumOptions\x18\xd3\xfe\x06 \x01(\x05R\rdefaultStatus:S\n" +
-	"\aoptions\x12!.google.protobuf.EnumValueOptions\x18\xd4\xfe\x06 \x01(\v2\x14.sphere.errors.ErrorR\aoptionsB\xaa\x01\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage:F\n" +
+	"\x0edefault_status\x12\x1c.google.protobuf.EnumOptions\x18\xb8\x9e\xeb\b \x01(\x05R\rdefaultStatus:T\n" +
+	"\aoptions\x12!.google.protobuf.EnumValueOptions\x18\u009e\xeb\b \x01(\v2\x14.sphere.errors.ErrorR\aoptionsB\xaa\x01\n" +
 	"\x11com.sphere.errorsB\vErrorsProtoP\x01Z3github.com/TBXark/sphere/proto/errors/sphere/errors\xa2\x02\x03SEX\xaa\x02\rSphere.Errors\xca\x02\rSphere\\Errors\xe2\x02\x19Sphere\\Errors\\GPBMetadata\xea\x02\x0eSphere::Errorsb\x06proto3"
 
 var (

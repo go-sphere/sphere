@@ -14,14 +14,17 @@ enum BindingLocation {
 }
 
 extend google.protobuf.MessageOptions {
-  optional BindingLocation default_location = 114520;
+  optional BindingLocation default_location = 136655300;
+  optional string default_auto_tags = 136655301;
 }
 
 extend google.protobuf.OneofOptions {
-  optional BindingLocation default_oneof_location = 114521;
+  optional BindingLocation default_oneof_location = 136655310;
+  optional string default_auto_oneof_tags = 136655311;
 }
 
 extend google.protobuf.FieldOptions {
-  optional BindingLocation location = 114523;
-  repeated string tags = 114524;
+  optional BindingLocation location = 136655320;
+  repeated string tags = 136655321;
+  repeated string auto_tags = 136655322;
 }
