@@ -85,10 +85,10 @@ var file_sphere_binding_binding_proto_extTypes = []protoimpl.ExtensionInfo{
 	},
 	{
 		ExtendedType:  (*descriptorpb.MessageOptions)(nil),
-		ExtensionType: (*string)(nil),
+		ExtensionType: ([]string)(nil),
 		Field:         136655301,
 		Name:          "sphere.binding.default_auto_tags",
-		Tag:           "bytes,136655301,opt,name=default_auto_tags",
+		Tag:           "bytes,136655301,rep,name=default_auto_tags",
 		Filename:      "sphere/binding/binding.proto",
 	},
 	{
@@ -101,10 +101,10 @@ var file_sphere_binding_binding_proto_extTypes = []protoimpl.ExtensionInfo{
 	},
 	{
 		ExtendedType:  (*descriptorpb.OneofOptions)(nil),
-		ExtensionType: (*string)(nil),
+		ExtensionType: ([]string)(nil),
 		Field:         136655311,
 		Name:          "sphere.binding.default_auto_oneof_tags",
-		Tag:           "bytes,136655311,opt,name=default_auto_oneof_tags",
+		Tag:           "bytes,136655311,rep,name=default_auto_oneof_tags",
 		Filename:      "sphere/binding/binding.proto",
 	},
 	{
@@ -137,7 +137,7 @@ var file_sphere_binding_binding_proto_extTypes = []protoimpl.ExtensionInfo{
 var (
 	// optional sphere.binding.BindingLocation default_location = 136655300;
 	E_DefaultLocation = &file_sphere_binding_binding_proto_extTypes[0]
-	// optional string default_auto_tags = 136655301;
+	// repeated string default_auto_tags = 136655301;
 	E_DefaultAutoTags = &file_sphere_binding_binding_proto_extTypes[1]
 )
 
@@ -145,7 +145,7 @@ var (
 var (
 	// optional sphere.binding.BindingLocation default_oneof_location = 136655310;
 	E_DefaultOneofLocation = &file_sphere_binding_binding_proto_extTypes[2]
-	// optional string default_auto_oneof_tags = 136655311;
+	// repeated string default_auto_oneof_tags = 136655311;
 	E_DefaultAutoOneofTags = &file_sphere_binding_binding_proto_extTypes[3]
 )
 
@@ -169,10 +169,10 @@ const file_sphere_binding_binding_proto_rawDesc = "" +
 	"\x16BINDING_LOCATION_QUERY\x10\x01\x12\x18\n" +
 	"\x14BINDING_LOCATION_URI\x10\x02\x12\x19\n" +
 	"\x15BINDING_LOCATION_BODY\x10\x03:q\n" +
-	"\x10default_location\x12\x1f.google.protobuf.MessageOptions\x18\xc4\xe3\x94A \x01(\x0e2\x1f.sphere.binding.BindingLocationR\x0fdefaultLocation\x88\x01\x01:Q\n" +
-	"\x11default_auto_tags\x12\x1f.google.protobuf.MessageOptions\x18\xc5\xe3\x94A \x01(\tR\x0fdefaultAutoTags\x88\x01\x01:z\n" +
-	"\x16default_oneof_location\x12\x1d.google.protobuf.OneofOptions\x18\xce\xe3\x94A \x01(\x0e2\x1f.sphere.binding.BindingLocationR\x14defaultOneofLocation\x88\x01\x01:Z\n" +
-	"\x17default_auto_oneof_tags\x12\x1d.google.protobuf.OneofOptions\x18\xcf\xe3\x94A \x01(\tR\x14defaultAutoOneofTags\x88\x01\x01:`\n" +
+	"\x10default_location\x12\x1f.google.protobuf.MessageOptions\x18\xc4\xe3\x94A \x01(\x0e2\x1f.sphere.binding.BindingLocationR\x0fdefaultLocation\x88\x01\x01:N\n" +
+	"\x11default_auto_tags\x12\x1f.google.protobuf.MessageOptions\x18\xc5\xe3\x94A \x03(\tR\x0fdefaultAutoTags:z\n" +
+	"\x16default_oneof_location\x12\x1d.google.protobuf.OneofOptions\x18\xce\xe3\x94A \x01(\x0e2\x1f.sphere.binding.BindingLocationR\x14defaultOneofLocation\x88\x01\x01:W\n" +
+	"\x17default_auto_oneof_tags\x12\x1d.google.protobuf.OneofOptions\x18\xcf\xe3\x94A \x03(\tR\x14defaultAutoOneofTags:`\n" +
 	"\blocation\x12\x1d.google.protobuf.FieldOptions\x18\xd8\xe3\x94A \x01(\x0e2\x1f.sphere.binding.BindingLocationR\blocation\x88\x01\x01:4\n" +
 	"\x04tags\x12\x1d.google.protobuf.FieldOptions\x18\xd9\xe3\x94A \x03(\tR\x04tags:=\n" +
 	"\tauto_tags\x12\x1d.google.protobuf.FieldOptions\x18\xda\xe3\x94A \x03(\tR\bautoTagsB\xb2\x01\n" +
