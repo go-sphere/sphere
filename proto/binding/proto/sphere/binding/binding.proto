@@ -20,7 +20,7 @@ extend google.protobuf.MessageOptions {
 
 extend google.protobuf.OneofOptions {
   optional BindingLocation default_oneof_location = 136655310;
-  repeated string default_auto_oneof_tags = 136655311;
+  repeated string default_oneof_auto_tags = 136655311;
 }
 
 extend google.protobuf.FieldOptions {
