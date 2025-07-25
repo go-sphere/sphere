@@ -66,7 +66,7 @@ func generateFile(file *protogen.File, out string) error {
 func extractFile(file *protogen.File) (StructTags, error) {
 	tags := make(StructTags)
 	for _, message := range file.Messages {
-		extraTags, err := extractMessage(message)
+		extraTags, err := extractMessage(message, binding.BindingLocation_BINDING_LOCATION_UNSPECIFIED, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -79,16 +79,20 @@ func extractFile(file *protogen.File) (StructTags, error) {
 	return tags, nil
 }
 
-func extractMessage(message *protogen.Message) (StructTags, error) {
+func extractMessage(message *protogen.Message, location binding.BindingLocation, autoTags []string) (StructTags, error) {
 	tags := make(StructTags)
-	defaultBindingLocation := binding.BindingLocation_BINDING_LOCATION_UNSPECIFIED
+
 	if proto.HasExtension(message.Desc.Options(), binding.E_DefaultLocation) {
-		defaultBindingLocation = proto.GetExtension(message.Desc.Options(), binding.E_DefaultLocation).(binding.BindingLocation)
+		location = proto.GetExtension(message.Desc.Options(), binding.E_DefaultLocation).(binding.BindingLocation)
 	}
+	if proto.HasExtension(message.Desc.Options(), binding.E_DefaultAutoTags) {
+		autoTags = proto.GetExtension(message.Desc.Options(), binding.E_DefaultAutoTags).([]string)
+	}
+
 	messageTags := make(map[string]*structtag.Tags)
+	// process fields
 	for _, field := range message.Fields {
-		bindingLocation := defaultBindingLocation
-		fieldTags, err := extractField(field, bindingLocation)
+		fieldTags, err := extractField(field, location, autoTags)
 		if err != nil {
 			return nil, err
 		}
@@ -96,14 +100,18 @@ func extractMessage(message *protogen.Message) (StructTags, error) {
 			messageTags[field.GoName] = fieldTags
 		}
 	}
+	// process one_of
 	for _, oneOf := range message.Oneofs {
-		defaultOneOfBindingLocation := defaultBindingLocation
+		defaultOneOfBindingLocation := location
+		defaultOneOfAutoTags := autoTags
 		if proto.HasExtension(oneOf.Desc.Options(), binding.E_DefaultOneofLocation) {
 			defaultOneOfBindingLocation = proto.GetExtension(oneOf.Desc.Options(), binding.E_DefaultOneofLocation).(binding.BindingLocation)
 		}
+		if proto.HasExtension(oneOf.Desc.Options(), binding.E_DefaultAutoOneofTags) {
+			defaultOneOfAutoTags = proto.GetExtension(oneOf.Desc.Options(), binding.E_DefaultAutoOneofTags).([]string)
+		}
 		for _, field := range oneOf.Fields {
-			bindingLocation := defaultOneOfBindingLocation
-			fieldTags, err := extractField(field, bindingLocation)
+			fieldTags, err := extractField(field, defaultOneOfBindingLocation, defaultOneOfAutoTags)
 			if err != nil {
 				return nil, err
 			}
@@ -112,8 +120,9 @@ func extractMessage(message *protogen.Message) (StructTags, error) {
 			}
 		}
 	}
+	// process nested messages
 	for _, nested := range message.Messages {
-		extraTags, err := extractMessage(nested)
+		extraTags, err := extractMessage(nested, location, autoTags)
 		if err != nil {
 			return nil, err
 		}
@@ -121,15 +130,20 @@ func extractMessage(message *protogen.Message) (StructTags, error) {
 			tags[name] = tag
 		}
 	}
+
 	tags[message.GoIdent.GoName] = messageTags
 	return tags, nil
 }
 
-func extractField(field *protogen.Field, defaultLocation binding.BindingLocation) (*structtag.Tags, error) {
-	location := defaultLocation
+func extractField(field *protogen.Field, location binding.BindingLocation, autoTags []string) (*structtag.Tags, error) {
 	if proto.HasExtension(field.Desc.Options(), binding.E_Location) {
 		location = proto.GetExtension(field.Desc.Options(), binding.E_Location).(binding.BindingLocation)
 	}
+	if proto.HasExtension(field.Desc.Options(), binding.E_AutoTags) {
+		autoTags = proto.GetExtension(field.Desc.Options(), binding.E_AutoTags).([]string)
+	}
+
+	// Add sphere binding tags
 	fieldTags := &structtag.Tags{}
 	switch location {
 	case binding.BindingLocation_BINDING_LOCATION_QUERY:
@@ -155,6 +169,8 @@ func extractField(field *protogen.Field, defaultLocation binding.BindingLocation
 			Options: nil,
 		})
 	}
+
+	// Add manual tags
 	if proto.HasExtension(field.Desc.Options(), binding.E_Tags) {
 		tags := proto.GetExtension(field.Desc.Options(), binding.E_Tags).([]string)
 		for _, tag := range tags {
@@ -166,6 +182,18 @@ func extractField(field *protogen.Field, defaultLocation binding.BindingLocation
 				_ = fieldTags.Set(t)
 			}
 		}
+	}
+
+	// Add auto tags
+	for _, tag := range autoTags {
+		if tag == "" {
+			continue
+		}
+		_ = fieldTags.Set(&structtag.Tag{
+			Key:     tag,
+			Name:    string(field.Desc.Name()),
+			Options: nil,
+		})
 	}
 	return fieldTags, nil
 }

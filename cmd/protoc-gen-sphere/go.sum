@@ -1,7 +1,7 @@
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250717185734-6c6e0d3c608e.1 h1:Lg6klmCi3v7VvpqeeLEER9/m5S8y9e9DjhqQnSCNy4k=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.6-20250717185734-6c6e0d3c608e.1/go.mod h1:avRlCjnFzl98VPaeCtJ24RrV/wwHFzB8sWXhj26+n/U=
-github.com/TBXark/sphere/proto/binding v0.0.0-20250724085428-d8d45d5cdead h1:+PGgFro0tdAybXdHTFnBuF8X8u+SUvF/g6Ls8JIFZFQ=
-github.com/TBXark/sphere/proto/binding v0.0.0-20250724085428-d8d45d5cdead/go.mod h1:lSSxi3/PZ8hNgnZmnJTx9tVeeaI5xGUF4L6w022Uhp4=
+github.com/TBXark/sphere/proto/binding v0.0.0-20250725080431-2b81a6ddcfd6 h1:uBUKa949a37mGp5jjRLjQsn8Vz09/x8jpDM/C4Bo+vw=
+github.com/TBXark/sphere/proto/binding v0.0.0-20250725080431-2b81a6ddcfd6/go.mod h1:lSSxi3/PZ8hNgnZmnJTx9tVeeaI5xGUF4L6w022Uhp4=
 github.com/google/go-cmp v0.5.5 h1:Khx7svrCpmxxtHBq5j2mp/xVjsi8hQMfNLvJFAlrGgU=
 github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 h1:E7g+9GITq07hpfrRu66IVDexMakfv52eLZ2CXBWiKr4=

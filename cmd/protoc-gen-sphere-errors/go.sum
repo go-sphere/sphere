@@ -1,5 +1,5 @@
-github.com/TBXark/sphere/proto/errors v0.0.0-20250724085428-d8d45d5cdead h1:i+sT9EvO/9IrJbhq07ic360IPQG382/des2Gwm9OjIA=
-github.com/TBXark/sphere/proto/errors v0.0.0-20250724085428-d8d45d5cdead/go.mod h1:+TzguIJicUgVCcwkfAeGgvzHo+kdWgY+Fz4LLL+cupw=
+github.com/TBXark/sphere/proto/errors v0.0.0-20250725080431-2b81a6ddcfd6 h1:GveZ2eIKzqIuOvo6P6EqqMuT045kI0n1+CM25NU2KKg=
+github.com/TBXark/sphere/proto/errors v0.0.0-20250725080431-2b81a6ddcfd6/go.mod h1:+TzguIJicUgVCcwkfAeGgvzHo+kdWgY+Fz4LLL+cupw=
 github.com/google/go-cmp v0.5.5 h1:Khx7svrCpmxxtHBq5j2mp/xVjsi8hQMfNLvJFAlrGgU=
 github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 golang.org/x/text v0.27.0 h1:4fGWRpyh641NLlecmyl4LOe6yDdfaYNrGb2zdfo4JV4=

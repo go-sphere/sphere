@@ -61,6 +61,7 @@ message RunTestResponse {
 
 message BodyPathTestRequest {
   message Request {
+    option (sphere.binding.default_auto_tags) = "db";
     string field_test1 = 1;
     int64 field_test2 = 2;
   }
