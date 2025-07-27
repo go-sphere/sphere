@@ -21,7 +21,7 @@ type MessageError interface {
 	GetMessage() string
 }
 
-type Error struct {
+type statusError struct {
 	error
 	status  int32
 	code    int32
@@ -32,7 +32,7 @@ func NewError(status, code int32, message string, err error) error {
 	if err == nil {
 		err = httpError(status)
 	}
-	return &Error{
+	return &statusError{
 		error:   err,
 		status:  status,
 		code:    code,
@@ -51,7 +51,7 @@ func JoinError(status int32, message string, err error) error {
 	} else {
 		code = 0
 	}
-	return &Error{
+	return &statusError{
 		error:   err,
 		status:  status,
 		code:    code,
@@ -59,23 +59,23 @@ func JoinError(status int32, message string, err error) error {
 	}
 }
 
-func (e *Error) GetStatus() int32 {
+func (e *statusError) GetStatus() int32 {
 	return e.status
 }
 
-func (e *Error) GetCode() int32 {
+func (e *statusError) GetCode() int32 {
 	return e.code
 }
 
-func (e *Error) GetMessage() string {
+func (e *statusError) GetMessage() string {
 	return e.message
 }
 
-func (e *Error) Error() string {
+func (e *statusError) Error() string {
 	return e.error.Error()
 }
 
-func (e *Error) Unwrap() error {
+func (e *statusError) Unwrap() error {
 	return e.error
 }
 
