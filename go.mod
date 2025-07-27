@@ -8,10 +8,12 @@ require (
 	github.com/TBXark/jsoncompressor v0.0.1
 	github.com/dgraph-io/badger/v4 v4.8.0
 	github.com/dgraph-io/ristretto/v2 v2.2.0
+	github.com/fatih/structtag v1.2.0
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-contrib/pprof v1.5.3
 	github.com/gin-contrib/zap v1.1.5
 	github.com/gin-gonic/gin v1.10.1
+	github.com/go-playground/form/v4 v4.2.1
 	github.com/go-telegram/bot v1.16.0
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/golang-jwt/jwt/v5 v5.2.3

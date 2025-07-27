@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"reflect"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -111,21 +110,4 @@ func TestShouldBind(t *testing.T) {
 	} else {
 		assert.Nil(t, resp.QueryTest2, "Expected QueryTest2 to be nil")
 	}
-}
-
-func TestUniverseBinding_analyzeFields(t *testing.T) {
-	type Inner struct {
-		InnerField string `protobuf:"bytes,1,opt,name=inner_field,json=innerField,proto3" uri:"inner_field"`
-	}
-
-	type Outer struct {
-		Inner
-		OuterField string `protobuf:"bytes,2,opt,name=outer_field,json=outerField,proto3" json:"outer_field,omitempty"`
-	}
-
-	var outer Outer
-	info := uriBinding.analyzeFields(reflect.TypeOf(outer))
-	assert.Equal(t, 2, len(info), "Expected 2 fields in the binding info")
-	assert.Equal(t, "inner_field", info[0].tag, "Expected first field to be inner_field")
-	assert.Equal(t, "outer_field", info[1].tag, "Expected second field to be outer_field")
 }
