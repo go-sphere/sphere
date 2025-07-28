@@ -10,15 +10,15 @@ import (
 )
 
 var (
-	urlBinding   = form.NewDecoder()
-	queryBinding = form.NewDecoder()
+	urlBinding   = newDecoder("uri")
+	queryBinding = newDecoder("form")
 )
 
-func init() {
-	urlBinding.SetTagName("uri")
-	urlBinding.RegisterTagNameFunc(tagNameFunc("uri"))
-	queryBinding.SetTagName("form")
-	queryBinding.RegisterTagNameFunc(tagNameFunc("form"))
+func newDecoder(key string) *form.Decoder {
+	decoder := form.NewDecoder()
+	decoder.SetTagName(key)
+	decoder.RegisterTagNameFunc(tagNameFunc(key))
+	return decoder
 }
 
 func tagNameFunc(key string) func(field reflect.StructField) string {
