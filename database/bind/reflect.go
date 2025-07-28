@@ -6,12 +6,11 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"unicode"
 )
 
 func getPublicFields(obj interface{}, keyMapper func(s string) string) ([]string, map[string]reflect.StructField) {
 	val := reflect.ValueOf(obj)
-	if val.Kind() == reflect.Ptr {
+	for val.Kind() == reflect.Ptr {
 		val = val.Elem()
 	}
 	if val.Kind() != reflect.Struct {
@@ -37,53 +36,41 @@ func getPublicFields(obj interface{}, keyMapper func(s string) string) ([]string
 
 func getPublicMethods(obj interface{}, keyMapper func(s string) string) ([]string, map[string]reflect.Method) {
 	typ := reflect.TypeOf(obj)
-
-	if typ == nil || (typ.Kind() != reflect.Struct && (typ.Kind() != reflect.Ptr || typ.Elem().Kind() != reflect.Struct)) {
+	if typ == nil {
 		return nil, nil
 	}
 
-	keys := make([]string, 0)
-	methods := make(map[string]reflect.Method)
-
-	structType := typ
-	ptrType := typ
-	if typ.Kind() == reflect.Ptr {
-		structType = typ.Elem()
-	} else {
-		ptrType = reflect.PointerTo(typ)
+	for typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
 	}
 
-	for i := 0; i < structType.NumMethod(); i++ {
-		method := structType.Method(i)
-		if method.IsExported() {
-			k := method.Name
-			if keyMapper != nil {
-				k = keyMapper(k)
-			}
-			keys = append(keys, k)
-			methods[k] = method
-		}
+	if typ.Kind() != reflect.Struct {
+		return nil, nil
 	}
 
-	for i := 0; i < ptrType.NumMethod(); i++ {
+	ptrType := reflect.PointerTo(typ)
+	numMethod := ptrType.NumMethod()
+	keys := make([]string, 0, numMethod)
+	methods := make(map[string]reflect.Method, numMethod)
+
+	for i := 0; i < numMethod; i++ {
 		method := ptrType.Method(i)
+
 		k := method.Name
 		if keyMapper != nil {
 			k = keyMapper(k)
 		}
-		if _, exists := methods[k]; !exists && unicode.IsUpper(rune(method.Name[0])) {
-			keys = append(keys, k)
-			methods[k] = method
-		}
-	}
 
+		keys = append(keys, k)
+		methods[k] = method
+	}
 	return keys, methods
 }
 
 func getStructName(value any) string {
 	v := reflect.ValueOf(value)
 	t := reflect.TypeOf(value)
-	if t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 		v = v.Elem()
 	}
@@ -137,7 +124,7 @@ func genNotZeroCheck(sourceName string, field reflect.StructField) string {
 
 func typeName(val any) string {
 	value := reflect.ValueOf(val)
-	if value.Kind() == reflect.Ptr {
+	for value.Kind() == reflect.Ptr {
 		value = value.Elem()
 	}
 	typeOf := value.Type()
@@ -146,7 +133,7 @@ func typeName(val any) string {
 
 func packagePath(val any) string {
 	value := reflect.ValueOf(val)
-	if value.Kind() == reflect.Ptr {
+	for value.Kind() == reflect.Ptr {
 		value = value.Elem()
 	}
 	if value.Kind() != reflect.Struct {
