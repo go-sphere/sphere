@@ -7,20 +7,20 @@ import (
 
 type Test struct {
 	GenFileConf
-	privateField string
+	privateField string //nolint
 	PublicField  string
 }
 
-func (t Test) privateMethod() {
+func (t Test) privateMethod() { //nolint
 }
 
-func (t Test) PublicMethod() {
+func (t Test) PublicMethod() { //nolint
 }
 
-func (t *Test) privateMethodPtr() {
+func (t *Test) privateMethodPtr() { //nolint
 }
 
-func (t *Test) PublicMethodPtr() {
+func (t *Test) PublicMethodPtr() { //nolint
 }
 
 func Test_getPublicFields(t *testing.T) {
@@ -40,11 +40,11 @@ func Test_getPublicFields(t *testing.T) {
 
 type MyString string
 
-func (s MyString) String() string {
+func (s MyString) String() string { //nolint
 	return string(s)
 }
 
-func (s *MyString) StringPtr() string {
+func (s *MyString) StringPtr() string { //nolint
 	return string(*s)
 }
 
