@@ -22,14 +22,15 @@ func getPublicFields(obj interface{}, keyMapper func(s string) string) ([]string
 	fields := make(map[string]reflect.StructField)
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
-		if unicode.IsUpper(rune(field.Name[0])) && !field.Anonymous {
-			k := field.Name
-			if keyMapper != nil {
-				k = keyMapper(k)
-			}
-			keys = append(keys, k)
-			fields[k] = field
+		if !field.IsExported() || field.Anonymous {
+			continue
 		}
+		k := field.Name
+		if keyMapper != nil {
+			k = keyMapper(k)
+		}
+		keys = append(keys, k)
+		fields[k] = field
 	}
 	return keys, fields
 }
