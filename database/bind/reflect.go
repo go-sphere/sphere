@@ -55,7 +55,7 @@ func getPublicMethods(obj interface{}, keyMapper func(s string) string) ([]strin
 
 	for i := 0; i < structType.NumMethod(); i++ {
 		method := structType.Method(i)
-		if unicode.IsUpper(rune(method.Name[0])) {
+		if method.IsExported() {
 			k := method.Name
 			if keyMapper != nil {
 				k = keyMapper(k)
