@@ -38,8 +38,27 @@ func Test_getPublicFields(t *testing.T) {
 	}
 }
 
+type MyString string
+
+func (s MyString) String() string {
+	return string(s)
+}
+
+func (s *MyString) StringPtr() string {
+	return string(*s)
+}
+
 func Test_getPublicMethods(t *testing.T) {
 	methods, _ := getPublicMethods(Test{}, func(s string) string {
+		return s
+	})
+	for _, method := range methods {
+		t.Logf("Method: %s", method)
+	}
+}
+
+func Test_getPublicMethodsWithString(t *testing.T) {
+	methods, _ := getPublicMethods(MyString("test"), func(s string) string {
 		return s
 	})
 	for _, method := range methods {

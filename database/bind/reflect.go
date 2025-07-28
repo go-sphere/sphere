@@ -16,9 +16,11 @@ func getPublicFields(obj interface{}, keyMapper func(s string) string) ([]string
 	if val.Kind() != reflect.Struct {
 		return nil, nil
 	}
+
 	typ := val.Type()
 	keys := make([]string, 0)
 	fields := make(map[string]reflect.StructField)
+
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		if !field.IsExported() || field.Anonymous {
@@ -39,12 +41,10 @@ func getPublicMethods(obj interface{}, keyMapper func(s string) string) ([]strin
 	if typ == nil {
 		return nil, nil
 	}
-
 	for typ.Kind() == reflect.Ptr {
 		typ = typ.Elem()
 	}
-
-	if typ.Kind() != reflect.Struct {
+	if typ.Kind() == reflect.Interface {
 		return nil, nil
 	}
 
