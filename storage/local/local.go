@@ -19,7 +19,7 @@ type Config struct {
 }
 
 type Client struct {
-	*urlhandler.Handler
+	urlhandler.Handler
 	config *Config
 }
 
@@ -36,7 +36,7 @@ func NewClient(config *Config) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		Handler: handler,
+		Handler: *handler,
 		config:  config,
 	}, nil
 }

@@ -21,7 +21,7 @@ type Config struct {
 }
 
 type Client struct {
-	*urlhandler.Handler
+	urlhandler.Handler
 	config *Config
 	cache  cache.ByteCache
 }
@@ -35,7 +35,7 @@ func NewClient(config *Config, cache cache.ByteCache) (*Client, error) {
 		config.Expires = -1
 	}
 	return &Client{
-		Handler: handler,
+		Handler: *handler,
 		config:  config,
 		cache:   cache,
 	}, nil

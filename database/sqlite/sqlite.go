@@ -9,12 +9,12 @@ import (
 )
 
 type Driver struct {
-	*sqlite.Driver
+	sqlite.Driver
 }
 
 func NewDriver() *Driver {
 	return &Driver{
-		Driver: &sqlite.Driver{},
+		Driver: sqlite.Driver{},
 	}
 }
 

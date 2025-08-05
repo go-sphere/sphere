@@ -7,18 +7,18 @@ import (
 )
 
 type Queue[T any] struct {
-	*options
-
-	queues map[string]chan T
+	queueSize int
+	queues    map[string]chan T
 
 	mu     sync.RWMutex
 	closed bool
 }
 
 func NewQueue[T any](opt ...Option) *Queue[T] {
+	opts := newOptions(opt...)
 	return &Queue[T]{
-		options: newOptions(opt...),
-		queues:  make(map[string]chan T),
+		queueSize: opts.queueSize,
+		queues:    make(map[string]chan T),
 	}
 }
 

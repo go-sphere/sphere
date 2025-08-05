@@ -4,12 +4,14 @@ import (
 	"context"
 	"sync"
 
+	"github.com/TBXark/sphere/core/codec"
 	"github.com/TBXark/sphere/log"
 	"github.com/redis/go-redis/v9"
 )
 
 type PubSub[T any] struct {
-	*options
+	client *redis.Client
+	codec  codec.Codec
 
 	subscriptions map[string]*redis.PubSub
 	mu            sync.Mutex
@@ -22,7 +24,8 @@ func NewPubSub[T any](opt ...Option) (*PubSub[T], error) {
 		return nil, err
 	}
 	return &PubSub[T]{
-		options:       opts,
+		client:        opts.client,
+		codec:         opts.codec,
 		subscriptions: make(map[string]*redis.PubSub),
 	}, nil
 }

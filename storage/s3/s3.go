@@ -26,7 +26,7 @@ type Config struct {
 }
 
 type Client struct {
-	*urlhandler.Handler
+	urlhandler.Handler
 	config *Config
 	client *minio.Client
 }
@@ -43,7 +43,7 @@ func NewClient(config *Config) (*Client, error) {
 		if config.UseSSL {
 			config.PublicBase = "https://" + config.Endpoint + "/" + config.Bucket
 		} else {
-			config.PublicBase = "http://" + config.PublicBase + "/" + config.Bucket
+			config.PublicBase = "http://" + config.Endpoint + "/" + config.Bucket
 		}
 	}
 	handler, err := urlhandler.NewHandler(config.PublicBase)
@@ -51,7 +51,7 @@ func NewClient(config *Config) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		Handler: handler,
+		Handler: *handler,
 		config:  config,
 		client:  client,
 	}, nil

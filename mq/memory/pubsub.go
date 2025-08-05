@@ -15,18 +15,18 @@ type Subscription[T any] struct {
 }
 
 type PubSub[T any] struct {
-	*options
-
-	topics map[string][]*Subscription[T]
+	queueSize int
+	topics    map[string][]*Subscription[T]
 
 	mu     sync.RWMutex
 	closed bool
 }
 
 func NewPubSub[T any](opt ...Option) *PubSub[T] {
+	opts := newOptions(opt...)
 	return &PubSub[T]{
-		options: newOptions(opt...),
-		topics:  make(map[string][]*Subscription[T]),
+		queueSize: opts.queueSize,
+		topics:    make(map[string][]*Subscription[T]),
 	}
 }
 

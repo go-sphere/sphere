@@ -2,10 +2,14 @@ package redis
 
 import (
 	"context"
+
+	"github.com/TBXark/sphere/core/codec"
+	"github.com/redis/go-redis/v9"
 )
 
 type Queue[T any] struct {
-	*options
+	client *redis.Client
+	codec  codec.Codec
 }
 
 func NewQueue[T any](opt ...Option) (*Queue[T], error) {
@@ -15,7 +19,8 @@ func NewQueue[T any](opt ...Option) (*Queue[T], error) {
 		return nil, err
 	}
 	return &Queue[T]{
-		options: newOptions(opt...),
+		client: opts.client,
+		codec:  opts.codec,
 	}, nil
 }
 

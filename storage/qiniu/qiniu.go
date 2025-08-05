@@ -26,7 +26,7 @@ type Config struct {
 }
 
 type Client struct {
-	*urlhandler.Handler
+	urlhandler.Handler
 	config *Config
 	mac    *qbox.Mac
 }
@@ -38,7 +38,7 @@ func NewClient(config *Config) (*Client, error) {
 	}
 	mac := qbox.NewMac(config.AccessKey, config.SecretKey)
 	return &Client{
-		Handler: handler,
+		Handler: *handler,
 		config:  config,
 		mac:     mac,
 	}, nil
