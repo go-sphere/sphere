@@ -81,13 +81,13 @@ func generateGoImport(file *protogen.File, g *protogen.GeneratedFile, conf *Conf
 	for _, ident := range []protogen.GoIdent{conf.DataRespType} {
 		if !didImport[ident.GoImportPath] {
 			didImport[ident.GoImportPath] = true
-			g.P("var _ = new(", ident, "[int])")
+			g.P("var _ = new(", ident, "[any])")
 		}
 	}
 	for _, ident := range []protogen.GoIdent{conf.ServerHandlerFunc} {
 		if !didImport[ident.GoImportPath] {
 			didImport[ident.GoImportPath] = true
-			g.P("var _ = ", ident, "[int]")
+			g.P("var _ = ", ident, "[any]")
 		}
 	}
 LOOP:
