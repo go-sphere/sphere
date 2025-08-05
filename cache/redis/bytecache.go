@@ -12,11 +12,11 @@ import (
 var ErrorType = fmt.Errorf("type error")
 
 type ByteCache struct {
-	Client *redis.Client
+	client *redis.Client
 }
 
 func NewByteCache(client *redis.Client) *ByteCache {
-	return &ByteCache{Client: client}
+	return &ByteCache{client: client}
 }
 
 func (c *ByteCache) Set(ctx context.Context, key string, val []byte) error {
@@ -24,7 +24,7 @@ func (c *ByteCache) Set(ctx context.Context, key string, val []byte) error {
 }
 
 func (c *ByteCache) SetWithTTL(ctx context.Context, key string, val []byte, expiration time.Duration) error {
-	return c.Client.Set(ctx, key, val, expiration).Err()
+	return c.client.Set(ctx, key, val, expiration).Err()
 }
 
 func (c *ByteCache) MultiSet(ctx context.Context, valMap map[string][]byte) error {
@@ -32,7 +32,7 @@ func (c *ByteCache) MultiSet(ctx context.Context, valMap map[string][]byte) erro
 }
 
 func (c *ByteCache) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
-	pipe := c.Client.Pipeline()
+	pipe := c.client.Pipeline()
 	for k, v := range valMap {
 		pipe.Set(ctx, k, v, expiration)
 	}
@@ -41,7 +41,7 @@ func (c *ByteCache) MultiSetWithTTL(ctx context.Context, valMap map[string][]byt
 }
 
 func (c *ByteCache) Get(ctx context.Context, key string) ([]byte, bool, error) {
-	val, err := c.Client.Get(ctx, key).Bytes()
+	val, err := c.client.Get(ctx, key).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, false, nil
@@ -52,7 +52,7 @@ func (c *ByteCache) Get(ctx context.Context, key string) ([]byte, bool, error) {
 }
 
 func (c *ByteCache) MultiGet(ctx context.Context, keys []string) (map[string][]byte, error) {
-	vals, err := c.Client.MGet(ctx, keys...).Result()
+	vals, err := c.client.MGet(ctx, keys...).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -71,19 +71,19 @@ func (c *ByteCache) MultiGet(ctx context.Context, keys []string) (map[string][]b
 }
 
 func (c *ByteCache) Del(ctx context.Context, key string) error {
-	return c.Client.Del(ctx, key).Err()
+	return c.client.Del(ctx, key).Err()
 }
 
 func (c *ByteCache) MultiDel(ctx context.Context, keys []string) error {
-	return c.Client.Del(ctx, keys...).Err()
+	return c.client.Del(ctx, keys...).Err()
 }
 
 func (c *ByteCache) DelAll(ctx context.Context) error {
-	return c.Client.FlushAll(ctx).Err()
+	return c.client.FlushAll(ctx).Err()
 }
 
 func (c *ByteCache) Exists(ctx context.Context, key string) (bool, error) {
-	exists, err := c.Client.Exists(ctx, key).Result()
+	exists, err := c.client.Exists(ctx, key).Result()
 	if err != nil {
 		return false, err
 	}
@@ -91,5 +91,5 @@ func (c *ByteCache) Exists(ctx context.Context, key string) (bool, error) {
 }
 
 func (c *ByteCache) Close() error {
-	return c.Client.Close()
+	return c.client.Close()
 }
