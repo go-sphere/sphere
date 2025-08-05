@@ -2,13 +2,8 @@ package errors
 
 import (
 	"fmt"
-	"strings"
-	"unicode"
-
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere-errors/generate/template"
 	"github.com/TBXark/sphere/proto/errors/sphere/errors"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
 )
@@ -17,8 +12,6 @@ const (
 	errorsPackage       = protogen.GoImportPath("errors")
 	statusErrorsPackage = protogen.GoImportPath("github.com/TBXark/sphere/core/errors/statuserr")
 )
-
-var enCases = cases.Title(language.AmericanEnglish, cases.NoLower)
 
 func GenerateFile(gen *protogen.Plugin, file *protogen.File) *protogen.GeneratedFile {
 	if len(file.Enums) == 0 || (!hasErrorEnums(file.Enums)) {
@@ -71,9 +64,8 @@ func generateErrorsReason(g *protogen.GeneratedFile, enum *protogen.Enum) bool {
 			options.Reason = string(enum.Desc.Name()) + ":" + string(v.Desc.Name())
 		}
 		err := &template.ErrorInfo{
-			Name:       string(enum.Desc.Name()),
-			Value:      string(v.Desc.Name()),
-			CamelValue: case2Camel(string(v.Desc.Name())),
+			Name:  string(enum.Desc.Name()),
+			Value: string(v.Desc.Name()),
 
 			Status:  options.Status,
 			Code:    int32(v.Desc.Number()),
@@ -109,32 +101,6 @@ func hasErrorEnums(enum []*protogen.Enum) bool {
 		}
 	}
 	return false
-}
-
-func case2Camel(name string) string {
-	if !strings.Contains(name, "_") {
-		if name == strings.ToUpper(name) {
-			name = strings.ToLower(name)
-		}
-		return enCases.String(name)
-	}
-	parts := strings.Split(name, "_")
-	words := make([]string, 0, len(parts))
-	for _, w := range parts {
-		hasLower := false
-		for _, r := range w {
-			if unicode.IsLower(r) {
-				hasLower = true
-				break
-			}
-		}
-		if !hasLower {
-			w = strings.ToLower(w)
-		}
-		w = enCases.String(w)
-		words = append(words, w)
-	}
-	return strings.Join(words, "")
 }
 
 func protocVersion(gen *protogen.Plugin) string {
