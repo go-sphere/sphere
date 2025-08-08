@@ -113,4 +113,22 @@ func (s *MyService) SomeBusinessLogic(input string) error {
 }
 ```
 
-When this error is handled by Sphere's server layer, it will automatically be converted into an HTTP response with the correct status code (400) and a JSON body containing the code, reason, and message.
+### HTTP Error Response
+
+When this error is handled by Sphere's server layer, it will automatically be converted into an HTTP response with the
+correct status code (400 in the example above) and a JSON body.
+
+For the example error `TestError_TEST_ERROR_INVALID_FIELD_TEST1`, the HTTP response would look like this:
+
+**Status Code:** `400 Bad Request`
+
+**Response Body:**
+
+```json
+{
+  "success": false,
+  "code": 1000,
+  "error": "INVALID_ARGUMENT",
+  "message": "无效的 field_test1"
+}
+```

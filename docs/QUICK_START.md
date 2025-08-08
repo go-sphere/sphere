@@ -1,3 +1,4 @@
+
 # Quick Start Guide
 
 This guide provides a step-by-step walkthrough for creating, building, and running a new application using the Sphere framework.
@@ -28,6 +29,32 @@ This command generates a new project with a clean structure. `sphere` is designe
 
 Sphere uses `ent` to manage the database schema. Define your database entities (tables) in the `/internal/pkg/database/ent/schema` directory.
 
+For example, to create a `User` schema, you can create a file `internal/pkg/database/ent/schema/user.go`:
+
+```go
+package schema
+
+import (
+	"entgo.io/ent"
+	"entgo.io/ent/schema/field"
+)
+
+// User holds the schema definition for the User entity.
+type User struct {
+	ent.Schema
+}
+
+// Fields of the User.
+func (User) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("name").
+			Default("unknown"),
+		field.Int("age").
+			Positive(),
+	}
+}
+```
+
 For a detailed guide on writing `ent` schemas, refer to the [official ent documentation](https://entgo.io/docs/getting-started).
 
 After defining your schemas, run the following `make` command:
@@ -42,6 +69,48 @@ make gen/db
 ### 3. Define API Interfaces with Protobuf
 
 Your service's API endpoints are defined in `.proto` files located in the `/proto` directory. Sphere utilizes [gRPC-Gateway](https://grpc-ecosystem.github.io/grpc-gateway/) style annotations to define how gRPC services map to HTTP/JSON endpoints.
+
+It's a good practice to define shared messages in the `proto/shared` directory. For example,
+`proto/shared/v1/user.proto`:
+
+```protobuf
+syntax = "proto3";
+
+package shared.v1;
+
+option go_package = "myproject/api/shared/v1;sharedv1";
+
+message User {
+  int64 id = 1;
+  string name = 2;
+  int32 age = 3;
+}
+```
+
+Then, you can define a `UserService` in `proto/api/v1/user.proto` that uses the shared `User` message:
+
+```protobuf
+syntax = "proto3";
+
+package api.v1;
+
+option go_package = "myproject/api/api/v1;apiv1";
+
+import "google/api/annotations.proto";
+import "shared/v1/user.proto";
+
+message GetUserRequest {
+  int64 id = 1;
+}
+
+service UserService {
+  rpc GetUser(GetUserRequest) returns (shared.v1.User) {
+    option (google.api.http) = {
+      get: "/v1/users/{id}"
+    };
+  }
+}
+```
 
 For more details on writing `.proto` files and using transcoding, see:
 *   [Protobuf Language Guide (proto3)](https://developers.google.com/protocol-buffers/docs/proto3)
@@ -64,10 +133,41 @@ make gen/dts
 
 ### 4. Implement Business Logic
 
-With the data models and API interfaces generated, you can now implement your application's business logic. The recommended structure is:
+With the data models and API interfaces generated, you can now implement your application's business logic. In Sphere,
+the business logic is typically placed directly within the `/internal/service` directory. The service layer implements
+the gRPC service interfaces defined in your `.proto` files and uses the Data Access Object (DAO) to interact with the
+database.
 
-*   `/internal/biz`: Contains the core business logic and use cases. This layer is independent of the transport layer (gRPC/HTTP).
-*   `/internal/service`: Implements the gRPC service interfaces defined in your `.proto` files. This layer acts as an adapter, translating incoming requests into calls to the `biz` layer.
+The `/internal/biz` directory is reserved for more complex business logic, such as background tasks or scenarios that
+require decoupling from the service layer. For most CRUD operations, implementing the logic in the service layer is
+sufficient.
+
+Example of implementing the `GetUser` RPC in `internal/service/api/user.go`:
+
+```go
+package api
+
+import (
+	"context"
+
+	apiv1 "myproject/api/api/v1"
+	sharedv1 "myproject/api/shared/v1"
+)
+
+// GetUser implements the GetUser RPC.
+func (s *Service) GetUser(ctx context.Context, req *apiv1.GetUserRequest) (*sharedv1.User, error) {
+	// Directly use the DAO to query the database.
+	user, err := s.db.User.Get(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	// Use a render function to convert the ent model to a protobuf message.
+	return s.render.User(user), nil
+}
+```
+
+Note: You'll need to add a `render.User` function in `/internal/pkg/render/entity.go` to map the `ent.User` to
+`sharedv1.User`.
 
 ### 5. Assemble and Run the Server
 
