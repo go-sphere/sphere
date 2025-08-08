@@ -29,7 +29,7 @@ func (c *ConnectCleaner) Start(ctx context.Context) error {
 }
 
 func (c *ConnectCleaner) Stop(ctx context.Context) error {
-	group := errgroup.Group{}
+	group, _ := errgroup.WithContext(ctx)
 	group.Go(c.db.Close)
 	group.Go(c.cache.Close)
 	return group.Wait()

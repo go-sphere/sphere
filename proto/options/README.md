@@ -9,7 +9,7 @@ syntax = "proto3";
 
 package bot.v1;
 
-import "tbxark/options/options.proto";
+import "sphere/options/options.proto";
 
 message StartRequest {}
 
@@ -17,7 +17,7 @@ message StartResponse {}
 
 service CounterService {
   rpc Start(StartRequest) returns (StartResponse) {
-    option (tbxark.options.options) = {
+    option (sphere.options.options) = {
       key: "bot",
       extra: [
         {
