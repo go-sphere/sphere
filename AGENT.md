@@ -1,6 +1,6 @@
 # AGENT.md
 
-This file provides guidance to Claude Code (claude.ai/code) or other AI agents when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -8,7 +8,13 @@ Sphere is a Go-based backend scaffolding framework for building monolithic appli
 
 ## Architecture Overview
 
-### Core Components
+### Core Architecture
+- **Database First**: ent schemas → protobuf messages → HTTP APIs → TypeScript clients
+- **Code Generation**: Heavy automation via protoc plugins and CLI tools
+- **Layered Design**: Schema → DAO → Service → API → Client
+- **Single Binary**: Everything compiles to one deployable binary
+
+### Key Components
 - **Web Framework**: Gin-gonic/gin for HTTP handling
 - **ORM**: ent for schema management and database operations
 - **Dependency Injection**: Google wire for dependency management
@@ -18,27 +24,30 @@ Sphere is a Go-based backend scaffolding framework for building monolithic appli
 ### Project Structure
 ```
 sphere/                    # Core framework library
-cmd/                       # CLI tools and code generators
-  protoc-gen-sphere/       # Protobuf HTTP server generator
-  protoc-gen-route/        # Protobuf routing generator
-  protoc-gen-sphere-binding/ # Struct binding tag generator
-  protoc-gen-sphere-errors/ # Error handling generator
-  sphere-cli/              # Main CLI for project management
-layout/                    # Standard project template
-  cmd/app/                 # Application entry point
-  internal/                # Private application code
-    biz/                   # Business logic layer
-    config/               # Configuration management
-    pkg/                  # Shared internal packages
-    server/               # Server implementations (API, Dashboard, Bot)
-    service/              # Service layer with API implementations
-  proto/                  # Protobuf definitions
-  swagger/                # Generated OpenAPI documentation
+├── cmd/                   # CLI tools and code generators
+│   ├── sphere-cli/       # Main CLI for project management
+│   ├── protoc-gen-sphere/ # HTTP server generator
+│   ├── protoc-gen-route/  # Routing generator
+│   ├── protoc-gen-sphere-binding/ # Struct tag generator
+│   └── protoc-gen-sphere-errors/ # Error handling generator
+├── layout/               # Standard project template
+│   ├── cmd/app/          # Application entry point
+│   ├── internal/         # Private application code
+│   │   ├── biz/          # Business logic layer
+│   │   ├── config/       # Configuration management
+│   │   ├── pkg/          # Shared internal packages
+│   │   ├── server/       # Server implementations
+│   │   └── service/      # Service layer with API implementations
+│   └── proto/            # Protobuf definitions
+└── proto/                # Shared protobuf definitions
+    ├── binding/          # Field binding options
+    ├── errors/           # Error handling definitions
+    └── options/          # API options
 ```
 
-## Development Commands
+## Essential Commands
 
-### Core Framework Commands
+### Core Framework (root directory)
 ```bash
 make install    # Install all CLI tools and dependencies
 make fmt        # Format code and run linting across all modules
@@ -47,9 +56,9 @@ make upgrade    # Upgrade all dependencies
 make nilaway    # Run nilaway static analysis
 ```
 
-### Project Template Commands (layout/ directory)
+### Project Development (layout/ directory)
 ```bash
-cd layout
+# Setup and generation
 make init              # Initialize all dependencies and generate code
 make gen/all           # Generate all code (clean + docs + wire)
 make gen/db            # Generate ent database code from schemas
@@ -58,30 +67,19 @@ make gen/docs          # Generate Swagger documentation
 make gen/wire          # Generate wire dependency injection code
 make gen/dts           # Generate TypeScript API clients
 
+# Build and run
 make build             # Build binary for current architecture
-make build/all         # Build for all platforms (linux/amd64, linux/arm64)
+make build/all         # Build for all platforms
 make run               # Run the application locally
 make lint              # Run golangci-lint and buf linting
 make fmt               # Format code and fix issues
 ```
 
-### CLI Tools Installation and Usage
-
-#### Sphere CLI (Project Creation)
+### CLI Tools Installation
 ```bash
 # Install sphere-cli
 go install github.com/TBXark/sphere/cmd/sphere-cli@latest
 
-# Create new project
-sphere-cli create --name myproject --mod github.com/user/myproject
-
-# Generate service code
-sphere-cli service golang --name MyService
-sphere-cli service proto --name MyService
-```
-
-#### Code Generators (Install individually)
-```bash
 # Install protoc plugins
 go install github.com/TBXark/sphere/cmd/protoc-gen-sphere@latest
 go install github.com/TBXark/sphere/cmd/protoc-gen-route@latest
@@ -89,69 +87,96 @@ go install github.com/TBXark/sphere/cmd/protoc-gen-sphere-errors@latest
 go install github.com/TBXark/sphere/cmd/protoc-gen-sphere-binding@latest
 ```
 
-## Key Development Workflows
+## Development Workflow
 
 ### 1. Creating a New Service
-1. Define database schema in `layout/internal/pkg/database/ent/schema/`
-2. Run `make gen/db` to generate ent code
-3. Define API in protobuf files in `layout/proto/`
-4. Run `make gen/proto` to generate HTTP bindings
-5. Implement service logic in `layout/internal/service/`
-6. Run `make gen/all` to regenerate all code
+1. **Define schema**: Edit `layout/internal/pkg/database/ent/schema/*.go`
+2. **Generate database code**: `make gen/db`
+3. **Define API**: Edit `layout/proto/**/*.proto`
+4. **Generate bindings**: `make gen/proto`
+5. **Implement service**: Edit `layout/internal/service/**/*.go`
+6. **Regenerate everything**: `make gen/all`
 
-### 2. Database Schema Changes
-1. Modify ent schema files
-2. Run `make gen/db` (also triggers proto generation)
-3. Run `make gen/wire` to update dependency injection
-
-### 3. API Definition Changes
-1. Edit protobuf files with gRPC-Gateway annotations
-2. Run `make gen/proto` to regenerate bindings
-3. Run `make gen/docs` to update Swagger documentation
-
-### 4. Testing Changes
-```bash
-# Test entire project
-cd layout && make gen/all && make build
-
-# Test specific components
-make test                    # Core framework tests
-cd layout && go test ./...   # Project template tests
+### 2. Code Generation Pipeline
 ```
+Ent Schema → Protobuf Messages → HTTP Bindings → Swagger Docs → TypeScript Client
+    ↓            ↓               ↓            ↓              ↓
+make gen/db → make gen/proto → make gen/docs → make gen/dts
+```
+
+### 3. Testing Single Components
+```bash
+# Test specific module
+cd layout && go test ./internal/service/api/...
+
+# Test with race detection
+cd layout && go test -race ./...
+
+# Test specific function
+cd layout && go test -run TestUserService_GetUser ./internal/service/api/...
+```
+
+## Key Files to Know
+
+### Configuration
+- `layout/config.json` - Main application configuration
+- `layout/internal/config/config.go` - Configuration structure
+- `layout/buf.yaml` - Protobuf configuration
+
+### Entry Points
+- `layout/cmd/app/main.go` - Application entry point
+- `layout/cmd/app/wire.go` - Dependency injection setup
+
+### Core Components
+- `layout/internal/pkg/database/ent/` - Generated database code
+- `layout/internal/service/` - Service implementations
+- `layout/internal/server/` - HTTP server configurations
+- `layout/proto/` - API definitions
+
+## Common Patterns
+
+### Database Operations
+- Use ent client: `s.db.User.Get(ctx, id)`
+- Transactions: `s.db.Tx(ctx, func(tx *ent.Tx) error { ... })`
+- Pagination: Use ent's built-in pagination
+
+### API Design
+- Use protobuf for all API definitions
+- Follow RESTful conventions via gRPC-Gateway
+- Shared messages in `proto/shared/v1/`
+- Error handling via `proto/errors/`
+
+### Service Implementation
+- Services implement protobuf interfaces
+- Use render functions for entity → protobuf conversion
+- Direct DAO access from services for CRUD operations
+- Complex business logic in `internal/biz/`
 
 ## Module Structure
 
 The project contains multiple Go modules:
-- **Root module**: github.com/TBXark/sphere (core framework)
-- **Layout module**: github.com/TBXark/sphere/layout (project template)
+- **Root**: github.com/TBXark/sphere (core framework)
+- **Layout**: github.com/TBXark/sphere/layout (project template)
 - **Proto submodules**: binding, errors, options (shared protobuf definitions)
 - **CLI tools**: Individual modules for each protoc plugin
 
-## Configuration Management
+## Environment Setup
 
-Applications use structured configuration loaded via confstore:
-- Configuration defined in `layout/internal/config/config.go`
-- Supports JSON/YAML configuration files
-- Environment variable overrides available
-- Separate configs for API, Dashboard, Bot, Database, Storage, etc.
+### Prerequisites
+- Go 1.24+
+- Docker & Docker Compose
+- Node.js & npm (for TypeScript client generation)
+- protoc compiler
 
-## Code Generation Pipeline
+### Quick Setup
+```bash
+# Install sphere-cli
+go install github.com/TBXark/sphere/cmd/sphere-cli@latest
 
-1. **Database First**: ent schemas → ent client + protobuf messages
-2. **API Definition**: protobuf files → HTTP bindings + Swagger docs
-3. **Dependency Injection**: wire annotations → generated constructors
-4. **TypeScript Client**: Swagger docs → TypeScript API bindings
+# Create new project
+sphere-cli create --name myproject --mod github.com/user/myproject
 
-## Testing Approach
-
-- Unit tests for core framework components
-- Integration tests for generated code in layout template
-- CLI command tests in sphere-cli
-- Automated testing via `make test` across all modules
-
-## Build and Deployment
-
-- Single binary deployment via `make build`
-- Docker support via `make build/docker`
-- Multi-architecture builds via `make build/multi-docker`
-- Environment-specific configuration management
+# Initialize
+cd myproject
+make init
+```
