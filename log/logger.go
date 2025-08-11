@@ -1,149 +1,82 @@
 package log
 
 import (
+	"fmt"
+	"log/slog"
 	"sync"
 
-	"github.com/TBXark/sphere/log/logfields"
 	"go.uber.org/zap"
+	"go.uber.org/zap/exp/zapslog"
 )
 
-// Logger is a contract for the logger
 type Logger interface {
-	Debug(args ...interface{})
-	Debugf(format string, args ...interface{})
-	Debugw(message string, args ...interface{})
-
-	Info(args ...interface{})
-	Infof(format string, args ...interface{})
-	Infow(message string, args ...interface{})
-
-	Warn(args ...interface{})
-	Warnf(format string, args ...interface{})
-	Warnw(message string, args ...interface{})
-
-	Error(args ...interface{})
-	Errorf(format string, args ...interface{})
-	Errorw(message string, args ...interface{})
-
-	Panic(args ...interface{})
-	Panicf(format string, args ...interface{})
-	Panicw(message string, args ...interface{})
-
-	Fatal(args ...interface{})
-	Fatalf(format string, args ...interface{})
-	Fatalw(message string, args ...interface{})
-
-	WithFields(keyValues map[string]interface{}) Logger
+	Debug(msg string, attrs ...any)
+	Info(msg string, attrs ...any)
+	Warn(msg string, attrs ...any)
+	Error(msg string, attrs ...any)
 }
 
 var (
-	mu  sync.Mutex
-	std = newLogger(NewOptions())
+	mu      sync.Mutex
+	std     Logger
+	backend *zapLogger
 )
 
-func Init(opts *Options, fields ...logfields.Field) {
-	mu.Lock()
-	defer mu.Unlock()
-	std = newLogger(opts, fields...)
+func init() {
+	Init(NewOptions(), []slog.Attr{})
 }
 
-func NewLogger(opts *Options) Logger {
-	return newLogger(opts)
+func Init(opts *Options, attrs []slog.Attr) {
+	mu.Lock()
+	defer mu.Unlock()
+	backend = newZapLogHandler(opts, attrs)
+	std = slog.New(backend.Handler(
+		zapslog.WithCallerSkip(1),
+		zapslog.WithCaller(true),
+		zapslog.AddStacktraceAt(slog.LevelError),
+	))
 }
 
 func Sync() error {
-	return std.sugarLogger.Sync()
+	return backend.core.Sync()
 }
 
-func DisableCaller() Logger {
-	mu.Lock()
-	defer mu.Unlock()
-	return &zapLogger{std.sugarLogger.WithOptions(zap.WithCaller(false))}
+func ZapLogger(options ...zap.Option) *zap.Logger {
+	fields := make([]zap.Field, 0, len(backend.attrs))
+	for _, attr := range backend.attrs {
+		fields = append(fields, zap.Any(attr.Key, attr.Value.Any()))
+	}
+	return zap.New(backend.core, options...).With(fields...)
 }
 
-func ZapLogger() *zap.Logger {
-	mu.Lock()
-	defer mu.Unlock()
-	return std.sugarLogger.Desugar().WithOptions(zap.WithCaller(false))
-}
-
-// Logger implementation
-
-func Debug(args ...interface{}) {
-	std.Debug(args...)
-}
-
-func Info(args ...interface{}) {
-	std.Info(args...)
-}
-
-func Warn(args ...interface{}) {
-	std.Warn(args...)
-}
-
-func Error(args ...interface{}) {
-	std.Error(args...)
-}
-
-func Panic(args ...interface{}) {
-	std.Panic(args...)
-}
-
-func Fatal(args ...interface{}) {
-	std.Fatal(args...)
+func Debug(msg string, attrs ...interface{}) {
+	std.Debug(msg, attrs...)
 }
 
 func Debugf(format string, args ...interface{}) {
-	std.Debugf(format, args...)
+	std.Debug(fmt.Sprintf(format, args...))
+}
+
+func Info(msg string, attrs ...interface{}) {
+	std.Info(msg, attrs...)
 }
 
 func Infof(format string, args ...interface{}) {
-	std.Infof(format, args...)
+	std.Info(fmt.Sprintf(format, args...))
+}
+
+func Warn(msg string, attrs ...interface{}) {
+	std.Warn(msg, attrs...)
 }
 
 func Warnf(format string, args ...interface{}) {
-	std.Warnf(format, args...)
+	std.Warn(fmt.Sprintf(format, args...))
+}
+
+func Error(msg string, attrs ...interface{}) {
+	std.Error(msg, attrs...)
 }
 
 func Errorf(format string, args ...interface{}) {
-	std.Errorf(format, args...)
-}
-
-func Panicf(format string, args ...interface{}) {
-	std.Panicf(format, args...)
-}
-
-func Fatalf(format string, args ...interface{}) {
-	std.Fatalf(format, args...)
-}
-
-func Debugw(message string, args ...interface{}) {
-	std.Debugw(message, args...)
-}
-
-func Infow(message string, args ...interface{}) {
-	std.Infow(message, args...)
-}
-
-func Warnw(message string, args ...interface{}) {
-	std.Warnw(message, args...)
-}
-
-func Errorw(message string, args ...interface{}) {
-	std.Errorw(message, args...)
-}
-
-func Panicw(message string, args ...interface{}) {
-	std.Panicw(message, args...)
-}
-
-func Fatalw(message string, args ...interface{}) {
-	std.Fatalw(message, args...)
-}
-
-func WithFields(fields map[string]interface{}) Logger {
-	if len(fields) == 0 {
-		return std
-	}
-	return std.WithFields(fields)
+	std.Error(fmt.Sprintf(format, args...))
 }

@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 
 	"github.com/TBXark/sphere/core/task"
 	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 )
 
 func run(ctx context.Context, t task.Task, options *options) error {
@@ -33,9 +33,9 @@ func run(ctx context.Context, t task.Task, options *options) error {
 		defer close(startErr) // 确保 channel 被关闭
 		defer func() {
 			if r := recover(); r != nil {
-				log.Errorw("Task panic",
-					logfields.String("task", t.Identifier()),
-					logfields.Any("recover", r),
+				log.Error("Task panic",
+					log.String("task", t.Identifier()),
+					log.Any("recover", r),
 				)
 				startErr <- fmt.Errorf("task panic: %v", r)
 			}
@@ -57,7 +57,7 @@ func run(ctx context.Context, t task.Task, options *options) error {
 		if ok && err != nil {
 			startError = err
 			shutdownReason = "task error"
-			log.Error("Task start error", logfields.Error(err))
+			log.Error("Task start error", slog.Any("error", err))
 		} else {
 			shutdownReason = "task completed"
 			log.Info("Task completed normally")

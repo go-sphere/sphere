@@ -2,6 +2,7 @@ package errors
 
 import (
 	"fmt"
+
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere-errors/generate/template"
 	"github.com/TBXark/sphere/proto/errors/sphere/errors"
 	"google.golang.org/protobuf/compiler/protogen"

@@ -30,6 +30,7 @@ require (
 	github.com/telegram-mini-apps/init-data-golang v1.5.0
 	github.com/yitter/idgenerator-go v1.3.3
 	go.uber.org/zap v1.27.0
+	go.uber.org/zap/exp v0.3.0
 	golang.org/x/crypto v0.40.0
 	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792
 	golang.org/x/sync v0.16.0

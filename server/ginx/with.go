@@ -7,7 +7,6 @@ import (
 
 	"github.com/TBXark/sphere/core/errors/statuserr"
 	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,7 +30,7 @@ func WithRecover(message string, handler func(ctx *gin.Context)) gin.HandlerFunc
 			if err := recover(); err != nil {
 				log.Errorf(
 					message,
-					logfields.Any("error", err),
+					log.Any("error", err),
 				)
 				AbortWithJsonError(ctx,
 					statuserr.InternalServerError(

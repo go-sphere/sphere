@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 )
@@ -31,7 +30,7 @@ func newOptions(opts ...Option) *options {
 			}
 		},
 		errorHandler: func(ctx context.Context, bot *bot.Bot, update *Update, err error) {
-			log.Warnw("bot error", logfields.Error(err))
+			log.Warn("bot error", log.Any("error", err))
 		},
 		authExtractor: DefaultAuthExtractor,
 		botOptions: []bot.Option{

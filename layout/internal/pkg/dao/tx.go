@@ -6,7 +6,6 @@ import (
 
 	"github.com/TBXark/sphere/layout/internal/pkg/database/ent"
 	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 )
 
 type txOptions struct {
@@ -72,7 +71,7 @@ func WithTx[T any](ctx context.Context, db *ent.Client, exe func(ctx context.Con
 	}
 	defer func() {
 		if reason := recover(); reason != nil {
-			log.Warnw("WithTx panic", logfields.Any("error", reason))
+			log.Warn("WithTx panic", log.Any("error", reason))
 			_ = tx.Rollback()
 			return
 		}
@@ -107,7 +106,7 @@ func WithTxEx(ctx context.Context, db *ent.Client, exe func(ctx context.Context,
 	}
 	defer func() {
 		if reason := recover(); reason != nil {
-			log.Warnw("WithTxEx panic", logfields.Any("error", reason))
+			log.Warn("WithTxEx panic", log.Any("error", reason))
 			_ = tx.Rollback()
 			return
 		}

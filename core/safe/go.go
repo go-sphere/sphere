@@ -2,15 +2,14 @@ package safe
 
 import (
 	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 )
 
 func Recover(onError ...func(err any)) {
 	if r := recover(); r != nil {
-		log.Errorw(
+		log.Error(
 			"goroutine panic",
-			logfields.String("module", "safe"),
-			logfields.Any("error", r),
+			log.String("module", "safe"),
+			log.Any("error", r),
 		)
 		for _, fn := range onError {
 			fn(r)

@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"syscall"
 	"time"
 
 	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 )
 
 type Hook = func(context.Context) error
@@ -68,7 +68,9 @@ func AddAfterStop(f Hook) Option {
 func WithLoggerInit(ver string, conf *log.Options) Option {
 	return func(o *options) {
 		o.beforeStart = append(o.beforeStart, func(context.Context) error {
-			log.Init(conf, logfields.String("version", ver))
+			log.Init(conf, []slog.Attr{
+				log.String("version", ver),
+			})
 			return nil
 		})
 		o.afterStop = append(o.afterStop, func(context.Context) error {

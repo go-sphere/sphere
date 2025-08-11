@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/TBXark/sphere/log"
-	"github.com/TBXark/sphere/log/logfields"
 )
 
 func execute(ctx context.Context, name string, task Task, run func(ctx context.Context, task Task) error) (err error) {
@@ -24,17 +23,17 @@ func execute(ctx context.Context, name string, task Task, run func(ctx context.C
 }
 
 func logTaskPanic(task Task, name string, reason any) {
-	log.Errorw(
+	log.Error(
 		fmt.Sprintf("%s panic", name),
-		logfields.String("task", task.Identifier()),
-		logfields.Any("recover", reason),
+		log.String("task", task.Identifier()),
+		log.Any("recover", reason),
 	)
 }
 
 func logTaskError(task Task, name string, err error) {
-	log.Errorw(
+	log.Error(
 		fmt.Sprintf("%s error", name),
-		logfields.String("task", task.Identifier()),
-		logfields.Error(err),
+		log.String("task", task.Identifier()),
+		log.Any("error", err),
 	)
 }
