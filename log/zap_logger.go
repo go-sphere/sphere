@@ -58,20 +58,20 @@ func newZapCore(config *Config) zapcore.Core {
 	return zapcore.NewTee(nodes...)
 }
 
-func (z *zapLogger) Debug(msg string, attrs ...any) {
-	z.logger.Debugw(msg, attrs...)
+func (z *zapLogger) Debug(msg string, args ...any) {
+	z.logger.Debugw(msg, args...)
 }
 
-func (z *zapLogger) Info(msg string, attrs ...any) {
-	z.logger.Infow(msg, attrs...)
+func (z *zapLogger) Info(msg string, args ...any) {
+	z.logger.Infow(msg, args...)
 }
 
-func (z *zapLogger) Warn(msg string, attrs ...any) {
-	z.logger.Warnw(msg, attrs...)
+func (z *zapLogger) Warn(msg string, args ...any) {
+	z.logger.Warnw(msg, args...)
 }
 
-func (z *zapLogger) Error(msg string, attrs ...any) {
-	z.logger.Errorw(msg, attrs...)
+func (z *zapLogger) Error(msg string, args ...any) {
+	z.logger.Errorw(msg, args...)
 }
 
 func (z *zapLogger) Debugf(format string, args ...any) {

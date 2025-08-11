@@ -7,10 +7,10 @@ import (
 )
 
 type BaseLogger interface {
-	Debug(msg string, attrs ...any)
-	Info(msg string, attrs ...any)
-	Warn(msg string, attrs ...any)
-	Error(msg string, attrs ...any)
+	Debug(msg string, args ...any)
+	Info(msg string, args ...any)
+	Warn(msg string, args ...any)
+	Error(msg string, args ...any)
 }
 
 type Logger interface {
