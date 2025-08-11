@@ -14,6 +14,16 @@ type zapLogger struct {
 
 func newZapLogger(config *Config, options ...Option) *zapLogger {
 	opts := newOptions(options...)
+	core := newZapCore(config)
+	return &zapLogger{
+		logger: zap.New(core).
+			With(mapToZapFields(opts.attrs)...).
+			WithOptions(zapOptions(opts)...).
+			Sugar(),
+	}
+}
+
+func newZapCore(config *Config) zapcore.Core {
 	levelRaw, err := zapcore.ParseLevel(config.Level)
 	if err != nil {
 		levelRaw = zap.InfoLevel
@@ -45,13 +55,7 @@ func newZapLogger(config *Config, options ...Option) *zapLogger {
 		nodes = append(nodes, pc)
 	}
 
-	core := zapcore.NewTee(nodes...)
-	return &zapLogger{
-		logger: zap.New(core).
-			With(mapToZapFields(opts.attrs)...).
-			WithOptions(zapOptions(opts)...).
-			Sugar(),
-	}
+	return zapcore.NewTee(nodes...)
 }
 
 func (z *zapLogger) Debug(msg string, attrs ...any) {

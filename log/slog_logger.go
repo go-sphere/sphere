@@ -7,10 +7,10 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func NewSlogger(config *Config, options ...Option) *slog.Logger {
-	logger := newZapLogger(config, options...)
+func NewSlogLogger(config *Config, options ...Option) *slog.Logger {
+	core := newZapCore(config)
 	return newSlogLogger(
-		logger.logger.Desugar().Core(),
+		core,
 		options...,
 	)
 }

@@ -63,6 +63,7 @@ func AddCallerSkip(skip int) Option {
 		o.callerSkip += skip
 	}
 }
+
 func WithStackAt(level zapcore.Level) Option {
 	return func(o *options) {
 		o.addStackAt = level
