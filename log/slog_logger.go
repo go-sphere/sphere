@@ -9,20 +9,37 @@ import (
 
 func NewSlogger(config *Config, options ...Option) *slog.Logger {
 	logger := newZapLogger(config, options...)
-	return newSlogLogger(logger.logger.Desugar().Core(), options...)
+	return newSlogLogger(
+		logger.logger.Desugar().Core(),
+		options...,
+	)
 }
 
 func newSlogLogger(core zapcore.Core, options ...Option) *slog.Logger {
 	opts := newOptions(options...)
-	return slog.New(zapslog.NewHandler(
-		core,
-		zapslog.WithCaller(opts.addCaller),
-		zapslog.WithCallerSkip(opts.callerSkip),
-		zapslog.AddStacktraceAt(convertZapLevel(opts.addStackAt)),
-	).WithAttrs(attrsToSlogAttrs(opts.attrs)))
+	return slog.New(
+		zapslog.NewHandler(
+			core,
+			zapSlogOptions(opts)...,
+		).WithAttrs(mapToSlogAttrs(opts.attrs)),
+	)
 }
 
-func attrsToSlogAttrs(attrs map[string]any) []slog.Attr {
+func zapSlogOptions(o *options) []zapslog.HandlerOption {
+	opts := make([]zapslog.HandlerOption, 0, 3)
+	if o.addCaller {
+		opts = append(opts, zapslog.WithCaller(true))
+	}
+	if o.addStackAt != zapcore.InvalidLevel {
+		opts = append(opts, zapslog.AddStacktraceAt(zapLevelToSlogLevel(o.addStackAt)))
+	}
+	if o.callerSkip != 0 {
+		opts = append(opts, zapslog.WithCallerSkip(o.callerSkip))
+	}
+	return opts
+}
+
+func mapToSlogAttrs(attrs map[string]any) []slog.Attr {
 	attrsList := make([]slog.Attr, 0, len(attrs))
 	for k, v := range attrs {
 		attrsList = append(attrsList, slog.Any(k, v))
@@ -30,7 +47,7 @@ func attrsToSlogAttrs(attrs map[string]any) []slog.Attr {
 	return attrsList
 }
 
-func convertZapLevel(l zapcore.Level) slog.Level {
+func zapLevelToSlogLevel(l zapcore.Level) slog.Level {
 	switch {
 	case l >= zapcore.ErrorLevel:
 		return slog.LevelError

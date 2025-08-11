@@ -3,15 +3,18 @@ package log
 import (
 	"sync"
 
-	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-type Logger interface {
+type BaseLogger interface {
 	Debug(msg string, attrs ...any)
 	Info(msg string, attrs ...any)
 	Warn(msg string, attrs ...any)
 	Error(msg string, attrs ...any)
+}
 
+type Logger interface {
+	BaseLogger
 	Debugf(format string, args ...any)
 	Infof(format string, args ...any)
 	Warnf(format string, args ...any)
@@ -30,7 +33,10 @@ func init() {
 func Init(opts *Config, attrs map[string]any) {
 	mu.Lock()
 	defer mu.Unlock()
-	std = newZapLogger(opts, WithAttrs(attrs))
+	std = newZapLogger(opts,
+		WithAttrs(attrs),
+		WithStackAt(zapcore.ErrorLevel),
+	)
 }
 
 func Sync() error {
@@ -69,12 +75,6 @@ func Errorf(format string, args ...any) {
 	std.Errorf(format, args)
 }
 
-func With(attrs map[string]any) Logger {
-	fields := make([]any, 0, len(attrs))
-	for k, v := range attrs {
-		fields = append(fields, zap.Any(k, v))
-	}
-	return &zapLogger{
-		logger: std.logger.With(fields...),
-	}
+func With(options ...Option) Logger {
+	return std.With(options...)
 }

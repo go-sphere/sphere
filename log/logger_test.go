@@ -8,7 +8,9 @@ import (
 func TestLogger(t *testing.T) {
 	Init(&Config{
 		Level: "debug",
-	}, nil)
+	}, map[string]any{
+		"version": "test",
+	})
 	Debug("debug")
 	Info("info")
 	Warn("warn", "key", "value")

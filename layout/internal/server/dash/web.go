@@ -47,7 +47,7 @@ func (w *Web) Start(ctx context.Context) error {
 	jwtAuthorizer := jwtauth.NewJwtAuth[jwtauth.RBACClaims[int64]](w.config.AuthJWT)
 	jwtRefresher := jwtauth.NewJwtAuth[jwtauth.RBACClaims[int64]](w.config.RefreshJWT)
 
-	zapLogger := log.With(map[string]any{"module": "dash"})
+	zapLogger := log.With(log.WithAttrs(map[string]any{"module": "dash"}), log.WithCallerSkip(1))
 	loggerMiddleware := logger.NewLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewRecoveryMiddleware(zapLogger)
 	authMiddleware := auth.NewAuthMiddleware[int64, *jwtauth.RBACClaims[int64]](

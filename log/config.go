@@ -1,6 +1,8 @@
 package log
 
-import "go.uber.org/zap/zapcore"
+import (
+	"go.uber.org/zap/zapcore"
+)
 
 type FileConfig struct {
 	FileName   string `json:"file_name" yaml:"file_name"`
@@ -70,8 +72,8 @@ func WithAttrs(attrs map[string]any) Option {
 func newOptions(opts ...Option) *options {
 	defaults := &options{
 		addCaller:  true,
-		addStackAt: zapcore.ErrorLevel,
-		callerSkip: 0,
+		addStackAt: zapcore.InvalidLevel,
+		callerSkip: 2,
 		attrs:      make(map[string]any),
 	}
 	for _, opt := range opts {

@@ -45,25 +45,13 @@ func newZapLogger(config *Config, options ...Option) *zapLogger {
 		nodes = append(nodes, pc)
 	}
 
-	core := zapcore.NewTee(
-		nodes...,
-	)
-
+	core := zapcore.NewTee(nodes...)
 	return &zapLogger{
-		logger: zap.New(core,
-			zap.WithCaller(opts.addCaller),
-			zap.AddCallerSkip(opts.callerSkip),
-			zap.AddStacktrace(opts.addStackAt),
-		).With(attrsToZapFields(opts.attrs)...).Sugar(),
+		logger: zap.New(core).
+			With(mapToZapFields(opts.attrs)...).
+			WithOptions(zapOptions(opts)...).
+			Sugar(),
 	}
-}
-
-func attrsToZapFields(attrs map[string]any) []zap.Field {
-	fields := make([]zap.Field, 0, len(attrs))
-	for k, v := range attrs {
-		fields = append(fields, zap.Any(k, v))
-	}
-	return fields
 }
 
 func (z *zapLogger) Debug(msg string, attrs ...any) {
@@ -96,4 +84,37 @@ func (z *zapLogger) Warnf(format string, args ...any) {
 
 func (z *zapLogger) Errorf(format string, args ...any) {
 	z.logger.Errorf(format, args...)
+}
+
+func (z *zapLogger) With(options ...Option) *zapLogger {
+	opts := newOptions(options...)
+	return &zapLogger{
+		logger: z.logger.
+			Desugar().
+			With(mapToZapFields(opts.attrs)...).
+			WithOptions(zapOptions(opts)...).
+			Sugar(),
+	}
+}
+
+func zapOptions(o *options) []zap.Option {
+	opts := make([]zap.Option, 0, 3)
+	if o.addCaller {
+		opts = append(opts, zap.AddCaller())
+	}
+	if o.addStackAt != zapcore.InvalidLevel {
+		opts = append(opts, zap.AddStacktrace(o.addStackAt))
+	}
+	if o.callerSkip != 0 {
+		opts = append(opts, zap.AddCallerSkip(o.callerSkip))
+	}
+	return opts
+}
+
+func mapToZapFields(attrs map[string]any) []zap.Field {
+	fields := make([]zap.Field, 0, len(attrs))
+	for k, v := range attrs {
+		fields = append(fields, zap.Any(k, v))
+	}
+	return fields
 }
