@@ -26,7 +26,7 @@ func TestSearcher(t *testing.T) {
 	if err != nil {
 		t.Skipf("Meilisearch server not available, skipping test: %v", err)
 	}
-	searcher, err := NewSearcher[Article](manager, "articles")
+	searcher, err := NewSearcher[Article](manager, "articles", PrimaryKey("id"))
 	if err != nil {
 		t.Errorf("Failed to create searcher: %v", err)
 		return

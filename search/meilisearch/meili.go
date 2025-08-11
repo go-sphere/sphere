@@ -29,20 +29,29 @@ func NewServiceManager(config *Config) (*ServiceManager, error) {
 }
 
 type Searcher[T search.Document] struct {
-	service *ServiceManager
-	index   meilisearch.IndexManager
+	service    *ServiceManager
+	index      meilisearch.IndexManager
+	primaryKey *string
 }
 
-func NewSearcher[T search.Document](service *ServiceManager, indexName string) (*Searcher[T], error) {
+func NewSearcher[T search.Document](service *ServiceManager, indexName string, primaryKey *string) (*Searcher[T], error) {
 	index := service.service.Index(indexName)
 	return &Searcher[T]{
-		service: service,
-		index:   index,
+		service:    service,
+		index:      index,
+		primaryKey: primaryKey,
 	}, nil
 }
 
+func PrimaryKey(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
 func (s *Searcher[T]) Index(ctx context.Context, docs ...T) error {
-	task, err := s.index.AddDocumentsWithContext(ctx, docs)
+	task, err := s.index.AddDocumentsWithContext(ctx, docs, s.primaryKey)
 	if err != nil {
 		return err
 	}

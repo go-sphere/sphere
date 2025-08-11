@@ -5,6 +5,6 @@ go 1.23.0
 toolchain go1.24.4
 
 require (
-	github.com/TBXark/sphere/proto/errors v0.0.0-20250725092632-e018087ec95e
-	google.golang.org/protobuf v1.36.6
+	github.com/TBXark/sphere/proto/errors v0.0.0-20250811072740-1608e3852053
+	google.golang.org/protobuf v1.36.7
 )
