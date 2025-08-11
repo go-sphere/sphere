@@ -58,9 +58,9 @@ func DisableCaller() Option {
 	}
 }
 
-func WithCallerSkip(skip int) Option {
+func AddCallerSkip(skip int) Option {
 	return func(o *options) {
-		o.callerSkip = skip
+		o.callerSkip += skip
 	}
 }
 func WithStackAt(level zapcore.Level) Option {
@@ -86,7 +86,7 @@ func newOptions(opts ...Option) *options {
 	defaults := &options{
 		addCaller:  AddCallerStatusNone,
 		addStackAt: zapcore.InvalidLevel,
-		callerSkip: 2,
+		callerSkip: 0,
 		attrs:      make(map[string]any),
 	}
 	for _, opt := range opts {

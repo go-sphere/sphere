@@ -13,7 +13,9 @@ func TestLogger(t *testing.T) {
 	})
 	Debug("debug")
 	Info("info")
-	Warn("warn", "key", "value")
+	With(WithAttrs(map[string]any{
+		"extra": "extra value",
+	})).Warn("warn", "key", "value")
 	Error("error", Err(fmt.Errorf("test error")))
 	_ = Sync()
 }

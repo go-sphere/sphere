@@ -35,6 +35,8 @@ func Init(opts *Config, attrs map[string]any) {
 	defer mu.Unlock()
 	std = newZapLogger(opts,
 		WithAttrs(attrs),
+		AddCaller(),
+		AddCallerSkip(2),
 		WithStackAt(zapcore.ErrorLevel),
 	)
 }
@@ -76,5 +78,8 @@ func Errorf(format string, args ...any) {
 }
 
 func With(options ...Option) Logger {
-	return std.With(options...)
+	opts := make([]Option, 0, len(options)+1)
+	opts = append(opts, options...)
+	opts = append(opts, AddCallerSkip(-1))
+	return std.With(opts...)
 }
