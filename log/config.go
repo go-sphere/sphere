@@ -38,6 +38,7 @@ const (
 )
 
 type options struct {
+	name       string
 	addCaller  AddCallerStatus
 	addStackAt zapcore.Level
 	callerSkip int
@@ -45,6 +46,12 @@ type options struct {
 }
 
 type Option = func(*options)
+
+func WithName(name string) Option {
+	return func(o *options) {
+		o.name = name
+	}
+}
 
 func AddCaller() Option {
 	return func(o *options) {

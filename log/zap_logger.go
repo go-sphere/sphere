@@ -17,6 +17,7 @@ func newZapLogger(config *Config, options ...Option) *zapLogger {
 	core := newZapCore(config)
 	return &zapLogger{
 		logger: zap.New(core).
+			Named(opts.name).
 			WithOptions(zapOptions(opts)...).
 			Sugar(),
 	}

@@ -33,6 +33,9 @@ func zapSlogOptions(o *options) []zapslog.HandlerOption {
 	default:
 		break
 	}
+	if o.name != "" {
+		opts = append(opts, zapslog.WithName(o.name))
+	}
 	if o.addStackAt != zapcore.InvalidLevel {
 		opts = append(opts, zapslog.AddStacktraceAt(zapLevelToSlogLevel(o.addStackAt)))
 	}
