@@ -17,7 +17,6 @@ func newZapLogger(config *Config, options ...Option) *zapLogger {
 	core := newZapCore(config)
 	return &zapLogger{
 		logger: zap.New(core).
-			With(mapToZapFields(opts.attrs)...).
 			WithOptions(zapOptions(opts)...).
 			Sugar(),
 	}
@@ -93,11 +92,7 @@ func (z *zapLogger) Errorf(format string, args ...any) {
 func (z *zapLogger) With(options ...Option) *zapLogger {
 	opts := newOptions(options...)
 	return &zapLogger{
-		logger: z.logger.
-			Desugar().
-			With(mapToZapFields(opts.attrs)...).
-			WithOptions(zapOptions(opts)...).
-			Sugar(),
+		logger: z.logger.WithOptions(zapOptions(opts)...),
 	}
 }
 
@@ -116,6 +111,9 @@ func zapOptions(o *options) []zap.Option {
 	}
 	if o.callerSkip != 0 {
 		opts = append(opts, zap.AddCallerSkip(o.callerSkip))
+	}
+	if len(o.attrs) > 0 {
+		opts = append(opts, zap.Fields(mapToZapFields(o.attrs)...))
 	}
 	return opts
 }

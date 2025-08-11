@@ -18,10 +18,8 @@ func NewSlogLogger(config *Config, options ...Option) *slog.Logger {
 func newSlogLogger(core zapcore.Core, options ...Option) *slog.Logger {
 	opts := newOptions(options...)
 	return slog.New(
-		zapslog.NewHandler(
-			core,
-			zapSlogOptions(opts)...,
-		).WithAttrs(mapToSlogAttrs(opts.attrs)),
+		zapslog.NewHandler(core, zapSlogOptions(opts)...).
+			WithAttrs(mapToSlogAttrs(opts.attrs)),
 	)
 }
 

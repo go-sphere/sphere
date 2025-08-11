@@ -32,7 +32,7 @@ func NewDefaultConfig() *Config {
 type AddCallerStatus int
 
 const (
-	AddCallerStatusNone AddCallerStatus = iota
+	AddCallerStatusKeep AddCallerStatus = iota
 	AddCallerStatusEnable
 	AddCallerStatusDisable
 )
@@ -85,7 +85,7 @@ func WithAttrs(attrs map[string]any) Option {
 
 func newOptions(opts ...Option) *options {
 	defaults := &options{
-		addCaller:  AddCallerStatusNone,
+		addCaller:  AddCallerStatusKeep,
 		addStackAt: zapcore.InvalidLevel,
 		callerSkip: 0,
 		attrs:      make(map[string]any),
