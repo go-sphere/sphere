@@ -99,8 +99,13 @@ func (z *zapLogger) With(options ...Option) *zapLogger {
 
 func zapOptions(o *options) []zap.Option {
 	opts := make([]zap.Option, 0, 3)
-	if o.addCaller {
-		opts = append(opts, zap.AddCaller())
+	switch o.addCaller {
+	case AddCallerStatusEnable:
+		opts = append(opts, zap.WithCaller(true))
+	case AddCallerStatusDisable:
+		opts = append(opts, zap.WithCaller(false))
+	default:
+		break
 	}
 	if o.addStackAt != zapcore.InvalidLevel {
 		opts = append(opts, zap.AddStacktrace(o.addStackAt))

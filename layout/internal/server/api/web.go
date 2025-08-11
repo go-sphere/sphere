@@ -40,7 +40,7 @@ func (w *Web) Identifier() string {
 func (w *Web) Start(ctx context.Context) error {
 	jwtAuthorizer := jwtauth.NewJwtAuth[jwtauth.RBACClaims[int64]](w.config.JWT)
 
-	zapLogger := log.With(log.WithAttrs(map[string]any{"module": "api"}), log.WithCallerSkip(1))
+	zapLogger := log.With(log.WithAttrs(map[string]any{"module": "api"}), log.DisableCaller())
 	loggerMiddleware := logger.NewLoggerMiddleware(zapLogger)
 	recoveryMiddleware := logger.NewRecoveryMiddleware(zapLogger)
 	authMiddleware := auth.NewAuthMiddleware[int64, *jwtauth.RBACClaims[int64]](

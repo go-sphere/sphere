@@ -27,8 +27,13 @@ func newSlogLogger(core zapcore.Core, options ...Option) *slog.Logger {
 
 func zapSlogOptions(o *options) []zapslog.HandlerOption {
 	opts := make([]zapslog.HandlerOption, 0, 3)
-	if o.addCaller {
+	switch o.addCaller {
+	case AddCallerStatusEnable:
 		opts = append(opts, zapslog.WithCaller(true))
+	case AddCallerStatusDisable:
+		opts = append(opts, zapslog.WithCaller(false))
+	default:
+		break
 	}
 	if o.addStackAt != zapcore.InvalidLevel {
 		opts = append(opts, zapslog.AddStacktraceAt(zapLevelToSlogLevel(o.addStackAt)))

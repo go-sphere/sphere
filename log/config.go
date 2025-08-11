@@ -29,8 +29,16 @@ func NewDefaultConfig() *Config {
 	}
 }
 
+type AddCallerStatus int
+
+const (
+	AddCallerStatusNone AddCallerStatus = iota
+	AddCallerStatusEnable
+	AddCallerStatusDisable
+)
+
 type options struct {
-	addCaller  bool
+	addCaller  AddCallerStatus
 	addStackAt zapcore.Level
 	callerSkip int
 	attrs      map[string]any
@@ -38,21 +46,26 @@ type options struct {
 
 type Option = func(*options)
 
-func WithCaller(addCaller bool) Option {
+func AddCaller() Option {
 	return func(o *options) {
-		o.addCaller = addCaller
+		o.addCaller = AddCallerStatusEnable
 	}
 }
 
-func WithStackAt(level zapcore.Level) Option {
+func DisableCaller() Option {
 	return func(o *options) {
-		o.addStackAt = level
+		o.addCaller = AddCallerStatusDisable
 	}
 }
 
 func WithCallerSkip(skip int) Option {
 	return func(o *options) {
 		o.callerSkip = skip
+	}
+}
+func WithStackAt(level zapcore.Level) Option {
+	return func(o *options) {
+		o.addStackAt = level
 	}
 }
 
@@ -71,7 +84,7 @@ func WithAttrs(attrs map[string]any) Option {
 
 func newOptions(opts ...Option) *options {
 	defaults := &options{
-		addCaller:  true,
+		addCaller:  AddCallerStatusNone,
 		addStackAt: zapcore.InvalidLevel,
 		callerSkip: 2,
 		attrs:      make(map[string]any),
