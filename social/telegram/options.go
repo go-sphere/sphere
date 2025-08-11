@@ -30,7 +30,7 @@ func newOptions(opts ...Option) *options {
 			}
 		},
 		errorHandler: func(ctx context.Context, bot *bot.Bot, update *Update, err error) {
-			log.Warn("bot error", log.Any("error", err))
+			log.Warn("bot error", log.Err(err))
 		},
 		authExtractor: DefaultAuthExtractor,
 		botOptions: []bot.Option{

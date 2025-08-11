@@ -18,7 +18,7 @@ var BuildVersion = "dev"
 
 type Config struct {
 	Environments map[string]string `json:"environments" yaml:"environments"`
-	Log          *log.Options      `json:"log" yaml:"log"`
+	Log          *log.Config       `json:"log" yaml:"log"`
 	Database     *client.Config    `json:"database" yaml:"database"`
 	Dash         *dash.Config      `json:"dash" yaml:"dash"`
 	API          *api.Config       `json:"api" yaml:"api"`
@@ -32,14 +32,14 @@ type Config struct {
 func NewEmptyConfig() *Config {
 	return &Config{
 		Environments: map[string]string{},
-		Log: &log.Options{
-			File: &log.FileOptions{
+		Log: &log.Config{
+			File: &log.FileConfig{
 				FileName:   "./var/log/sphere.log",
 				MaxSize:    10,
 				MaxBackups: 10,
 				MaxAge:     10,
 			},
-			Console: &log.ConsoleOptions{},
+			Console: &log.ConsoleConfig{},
 			Level:   "info",
 		},
 		Database: &client.Config{},
@@ -88,7 +88,7 @@ func NewEmptyConfig() *Config {
 
 func setDefaultConfig(config *Config) *Config {
 	if config.Log == nil {
-		config.Log = log.NewOptions()
+		config.Log = log.NewDefaultConfig()
 	}
 	return config
 }

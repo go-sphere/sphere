@@ -1,12 +1,9 @@
 package log
 
 import (
-	"fmt"
-	"log/slog"
 	"sync"
 
 	"go.uber.org/zap"
-	"go.uber.org/zap/exp/zapslog"
 )
 
 type Logger interface {
@@ -14,69 +11,70 @@ type Logger interface {
 	Info(msg string, attrs ...any)
 	Warn(msg string, attrs ...any)
 	Error(msg string, attrs ...any)
+
+	Debugf(format string, args ...any)
+	Infof(format string, args ...any)
+	Warnf(format string, args ...any)
+	Errorf(format string, args ...any)
 }
 
 var (
-	mu      sync.Mutex
-	std     Logger
-	backend *zapLogger
+	mu  sync.Mutex
+	std *zapLogger
 )
 
 func init() {
-	Init(NewOptions(), []slog.Attr{})
+	Init(NewDefaultConfig(), nil)
 }
 
-func Init(opts *Options, attrs []slog.Attr) {
+func Init(opts *Config, attrs map[string]any) {
 	mu.Lock()
 	defer mu.Unlock()
-	backend = newZapLogHandler(opts, attrs)
-	std = slog.New(backend.Handler(
-		zapslog.WithCallerSkip(1),
-		zapslog.WithCaller(true),
-		zapslog.AddStacktraceAt(slog.LevelError),
-	))
+	std = newZapLogger(opts, WithAttrs(attrs))
 }
 
 func Sync() error {
-	return backend.core.Sync()
+	return std.logger.Sync()
 }
 
-func ZapLogger(options ...zap.Option) *zap.Logger {
-	fields := make([]zap.Field, 0, len(backend.attrs))
-	for _, attr := range backend.attrs {
-		fields = append(fields, zap.Any(attr.Key, attr.Value.Any()))
-	}
-	return zap.New(backend.core, options...).With(fields...)
-}
-
-func Debug(msg string, attrs ...interface{}) {
+func Debug(msg string, attrs ...any) {
 	std.Debug(msg, attrs...)
 }
 
-func Debugf(format string, args ...interface{}) {
-	std.Debug(fmt.Sprintf(format, args...))
+func Debugf(format string, args ...any) {
+	std.Debugf(format, args)
 }
 
-func Info(msg string, attrs ...interface{}) {
+func Info(msg string, attrs ...any) {
 	std.Info(msg, attrs...)
 }
 
-func Infof(format string, args ...interface{}) {
-	std.Info(fmt.Sprintf(format, args...))
+func Infof(format string, args ...any) {
+	std.Infof(format, args)
 }
 
-func Warn(msg string, attrs ...interface{}) {
+func Warn(msg string, attrs ...any) {
 	std.Warn(msg, attrs...)
 }
 
-func Warnf(format string, args ...interface{}) {
-	std.Warn(fmt.Sprintf(format, args...))
+func Warnf(format string, args ...any) {
+	std.Warnf(format, args)
 }
 
-func Error(msg string, attrs ...interface{}) {
+func Error(msg string, attrs ...any) {
 	std.Error(msg, attrs...)
 }
 
-func Errorf(format string, args ...interface{}) {
-	std.Error(fmt.Sprintf(format, args...))
+func Errorf(format string, args ...any) {
+	std.Errorf(format, args)
+}
+
+func With(attrs map[string]any) Logger {
+	fields := make([]any, 0, len(attrs))
+	for k, v := range attrs {
+		fields = append(fields, zap.Any(k, v))
+	}
+	return &zapLogger{
+		logger: std.logger.With(fields...),
+	}
 }

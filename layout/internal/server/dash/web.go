@@ -20,7 +20,6 @@ import (
 	"github.com/TBXark/sphere/server/middleware/selector"
 	"github.com/TBXark/sphere/storage"
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 type Web struct {
@@ -48,9 +47,9 @@ func (w *Web) Start(ctx context.Context) error {
 	jwtAuthorizer := jwtauth.NewJwtAuth[jwtauth.RBACClaims[int64]](w.config.AuthJWT)
 	jwtRefresher := jwtauth.NewJwtAuth[jwtauth.RBACClaims[int64]](w.config.RefreshJWT)
 
-	zapLogger := log.ZapLogger().With(zap.String("module", "dash"))
-	loggerMiddleware := logger.NewZapLoggerMiddleware(zapLogger)
-	recoveryMiddleware := logger.NewZapRecoveryMiddleware(zapLogger)
+	zapLogger := log.With(map[string]any{"module": "dash"})
+	loggerMiddleware := logger.NewLoggerMiddleware(zapLogger)
+	recoveryMiddleware := logger.NewRecoveryMiddleware(zapLogger)
 	authMiddleware := auth.NewAuthMiddleware[int64, *jwtauth.RBACClaims[int64]](
 		jwtAuthorizer,
 		auth.WithHeaderLoader(auth.AuthorizationHeader),

@@ -9,15 +9,15 @@ import (
 )
 
 type Logger interface {
-	Infow(msg string, args ...interface{})
-	Errorw(msg string, args ...interface{})
+	Info(msg string, args ...interface{})
+	Error(msg string, args ...interface{})
 }
 
 type ginZapLogger struct {
 	logger Logger
 }
 
-func NewGinZapLogger(logger Logger) ginzap.ZapLogger {
+func NewZapLoggerAdapter(logger Logger) ginzap.ZapLogger {
 	return &ginZapLogger{logger}
 }
 
@@ -26,7 +26,7 @@ func (g *ginZapLogger) Info(msg string, fields ...zap.Field) {
 	for _, f := range fields {
 		args = append(args, f)
 	}
-	g.logger.Infow(msg, args...)
+	g.logger.Info(msg, args...)
 }
 
 func (g *ginZapLogger) Error(msg string, fields ...zap.Field) {
@@ -34,15 +34,15 @@ func (g *ginZapLogger) Error(msg string, fields ...zap.Field) {
 	for _, f := range fields {
 		args = append(args, f)
 	}
-	g.logger.Errorw(msg, args...)
+	g.logger.Error(msg, args...)
 }
 
 func NewLoggerMiddleware(logger Logger) gin.HandlerFunc {
-	return ginzap.Ginzap(NewGinZapLogger(logger), time.RFC3339, true)
+	return ginzap.Ginzap(NewZapLoggerAdapter(logger), time.RFC3339, true)
 }
 
 func NewRecoveryMiddleware(logger Logger) gin.HandlerFunc {
-	return ginzap.RecoveryWithZap(NewGinZapLogger(logger), true)
+	return ginzap.RecoveryWithZap(NewZapLoggerAdapter(logger), true)
 }
 
 func NewZapLoggerMiddleware(logger ginzap.ZapLogger) gin.HandlerFunc {

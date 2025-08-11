@@ -44,7 +44,7 @@ func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(da
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Error("recovered from panic in subscription handler", log.Any("recover", r))
+				log.Error("recovered from panic in subscription handler", log.Any("error", r))
 			}
 		}()
 		for msg := range sub.Channel() {

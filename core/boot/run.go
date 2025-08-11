@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/signal"
 
@@ -35,7 +34,7 @@ func run(ctx context.Context, t task.Task, options *options) error {
 			if r := recover(); r != nil {
 				log.Error("Task panic",
 					log.String("task", t.Identifier()),
-					log.Any("recover", r),
+					log.Any("error", r),
 				)
 				startErr <- fmt.Errorf("task panic: %v", r)
 			}
@@ -57,7 +56,7 @@ func run(ctx context.Context, t task.Task, options *options) error {
 		if ok && err != nil {
 			startError = err
 			shutdownReason = "task error"
-			log.Error("Task start error", slog.Any("error", err))
+			log.Error("Task start error", log.Err(err))
 		} else {
 			shutdownReason = "task completed"
 			log.Info("Task completed normally")
