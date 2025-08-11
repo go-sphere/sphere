@@ -34,9 +34,9 @@ func Init(opts *Config, attrs map[string]any) {
 	mu.Lock()
 	defer mu.Unlock()
 	std = newZapLogger(opts,
-		WithAttrs(attrs),
 		AddCaller(),
 		AddCallerSkip(2),
+		WithAttrs(attrs),
 		WithStackAt(zapcore.ErrorLevel),
 	)
 }
