@@ -27,13 +27,13 @@ func NewServiceManager(config *Config) (*ServiceManager, error) {
 	}, nil
 }
 
-type Searcher[T search.Document] struct {
+type Searcher[T any] struct {
 	service    *ServiceManager
 	index      meilisearch.IndexManager
 	primaryKey *string
 }
 
-func NewSearcher[T search.Document](service *ServiceManager, indexName string, primaryKey *string) (*Searcher[T], error) {
+func NewSearcher[T any](service *ServiceManager, indexName string, primaryKey *string) (*Searcher[T], error) {
 	index := service.service.Index(indexName)
 	return &Searcher[T]{
 		service:    service,

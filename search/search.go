@@ -2,10 +2,6 @@ package search
 
 import "context"
 
-type Document interface {
-	GetID() string
-}
-
 type Params struct {
 	Query  string
 	Offset int
@@ -13,7 +9,7 @@ type Params struct {
 	Filter string
 }
 
-type Result[T Document] struct {
+type Result[T any] struct {
 	Hits       []T
 	Total      int64
 	Offset     int
@@ -21,7 +17,7 @@ type Result[T Document] struct {
 	Processing int64
 }
 
-type Searcher[T Document] interface {
+type Searcher[T any] interface {
 	Index(ctx context.Context, docs ...T) error
 	Delete(ctx context.Context, ids ...string) error
 	Search(ctx context.Context, params Params) (*Result[T], error)
