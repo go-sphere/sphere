@@ -48,13 +48,15 @@ Sphere provides a global logger that can be used anywhere in your application.
 You can use the global functions for standard logging:
 
 ```go
+package main
+
 import "github.com/TBXark/sphere/log"
 
 func main() {
-log.Debug("This is a debug message")
-log.Info("This is an info message", log.String("user", "test"))
-log.Warn("This is a warning")
-log.Error("This is an error", log.Err(fmt.Errorf("an error occurred")))
+	log.Debug("This is a debug message")
+	log.Info("This is an info message", log.String("user", "test"))
+	log.Warn("This is a warning")
+	log.Error("This is an error", log.Err(fmt.Errorf("an error occurred")))
 }
 ```
 

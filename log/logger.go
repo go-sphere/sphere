@@ -30,10 +30,10 @@ func init() {
 	Init(NewDefaultConfig(), nil)
 }
 
-func Init(opts *Config, attrs map[string]any) {
+func Init(config *Config, attrs map[string]any) {
 	mu.Lock()
 	defer mu.Unlock()
-	std = newZapLogger(opts,
+	std = newZapLogger(config,
 		AddCaller(),
 		AddCallerSkip(2),
 		WithAttrs(attrs),
