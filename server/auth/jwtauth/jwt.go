@@ -8,21 +8,47 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const (
-	AuthorizationPrefixBearer = "Bearer"
-)
+type options struct {
+	signingMethod jwt.SigningMethod
+}
+
+type Option func(*options)
+
+func WithSigningMethod(method jwt.SigningMethod) Option {
+	return func(opts *options) {
+		opts.signingMethod = method
+	}
+}
+
+func newOptions(opts ...Option) options {
+	defaults := options{
+		signingMethod: jwt.SigningMethodHS256,
+	}
+	for _, opt := range opts {
+		opt(&defaults)
+	}
+	return defaults
+}
 
 type JwtAuth[T jwt.Claims] struct {
 	secret        []byte
 	signingMethod jwt.SigningMethod
 }
 
-func NewJwtAuth[T jwt.Claims](secret string) *JwtAuth[T] {
+func NewJwtAuth[T jwt.Claims](secret string, options ...Option) *JwtAuth[T] {
+	opts := newOptions(options...)
 	ja := &JwtAuth[T]{
 		secret:        []byte(secret),
-		signingMethod: jwt.SigningMethodHS256,
+		signingMethod: opts.signingMethod,
 	}
 	return ja
+}
+
+func (g *JwtAuth[T]) keyFunc(token *jwt.Token) (interface{}, error) {
+	if token.Method.Alg() != g.signingMethod.Alg() {
+		return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
+	}
+	return g.secret, nil
 }
 
 func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims *T) (string, error) {
@@ -43,18 +69,14 @@ func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (*T, er
 	// > token is malformed: could not JSON decode claim: json: cannot unmarshal object into Go value of type jwt.Claims
 	// Therefore, you must pass a pointer to claims, and also ensure that *T is of type jwt.Claims.
 	if jwtClaims, ok := any(&claims).(jwt.Claims); ok {
-		_, err := jwt.ParseWithClaims(signedToken, jwtClaims, func(token *jwt.Token) (interface{}, error) {
-			return g.secret, nil
-		})
+		_, err := jwt.ParseWithClaims(signedToken, jwtClaims, g.keyFunc)
 		if err != nil {
 			return nil, err
 		}
 		return &claims, nil
 	} else {
 		// Otherwise, first parse it into a map, then attempt to convert it into T.
-		token, err := jwt.Parse(signedToken, func(token *jwt.Token) (interface{}, error) {
-			return g.secret, nil
-		})
+		token, err := jwt.Parse(signedToken, g.keyFunc)
 		if err != nil {
 			return nil, err
 		}

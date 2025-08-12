@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func TestJwtAuth_GenerateToken(t *testing.T) {
@@ -32,4 +34,11 @@ func TestJwtAuth_GenerateToken(t *testing.T) {
 	if parsedClaims.Subject != claims.Subject {
 		t.Errorf("expected subject %s, got %s", claims.Subject, parsedClaims.Subject)
 	}
+
+	jwtAuth2 := NewJwtAuth[RBACClaims[int64]]("secret", WithSigningMethod(jwt.SigningMethodHS512))
+	_, err = jwtAuth2.ParseToken(context.Background(), token)
+	if err == nil {
+		t.Error("expected error, got nil")
+	}
+	t.Log(err)
 }

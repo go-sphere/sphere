@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	AuthorizationHeader = "Authorization"
+	AuthorizationHeader       = "Authorization"
+	AuthorizationPrefixBearer = "Bearer"
 )
 
 func parserToken[T authorizer.UID, C authorizer.Claims[T]](ctx *gin.Context, token string, transform func(text string) (string, error), parser authorizer.Parser[T, C]) error {

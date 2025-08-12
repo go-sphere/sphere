@@ -46,7 +46,7 @@ func (w *Web) Start(ctx context.Context) error {
 	authMiddleware := auth.NewAuthMiddleware[int64, *jwtauth.RBACClaims[int64]](
 		jwtAuthorizer,
 		auth.WithHeaderLoader(auth.AuthorizationHeader),
-		auth.WithPrefixTransform(jwtauth.AuthorizationPrefixBearer),
+		auth.WithPrefixTransform(auth.AuthorizationPrefixBearer),
 		auth.WithAbortWithError(ginx.AbortWithJsonError),
 		auth.WithAbortOnError(false),
 	)
