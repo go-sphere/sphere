@@ -13,6 +13,7 @@ func TestJwtAuth_GenerateToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)
 	}
+	t.Log(token)
 	parsedClaims, err := jwtAuth.ParseToken(context.Background(), token)
 	if err != nil {
 		t.Fatalf("failed to parse token: %v", err)

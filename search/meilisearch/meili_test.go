@@ -2,7 +2,6 @@ package meilisearch
 
 import (
 	"context"
-	"strconv"
 	"testing"
 
 	"github.com/TBXark/sphere/search"
@@ -12,10 +11,6 @@ type Article struct {
 	ID      int64  `json:"id"`
 	Title   string `json:"title"`
 	Content string `json:"content"`
-}
-
-func (a Article) GetID() string {
-	return strconv.Itoa(int(a.ID))
 }
 
 func TestSearcher(t *testing.T) {

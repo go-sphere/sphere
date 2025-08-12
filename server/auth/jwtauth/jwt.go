@@ -46,19 +46,11 @@ func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (*T, er
 	// Or you can do this:
 	// var claims T
 	// jwtClaims, ok := any(&claims).(jwt.Claims)
-	token, err := jwt.ParseWithClaims(signedToken, jwtClaims, func(token *jwt.Token) (interface{}, error) {
-		if _, mOk := token.Method.(*jwt.SigningMethodHMAC); !mOk {
-			return nil, jwt.ErrSignatureInvalid
-		}
+	_, err := jwt.ParseWithClaims(signedToken, jwtClaims, func(token *jwt.Token) (interface{}, error) {
 		return g.secret, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	// you can return claims directly, or you can do this:
-	res, ok := any(token.Claims).(*T)
-	if !ok {
-		return nil, fmt.Errorf("claims must be jwt.Claims")
-	}
-	return res, nil
+	return claims, nil
 }
