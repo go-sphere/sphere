@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/TBXark/sphere/search"
-	"github.com/go-viper/mapstructure/v2"
 	"github.com/meilisearch/meilisearch-go"
 )
 
@@ -80,7 +79,7 @@ func (s *Searcher[T]) Search(ctx context.Context, params search.Params) (*search
 	var hits []T
 	for _, hit := range resp.Hits {
 		var hitData T
-		dErr := mapstructure.Decode(hit, &hitData)
+		dErr := hit.Decode(&hitData)
 		if dErr != nil {
 			return nil, dErr
 		}
