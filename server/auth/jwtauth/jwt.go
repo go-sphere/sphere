@@ -2,6 +2,7 @@ package jwtauth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -36,21 +37,36 @@ func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims *T) (string, erro
 }
 
 func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (*T, error) {
-	claims := new(T)
-	// magically, if you parse *claims, it will panic "token is malformed: could not JSON decode claim: json: cannot unmarshal object into Go value of type jwt.Claims"
-	jwtClaims, ok := any(claims).(jwt.Claims)
-	if !ok {
-		return nil, fmt.Errorf("claims must be jwt.Claims")
+	var claims T
+	// Although the second parameter in jwt.ParseWithClaims requires a jwt.Claims type,
+	// when claims is a struct type, directly passing it for parsing will result in the following error:
+	// > token is malformed: could not JSON decode claim: json: cannot unmarshal object into Go value of type jwt.Claims
+	// Therefore, you must pass a pointer to claims, and also ensure that *T is of type jwt.Claims.
+	if jwtClaims, ok := any(&claims).(jwt.Claims); ok {
+		_, err := jwt.ParseWithClaims(signedToken, jwtClaims, func(token *jwt.Token) (interface{}, error) {
+			return g.secret, nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &claims, nil
+	} else {
+		// Otherwise, first parse it into a map, then attempt to convert it into T.
+		token, err := jwt.Parse(signedToken, func(token *jwt.Token) (interface{}, error) {
+			return g.secret, nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		// Here, mapstructure cannot be used because it has issues with converting anonymous fields.
+		raw, err := json.Marshal(token.Claims)
+		if err != nil {
+			return nil, err
+		}
+		err = json.Unmarshal(raw, &claims)
+		if err != nil {
+			return nil, err
+		}
+		return &claims, nil
 	}
-	// ParseWithClaims second argument must be a pointer to jwt.Claims
-	// Or you can do this:
-	// var claims T
-	// jwtClaims, ok := any(&claims).(jwt.Claims)
-	_, err := jwt.ParseWithClaims(signedToken, jwtClaims, func(token *jwt.Token) (interface{}, error) {
-		return g.secret, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return claims, nil
 }
