@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"strconv"
 	"time"
@@ -40,6 +41,9 @@ func (t *TmaAuth) ParseToken(ctx context.Context, token string) (*Claims, error)
 }
 
 func (t *TmaAuth) GenerateToken(ctx context.Context, claims *Claims) (string, error) {
+	if claims == nil {
+		return "", fmt.Errorf("claims must not be nil")
+	}
 	rawInitMap := map[string]any{}
 	initBytes, err := json.Marshal(claims)
 	if err != nil {

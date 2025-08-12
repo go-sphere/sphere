@@ -25,6 +25,9 @@ func NewJwtAuth[T jwt.Claims](secret string) *JwtAuth[T] {
 }
 
 func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims *T) (string, error) {
+	if claims == nil {
+		return "", fmt.Errorf("claims must not be nil")
+	}
 	token, err := jwt.NewWithClaims(g.signingMethod, *claims).SignedString(g.secret)
 	if err != nil {
 		return "", err
