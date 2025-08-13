@@ -22,15 +22,18 @@ const (
 
 var methodSets = make(map[string]int)
 
-func GenerateFile(gen *protogen.Plugin, file *protogen.File, conf *Config) *protogen.GeneratedFile {
+func GenerateFile(gen *protogen.Plugin, file *protogen.File, conf *Config) (*protogen.GeneratedFile, error) {
 	if len(file.Services) == 0 || (!hasOptionsRule(file.Services, conf.OptionsKey)) {
-		return nil
+		return nil, nil
 	}
 	filename := file.GeneratedFilenamePrefix + conf.FileSuffix
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 	generateFileHeader(gen, file, g)
-	generateFileContent(file, g, conf)
-	return g
+	err := generateFileContent(file, g, conf)
+	if err != nil {
+		return nil, err
+	}
+	return g, nil
 }
 
 func generateFileHeader(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile) {
@@ -47,9 +50,9 @@ func generateFileHeader(gen *protogen.Plugin, file *protogen.File, g *protogen.G
 	g.P()
 }
 
-func generateFileContent(file *protogen.File, g *protogen.GeneratedFile, conf *Config) {
+func generateFileContent(file *protogen.File, g *protogen.GeneratedFile, conf *Config) error {
 	if len(file.Services) == 0 {
-		return
+		return nil
 	}
 	generateGoImport(g, conf)
 	packageDesc := &template.PackageDesc{
@@ -61,8 +64,12 @@ func generateFileContent(file *protogen.File, g *protogen.GeneratedFile, conf *C
 		packageDesc.NewExtraDataFunc = g.QualifiedGoIdent(conf.ExtraConstructor)
 	}
 	for _, service := range file.Services {
-		generateService(g, service, conf, packageDesc)
+		err := generateService(g, service, conf, packageDesc)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func generateGoImport(g *protogen.GeneratedFile, conf *Config) {
@@ -83,7 +90,7 @@ func generateGoImport(g *protogen.GeneratedFile, conf *Config) {
 	g.P()
 }
 
-func generateService(g *protogen.GeneratedFile, service *protogen.Service, conf *Config, packageDesc *template.PackageDesc) {
+func generateService(g *protogen.GeneratedFile, service *protogen.Service, conf *Config, packageDesc *template.PackageDesc) error {
 	if service.Desc.Options().(*descriptorpb.ServiceOptions).GetDeprecated() {
 		g.P("//")
 		g.P(deprecationComment)
@@ -112,8 +119,13 @@ func generateService(g *protogen.GeneratedFile, service *protogen.Service, conf 
 		methodSets[method.GoName] += 1
 	}
 	if len(sd.Methods) != 0 {
-		g.P(sd.Execute())
+		content, err := sd.Execute()
+		if err != nil {
+			return err
+		}
+		g.P(content)
 	}
+	return nil
 }
 
 func methodCommend(m *protogen.Method) string {

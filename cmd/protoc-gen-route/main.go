@@ -45,7 +45,10 @@ func main() {
 			if !f.Generate {
 				continue
 			}
-			route.GenerateFile(gen, f, conf)
+			_, gErr := route.GenerateFile(gen, f, conf)
+			if gErr != nil {
+				return gErr
+			}
 		}
 		return nil
 	})

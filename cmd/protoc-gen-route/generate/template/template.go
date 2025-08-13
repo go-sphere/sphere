@@ -1,7 +1,6 @@
 package template
 
 import (
-	"bytes"
 	_ "embed"
 	"fmt"
 	"os"
@@ -9,7 +8,7 @@ import (
 	"text/template"
 )
 
-//go:embed template.go.tpl
+//go:embed template.tmpl
 var routeTemplate string
 
 /*
@@ -66,21 +65,21 @@ type PackageDesc struct {
 	NewExtraDataFunc string
 }
 
-func (s *ServiceDesc) Execute() string {
+func (s *ServiceDesc) Execute() (string, error) {
 	s.MethodSets = make(map[string]*MethodDesc)
 	for _, m := range s.Methods {
 		s.MethodSets[m.Name] = m
 	}
-	buf := new(bytes.Buffer)
-	tmpl, err := template.New("route").Parse(strings.TrimSpace(routeTemplate))
+	var buf strings.Builder
+	tmpl, err := template.New("route").Parse(routeTemplate)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	err = tmpl.Execute(buf, s)
+	err = tmpl.Execute(&buf, s)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return strings.Trim(buf.String(), "\r\n")
+	return buf.String(), nil
 }
 
 func ReplaceTemplateIfNeed(path string) {
