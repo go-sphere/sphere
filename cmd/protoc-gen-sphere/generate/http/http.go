@@ -3,11 +3,11 @@ package http
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 
 	validatepb "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
-	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/log"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/parser"
 	"github.com/TBXark/sphere/cmd/protoc-gen-sphere/generate/template"
 	"google.golang.org/genproto/googleapis/api/annotations"
@@ -27,15 +27,18 @@ const (
 
 var methodSets = make(map[string]int)
 
-func GenerateFile(gen *protogen.Plugin, file *protogen.File, conf *Config) *protogen.GeneratedFile {
-	if len(file.Services) == 0 || (conf.Omitempty && !hasHTTPRule(file.Services)) {
-		return nil
+func GenerateFile(gen *protogen.Plugin, file *protogen.File, conf *Config) (*protogen.GeneratedFile, error) {
+	if len(file.Services) == 0 || !hasHTTPRule(conf.Omitempty, file.Services) {
+		return nil, nil
 	}
 	filename := file.GeneratedFilenamePrefix + "_sphere.pb.go"
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 	generateFileHeader(gen, file, g)
-	generateFileContent(file, g, conf)
-	return g
+	err := generateFileContent(file, g, conf)
+	if err != nil {
+		return nil, err
+	}
+	return g, nil
 }
 
 func generateFileHeader(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile) {
@@ -52,15 +55,19 @@ func generateFileHeader(gen *protogen.Plugin, file *protogen.File, g *protogen.G
 	g.P()
 }
 
-func generateFileContent(file *protogen.File, g *protogen.GeneratedFile, conf *Config) {
+func generateFileContent(file *protogen.File, g *protogen.GeneratedFile, conf *Config) error {
 	if len(file.Services) == 0 {
-		return
+		return nil
 	}
 	genConf := NewGenConf(g, conf)
 	generateGoImport(file, g, conf, genConf)
 	for _, service := range file.Services {
-		generateService(g, service, genConf)
+		err := generateService(g, service, genConf)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func generateGoImport(file *protogen.File, g *protogen.GeneratedFile, conf *Config, genConf *GenConfig) {
@@ -104,7 +111,7 @@ LOOP:
 	g.P()
 }
 
-func generateService(g *protogen.GeneratedFile, service *protogen.Service, conf *GenConfig) {
+func generateService(g *protogen.GeneratedFile, service *protogen.Service, conf *GenConfig) error {
 	if service.Desc.Options().(*descriptorpb.ServiceOptions).GetDeprecated() {
 		g.P("//")
 		g.P(deprecationComment)
@@ -116,7 +123,7 @@ func generateService(g *protogen.GeneratedFile, service *protogen.Service, conf 
 	}
 	for _, method := range service.Methods {
 		if method.Desc.IsStreamingClient() || method.Desc.IsStreamingServer() {
-			log.Warn("method `%s.%s` is streaming, it will be ignored. File: `%s`",
+			logWarn("method `%s.%s` is streaming, it will be ignored. File: `%s`",
 				method.Parent.Desc.Name(),
 				method.Desc.Name(),
 				method.Parent.Location.SourceFile,
@@ -145,22 +152,29 @@ func generateService(g *protogen.GeneratedFile, service *protogen.Service, conf 
 			}
 			desc, err := buildMethodDesc(g, method, res, conf)
 			if err != nil {
-				log.Error(err.Error())
-				return
+				return err
 			}
 			sd.Methods = append(sd.Methods, desc)
 		}
 	}
 	if len(sd.Methods) != 0 {
-		g.P(sd.Execute())
+		content, err := sd.Execute()
+		if err != nil {
+			return err
+		}
+		g.P(content)
 	}
+	return nil
 }
 
-func hasHTTPRule(services []*protogen.Service) bool {
+func hasHTTPRule(omitempty bool, services []*protogen.Service) bool {
 	for _, service := range services {
 		for _, method := range service.Methods {
 			if method.Desc.IsStreamingClient() || method.Desc.IsStreamingServer() {
 				continue
+			}
+			if !omitempty {
+				return true
 			}
 			rule, ok := proto.GetExtension(method.Desc.Options(), annotations.E_Http).(*annotations.HttpRule)
 			if rule != nil && ok {
@@ -191,7 +205,7 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 	}
 	if _, ok := parser.NoBodyMethods[res.Method]; ok {
 		if rule.Body != "" {
-			log.Warn("method `%s.%s` body should not be declared. File: `%s`",
+			logWarn("method `%s.%s` body should not be declared. File: `%s`",
 				m.Parent.Desc.Name(),
 				m.Desc.Name(),
 				m.Parent.Location.SourceFile,
@@ -199,7 +213,7 @@ func buildHTTPRule(g *protogen.GeneratedFile, service *protogen.Service, m *prot
 		}
 	} else {
 		if rule.Body == "" {
-			log.Warn("method `%s.%s` body is not declared. File: `%s`",
+			logWarn("method `%s.%s` body is not declared. File: `%s`",
 				m.Parent.Desc.Name(),
 				m.Desc.Name(),
 				m.Parent.Location.SourceFile,
@@ -314,4 +328,8 @@ func protocVersion(gen *protogen.Plugin) string {
 		suffix = "-" + s
 	}
 	return fmt.Sprintf("v%d.%d.%d%s", v.GetMajor(), v.GetMinor(), v.GetPatch(), suffix)
+}
+
+func logWarn(format string, args ...interface{}) {
+	_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: "+format+"\n", args...)
 }

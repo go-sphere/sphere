@@ -57,7 +57,10 @@ func main() {
 			if !f.Generate {
 				continue
 			}
-			http.GenerateFile(gen, f, conf)
+			_, gErr := http.GenerateFile(gen, f, conf)
+			if gErr != nil {
+				return gErr
+			}
 		}
 		return nil
 	})
