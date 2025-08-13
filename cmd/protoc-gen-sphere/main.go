@@ -52,7 +52,10 @@ func main() {
 		if err != nil {
 			return err
 		}
-		template.ReplaceTemplateIfNeed(conf.TemplateFile)
+		err = template.ReplaceTemplateIfNeed(conf.TemplateFile)
+		if err != nil {
+			return err
+		}
 		for _, f := range gen.Files {
 			if !f.Generate {
 				continue

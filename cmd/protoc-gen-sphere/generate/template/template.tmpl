@@ -25,7 +25,7 @@ type {{.ServiceType}}HTTPServer interface {
 {{range .Methods}}
 	{{- if ne .Swagger ""}}
 	{{.Swagger}}
-    {{ end -}}
+    {{- end }}
 func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(srv {{$svrType}}HTTPServer) func(ctx *{{$packageDesc.ContextType}})  {
 	return {{$packageDesc.ServerHandlerWrapperFunc}}(func(ctx *{{$packageDesc.ContextType}}) ({{.Response}}, error) {
 		var in {{.Request}}

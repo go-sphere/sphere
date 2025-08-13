@@ -2,7 +2,6 @@ package template
 
 import (
 	_ "embed"
-	"fmt"
 	"os"
 	"strings"
 	"text/template"
@@ -82,13 +81,13 @@ func (s *ServiceDesc) Execute() (string, error) {
 	return buf.String(), nil
 }
 
-func ReplaceTemplateIfNeed(path string) {
+func ReplaceTemplateIfNeed(path string) error {
 	if path != "" {
 		raw, err := os.ReadFile(path)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "read template file error: %v\n", err)
-			os.Exit(2)
+			return err
 		}
 		routeTemplate = string(raw)
 	}
+	return nil
 }

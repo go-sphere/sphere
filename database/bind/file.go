@@ -45,7 +45,7 @@ func GenFile(config *GenFileConf) (string, error) {
 				return "", err
 			}
 			body.WriteString(funcContent)
-			body.WriteString("\n\n")
+			body.WriteString("\n")
 		}
 	}
 	imports = append(imports, config.ExtraImports...)

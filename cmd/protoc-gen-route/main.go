@@ -39,7 +39,10 @@ func main() {
 			return err
 		}
 		gen.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
-		template.ReplaceTemplateIfNeed(conf.TemplateFile)
+		err = template.ReplaceTemplateIfNeed(conf.TemplateFile)
+		if err != nil {
+			return err
+		}
 		for _, f := range gen.Files {
 			if !f.Generate {
 				continue
