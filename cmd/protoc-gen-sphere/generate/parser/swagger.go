@@ -119,7 +119,7 @@ func BuildAnnotations(g *protogen.GeneratedFile, m *protogen.Method, config *Swa
 
 	builder.WriteString("// @Router " + config.Path + " [" + strings.ToLower(config.Method) + "]\n")
 
-	return builder.String(), nil
+	return strings.TrimSpace(builder.String()), nil
 }
 
 func buildSwaggerParamTypeByPath(g *protogen.GeneratedFile, m *protogen.Method, message *protogen.Message, path string) (string, error) {

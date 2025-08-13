@@ -26,7 +26,7 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File, conf *Config) (*pro
 	if len(file.Services) == 0 || (!hasOptionsRule(file.Services, conf.OptionsKey)) {
 		return nil, nil
 	}
-	filename := file.GeneratedFilenamePrefix + conf.FileSuffix
+	filename := file.GeneratedFilenamePrefix + strings.TrimPrefix(conf.FileSuffix, ".")
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 	generateFileHeader(gen, file, g)
 	err := generateFileContent(file, g, conf)
@@ -124,6 +124,7 @@ func generateService(g *protogen.GeneratedFile, service *protogen.Service, conf 
 			return err
 		}
 		g.P(content)
+		g.P("\n\n")
 	}
 	return nil
 }

@@ -31,7 +31,7 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File, conf *Config) (*pro
 	if len(file.Services) == 0 || !hasHTTPRule(conf.Omitempty, file.Services) {
 		return nil, nil
 	}
-	filename := file.GeneratedFilenamePrefix + "_sphere.pb.go"
+	filename := file.GeneratedFilenamePrefix + ".sphere.pb.go"
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 	generateFileHeader(gen, file, g)
 	err := generateFileContent(file, g, conf)
@@ -163,6 +163,7 @@ func generateService(g *protogen.GeneratedFile, service *protogen.Service, conf 
 			return err
 		}
 		g.P(content)
+		g.P("\n\n")
 	}
 	return nil
 }
@@ -176,7 +177,11 @@ func hasHTTPRule(omitempty bool, services []*protogen.Service) bool {
 			if !omitempty {
 				return true
 			}
-			rule, ok := proto.GetExtension(method.Desc.Options(), annotations.E_Http).(*annotations.HttpRule)
+			ext := proto.GetExtension(method.Desc.Options(), annotations.E_Http)
+			if ext == nil {
+				continue
+			}
+			rule, ok := ext.(*annotations.HttpRule)
 			if rule != nil && ok {
 				return true
 			}

@@ -32,7 +32,7 @@ plugins:
     opt:
       - paths=source_relative
       - options_key=bot
-      - file_suffix=_bot.pb.go
+      - file_suffix=.bot.pb.go
       - request_model=github.com/TBXark/sphere/social/telegram;Update
       - response_model=github.com/TBXark/sphere/social/telegram;Message
       - extra_data_model=github.com/TBXark/sphere/social/telegram;MethodExtraData

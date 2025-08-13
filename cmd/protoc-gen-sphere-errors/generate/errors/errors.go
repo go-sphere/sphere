@@ -18,7 +18,7 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File) (*protogen.Generate
 	if len(file.Enums) == 0 || (!hasErrorEnums(file.Enums)) {
 		return nil, nil
 	}
-	filename := file.GeneratedFilenamePrefix + "_errors.pb.go"
+	filename := file.GeneratedFilenamePrefix + ".errors.pb.go"
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 	generateFileHeader(gen, file, g)
 	err := generateFileContent(file, g)
@@ -90,6 +90,7 @@ func generateErrorsReason(g *protogen.GeneratedFile, enum *protogen.Enum) error 
 		return err
 	}
 	g.P(content)
+	g.P("\n\n")
 	return nil
 }
 
