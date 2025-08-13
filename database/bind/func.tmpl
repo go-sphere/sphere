@@ -30,7 +30,6 @@ option := bind.NewBindOptions(options...)
         }
         {{- end}}
     {{- end}}
-
     {{- else}} {{/* 否则使用普通Setter方法，但需要解引用 */}}
     if target.{{.TargetField.Name}} != nil {
     {{- if .TargetSourceIsSomeType}} {{/* 如果源和目标是相同类型，直接赋值 */}}
