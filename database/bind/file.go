@@ -40,7 +40,12 @@ func GenFile(config *GenFileConf) (string, error) {
 					entityName,
 				})
 			}
-			body.WriteString(GenBindFunc(conf))
+			funcContent, err := GenBindFunc(conf)
+			if err != nil {
+				return "", err
+			}
+			body.WriteString(funcContent)
+			body.WriteString("\n\n")
 		}
 	}
 	imports = append(imports, config.ExtraImports...)

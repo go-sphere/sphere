@@ -1,6 +1,3 @@
-//go:build spheretools
-// +build spheretools
-
 package main
 
 import (

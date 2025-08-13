@@ -1,6 +1,7 @@
 package bind
 
 import (
+	_ "embed"
 	"fmt"
 	"reflect"
 	"strings"
@@ -8,6 +9,9 @@ import (
 
 	"github.com/iancoleman/strcase"
 )
+
+//go:embed func.tmpl
+var genBindFuncTemplate string
 
 type GenFuncConf struct {
 	source        any      // ent entity, e.g. ent.Example
@@ -44,7 +48,7 @@ func (c *GenFuncConf) WithIgnoreFields(fields ...string) *GenFuncConf {
 	return c
 }
 
-func GenBindFunc(conf *GenFuncConf) string {
+func GenBindFunc(conf *GenFuncConf) (string, error) {
 	actionName := getStructName(conf.action)
 	sourceName := getStructName(conf.source)
 	targetName := getStructName(conf.target)
@@ -123,14 +127,14 @@ func GenBindFunc(conf *GenFuncConf) string {
 		"ToSnakeCase":     strcase.ToSnake,
 	}).Parse(genBindFuncTemplate)
 	if err != nil {
-		return ""
+		return "", err
 	}
 	var builder strings.Builder
 	err = parse.Execute(&builder, context)
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return builder.String()
+	return builder.String(), nil
 }
 
 type bindContext struct {
@@ -161,60 +165,3 @@ type fieldContext struct {
 	TargetFieldIsPtr       bool
 	TargetSourceIsSomeType bool
 }
-
-const genBindFuncTemplate = `
-func {{.FuncName}}(source *{{.SourcePkgName}}.{{.ActionName}}, target *{{.TargetPkgName}}.{{.TargetName}}, options ...bind.Option) *{{.SourcePkgName}}.{{.ActionName}} {
-	option := bind.NewBindOptions(options...)
-{{- range .Fields}}
-	if option.CanSetField({{.FieldKeyPath}}) {
-		{{- if .TargetFieldIsPtr}} {{/* 当目标字段是指针类型 */}}
-			{{- if .CanSettNillable}} {{/* 如果存在SetNillable方法，直接使用 */}}
-				{{- if .CanClearOnNil}} {{/* 如果存在ClearOnNil，判断是否需要使用 */}}
-					if target.{{.TargetField.Name}} == nil && option.ClearOnNil({{.FieldKeyPath}}) {
-						source.{{.ClearOnNilFuncName}}()
-					} else {
-						{{- if .TargetSourceIsSomeType}}{{/* 如果源和目标是相同类型，直接赋值 */}}
-							source.{{.SettNillableFuncName}}(target.{{.TargetField.Name}})
-						{{- else}}{{/* 如果类型不同，需要进行类型转换 */}}
-							if target.{{.TargetField.Name}} != nil {
-								source.{{.SetterFuncName}}({{.SourceField.Type.String}}(*target.{{.TargetField.Name}}))
-							} else {
-								source.{{.SettNillableFuncName}}(nil)
-							}
-						{{- end}}
-					}
-				{{- else}}
-						{{- if .TargetSourceIsSomeType}}{{/* 如果源和目标是相同类型，直接赋值 */}}
-							source.{{.SettNillableFuncName}}(target.{{.TargetField.Name}})
-						{{- else}}{{/* 如果类型不同，需要进行类型转换 */}}
-							if target.{{.TargetField.Name}} != nil {
-								source.{{.SetterFuncName}}({{.SourceField.Type.String}}(*target.{{.TargetField.Name}}))
-							} else {
-								source.{{.SettNillableFuncName}}(nil)
-							}
-						{{- end}}
-				{{- end}}
-			{{- else}} {{/* 否则使用普通Setter方法，但需要解引用 */}}
-				if target.{{.TargetField.Name}} != nil {
-        			{{- if .TargetSourceIsSomeType}} {{/* 如果源和目标是相同类型，直接赋值 */}}
-						source.{{.SetterFuncName}}(*target.{{.TargetField.Name}}) 
-        			{{- else}} {{/* 如果类型不同，需要进行类型转换 */}}
-						source.{{.SetterFuncName}}({{.SourceField.Type.String}}(*target.{{.TargetField.Name}}))
-        			{{- end}}
-				}
-			{{- end}}
-		{{- else -}} 
-			{{/* 当目标字段不是指针类型 */}}
-			if option.CanSetZero({{.FieldKeyPath}}) || {{GenNotZeroCheck "target" .TargetField}} {
-        		{{- if .TargetSourceIsSomeType}}{{/* 如果源和目标是相同类型，直接赋值 */}}
-					source.{{.SetterFuncName}}(target.{{.TargetField.Name}}) 
-        		{{- else}}{{/* 如果类型不同，需要进行类型转换 */}}
-					source.{{.SetterFuncName}}({{.SourceField.Type.String}}(target.{{.TargetField.Name}}))
-        		{{- end}}
-    		}
-		{{- end}}
-	}
-{{- end}}
-	return source
-}
-`
