@@ -14,15 +14,18 @@ const (
 	statusErrorsPackage = protogen.GoImportPath("github.com/TBXark/sphere/core/errors/statuserr")
 )
 
-func GenerateFile(gen *protogen.Plugin, file *protogen.File) *protogen.GeneratedFile {
+func GenerateFile(gen *protogen.Plugin, file *protogen.File) (*protogen.GeneratedFile, error) {
 	if len(file.Enums) == 0 || (!hasErrorEnums(file.Enums)) {
-		return nil
+		return nil, nil
 	}
 	filename := file.GeneratedFilenamePrefix + "_errors.pb.go"
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 	generateFileHeader(gen, file, g)
-	generateFileContent(file, g)
-	return g
+	err := generateFileContent(file, g)
+	if err != nil {
+		return nil, err
+	}
+	return g, nil
 }
 
 func generateFileHeader(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile) {
@@ -39,21 +42,25 @@ func generateFileHeader(gen *protogen.Plugin, file *protogen.File, g *protogen.G
 	g.P()
 }
 
-func generateFileContent(file *protogen.File, g *protogen.GeneratedFile) {
+func generateFileContent(file *protogen.File, g *protogen.GeneratedFile) error {
 	if len(file.Enums) == 0 {
-		return
+		return nil
 	}
 	g.QualifiedGoIdent(errorsPackage.Ident(""))
 	g.QualifiedGoIdent(statusErrorsPackage.Ident("Error"))
 	g.P()
 	for _, enum := range file.Enums {
-		generateErrorsReason(g, enum)
+		err := generateErrorsReason(g, enum)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func generateErrorsReason(g *protogen.GeneratedFile, enum *protogen.Enum) bool {
+func generateErrorsReason(g *protogen.GeneratedFile, enum *protogen.Enum) error {
 	if !proto.HasExtension(enum.Desc.Options(), errors.E_DefaultStatus) {
-		return false
+		return nil
 	}
 	defaultStatus := proto.GetExtension(enum.Desc.Options(), errors.E_DefaultStatus).(int32)
 	ew := template.ErrorWrapper{
@@ -76,10 +83,14 @@ func generateErrorsReason(g *protogen.GeneratedFile, enum *protogen.Enum) bool {
 		ew.Errors = append(ew.Errors, err)
 	}
 	if len(ew.Errors) == 0 {
-		return true
+		return nil
 	}
-	g.P(ew.Execute())
-	return false
+	content, err := ew.Execute()
+	if err != nil {
+		return err
+	}
+	g.P(content)
+	return nil
 }
 
 func generateEnumOptions(enum *protogen.EnumValue, defaultStatus int32) *errors.Error {

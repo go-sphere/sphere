@@ -25,7 +25,10 @@ func main() {
 			if !f.Generate {
 				continue
 			}
-			errors.GenerateFile(gen, f)
+			_, gErr := errors.GenerateFile(gen, f)
+			if gErr != nil {
+				return gErr
+			}
 		}
 		return nil
 	})

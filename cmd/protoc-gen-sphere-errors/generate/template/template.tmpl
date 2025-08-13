@@ -1,3 +1,4 @@
+{{- /*gotype: github.com/TBXark/sphere/cmd/protoc-gen-sphere-errors/generate/template.ErrorInfo*/ -}}
 func (e {{.Name}}) Error() string {
     switch e {
     {{- range .Errors }}

@@ -1,12 +1,12 @@
 package template
 
 import (
-	"bytes"
 	_ "embed"
+	"strings"
 	"text/template"
 )
 
-//go:embed template.go.tpl
+//go:embed template.tmpl
 var errorsTemplate string
 
 type ErrorInfo struct {
@@ -33,15 +33,15 @@ type ErrorWrapper struct {
 	Errors []*ErrorInfo
 }
 
-func (e *ErrorWrapper) Execute() string {
-	buf := new(bytes.Buffer)
+func (e *ErrorWrapper) Execute() (string, error) {
+	var buf strings.Builder
 	tmpl, err := template.New("errors").Parse(errorsTemplate)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	err = tmpl.Execute(buf, e)
+	err = tmpl.Execute(&buf, e)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return buf.String()
+	return buf.String(), nil
 }
