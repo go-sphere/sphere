@@ -6,7 +6,6 @@ import (
 
 type Config struct {
 	OptionsKey   string
-	FileSuffix   string
 	TemplateFile string
 
 	RequestType      protogen.GoIdent

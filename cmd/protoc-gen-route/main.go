@@ -16,7 +16,6 @@ var (
 	showVersion = flag.Bool("version", false, "print the version and exit")
 
 	optionsKey   = flag.String("options_key", "route", "options key in proto")
-	fileSuffix   = flag.String("file_suffix", "_route.pb.go", "generated file suffix")
 	templateFile = flag.String("template_file", "", "template file, if not set, use default template")
 
 	requestModel   = flag.String("request_model", "", "request model")
@@ -77,7 +76,6 @@ func extractConfig() (*route.Config, error) {
 
 	conf := &route.Config{
 		OptionsKey:   *optionsKey,
-		FileSuffix:   *fileSuffix,
 		TemplateFile: *templateFile,
 
 		RequestType:  _requestModel,
