@@ -18,7 +18,7 @@ type serviceConfig struct {
 	ServiceFileName string
 }
 
-//go:embed service.tpl
+//go:embed service.tmpl
 var serviceTemplate string
 
 func GenServiceGolang(name, pkg, mod string) (string, error) {
@@ -31,10 +31,9 @@ func GenServiceGolang(name, pkg, mod string) (string, error) {
 	}
 	rules := inflect.NewDefaultRuleset()
 
-	tmpl := template.New("service").Funcs(template.FuncMap{
+	tmpl, err := template.New("service").Funcs(template.FuncMap{
 		"plural": rules.Pluralize,
-	})
-	tmpl, err := tmpl.Parse(serviceTemplate)
+	}).Parse(serviceTemplate)
 	if err != nil {
 		return "", err
 	}

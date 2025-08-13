@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"fmt"
@@ -53,7 +54,10 @@ func (w *Web) Start(ctx context.Context) error {
 			return err
 		}
 	}
-	indexRaw := []byte(createIndex(w.config.Targets))
+	indexRaw, err := createIndex(w.config.Targets)
+	if err != nil {
+		return err
+	}
 	engine.GET("/", func(c *gin.Context) {
 		c.Data(http.StatusOK, "text/html", indexRaw)
 	})
@@ -96,15 +100,16 @@ func setup(spec *swag.Spec, router gin.IRouter, target string) error {
 //go:embed index.tmpl
 var indexHTML string
 
-func createIndex(targets []Target) string {
-	tmpl := template.New("index")
-	tmpl.Funcs(template.FuncMap{
+func createIndex(targets []Target) ([]byte, error) {
+	tmpl, err := template.New("index").Funcs(template.FuncMap{
 		"lower": strings.ToLower,
-	})
-	tmpl, _ = tmpl.Parse(indexHTML)
-	var sb strings.Builder
-	_ = tmpl.Execute(&sb, targets)
-	return sb.String()
+	}).Parse(indexHTML)
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	_ = tmpl.Execute(&buf, targets)
+	return buf.Bytes(), nil
 }
 
 func Setup(route gin.IRoutes, doc *swag.Spec) {

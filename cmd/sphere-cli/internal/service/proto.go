@@ -16,7 +16,7 @@ type protoConfig struct {
 	EntityName  string
 }
 
-//go:embed proto.tpl
+//go:embed proto.tmpl
 var protoTemplate string
 
 func GenServiceProto(name, pkg string) (string, error) {
@@ -28,10 +28,9 @@ func GenServiceProto(name, pkg string) (string, error) {
 	}
 	rules := inflect.NewDefaultRuleset()
 
-	tmpl := template.New("proto").Funcs(template.FuncMap{
+	tmpl, err := template.New("proto").Funcs(template.FuncMap{
 		"plural": rules.Pluralize,
-	})
-	tmpl, err := tmpl.Parse(protoTemplate)
+	}).Parse(protoTemplate)
 	if err != nil {
 		return "", err
 	}
