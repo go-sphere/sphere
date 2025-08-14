@@ -115,6 +115,28 @@ func addAnnotationForNode(node *gen.Type, options *Options) {
 	for j := 0; j < len(node.Fields); j++ {
 		addAnnotationForField(node.Fields[j], idGenerator, options)
 	}
+	for j := 0; j < len(node.Edges); j++ {
+		addAnnotationForEdge(node.Edges[j], idGenerator, options)
+	}
+}
+
+func addAnnotationForEdge(fd *gen.Edge, idGenerator *fieldIDGenerator, options *Options) {
+	if fd.Annotations == nil {
+		fd.Annotations = make(map[string]interface{}, 1)
+	}
+	if fd.Annotations[entproto.FieldAnnotation] != nil {
+		return
+	}
+	if fd.Annotations[entproto.SkipAnnotation] != nil {
+		return
+	}
+	fd.Annotations[entproto.FieldAnnotation] = entproto.Field(idGenerator.MustNext())
+	if fd.Optional {
+		fd.Optional = false
+		if !options.AllFieldsRequired {
+			fd.Annotations[FieldIsProto3Optional] = struct{}{}
+		}
+	}
 }
 
 func addAnnotationForField(fd *gen.Field, idGenerator *fieldIDGenerator, options *Options) {
