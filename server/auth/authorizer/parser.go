@@ -7,7 +7,7 @@ import (
 )
 
 type UID interface {
-	constraints.Integer | string
+	constraints.Integer | ~string
 }
 
 type Claims[T UID] interface {
