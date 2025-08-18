@@ -1,8 +1,6 @@
 module github.com/TBXark/sphere/layout
 
-go 1.24
-
-toolchain go1.24.5
+go 1.24.0
 
 replace github.com/TBXark/sphere => ../
 
@@ -11,10 +9,10 @@ require (
 	buf.build/go/protovalidate v0.14.0
 	entgo.io/ent v0.14.5
 	github.com/TBXark/confstore v0.0.5
-	github.com/TBXark/sphere v0.0.0-20250811072740-1608e3852053
-	github.com/TBXark/sphere/proto/binding v0.0.0-20250811072740-1608e3852053
-	github.com/TBXark/sphere/proto/errors v0.0.0-20250811072740-1608e3852053
-	github.com/TBXark/sphere/proto/options v0.0.0-20250811072740-1608e3852053
+	github.com/TBXark/sphere v0.0.0-20250813085432-e59419d11a7a
+	github.com/TBXark/sphere/proto/binding v0.0.0-20250813085432-e59419d11a7a
+	github.com/TBXark/sphere/proto/errors v0.0.0-20250813085432-e59419d11a7a
+	github.com/TBXark/sphere/proto/options v0.0.0-20250813085432-e59419d11a7a
 	github.com/alitto/pond/v2 v2.5.0
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.10.1
@@ -26,7 +24,7 @@ require (
 	github.com/swaggo/swag v1.16.6
 	golang.org/x/sync v0.16.0
 	golang.org/x/tools v0.36.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20250804133106-a7a43d27e69b
+	google.golang.org/genproto/googleapis/api v0.0.0-20250811230008-5f3141c8851a
 	google.golang.org/protobuf v1.36.7
 )
 
@@ -35,7 +33,7 @@ require (
 	cel.dev/expr v0.24.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/TBXark/jsoncompressor v0.0.1 // indirect
+	github.com/TBXark/jsoncompressor v0.0.2 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
@@ -98,13 +96,13 @@ require (
 	go.uber.org/zap/exp v0.3.0 // indirect
 	golang.org/x/arch v0.20.0 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
-	golang.org/x/exp v0.0.0-20250808145144-a408d31f581a // indirect
+	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250811230008-5f3141c8851a // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.66.7 // indirect

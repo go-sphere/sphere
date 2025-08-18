@@ -27,7 +27,7 @@ GO              ?= go
 GO_TAGS         ?= jsoniter#,embed_dash
 GO_RUN          ?= CGO_ENABLED=0 $(GO) run -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
 GO_BUILD        ?= CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
-GO_INSTALL      ?= $(GO) install
+GO_INSTALL      ?= GOTOOLCHAIN=go1.24.6 $(GO) install
 
 # ---------- Go Tools ----------
 BUF_CLI         ?= buf
