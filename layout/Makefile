@@ -146,14 +146,14 @@ deploy: ## Deploy binary
 	./devops/deploy/deploy.sh
 
 lint: ## Run linter
-	$(GOLANG_CI_LINT) run
+	$(GOLANG_CI_LINT) run --no-config --fix
 	$(BUF_CLI) lint
 
 fmt: ## Run formatter and fix issues
 	$(GO) mod tidy
 	$(GO) fmt ./...
 	$(BUF_CLI) format -w
-	$(GOLANG_CI_LINT) run --fix
+	$(GOLANG_CI_LINT) fmt --no-config --enable gofmt,goimports
 
 # ---------- Install Tools ----------
 install: ## Install dependencies tools
