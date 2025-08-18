@@ -24,11 +24,7 @@ func NewAuthMiddleware(auth AuthExtractor) MiddlewareFunc {
 			if err != nil {
 				return err
 			}
-			c := metadata.NewContext(ctx)
-			for k, v := range info {
-				c.Set(k, v)
-			}
-			return next(ctx, update)
+			return next(metadata.WithValues(ctx, info), update)
 		}
 	}
 }
