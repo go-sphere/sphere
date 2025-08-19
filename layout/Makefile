@@ -27,7 +27,7 @@ GO              ?= go
 GO_TAGS         ?= jsoniter#,embed_dash
 GO_RUN          ?= CGO_ENABLED=0 $(GO) run -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
 GO_BUILD        ?= CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LD_FLAGS)" -tags=$(GO_TAGS)
-GO_INSTALL      ?= GOTOOLCHAIN=go1.24.6 $(GO) install
+GO_INSTALL      ?= $(GO) install
 
 # ---------- Go Tools ----------
 BUF_CLI         ?= buf
@@ -157,7 +157,7 @@ fmt: ## Run formatter and fix issues
 
 # ---------- Install Tools ----------
 install: ## Install dependencies tools
-	$(GO_INSTALL) github.com/google/wire/cmd/wire@latest
+	$(GO_INSTALL) github.com/wireinject/wire/cmd/wire@latest
 	$(GO_INSTALL) github.com/swaggo/swag/cmd/swag@latest
 	$(GO_INSTALL) github.com/bufbuild/buf/cmd/buf@latest
 	$(GO_INSTALL) google.golang.org/protobuf/cmd/protoc-gen-go@latest
