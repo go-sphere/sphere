@@ -5,15 +5,15 @@ GOLANG_CI_LINT  ?= golangci-lint
 MODULE := $(shell go list -m)
 
 MODULES := . \
-	layout \
+	proto/binding \
+	proto/errors \
+	proto/options \
 	cmd/protoc-gen-route \
 	cmd/protoc-gen-sphere \
 	cmd/protoc-gen-sphere-binding \
 	cmd/protoc-gen-sphere-errors \
 	cmd/sphere-cli \
-	proto/binding \
-	proto/errors \
-	proto/options
+	layout
 
 COMMANDS := cmd/protoc-gen-route \
 			cmd/protoc-gen-sphere \

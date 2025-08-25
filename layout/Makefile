@@ -157,7 +157,7 @@ fmt: ## Run formatter and fix issues
 
 # ---------- Install Tools ----------
 install: ## Install dependencies tools
-	$(GO_INSTALL) github.com/wireinject/wire/cmd/wire@latest
+	$(GO_INSTALL) github.com/google/wire/cmd/wire@latest
 	$(GO_INSTALL) github.com/swaggo/swag/cmd/swag@latest
 	$(GO_INSTALL) github.com/bufbuild/buf/cmd/buf@latest
 	$(GO_INSTALL) google.golang.org/protobuf/cmd/protoc-gen-go@latest
