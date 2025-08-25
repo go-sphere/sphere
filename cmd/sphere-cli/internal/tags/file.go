@@ -10,8 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/TBXark/sphere/internal/tags"
 )
 
 type textArea struct {
@@ -58,7 +56,7 @@ func parseFile(inputPath string, src interface{}) ([]textArea, error) {
 				comments = append(comments, field.Comment.List...)
 			}
 			for _, comment := range comments {
-				tag := tags.FromComment(comment.Text)
+				tag := FromComment(comment.Text)
 				if tag == "" {
 					continue
 				}
