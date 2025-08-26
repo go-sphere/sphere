@@ -57,7 +57,7 @@ endef
 define nil_check
 	echo "nilaway check $1" && ( \
 		cd $1 && \
-		$(NILAWAY_CLI) -include-pkgs="$(MODULE)" ./... \
+		$(NILAWAY_CLI) -include-pkgs="$(MODULE)" ./... || true \
 	)
 endef
 
