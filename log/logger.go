@@ -1,7 +1,7 @@
 package log
 
 import (
-	"sync"
+	"sync/atomic"
 
 	"go.uber.org/zap/zapcore"
 )
@@ -22,8 +22,7 @@ type Logger interface {
 }
 
 var (
-	mu  sync.Mutex
-	std *zapLogger
+	std atomic.Pointer[zapLogger]
 )
 
 func init() {
@@ -31,55 +30,53 @@ func init() {
 }
 
 func Init(config *Config, attrs map[string]any) {
-	mu.Lock()
-	defer mu.Unlock()
-	std = newZapLogger(config,
+	std.Store(newZapLogger(config,
 		AddCaller(),
 		AddCallerSkip(2),
 		WithAttrs(attrs),
 		WithStackAt(zapcore.ErrorLevel),
-	)
+	))
 }
 
 func Sync() error {
-	return std.logger.Sync()
+	return std.Load().logger.Sync()
 }
 
 func Debug(msg string, attrs ...any) {
-	std.Debug(msg, attrs...)
+	std.Load().Debug(msg, attrs...)
 }
 
 func Debugf(format string, args ...any) {
-	std.Debugf(format, args)
+	std.Load().Debugf(format, args)
 }
 
 func Info(msg string, attrs ...any) {
-	std.Info(msg, attrs...)
+	std.Load().Info(msg, attrs...)
 }
 
 func Infof(format string, args ...any) {
-	std.Infof(format, args)
+	std.Load().Infof(format, args)
 }
 
 func Warn(msg string, attrs ...any) {
-	std.Warn(msg, attrs...)
+	std.Load().Warn(msg, attrs...)
 }
 
 func Warnf(format string, args ...any) {
-	std.Warnf(format, args)
+	std.Load().Warnf(format, args)
 }
 
 func Error(msg string, attrs ...any) {
-	std.Error(msg, attrs...)
+	std.Load().Error(msg, attrs...)
 }
 
 func Errorf(format string, args ...any) {
-	std.Errorf(format, args)
+	std.Load().Errorf(format, args)
 }
 
 func With(options ...Option) Logger {
 	opts := make([]Option, 0, len(options)+1)
 	opts = append(opts, options...)
 	opts = append(opts, AddCallerSkip(-1))
-	return std.With(opts...)
+	return std.Load().With(opts...)
 }
