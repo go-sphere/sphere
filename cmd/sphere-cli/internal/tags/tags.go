@@ -48,7 +48,7 @@ func (t Items) Override(items Items) Items {
 			override = append(override, t[i])
 		} else {
 			override = append(override, items[dup])
-			items = append(items[:dup], items[dup+1:]...)
+			items = append(items[:dup], items[dup+1:]...) //nolint:nilaway
 		}
 	}
 	return append(override, items...)

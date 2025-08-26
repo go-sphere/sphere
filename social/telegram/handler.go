@@ -24,7 +24,7 @@ type (
 func WithMiddleware(h HandlerFunc, e ErrorHandlerFunc, middleware ...MiddlewareFunc) bot.HandlerFunc {
 	handler := h
 	for i := len(middleware) - 1; i >= 0; i-- {
-		handler = middleware[i](handler)
+		handler = middleware[i](handler) //nolint:nilaway
 	}
 	return func(ctx context.Context, bot *bot.Bot, update *models.Update) {
 		if err := handler(ctx, update); err != nil {

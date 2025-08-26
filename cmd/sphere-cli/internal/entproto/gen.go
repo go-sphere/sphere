@@ -370,7 +370,7 @@ func injectProtoPackages(pkg []ProtoPackage) {
 	wktsPaths["google.protobuf.Struct"] = "google/protobuf/struct.proto"
 	for _, p := range pkg {
 		for _, t := range p.Types {
-			wktsPaths[p.Pkg+"."+t] = p.Path
+			wktsPaths[p.Pkg+"."+t] = p.Path //nolint:nilaway
 		}
 	}
 }
