@@ -4,7 +4,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/TBXark/sphere/utils/encoding/baseconv"
+	"github.com/go-sphere/sphere/utils/encoding/baseconv"
 )
 
 func TestInt64ToBase62(t *testing.T) {

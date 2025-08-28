@@ -1,4 +1,4 @@
-{{- /*gotype: github.com/TBXark/sphere/database/bind.bindContext*/ -}}
+{{- /*gotype: github.com/go-sphere/sphere/database/bind.bindContext*/ -}}
 func {{.FuncName}}(source *{{.SourcePkgName}}.{{.ActionName}}, target *{{.TargetPkgName}}.{{.TargetName}}, options ...bind.Option) *{{.SourcePkgName}}.{{.ActionName}} {
 	option := bind.NewBindOptions(options...)
 {{- range .Fields}}

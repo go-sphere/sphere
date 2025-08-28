@@ -8,9 +8,9 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/TBXark/sphere/cache"
-	"github.com/TBXark/sphere/storage"
 	"github.com/gin-gonic/gin"
+	"github.com/go-sphere/sphere/cache"
+	"github.com/go-sphere/sphere/storage"
 	"github.com/google/uuid"
 )
 

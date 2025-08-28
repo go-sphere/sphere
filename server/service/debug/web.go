@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/TBXark/sphere/server/ginx"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
+	"github.com/go-sphere/sphere/server/ginx"
 )
 
 type HTTPConfig struct {

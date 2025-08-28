@@ -12,9 +12,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/TBXark/sphere/server/ginx"
-	"github.com/TBXark/sphere/server/middleware/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/go-sphere/sphere/server/ginx"
+	"github.com/go-sphere/sphere/server/middleware/cors"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"github.com/swaggo/swag"

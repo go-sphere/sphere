@@ -7,8 +7,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/TBXark/sphere/cache"
-	"github.com/TBXark/sphere/storage"
+	"github.com/go-sphere/sphere/cache"
+	"github.com/go-sphere/sphere/storage"
 )
 
 const cacheFileKeyForReverseProxyBody = "X-Cache-ReverseProxy-Body"

@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/TBXark/sphere/cache"
-	"github.com/TBXark/sphere/cache/memory"
 	"github.com/gin-gonic/gin"
+	"github.com/go-sphere/sphere/cache"
+	"github.com/go-sphere/sphere/cache/memory"
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/time/rate"
 )

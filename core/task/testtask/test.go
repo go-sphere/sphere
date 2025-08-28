@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/TBXark/sphere/core/task"
+	"github.com/go-sphere/sphere/core/task"
 )
 
 var _ task.Task = (*AutoClose)(nil)

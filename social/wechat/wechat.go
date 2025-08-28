@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/TBXark/sphere/cache/mcache"
+	"github.com/go-sphere/sphere/cache/mcache"
 	"golang.org/x/sync/singleflight"
 	"resty.dev/v3"
 )

@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/TBXark/sphere/log"
+	"github.com/go-sphere/sphere/log"
 )
 
 type Hook = func(context.Context) error

@@ -39,17 +39,17 @@ For guidelines on error handling and how to define errors in your API, please re
 
 ## Command line Tool
 
-- [`sphere-cli`](cmd/sphere-cli/README.md) : A command-line tool for `sphere` project management.
-- [`protoc-gen-route`](cmd/protoc-gen-route/README.md) : A plugin for generating routing code from `.proto` files.
-- [`protoc-gen-sphere`](cmd/protoc-gen-sphere/README.md) : A plugin for generating HTTP server code from `.proto` files.
-- [`protoc-gen-sphere-binding`](cmd/protoc-gen-sphere-binding/README.md) : A plugin for replacing go struct binding tags
+- [`sphere-cli`](https://github.com/go-sphere/sphere-cli) : A command-line tool for `sphere` project management.
+- [`protoc-gen-route`](https://github.com/go-sphere/protoc-gen-route) : A plugin for generating routing code from `.proto` files.
+- [`protoc-gen-sphere`](https://github.com/go-sphere/protoc-gen-sphere) : A plugin for generating HTTP server code from `.proto` files.
+- [`protoc-gen-sphere-binding`](https://github.com/go-sphere/protoc-gen-sphere-binding) : A plugin for replacing go struct binding tags
   with `proto` field options.
-- [`protoc-gen-sphere-errors`](cmd/protoc-gen-sphere-errors/README.md) : A plugin for generating error handling code
+- [`protoc-gen-sphere-errors`](https://github.com/go-sphere/protoc-gen-sphere-errors) : A plugin for generating error handling code
   from `.proto` files.
 
 ## Documentation
 
-- [Standard Layout](./layout/README.md) : Default sphere project template layout.
+- [Standard Layout](https://github.com/go-sphere/sphere-layout) : Default sphere project template layout.
 - [Quick Start Guide](docs/QUICK_START.md) : A step-by-step guide to setting up a new Sphere project.
 - [API Definitions](docs/API_DEFINITIONS.md) : Guidelines for writing API definitions `.proto` files in Sphere.
 - [Error Handling](docs/ERROR_HANDLING.md) : Guidelines for error handling in Sphere applications.

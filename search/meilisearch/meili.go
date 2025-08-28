@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/TBXark/sphere/search"
+	"github.com/go-sphere/sphere/search"
 	"github.com/meilisearch/meilisearch-go"
 )
 

@@ -3,7 +3,7 @@ package authorizer
 import (
 	"errors"
 
-	"github.com/TBXark/sphere/core/errors/statuserr"
+	"github.com/go-sphere/sphere/core/errors/statuserr"
 )
 
 var (

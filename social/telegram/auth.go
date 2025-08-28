@@ -3,7 +3,7 @@ package telegram
 import (
 	"context"
 
-	"github.com/TBXark/sphere/utils/contextutil/metadata"
+	"github.com/go-sphere/sphere/utils/contextutil/metadata"
 	"github.com/go-telegram/bot/models"
 )
 

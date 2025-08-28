@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/TBXark/sphere/server/auth/authorizer"
 	"github.com/gin-gonic/gin"
+	"github.com/go-sphere/sphere/server/auth/authorizer"
 )
 
 type AccessControl interface {

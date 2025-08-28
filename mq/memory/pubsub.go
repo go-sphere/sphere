@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/TBXark/sphere/log"
+	"github.com/go-sphere/sphere/log"
 )
 
 type Subscription[T any] struct {

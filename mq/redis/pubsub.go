@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/TBXark/sphere/core/codec"
-	"github.com/TBXark/sphere/log"
+	"github.com/go-sphere/sphere/core/codec"
+	"github.com/go-sphere/sphere/log"
 	"github.com/redis/go-redis/v9"
 )
 

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TBXark/sphere/storage/storageerr"
-	"github.com/TBXark/sphere/storage/urlhandler"
+	"github.com/go-sphere/sphere/storage/storageerr"
+	"github.com/go-sphere/sphere/storage/urlhandler"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )

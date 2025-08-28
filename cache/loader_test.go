@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/TBXark/sphere/cache/mcache"
-	"github.com/TBXark/sphere/core/codec"
+	"github.com/go-sphere/sphere/cache/mcache"
+	"github.com/go-sphere/sphere/core/codec"
 )
 
 func TestGetObjectEx(t *testing.T) {

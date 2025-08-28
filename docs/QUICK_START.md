@@ -16,7 +16,7 @@ The first step is to install the `sphere-cli` and use it to bootstrap your new a
 
 ```bash
 # Install the command-line tool
-go install github.com/TBXark/sphere/cmd/sphere-cli@latest
+go install github.com/go-sphere/sphere-cli@latest
 
 # Create a new project using the template
 # Replace 'myproject' with your project name and update the Go module path

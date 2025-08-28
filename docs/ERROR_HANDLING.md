@@ -9,7 +9,7 @@ This process is handled by `protoc-gen-sphere-errors`, a `protoc` plugin that in
 To install `protoc-gen-sphere-errors`, use the following command:
 
 ```bash
-go install github.com/TBXark/sphere/cmd/protoc-gen-sphere-errors@latest
+go install github.com/go-sphere/protoc-gen-sphere-errors@latest
 ```
 
 ## Configuration with Buf
@@ -25,7 +25,7 @@ managed:
       module: buf.build/tbxark/errors
   override:
     - file_option: go_package_prefix
-      value: github.com/TBXark/sphere/layout/api
+      value: github.com/go-sphere/sphere-layout/api
 plugins:
     # ... other plugins
     - local: protoc-gen-sphere-errors

@@ -50,7 +50,7 @@ You can use the global functions for standard logging:
 ```go
 package main
 
-import "github.com/TBXark/sphere/log"
+import "github.com/go-sphere/sphere/log"
 
 func main() {
 	log.Debug("This is a debug message")

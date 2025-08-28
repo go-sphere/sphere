@@ -5,8 +5,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/TBXark/sphere/core/errors/multierr"
-	"github.com/TBXark/sphere/log"
+	"github.com/go-sphere/sphere/core/errors/multierr"
+	"github.com/go-sphere/sphere/log"
 	"golang.org/x/sync/errgroup"
 )
 

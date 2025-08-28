@@ -4,12 +4,12 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/TBXark/sphere/cache/memory"
-	"github.com/TBXark/sphere/server/ginx"
-	"github.com/TBXark/sphere/server/middleware/cors"
-	"github.com/TBXark/sphere/storage/fileserver"
-	"github.com/TBXark/sphere/storage/local"
 	"github.com/gin-gonic/gin"
+	"github.com/go-sphere/sphere/cache/memory"
+	"github.com/go-sphere/sphere/server/ginx"
+	"github.com/go-sphere/sphere/server/middleware/cors"
+	"github.com/go-sphere/sphere/storage/fileserver"
+	"github.com/go-sphere/sphere/storage/local"
 )
 
 type HTTPConfig struct {

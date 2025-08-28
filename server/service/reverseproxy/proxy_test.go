@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/TBXark/sphere/cache/memory"
-	"github.com/TBXark/sphere/storage/local"
+	"github.com/go-sphere/sphere/cache/memory"
+	"github.com/go-sphere/sphere/storage/local"
 )
 
 func TestServeCacheReverseProxy(t *testing.T) {

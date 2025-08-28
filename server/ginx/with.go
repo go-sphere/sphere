@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/TBXark/sphere/core/errors/statuserr"
-	"github.com/TBXark/sphere/log"
 	"github.com/gin-gonic/gin"
+	"github.com/go-sphere/sphere/core/errors/statuserr"
+	"github.com/go-sphere/sphere/log"
 )
 
 type Context = gin.Context

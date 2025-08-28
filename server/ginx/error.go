@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/TBXark/sphere/core/errors/statuserr"
 	"github.com/gin-gonic/gin"
+	"github.com/go-sphere/sphere/core/errors/statuserr"
 )
 
 type ErrorParser func(error) (int32, int32, string)

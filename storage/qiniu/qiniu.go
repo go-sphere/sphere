@@ -10,7 +10,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/TBXark/sphere/storage/urlhandler"
+	"github.com/go-sphere/sphere/storage/urlhandler"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
 )

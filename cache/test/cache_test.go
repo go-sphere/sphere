@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TBXark/sphere/cache"
-	"github.com/TBXark/sphere/cache/badgerdb"
-	"github.com/TBXark/sphere/cache/mcache"
-	"github.com/TBXark/sphere/cache/memory"
-	"github.com/TBXark/sphere/cache/redis"
-	redisConn "github.com/TBXark/sphere/infra/redis"
+	"github.com/go-sphere/sphere/cache"
+	"github.com/go-sphere/sphere/cache/badgerdb"
+	"github.com/go-sphere/sphere/cache/mcache"
+	"github.com/go-sphere/sphere/cache/memory"
+	"github.com/go-sphere/sphere/cache/redis"
+	redisConn "github.com/go-sphere/sphere/infra/redis"
 )
 
 func testCache(ctx context.Context, t *testing.T, byteCache cache.ByteCache) {

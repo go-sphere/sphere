@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/TBXark/sphere/storage/storageerr"
-	"github.com/TBXark/sphere/storage/urlhandler"
+	"github.com/go-sphere/sphere/storage/storageerr"
+	"github.com/go-sphere/sphere/storage/urlhandler"
 )
 
 type Config struct {

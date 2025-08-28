@@ -1,7 +1,7 @@
 package safe
 
 import (
-	"github.com/TBXark/sphere/log"
+	"github.com/go-sphere/sphere/log"
 )
 
 func Recover(onError ...func(err any)) {

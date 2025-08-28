@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TBXark/sphere/log"
+	"github.com/go-sphere/sphere/log"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"golang.org/x/sync/singleflight"

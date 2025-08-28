@@ -7,8 +7,8 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/TBXark/sphere/core/task"
-	"github.com/TBXark/sphere/log"
+	"github.com/go-sphere/sphere/core/task"
+	"github.com/go-sphere/sphere/log"
 )
 
 func run(ctx context.Context, t task.Task, options *options) error {

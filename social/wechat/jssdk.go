@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TBXark/sphere/utils/encoding/numconv"
+	"github.com/go-sphere/sphere/utils/encoding/numconv"
 )
 
 func (w *Wechat) SnsOauth2(ctx context.Context, code string) (*SnsOauth2Response, error) {

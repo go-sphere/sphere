@@ -3,7 +3,7 @@ package jwtauth
 import (
 	"time"
 
-	"github.com/TBXark/sphere/server/auth/authorizer"
+	"github.com/go-sphere/sphere/server/auth/authorizer"
 	"github.com/golang-jwt/jwt/v5"
 )
 

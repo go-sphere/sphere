@@ -78,13 +78,13 @@ make fmt               # Format code and fix issues
 ### CLI Tools Installation
 ```bash
 # Install sphere-cli
-go install github.com/TBXark/sphere/cmd/sphere-cli@latest
+go install github.com/go-sphere/sphere-cli@latest
 
 # Install protoc plugins
-go install github.com/TBXark/sphere/cmd/protoc-gen-sphere@latest
-go install github.com/TBXark/sphere/cmd/protoc-gen-route@latest
-go install github.com/TBXark/sphere/cmd/protoc-gen-sphere-errors@latest
-go install github.com/TBXark/sphere/cmd/protoc-gen-sphere-binding@latest
+go install github.com/go-sphere/protoc-gen-sphere@latest
+go install github.com/go-sphere/protoc-gen-route@latest
+go install github.com/go-sphere/protoc-gen-sphere-errors@latest
+go install github.com/go-sphere/protoc-gen-sphere-binding@latest
 ```
 
 ## Development Workflow
@@ -155,8 +155,8 @@ cd layout && go test -run TestUserService_GetUser ./internal/service/api/...
 ## Module Structure
 
 The project contains multiple Go modules:
-- **Root**: github.com/TBXark/sphere (core framework)
-- **Layout**: github.com/TBXark/sphere/layout (project template)
+- **Root**: github.com/go-sphere/sphere (core framework)
+- **Layout**: github.com/go-sphere/sphere-layout (project template)
 - **Proto submodules**: binding, errors, options (shared protobuf definitions)
 - **CLI tools**: Individual modules for each protoc plugin
 
@@ -171,7 +171,7 @@ The project contains multiple Go modules:
 ### Quick Setup
 ```bash
 # Install sphere-cli
-go install github.com/TBXark/sphere/cmd/sphere-cli@latest
+go install github.com/go-sphere/sphere-cli@latest
 
 # Create new project
 sphere-cli create --name myproject --mod github.com/user/myproject

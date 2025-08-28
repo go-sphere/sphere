@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/TBXark/sphere/search"
+	"github.com/go-sphere/sphere/search"
 )
 
 type Article struct {

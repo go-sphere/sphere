@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TBXark/sphere/core/task"
-	"github.com/TBXark/sphere/core/task/testtask"
+	"github.com/go-sphere/sphere/core/task"
+	"github.com/go-sphere/sphere/core/task/testtask"
 	"github.com/stretchr/testify/assert"
 )
 
