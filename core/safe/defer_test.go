@@ -6,12 +6,12 @@ import (
 
 func TestDeferIfErrorPresent(t *testing.T) {
 	t.Logf("1")
-	defer IfErrorPresent("test", func() error {
+	defer IfErrorPresent(func() error {
 		t.Logf("5")
 		return nil
 	})
 	t.Logf("2")
-	defer IfErrorPresent("test", func() error {
+	defer IfErrorPresent(func() error {
 		t.Logf("4")
 		return nil
 	})

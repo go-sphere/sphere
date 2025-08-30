@@ -1,4 +1,4 @@
-package cache
+package test
 
 import (
 	"context"
@@ -7,22 +7,22 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/go-sphere/sphere/cache/mcache"
+	"github.com/go-sphere/sphere/cache"
+	"github.com/go-sphere/sphere/cache/memory"
 	"github.com/go-sphere/sphere/core/codec"
 )
 
-func TestGetObjectEx(t *testing.T) {
+func testGetObjectEx(ctx context.Context, t *testing.T, byteCache cache.ByteCache) {
 	type Example struct {
 		Value string `json:"value"`
 	}
 	val, _ := json.Marshal(Example{Value: "testValue"})
 
-	cache := mcache.NewMapCache[[]byte]()
-	_ = cache.Set(context.Background(), "testKey", val)
+	_ = byteCache.Set(ctx, "testKey", val)
 
 	type args[D codec.Decoder, E codec.Encoder, T any] struct {
 		ctx     context.Context
-		c       ByteCache
+		c       cache.ByteCache
 		d       D
 		e       E
 		key     string
@@ -39,8 +39,8 @@ func TestGetObjectEx(t *testing.T) {
 		{
 			name: "GetObjectEx existing key",
 			args: args[codec.DecoderFunc, codec.EncoderFunc, *Example]{
-				ctx:     context.Background(),
-				c:       cache,
+				ctx:     ctx,
+				c:       byteCache,
 				d:       json.Unmarshal,
 				e:       json.Marshal,
 				key:     "testKey",
@@ -53,8 +53,8 @@ func TestGetObjectEx(t *testing.T) {
 		{
 			name: "GetObjectEx non-existing key with builder",
 			args: args[codec.DecoderFunc, codec.EncoderFunc, *Example]{
-				ctx: context.Background(),
-				c:   cache,
+				ctx: ctx,
+				c:   byteCache,
 				d:   json.Unmarshal,
 				e:   json.Marshal,
 				key: "testKeyNotFound",
@@ -69,8 +69,8 @@ func TestGetObjectEx(t *testing.T) {
 		{
 			name: "GetObjectEx with error in builder",
 			args: args[codec.DecoderFunc, codec.EncoderFunc, *Example]{
-				ctx: context.Background(),
-				c:   cache,
+				ctx: ctx,
+				c:   byteCache,
 				d:   json.Unmarshal,
 				e:   json.Marshal,
 				key: "testKeyError",
@@ -85,8 +85,8 @@ func TestGetObjectEx(t *testing.T) {
 		{
 			name: "GetObjectEx with nil builder",
 			args: args[codec.DecoderFunc, codec.EncoderFunc, *Example]{
-				ctx: context.Background(),
-				c:   cache,
+				ctx: ctx,
+				c:   byteCache,
 				d:   json.Unmarshal,
 				e:   json.Marshal,
 				key: "testKeyNilBuilder",
@@ -101,7 +101,7 @@ func TestGetObjectEx(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, found, err := GetObjectEx(tt.args.ctx, tt.args.c, tt.args.d, tt.args.e, tt.args.key, tt.args.builder)
+			got, found, err := cache.GetObjectEx(tt.args.ctx, tt.args.c, tt.args.d, tt.args.e, tt.args.key, tt.args.builder)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetEx() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -114,4 +114,10 @@ func TestGetObjectEx(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetObjectEx(t *testing.T) {
+	ctx := context.Background()
+	byteCache := memory.NewByteCache()
+	testGetObjectEx(ctx, t, byteCache)
 }
