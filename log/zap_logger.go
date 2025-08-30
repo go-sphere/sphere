@@ -8,6 +8,8 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+// zapLogger implements the Logger interface using Zap's SugaredLogger.
+// It provides both structured and formatted logging capabilities.
 type zapLogger struct {
 	logger *zap.SugaredLogger
 }

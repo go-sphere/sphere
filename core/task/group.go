@@ -10,6 +10,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// Group manages the lifecycle of multiple tasks as a coordinated unit.
+// It ensures all tasks start together and provides graceful shutdown capabilities.
+// The group implements the Task interface, allowing it to be nested within other groups.
 type Group struct {
 	tasks   []Task
 	started atomic.Bool
@@ -17,16 +20,22 @@ type Group struct {
 	cancel  context.CancelFunc
 }
 
+// NewGroup creates a new task group with the provided tasks.
+// All tasks will be managed together with coordinated startup and shutdown.
 func NewGroup(tasks ...Task) *Group {
 	return &Group{
 		tasks: tasks,
 	}
 }
 
+// Identifier returns the group's identifier for logging and debugging purposes.
 func (g *Group) Identifier() string {
 	return "group"
 }
 
+// Start begins all tasks in the group concurrently.
+// If any task fails to start, all other tasks will be stopped.
+// Returns an error if the group is already started/stopped or if any task fails.
 func (g *Group) Start(ctx context.Context) error {
 	if !g.started.CompareAndSwap(false, true) {
 		return errors.New("task group already started")
@@ -80,6 +89,9 @@ func (g *Group) Start(ctx context.Context) error {
 	return nil
 }
 
+// Stop gracefully shuts down all tasks in the group.
+// It cancels the group context, triggering shutdown of all managed tasks.
+// Returns an error if the group was not started, or nil if already stopped.
 func (g *Group) Stop(ctx context.Context) error {
 	if !g.stopped.CompareAndSwap(false, true) {
 		return nil
@@ -93,10 +105,12 @@ func (g *Group) Stop(ctx context.Context) error {
 	return nil
 }
 
+// IsStarted returns whether the group has been started.
 func (g *Group) IsStarted() bool {
 	return g.started.Load()
 }
 
+// IsStopped returns whether the group has been stopped.
 func (g *Group) IsStopped() bool {
 	return g.stopped.Load()
 }

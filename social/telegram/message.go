@@ -7,8 +7,11 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
+// Button is an alias for Telegram's inline keyboard button.
 type Button = models.InlineKeyboardButton
 
+// NewButton creates an inline keyboard button with text, callback route, and data.
+// The route and data are marshaled together to form the callback data.
 func NewButton[T any](text, route string, data T) Button {
 	return Button{
 		Text:         text,
@@ -16,6 +19,7 @@ func NewButton[T any](text, route string, data T) Button {
 	}
 }
 
+// NewURLButton creates an inline keyboard button that opens a URL when pressed.
 func NewURLButton(text, url string) Button {
 	return Button{
 		Text: text,
@@ -23,6 +27,8 @@ func NewURLButton(text, url string) Button {
 	}
 }
 
+// NewBytesInputFile creates an InputFile from a byte slice for file uploads.
+// The name parameter specifies the filename that will be used in Telegram.
 func NewBytesInputFile(name string, data []byte) models.InputFile {
 	return &models.InputFileUpload{
 		Filename: name,
@@ -30,17 +36,21 @@ func NewBytesInputFile(name string, data []byte) models.InputFile {
 	}
 }
 
+// NewStringInputFile creates an InputFile from a URL string for media sharing.
+// This is used when referencing existing media by URL or file ID.
 func NewStringInputFile(url string) models.InputFile {
 	return &models.InputFileString{
 		Data: url,
 	}
 }
 
+// Message represents a complete message that can be sent or edited in Telegram.
+// It supports text content, media attachments, formatting, and inline keyboards.
 type Message struct {
-	Text      string
-	Media     models.InputFile
-	ParseMode models.ParseMode
-	Button    [][]models.InlineKeyboardButton
+	Text      string                          // Message text content
+	Media     models.InputFile                // Optional media attachment (photo, document, etc.)
+	ParseMode models.ParseMode                // Text parsing mode (HTML, Markdown, etc.)
+	Button    [][]models.InlineKeyboardButton // Inline keyboard layout as rows of buttons
 }
 
 func (m *Message) toSendMessageParams(chatID int64) *bot.SendMessageParams {

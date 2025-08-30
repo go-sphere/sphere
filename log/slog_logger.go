@@ -7,6 +7,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// NewSlogLogger creates a new structured logger using the standard library's slog interface.
+// This provides compatibility with Go's standard structured logging while using zap as the backend.
 func NewSlogLogger(config *Config, options ...Option) *slog.Logger {
 	core := newZapCore(config)
 	return newSlogLogger(

@@ -6,8 +6,10 @@ import (
 )
 
 // NoCache is a no-operation cache implementation that does not store any data.
+// It implements the Cache interface but all operations are no-ops, useful for disabling caching.
 type NoCache[T any] struct{}
 
+// NewNoCache creates a new no-operation cache that doesn't actually cache anything.
 func NewNoCache[T any]() *NoCache[T] {
 	return &NoCache[T]{}
 }
@@ -57,8 +59,10 @@ func (n *NoCache[T]) Close() error {
 	return nil
 }
 
+// ByteNoCache is a no-operation cache for byte slices.
 type ByteNoCache = NoCache[[]byte]
 
+// NewByteNoCache creates a new no-operation byte cache.
 func NewByteNoCache() *ByteNoCache {
 	return &ByteNoCache{}
 }

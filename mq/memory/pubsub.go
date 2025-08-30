@@ -8,12 +8,15 @@ import (
 	"github.com/go-sphere/sphere/log"
 )
 
+// Subscription represents an active subscription to a topic with its associated handler and channels.
 type Subscription[T any] struct {
 	handler func(data T) error
 	ch      chan T
 	done    chan struct{}
 }
 
+// PubSub implements an in-memory publish-subscribe message system with typed message support.
+// It broadcasts messages to all active subscribers of a topic.
 type PubSub[T any] struct {
 	queueSize int
 	topics    map[string][]*Subscription[T]
@@ -22,6 +25,8 @@ type PubSub[T any] struct {
 	closed bool
 }
 
+// NewPubSub creates a new memory-based publish-subscribe system with the specified options.
+// The default queue size is 100 messages per subscription.
 func NewPubSub[T any](opt ...Option) *PubSub[T] {
 	opts := newOptions(opt...)
 	return &PubSub[T]{

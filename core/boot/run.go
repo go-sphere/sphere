@@ -98,6 +98,10 @@ func run(ctx context.Context, t task.Task, options *options) error {
 	return errors.Join(errs...)
 }
 
+// Run executes an application built from the provided configuration using the builder function.
+// It handles the complete application lifecycle including startup, signal handling, and graceful shutdown.
+// The builder function receives the configuration and should return a properly initialized Application.
+// Returns an error if the application fails to build, start, or encounters issues during execution.
 func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Option) error {
 	// Create application
 	app, err := builder(conf)

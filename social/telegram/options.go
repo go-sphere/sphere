@@ -8,15 +8,17 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
+// options holds configuration options for creating a Telegram bot application.
 type options struct {
-	noRouteHandler bot.HandlerFunc
-	errorHandler   ErrorHandlerFunc
-	authExtractor  AuthExtractorFunc
+	noRouteHandler bot.HandlerFunc   // Handler for unmatched routes
+	errorHandler   ErrorHandlerFunc  // Handler for processing errors
+	authExtractor  AuthExtractorFunc // Function to extract authentication data
 
-	botOptions  []bot.Option
-	middlewares []MiddlewareFunc
+	botOptions  []bot.Option     // Options to pass to the underlying bot client
+	middlewares []MiddlewareFunc // Middleware functions to apply to handlers
 }
 
+// Option defines a function type for configuring bot application options.
 type Option = func(*options)
 
 func newOptions(opts ...Option) *options {
@@ -45,30 +47,40 @@ func newOptions(opts ...Option) *options {
 	return defaults
 }
 
+// WithErrorHandler sets a custom error handler for bot operations.
+// The error handler will be called whenever a handler function returns an error.
 func WithErrorHandler(fn ErrorHandlerFunc) Option {
 	return func(o *options) {
 		o.errorHandler = fn
 	}
 }
 
+// WithDefaultHandler sets a custom handler for unmatched routes.
+// This handler will be called when no specific command or callback query handler matches.
 func WithDefaultHandler(fn bot.HandlerFunc) Option {
 	return func(o *options) {
 		o.noRouteHandler = fn
 	}
 }
 
+// WithAuthExtractor sets a custom authentication extractor for the bot.
+// The extractor will be used to extract user information from incoming updates.
 func WithAuthExtractor(extractor AuthExtractorFunc) Option {
 	return func(o *options) {
 		o.authExtractor = extractor
 	}
 }
 
+// AppendBotOptions adds additional options to the underlying bot client configuration.
+// These options will be passed directly to the bot.New() constructor.
 func AppendBotOptions(opt ...bot.Option) Option {
 	return func(o *options) {
 		o.botOptions = append(o.botOptions, opt...)
 	}
 }
 
+// AppendMiddlewares adds middleware functions to the bot application.
+// Middleware will be applied to all handlers in the order they are provided.
 func AppendMiddlewares(middlewares ...MiddlewareFunc) Option {
 	return func(o *options) {
 		o.middlewares = append(o.middlewares, middlewares...)

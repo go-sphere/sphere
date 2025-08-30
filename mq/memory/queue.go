@@ -6,6 +6,8 @@ import (
 	"sync"
 )
 
+// Queue implements an in-memory point-to-point message queue with typed message support.
+// It provides FIFO message delivery to exactly one consumer per topic.
 type Queue[T any] struct {
 	queueSize int
 	queues    map[string]chan T
@@ -14,6 +16,8 @@ type Queue[T any] struct {
 	closed bool
 }
 
+// NewQueue creates a new memory-based queue with the specified options.
+// The default queue size is 100 messages per topic.
 func NewQueue[T any](opt ...Option) *Queue[T] {
 	opts := newOptions(opt...)
 	return &Queue[T]{

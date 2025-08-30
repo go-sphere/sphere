@@ -19,10 +19,15 @@ func (c *codec) Unmarshal(data []byte, val any) error {
 }
 
 var (
+	// ErrInvalidType indicates that the provided type is not supported by the codec operation.
 	ErrInvalidType = errors.New("invalid type for codec operation")
-	ErrNilPointer  = errors.New("nil pointer cannot be marshaled")
+	// ErrNilPointer indicates that a nil pointer was provided for marshaling, which is not allowed.
+	ErrNilPointer = errors.New("nil pointer cannot be marshaled")
 )
 
+// StringCodec creates a codec for handling string and *string types.
+// It converts strings to bytes directly without any transformation.
+// For decoding, the target must be a *string pointer.
 func StringCodec() Codec {
 	return &codec{
 		encoder: func(val any) ([]byte, error) {
@@ -47,6 +52,9 @@ func StringCodec() Codec {
 	}
 }
 
+// JsonCodec creates a codec for handling JSON serialization and deserialization.
+// It uses the standard library's json.Marshal and json.Unmarshal functions.
+// This codec can handle any type that is supported by the JSON package.
 func JsonCodec() Codec {
 	return &codec{
 		encoder: json.Marshal,

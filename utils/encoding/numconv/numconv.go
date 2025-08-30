@@ -1,3 +1,6 @@
+// Package numconv provides utilities for converting 64-bit integers to/from base32 and base62 encodings.
+// It includes functions for generating random strings in these encodings,
+// making it useful for creating compact, URL-safe identifiers and tokens.
 package numconv
 
 import (
@@ -33,14 +36,20 @@ func bytesToInt64(b []byte) (int64, error) {
 		int64(b[4])<<24 | int64(b[5])<<16 | int64(b[6])<<8 | int64(b[7]), nil
 }
 
+// Int64ToBase32 converts a 64-bit integer to its base32 string representation.
+// It uses the standard base32 encoding with Crockford's alphabet.
 func Int64ToBase32(n int64) string {
 	return baseconv.Std32Encoding.EncodeToString(int64ToBytes(n))
 }
 
+// Int64ToBase62 converts a 64-bit integer to its base62 string representation.
+// It uses the standard base62 encoding with alphanumeric characters.
 func Int64ToBase62(n int64) string {
 	return baseconv.Std62Encoding.EncodeToString(int64ToBytes(n))
 }
 
+// Base32ToInt64 converts a base32 encoded string back to a 64-bit integer.
+// Returns an error if the string contains invalid base32 characters or cannot be decoded.
 func Base32ToInt64(s string) (int64, error) {
 	bytes, err := baseconv.Std32Encoding.DecodeString(s)
 	if err != nil {
@@ -49,6 +58,8 @@ func Base32ToInt64(s string) (int64, error) {
 	return bytesToInt64(bytes)
 }
 
+// Base62ToInt64 converts a base62 encoded string back to a 64-bit integer.
+// Returns an error if the string contains invalid base62 characters or cannot be decoded.
 func Base62ToInt64(s string) (int64, error) {
 	bytes, err := baseconv.Std62Encoding.DecodeString(s)
 	if err != nil {
@@ -57,6 +68,8 @@ func Base62ToInt64(s string) (int64, error) {
 	return bytesToInt64(bytes)
 }
 
+// RandomBase32 generates a random base32 string of the specified length.
+// Returns an empty string if length is non-positive.
 func RandomBase32(length int) string {
 	if length <= 0 {
 		return ""
@@ -68,6 +81,8 @@ func RandomBase32(length int) string {
 	return string(result)
 }
 
+// RandomBase62 generates a random base62 string of the specified length.
+// Returns an empty string if length is non-positive.
 func RandomBase62(length int) string {
 	if length <= 0 {
 		return ""

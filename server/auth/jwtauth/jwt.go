@@ -12,8 +12,10 @@ type options struct {
 	signingMethod jwt.SigningMethod
 }
 
+// Option is a functional option for configuring JWT authentication.
 type Option func(*options)
 
+// WithSigningMethod sets the JWT signing method for token generation and verification.
 func WithSigningMethod(method jwt.SigningMethod) Option {
 	return func(opts *options) {
 		opts.signingMethod = method
@@ -30,11 +32,15 @@ func newOptions(opts ...Option) options {
 	return defaults
 }
 
+// JwtAuth provides JWT token generation and verification functionality.
+// It is parameterized by the claims type for type safety.
 type JwtAuth[T jwt.Claims] struct {
 	secret        []byte
 	signingMethod jwt.SigningMethod
 }
 
+// NewJwtAuth creates a new JWT authenticator with the specified secret and options.
+// The default signing method is HMAC-SHA256.
 func NewJwtAuth[T jwt.Claims](secret string, options ...Option) *JwtAuth[T] {
 	opts := newOptions(options...)
 	ja := &JwtAuth[T]{
@@ -44,6 +50,7 @@ func NewJwtAuth[T jwt.Claims](secret string, options ...Option) *JwtAuth[T] {
 	return ja
 }
 
+// keyFunc validates the token's signing method and returns the secret key for verification.
 func (g *JwtAuth[T]) keyFunc(token *jwt.Token) (interface{}, error) {
 	if token.Method.Alg() != g.signingMethod.Alg() {
 		return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
@@ -51,6 +58,8 @@ func (g *JwtAuth[T]) keyFunc(token *jwt.Token) (interface{}, error) {
 	return g.secret, nil
 }
 
+// GenerateToken creates a signed JWT token from the provided claims.
+// The claims parameter must not be nil.
 func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims *T) (string, error) {
 	if claims == nil {
 		return "", fmt.Errorf("claims must not be nil")
@@ -62,6 +71,9 @@ func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims *T) (string, erro
 	return token, nil
 }
 
+// ParseToken parses and validates a signed JWT token, returning the claims.
+// It handles both direct jwt.Claims types and custom structs, using JSON
+// marshaling/unmarshaling for struct conversion when necessary.
 func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (*T, error) {
 	var claims T
 	// Although the second parameter in jwt.ParseWithClaims requires a jwt.Claims type,

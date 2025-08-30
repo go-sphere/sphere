@@ -9,12 +9,14 @@ import (
 	"github.com/go-sphere/sphere/core/errors/statuserr"
 )
 
+// WithFormOptions contains configuration for file upload handling via multipart forms.
 type WithFormOptions struct {
 	maxSize         int64
 	fileFormKey     string
 	allowExtensions map[string]struct{}
 }
 
+// WithFormOption is a functional option for configuring file upload behavior.
 type WithFormOption func(*WithFormOptions)
 
 func newWithFormOptions(opts ...WithFormOption) *WithFormOptions {
@@ -29,18 +31,25 @@ func newWithFormOptions(opts ...WithFormOption) *WithFormOptions {
 	return defaults
 }
 
+// WithFormMaxSize sets the maximum file size allowed for uploads.
+// The size is specified in bytes.
 func WithFormMaxSize(maxSize int64) WithFormOption {
 	return func(options *WithFormOptions) {
 		options.maxSize = maxSize
 	}
 }
 
+// WithFormFileKey sets the form field name for file uploads.
+// The default field name is "file".
 func WithFormFileKey(key string) WithFormOption {
 	return func(options *WithFormOptions) {
 		options.fileFormKey = key
 	}
 }
 
+// WithFormAllowExtensions restricts file uploads to specific file extensions.
+// Extensions are matched case-insensitively. If no extensions are provided,
+// all file types are allowed.
 func WithFormAllowExtensions(extensions ...string) WithFormOption {
 	return func(options *WithFormOptions) {
 		if options.allowExtensions == nil {
@@ -55,6 +64,9 @@ func WithFormAllowExtensions(extensions ...string) WithFormOption {
 	}
 }
 
+// WithFormFileReader creates a Gin handler that processes uploaded files as io.Reader.
+// It validates file size, extension constraints, and passes the file content to the handler function.
+// The handler receives the file as an io.Reader along with the original filename.
 func WithFormFileReader[T any](handler func(ctx *gin.Context, file io.Reader, filename string) (*T, error), options ...WithFormOption) gin.HandlerFunc {
 	return WithJson(func(ctx *gin.Context) (*T, error) {
 		opts := newWithFormOptions(options...)
@@ -87,6 +99,9 @@ func WithFormFileReader[T any](handler func(ctx *gin.Context, file io.Reader, fi
 	})
 }
 
+// WithFormFileBytes creates a Gin handler that processes uploaded files as byte arrays.
+// It reads the entire file content into memory and passes it to the handler function.
+// This is convenient for smaller files but should be used carefully with large files.
 func WithFormFileBytes[T any](handler func(ctx *gin.Context, file []byte, filename string) (*T, error), options ...WithFormOption) gin.HandlerFunc {
 	return WithFormFileReader(func(ctx *gin.Context, file io.Reader, filename string) (*T, error) {
 		all, err := io.ReadAll(file)

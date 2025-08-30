@@ -8,15 +8,19 @@ import (
 	"github.com/meilisearch/meilisearch-go"
 )
 
+// Config holds the configuration parameters for connecting to Meilisearch server.
 type Config struct {
-	Host   string `json:"host"`
-	APIKey string `json:"api_key"`
+	Host   string `json:"host"`    // Meilisearch server host URL
+	APIKey string `json:"api_key"` // API key for authentication
 }
 
+// ServiceManager wraps the Meilisearch service manager to provide connection management.
 type ServiceManager struct {
 	service meilisearch.ServiceManager
 }
 
+// NewServiceManager creates a new ServiceManager instance with the given configuration.
+// It establishes a connection to the Meilisearch server and returns an error if connection fails.
 func NewServiceManager(config *Config) (*ServiceManager, error) {
 	client, err := meilisearch.Connect(config.Host, meilisearch.WithAPIKey(config.APIKey))
 	if err != nil {
@@ -27,12 +31,16 @@ func NewServiceManager(config *Config) (*ServiceManager, error) {
 	}, nil
 }
 
+// Searcher implements the search.Searcher interface for Meilisearch backend.
+// It provides type-safe search operations for documents of type T.
 type Searcher[T any] struct {
 	service    *ServiceManager
 	index      meilisearch.IndexManager
 	primaryKey *string
 }
 
+// NewSearcher creates a new Searcher instance for the specified index and document type.
+// The primaryKey parameter is optional and can be nil if not needed.
 func NewSearcher[T any](service *ServiceManager, indexName string, primaryKey *string) (*Searcher[T], error) {
 	index := service.service.Index(indexName)
 	return &Searcher[T]{
@@ -42,6 +50,8 @@ func NewSearcher[T any](service *ServiceManager, indexName string, primaryKey *s
 	}, nil
 }
 
+// PrimaryKey is a helper function that converts a string to a pointer.
+// It returns nil if the value is empty, otherwise returns a pointer to the string.
 func PrimaryKey(value string) *string {
 	if value == "" {
 		return nil

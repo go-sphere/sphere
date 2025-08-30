@@ -35,26 +35,34 @@ func newOptions(opts ...Option) *options {
 	return defaults
 }
 
+// Option is a functional option for configuring the rate limiter middleware.
 type Option func(*options)
 
+// WithAbort sets a custom error handler for rate limit violations.
 func WithAbort(fn func(ctx *gin.Context, status int, err error)) Option {
 	return func(opts *options) {
 		opts.abortWithError = fn
 	}
 }
 
+// WithCache sets a custom cache implementation for storing rate limiters.
+// The default cache is an in-memory cache.
 func WithCache(cache cache.Cache[*rate.Limiter]) Option {
 	return func(opts *options) {
 		opts.cache = cache
 	}
 }
 
+// WithSetTTL sets the timeout for cache set operations.
+// This prevents hanging when the cache backend is unresponsive.
 func WithSetTTL(ttl time.Duration) Option {
 	return func(opts *options) {
 		opts.setTTL = ttl
 	}
 }
 
+// NewRateLimiter creates a new rate limiting middleware with customizable key extraction and limiter creation.
+// It uses caching to store rate limiters per key and singleflight to prevent cache stampedes.
 func NewRateLimiter(key func(*gin.Context) string, createLimiter func(*gin.Context) (*rate.Limiter, time.Duration), options ...Option) gin.HandlerFunc {
 	sf := singleflight.Group{}
 	opts := newOptions(options...)

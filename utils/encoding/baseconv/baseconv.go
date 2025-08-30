@@ -1,3 +1,7 @@
+// Package baseconv provides customizable base encoding/decoding functionality for arbitrary alphabets.
+// It supports both bitwise and mathematical encoding algorithms with optional padding,
+// making it suitable for creating URL-safe identifiers, compact data representations,
+// and custom encoding schemes.
 package baseconv
 
 import (
@@ -7,6 +11,8 @@ import (
 	"strings"
 )
 
+// BaseEncoding provides customizable base encoding/decoding functionality.
+// It supports arbitrary alphabets and optional padding characters for flexible encoding schemes.
 type BaseEncoding struct {
 	alphabet  string
 	base      int
@@ -14,10 +20,14 @@ type BaseEncoding struct {
 	padChar   byte
 }
 
+// NewBaseEncoding creates a new base encoding instance with the specified alphabet.
+// The alphabet defines the character set used for encoding and must contain at least 2 unique characters.
 func NewBaseEncoding(alphabet string) (*BaseEncoding, error) {
 	return NewBaseEncodingWithPadding(alphabet, 0)
 }
 
+// NewBaseEncodingWithPadding creates a new base encoding instance with alphabet and padding character.
+// The padding character is used to align encoded output and must not conflict with alphabet characters.
 func NewBaseEncodingWithPadding(alphabet string, padChar byte) (*BaseEncoding, error) {
 	if len(alphabet) < 2 {
 		return nil, errors.New("alphabet must have at least 2 characters")
@@ -49,6 +59,8 @@ func NewBaseEncodingWithPadding(alphabet string, padChar byte) (*BaseEncoding, e
 	}, nil
 }
 
+// EncodeToString encodes binary data to a string using the configured base encoding.
+// It automatically selects the most efficient encoding method based on the alphabet size.
 func (e *BaseEncoding) EncodeToString(data []byte) string {
 	if len(data) == 0 {
 		return ""
@@ -160,6 +172,9 @@ func (e *BaseEncoding) encodeMathematical(data []byte) string {
 	return result.String()
 }
 
+// DecodeString decodes a base-encoded string back to binary data.
+// It automatically handles padding removal and selects the appropriate decoding method
+// based on the alphabet size. Returns an error if the input contains invalid characters.
 func (e *BaseEncoding) DecodeString(encoded string) ([]byte, error) {
 	if len(encoded) == 0 {
 		return []byte{}, nil

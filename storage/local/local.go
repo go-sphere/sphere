@@ -13,16 +13,22 @@ import (
 	"github.com/go-sphere/sphere/storage/urlhandler"
 )
 
+// Config holds the configuration for local file storage operations.
 type Config struct {
 	RootDir    string `json:"root_dir" yaml:"root_dir"`
 	PublicBase string `json:"public_base" yaml:"public_base"`
 }
 
+// Client provides local filesystem storage operations with URL handling capabilities.
+// It implements the Storage interface for file operations on the local filesystem.
 type Client struct {
 	urlhandler.Handler
 	config *Config
 }
 
+// NewClient creates a new local storage client with the provided configuration.
+// It validates the root directory and creates it if it doesn't exist.
+// Returns an error if the root directory cannot be created or is invalid.
 func NewClient(config *Config) (*Client, error) {
 	handler, err := urlhandler.NewHandler(config.PublicBase)
 	if err != nil {
@@ -41,6 +47,8 @@ func NewClient(config *Config) (*Client, error) {
 	}, nil
 }
 
+// fixFilePath resolves and validates file paths to prevent directory traversal attacks.
+// It ensures that all file operations stay within the configured root directory.
 func (c *Client) fixFilePath(key string) (string, error) {
 	rootDir, err := filepath.Abs(c.config.RootDir)
 	if err != nil {
@@ -58,6 +66,8 @@ func (c *Client) fixFilePath(key string) (string, error) {
 	return filePath, nil
 }
 
+// UploadFile uploads data from a reader to the local filesystem with the specified key.
+// It creates the necessary directory structure and writes the file content.
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
@@ -81,6 +91,8 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	return key, nil
 }
 
+// UploadLocalFile uploads an existing local file to the storage with the specified key.
+// This is useful for moving files within the local filesystem storage.
 func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
 	raw, err := os.Open(file)
 	if err != nil {
@@ -92,6 +104,7 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	return c.UploadFile(ctx, raw, key)
 }
 
+// IsFileExists checks whether a file exists in the local filesystem storage.
 func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
@@ -107,6 +120,8 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	return true, nil
 }
 
+// DownloadFile retrieves a file from local filesystem storage.
+// Returns the file reader, MIME type based on file extension, and file size.
 func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
@@ -126,6 +141,7 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 	return file, mime.TypeByExtension(filepath.Ext(key)), stat.Size(), nil
 }
 
+// DeleteFile removes a file from the local filesystem storage.
 func (c *Client) DeleteFile(ctx context.Context, key string) error {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
@@ -138,6 +154,8 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 	return nil
 }
 
+// removeBeforeOverwrite handles file overwrite logic for move and copy operations.
+// It checks if the destination exists and removes it if overwrite is enabled.
 func (c *Client) removeBeforeOverwrite(path string, overwrite bool) error {
 	_, err := os.Stat(path)
 	if err != nil {
@@ -156,6 +174,8 @@ func (c *Client) removeBeforeOverwrite(path string, overwrite bool) error {
 	return nil
 }
 
+// MoveFile relocates a file from source to destination key within local filesystem storage.
+// Creates necessary directory structure and handles overwrite logic.
 func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourcePath, err := c.fixFilePath(sourceKey)
 	if err != nil {
@@ -180,6 +200,8 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	return nil
 }
 
+// CopyFile duplicates a file from source to destination key within local filesystem storage.
+// Creates necessary directory structure and handles overwrite logic.
 func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourcePath, err := c.fixFilePath(sourceKey)
 	if err != nil {

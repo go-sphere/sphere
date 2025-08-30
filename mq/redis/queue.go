@@ -7,11 +7,15 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// Queue implements a Redis-backed point-to-point message queue with typed message support.
+// It uses Redis lists to provide FIFO message delivery semantics.
 type Queue[T any] struct {
 	client *redis.Client
 	codec  codec.Codec
 }
 
+// NewQueue creates a new Redis-based queue with the specified options.
+// A Redis client must be provided via WithClient option.
 func NewQueue[T any](opt ...Option) (*Queue[T], error) {
 	opts := newOptions(opt...)
 	err := opts.validate()

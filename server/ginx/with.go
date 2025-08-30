@@ -10,8 +10,11 @@ import (
 	"github.com/go-sphere/sphere/log"
 )
 
+// Context is a type alias for gin.Context for convenience.
 type Context = gin.Context
 
+// Value retrieves a typed value from the Gin context.
+// It returns the value and a boolean indicating whether the key exists and the type matches.
 func Value[T any](key string, ctx *gin.Context) (T, bool) {
 	v, exists := ctx.Get(key)
 	var zero T
@@ -24,6 +27,8 @@ func Value[T any](key string, ctx *gin.Context) (T, bool) {
 	return zero, false
 }
 
+// WithRecover wraps a Gin handler with panic recovery.
+// If a panic occurs, it logs the error and returns a standardized internal server error response.
 func WithRecover(message string, handler func(ctx *gin.Context)) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		defer func() {
@@ -44,6 +49,9 @@ func WithRecover(message string, handler func(ctx *gin.Context)) gin.HandlerFunc
 	}
 }
 
+// WithJson creates a Gin handler that returns JSON responses for typed data.
+// It automatically handles errors by calling AbortWithJsonError and wraps successful
+// responses in a standardized DataResponse structure.
 func WithJson[T any](handler func(ctx *gin.Context) (T, error)) gin.HandlerFunc {
 	return WithRecover("WithJson panic", func(ctx *gin.Context) {
 		data, err := handler(ctx)
@@ -58,6 +66,9 @@ func WithJson[T any](handler func(ctx *gin.Context) (T, error)) gin.HandlerFunc 
 	})
 }
 
+// WithText creates a Gin handler that returns plain text responses.
+// It handles errors by calling AbortWithJsonError and returns successful
+// string responses with HTTP 200 status.
 func WithText(handler func(ctx *gin.Context) (string, error)) gin.HandlerFunc {
 	return WithRecover("WithText panic", func(ctx *gin.Context) {
 		data, err := handler(ctx)
@@ -69,6 +80,8 @@ func WithText(handler func(ctx *gin.Context) (string, error)) gin.HandlerFunc {
 	})
 }
 
+// WithHandler wraps a standard http.Handler for use as a Gin handler function.
+// It includes panic recovery and delegates the request/response handling to the wrapped handler.
 func WithHandler(h http.Handler) func(ctx *gin.Context) {
 	return WithRecover("WithHandler panic", func(ctx *gin.Context) {
 		h.ServeHTTP(ctx.Writer, ctx.Request)

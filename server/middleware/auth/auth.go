@@ -9,7 +9,9 @@ import (
 )
 
 const (
-	AuthorizationHeader       = "Authorization"
+	// AuthorizationHeader is the standard HTTP header for authentication tokens.
+	AuthorizationHeader = "Authorization"
+	// AuthorizationPrefixBearer is the standard Bearer token prefix.
 	AuthorizationPrefixBearer = "Bearer"
 )
 
@@ -122,12 +124,17 @@ func WithPrefixTransform(prefix string) Option {
 	})
 }
 
+// WithAbortOnError controls whether authentication failures should abort the request.
+// When set to false, authentication errors are ignored and the request continues.
 func WithAbortOnError(abort bool) Option {
 	return func(opts *options) {
 		opts.abortOnError = abort
 	}
 }
 
+// NewAuthMiddleware creates a Gin middleware for JWT authentication.
+// It parses tokens using the provided parser and sets authentication context.
+// The middleware can be configured with various options for token loading and error handling.
 func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authorizer.Parser[T, C], options ...Option) gin.HandlerFunc {
 	opts := newOptions(options...)
 	return func(ctx *gin.Context) {

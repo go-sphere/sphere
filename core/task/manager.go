@@ -15,11 +15,15 @@ var (
 	ErrTaskNotFound      = errors.New("task not found")
 )
 
+// Manager provides dynamic management of named tasks with concurrent execution.
+// It allows starting, stopping, and monitoring individual tasks by name,
+// offering more flexibility than the Group type for long-running applications.
 type Manager struct {
 	tasks sync.Map
 	group errgroup.Group
 }
 
+// NewManager creates a new task manager with no initial tasks.
 func NewManager() *Manager {
 	return &Manager{
 		tasks: sync.Map{},
@@ -27,6 +31,9 @@ func NewManager() *Manager {
 	}
 }
 
+// StartTask starts a new task with the given name.
+// Returns ErrTaskAlreadyExists if a task with the same name is already running.
+// The task runs concurrently and can be stopped individually using StopTask.
 func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 	if _, loaded := m.tasks.LoadOrStore(name, task); loaded {
 		return ErrTaskAlreadyExists
@@ -43,6 +50,9 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 	return nil
 }
 
+// StopTask stops a running task by name.
+// Returns ErrTaskNotFound if no task with the given name is running.
+// The task is removed from the manager after successful shutdown.
 func (m *Manager) StopTask(ctx context.Context, name string) error {
 	value, ok := m.tasks.LoadAndDelete(name)
 	if !ok {
@@ -60,6 +70,9 @@ func (m *Manager) StopTask(ctx context.Context, name string) error {
 	return nil
 }
 
+// StopAll stops all currently running tasks concurrently.
+// It waits for all tasks to complete shutdown before returning.
+// Returns any errors encountered during the shutdown process.
 func (m *Manager) StopAll(ctx context.Context) error {
 	tasks := make(map[string]Task)
 	m.tasks.Range(func(key, value interface{}) bool {
@@ -96,15 +109,19 @@ func (m *Manager) StopAll(ctx context.Context) error {
 	)
 }
 
+// Wait blocks until all managed tasks complete execution.
+// Returns any error encountered by the running tasks.
 func (m *Manager) Wait() error {
 	return m.group.Wait()
 }
 
+// IsRunning checks if a task with the given name is currently running.
 func (m *Manager) IsRunning(name string) bool {
 	_, ok := m.tasks.Load(name)
 	return ok
 }
 
+// GetRunningTasks returns a slice of names of all currently running tasks.
 func (m *Manager) GetRunningTasks() []string {
 	var tasks []string
 	m.tasks.Range(func(key, value interface{}) bool {
@@ -114,6 +131,7 @@ func (m *Manager) GetRunningTasks() []string {
 	return tasks
 }
 
+// GetTaskCount returns the number of currently running tasks.
 func (m *Manager) GetTaskCount() int {
 	count := 0
 	m.tasks.Range(func(key, value interface{}) bool {

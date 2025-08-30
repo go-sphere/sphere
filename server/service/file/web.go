@@ -12,21 +12,25 @@ import (
 	"github.com/go-sphere/sphere/storage/local"
 )
 
+// HTTPConfig contains HTTP server configuration for the file service.
 type HTTPConfig struct {
 	Address string   `json:"address" yaml:"address"`
 	Cors    []string `json:"cors" yaml:"cors"`
 }
 
+// Config contains the complete configuration for the file web service.
 type Config struct {
 	HTTP HTTPConfig `json:"http" yaml:"http"`
 }
 
+// Web provides a file upload and download web service with S3-compatible storage.
 type Web struct {
 	config  *Config
 	server  *http.Server
 	storage *fileserver.S3Adapter
 }
 
+// NewWebServer creates a new file web server with the given configuration and storage adapter.
 func NewWebServer(config *Config, storage *fileserver.S3Adapter) *Web {
 	return &Web{
 		config:  config,
@@ -34,6 +38,8 @@ func NewWebServer(config *Config, storage *fileserver.S3Adapter) *Web {
 	}
 }
 
+// NewLocalFileService creates a new S3Adapter configured for local file storage.
+// It sets up the local storage client and wraps it with caching and S3-compatible interface.
 func NewLocalFileService(config *local.Config) (*fileserver.S3Adapter, error) {
 	client, err := local.NewClient(config)
 	if err != nil {
@@ -47,10 +53,13 @@ func NewLocalFileService(config *local.Config) (*fileserver.S3Adapter, error) {
 	return adapter, nil
 }
 
+// Identifier returns the service identifier for the file web server.
 func (w *Web) Identifier() string {
 	return "file"
 }
 
+// Start begins serving the file web server with upload and download endpoints.
+// It configures CORS, registers file upload/download handlers, and starts the HTTP server.
 func (w *Web) Start(ctx context.Context) error {
 	engine := gin.Default()
 	cors.Setup(engine, w.config.HTTP.Cors)
@@ -63,6 +72,7 @@ func (w *Web) Start(ctx context.Context) error {
 	return ginx.Start(w.server)
 }
 
+// Stop gracefully shuts down the file web server.
 func (w *Web) Stop(ctx context.Context) error {
 	return ginx.Close(ctx, w.server)
 }

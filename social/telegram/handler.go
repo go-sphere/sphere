@@ -13,14 +13,23 @@ import (
 )
 
 type (
-	HandlerFunc    = func(ctx context.Context, update *Update) error
+	// HandlerFunc defines a function type for handling Telegram bot updates.
+	// It processes an Update and returns an error if processing fails.
+	HandlerFunc = func(ctx context.Context, update *Update) error
+	// MiddlewareFunc defines a function type for creating middleware that wraps HandlerFunc.
+	// It takes a HandlerFunc and returns a wrapped HandlerFunc with additional functionality.
 	MiddlewareFunc = func(next HandlerFunc) HandlerFunc
 )
 
 type (
+	// ErrorHandlerFunc defines a function type for handling errors that occur during update processing.
+	// It receives the error along with the bot instance and update that caused the error.
 	ErrorHandlerFunc = func(ctx context.Context, bot *bot.Bot, update *Update, err error)
 )
 
+// WithMiddleware wraps a HandlerFunc with middleware chain and error handling.
+// It applies middleware in reverse order and converts the result to a bot.HandlerFunc.
+// If the wrapped handler returns an error, it calls the provided error handler.
 func WithMiddleware(h HandlerFunc, e ErrorHandlerFunc, middleware ...MiddlewareFunc) bot.HandlerFunc {
 	handler := h
 	for i := len(middleware) - 1; i >= 0; i-- {
@@ -35,6 +44,9 @@ func WithMiddleware(h HandlerFunc, e ErrorHandlerFunc, middleware ...MiddlewareF
 	}
 }
 
+// NewSingleFlightMiddleware creates a middleware that prevents duplicate callback query processing.
+// It uses singleflight to ensure that multiple identical callback queries from the same message
+// are processed only once, based on the message ID as the deduplication key.
 func NewSingleFlightMiddleware() MiddlewareFunc {
 	sf := &singleflight.Group{}
 	return func(next HandlerFunc) HandlerFunc {
@@ -51,6 +63,8 @@ func NewSingleFlightMiddleware() MiddlewareFunc {
 	}
 }
 
+// NewRecoveryMiddleware creates a middleware that recovers from panics in bot handlers.
+// It logs any panic that occurs during update processing and prevents the bot from crashing.
 func NewRecoveryMiddleware() bot.Middleware {
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
 		return func(ctx context.Context, bot *bot.Bot, update *models.Update) {
@@ -64,6 +78,15 @@ func NewRecoveryMiddleware() bot.Middleware {
 	}
 }
 
+// NewGroupMessageFilterMiddleware creates a middleware that filters group messages based on bot mentions.
+// It only processes group messages where the bot is explicitly mentioned through @username, replies,
+// or text mentions. The middleware caches bot information to reduce API calls and optionally
+// removes mention text from the message content.
+//
+// Parameters:
+//   - b: The bot instance used to retrieve bot information
+//   - trimMention: Whether to remove mention text from processed messages
+//   - infoExpire: Duration to cache bot information before refreshing
 func NewGroupMessageFilterMiddleware(b *bot.Bot, trimMention bool, infoExpire time.Duration) MiddlewareFunc {
 	var (
 		ts   time.Time

@@ -8,11 +8,15 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// Cache is a Redis-backed cache implementation that stores typed values by encoding them with a codec.
+// It wraps a ByteCache and handles serialization/deserialization automatically.
 type Cache[T any] struct {
 	cache *ByteCache
 	codec codec.Codec
 }
 
+// NewCache creates a new Redis cache with the specified codec for value serialization.
+// The codec handles the conversion between typed values and byte slices for Redis storage.
 func NewCache[T any](client *redis.Client, codec codec.Codec) *Cache[T] {
 	return &Cache[T]{
 		cache: NewByteCache(client),

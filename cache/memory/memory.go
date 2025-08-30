@@ -14,12 +14,16 @@ const (
 	defaultBufferItems = 64
 )
 
+// Cache is an in-memory cache implementation backed by ristretto that provides high-performance caching
+// with configurable cost calculation and asynchronous write options.
 type Cache[T any] struct {
 	calculateCost    bool
 	allowAsyncWrites bool
 	cache            *ristretto.Cache[string, T]
 }
 
+// NewMemoryCache creates a new in-memory cache with default settings.
+// The cache uses a fixed cost of 1 per item and does not calculate actual memory usage.
 func NewMemoryCache[T any]() *Cache[T] {
 	cache, _ := ristretto.NewCache[string, T](&ristretto.Config[string, T]{
 		NumCounters: defaultNumCounters,
@@ -32,6 +36,8 @@ func NewMemoryCache[T any]() *Cache[T] {
 	}
 }
 
+// NewMemoryCacheWithCost creates a new in-memory cache with a custom cost function.
+// The cost function determines the memory cost of each cached item, enabling memory-based eviction policies.
 func NewMemoryCacheWithCost[T any](cost func(T) int64) *Cache[T] {
 	cache, _ := ristretto.NewCache[string, T](&ristretto.Config[string, T]{
 		NumCounters: defaultNumCounters,
@@ -45,6 +51,8 @@ func NewMemoryCacheWithCost[T any](cost func(T) int64) *Cache[T] {
 	}
 }
 
+// NewMemoryCacheWithRistretto creates a new cache wrapper around an existing ristretto cache instance.
+// This allows for advanced configuration and sharing of cache instances across multiple Cache wrappers.
 func NewMemoryCacheWithRistretto[T any](cache *ristretto.Cache[string, T], calculateCost, allowAsyncWrites bool) *Cache[T] {
 	return &Cache[T]{
 		calculateCost:    calculateCost,
@@ -53,7 +61,8 @@ func NewMemoryCacheWithRistretto[T any](cache *ristretto.Cache[string, T], calcu
 	}
 }
 
-// UpdateMaxCost In memory.Cache, By default, `calculateCost` is False, so `cost` will be 1.
+// UpdateMaxCost updates the maximum cost allowed for the cache.
+// In memory.Cache, by default, `calculateCost` is False, so `cost` will be 1.
 // It doesn't care about the size of the item.
 // Calculating cost is too complex and not necessary for most use cases.
 // If you want to limit the number of items in the cache, you use this method to set the maximum number of items.
@@ -64,9 +73,10 @@ func (m *Cache[T]) UpdateMaxCost(maxItem int64) {
 	}
 }
 
-// SetAllowAsyncWrites In memory.Cache asynchronous writes are disabled by default.
+// SetAllowAsyncWrites configures whether the cache should use asynchronous writes.
+// In memory.Cache asynchronous writes are disabled by default.
 // If asynchronous writes are enabled, the cache will not block the Set method
-// But it will not guarantee that the value is written to the cache immediately.
+// but it will not guarantee that the value is written to the cache immediately.
 func (m *Cache[T]) SetAllowAsyncWrites(allow bool) {
 	m.allowAsyncWrites = allow
 }

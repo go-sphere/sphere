@@ -8,16 +8,23 @@ import (
 	"strings"
 )
 
+// GenFileConf holds configuration for generating a complete Go file with multiple binding functions.
+// It coordinates the generation of binding code for multiple entities and their operations.
 type GenFileConf struct {
 	Entities     []GenFileEntityConf
 	ExtraImports [][2]string
 }
 
+// GenFileEntityConf represents configuration for a single entity's binding generation.
+// It defines the actions to generate and how to build configuration for each action.
 type GenFileEntityConf struct {
 	Actions       []any
 	ConfigBuilder func(act any) *GenFuncConf
 }
 
+// GenFile generates a complete Go source file containing binding functions for multiple entities.
+// It creates properly formatted Go code with imports and multiple binding functions
+// based on the provided configuration. Returns formatted Go source code or an error.
 func GenFile(config *GenFileConf) (string, error) {
 	var file strings.Builder
 	var body strings.Builder

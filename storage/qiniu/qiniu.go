@@ -15,22 +15,28 @@ import (
 	"github.com/qiniu/go-sdk/v7/storage"
 )
 
+// Config holds the configuration parameters for Qiniu Cloud Object Storage integration.
 type Config struct {
-	AccessKey string `json:"access_key" yaml:"access_key"`
-	SecretKey string `json:"secret_key" yaml:"secret_key"`
+	AccessKey string `json:"access_key" yaml:"access_key"` // Qiniu access key for authentication
+	SecretKey string `json:"secret_key" yaml:"secret_key"` // Qiniu secret key for authentication
 
-	Bucket string `json:"bucket" yaml:"bucket"`
-	Dir    string `json:"dir" yaml:"dir"`
+	Bucket string `json:"bucket" yaml:"bucket"` // Storage bucket name
+	Dir    string `json:"dir" yaml:"dir"`       // Default directory prefix for uploads
 
-	PublicBase string `json:"public_base" yaml:"public_base"`
+	PublicBase string `json:"public_base" yaml:"public_base"` // Public base URL for file access
 }
 
+// Client provides Qiniu Cloud Object Storage operations with URL handling capabilities.
+// It implements storage interfaces for file uploads and URL generation.
 type Client struct {
-	urlhandler.Handler
-	config *Config
-	mac    *qbox.Mac
+	urlhandler.Handler           // Embedded URL handler for public file access
+	config             *Config   // Qiniu configuration
+	mac                *qbox.Mac // Authentication credentials
 }
 
+// NewClient creates a new Qiniu storage client with the provided configuration.
+// It initializes the URL handler for public file access and sets up authentication.
+// Returns an error if the public base URL is invalid.
 func NewClient(config *Config) (*Client, error) {
 	handler, err := urlhandler.NewHandler(config.PublicBase)
 	if err != nil {
@@ -44,6 +50,8 @@ func NewClient(config *Config) (*Client, error) {
 	}, nil
 }
 
+// GenerateImageURL creates a URL for accessing an image with the specified width using Qiniu's image processing.
+// It appends imageView2 parameters to enable automatic image resizing with quality optimization.
 func (n *Client) GenerateImageURL(key string, width int) string {
 	uri := n.GenerateURL(key)
 	res, err := url.Parse(uri)
@@ -54,10 +62,14 @@ func (n *Client) GenerateImageURL(key string, width int) string {
 	return res.String()
 }
 
+// keyPreprocess removes leading slash from storage keys to ensure compatibility with Qiniu API.
 func (n *Client) keyPreprocess(key string) string {
 	return strings.TrimPrefix(key, "/")
 }
 
+// GenerateUploadToken creates a secure upload token for direct client uploads to Qiniu.
+// It generates a unique key based on the filename hash and returns the token, key, and public URL.
+// The token includes restrictions for image and video MIME types only.
 func (n *Client) GenerateUploadToken(ctx context.Context, fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) ([3]string, error) {
 	fileExt := path.Ext(fileName)
 	sum := md5.Sum([]byte(fileName))
@@ -76,6 +88,7 @@ func (n *Client) GenerateUploadToken(ctx context.Context, fileName string, dir s
 	}, nil
 }
 
+// UploadFile uploads data from a reader to Qiniu Cloud Object Storage with the specified key.
 func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	key = n.keyPreprocess(key)
 	put := &storage.PutPolicy{
@@ -92,6 +105,7 @@ func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	return ret.Key, nil
 }
 
+// UploadLocalFile uploads an existing local file to Qiniu Cloud Object Storage with the specified key.
 func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
 	key = n.keyPreprocess(key)
 	put := &storage.PutPolicy{
@@ -108,6 +122,7 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	return ret.Key, nil
 }
 
+// IsFileExists checks whether a file exists in the Qiniu Cloud Object Storage bucket.
 func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	key = n.keyPreprocess(key)
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
@@ -118,6 +133,8 @@ func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	return true, nil
 }
 
+// DownloadFile retrieves a file from Qiniu Cloud Object Storage.
+// Returns the file reader, content type, and content length.
 func (n *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
 	key = n.keyPreprocess(key)
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
@@ -128,6 +145,7 @@ func (n *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 	return object.Body, object.ContentType, object.ContentLength, nil
 }
 
+// DeleteFile removes a file from the Qiniu Cloud Object Storage bucket.
 func (n *Client) DeleteFile(ctx context.Context, key string) error {
 	key = n.keyPreprocess(key)
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
@@ -138,6 +156,7 @@ func (n *Client) DeleteFile(ctx context.Context, key string) error {
 	return nil
 }
 
+// MoveFile relocates a file from source to destination key within the Qiniu bucket.
 func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourceKey = n.keyPreprocess(sourceKey)
 	destinationKey = n.keyPreprocess(destinationKey)
@@ -149,6 +168,7 @@ func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	return nil
 }
 
+// CopyFile duplicates a file from source to destination key within the Qiniu bucket.
 func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourceKey = n.keyPreprocess(sourceKey)
 	destinationKey = n.keyPreprocess(destinationKey)

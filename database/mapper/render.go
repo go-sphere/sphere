@@ -8,8 +8,11 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
+// DefaultPageSize defines the standard page size used for pagination operations.
 const DefaultPageSize = 20
 
+// Map transforms a slice of source items to a slice of target items using the provided mapper function.
+// It applies the mapper function to each element and returns a new slice with the transformed results.
 func Map[S any, T any](source []S, mapper func(S) T) []T {
 	result := make([]T, len(source))
 	for i, s := range source {
@@ -18,6 +21,9 @@ func Map[S any, T any](source []S, mapper func(S) T) []T {
 	return result
 }
 
+// Group creates a map from a slice by extracting keys using the provided keyFunc.
+// If multiple items have the same key, the last item encountered will be kept.
+// This is useful for creating lookup tables from slices.
 func Group[S any, K comparable](source []S, keyFunc func(S) K) map[K]S {
 	result := make(map[K]S, len(source))
 	for _, s := range source {
@@ -27,6 +33,9 @@ func Group[S any, K comparable](source []S, keyFunc func(S) K) map[K]S {
 	return result
 }
 
+// MapStruct converts between struct types using mapstructure with weak decoding.
+// It handles type conversions automatically and returns nil if the source is nil
+// or if the conversion fails. This is useful for converting between similar struct types.
 func MapStruct[S any, T any](source *S) *T {
 	if source == nil {
 		return nil
@@ -39,6 +48,9 @@ func MapStruct[S any, T any](source *S) *T {
 	return &target
 }
 
+// Page calculates pagination values based on total items and page size.
+// It returns the number of pages needed and the effective page size to use.
+// If pageSize is invalid, it uses the defaultSize parameter.
 func Page[P constraints.Integer](total, pageSize, defaultSize P) (page P, size P) {
 	if pageSize <= 0 {
 		pageSize = max(1, defaultSize)
@@ -53,6 +65,9 @@ func Page[P constraints.Integer](total, pageSize, defaultSize P) (page P, size P
 	return page, pageSize
 }
 
+// UniqueSorted removes duplicates from a slice and returns a sorted copy.
+// Zero values are excluded from the result. The original slice is not modified.
+// This function is useful for creating clean, deduplicated lists.
 func UniqueSorted[T cmp.Ordered](origin []T) []T {
 	var zero T
 	seen := make(map[T]struct{})

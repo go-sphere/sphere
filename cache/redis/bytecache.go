@@ -11,10 +11,13 @@ import (
 
 var ErrorType = fmt.Errorf("type error")
 
+// ByteCache is a Redis-backed cache implementation for storing raw byte data.
+// It provides direct access to Redis operations without any encoding/decoding overhead.
 type ByteCache struct {
 	client *redis.Client
 }
 
+// NewByteCache creates a new Redis byte cache using the provided Redis client.
 func NewByteCache(client *redis.Client) *ByteCache {
 	return &ByteCache{client: client}
 }

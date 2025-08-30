@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// ListenAndAutoShutdown starts an HTTP server and automatically handles graceful shutdown.
+// It listens for context cancellation to trigger shutdown with the specified timeout.
+// Returns any error from server startup or shutdown, prioritizing startup errors.
 func ListenAndAutoShutdown(ctx context.Context, server *http.Server, closeTimeout time.Duration) error {
 	errChan := make(chan error, 1)
 	go func() {
@@ -30,6 +33,9 @@ func ListenAndAutoShutdown(ctx context.Context, server *http.Server, closeTimeou
 	}
 }
 
+// Start begins serving HTTP requests on the configured address.
+// It ignores http.ErrServerClosed which is expected during graceful shutdown.
+// Returns any other error that occurs during server startup.
 func Start(server *http.Server) error {
 	if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
@@ -37,6 +43,8 @@ func Start(server *http.Server) error {
 	return nil
 }
 
+// Close gracefully shuts down the HTTP server using the provided context.
+// It handles nil server gracefully and returns any shutdown error.
 func Close(ctx context.Context, server *http.Server) error {
 	if server == nil {
 		return nil

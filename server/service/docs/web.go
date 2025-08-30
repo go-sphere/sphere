@@ -20,31 +20,38 @@ import (
 	"github.com/swaggo/swag"
 )
 
+// Target represents a documentation target with its address and Swagger specification.
 type Target struct {
 	Address string
 	Spec    *swag.Spec
 }
 
+// Config contains the configuration for the documentation web service.
 type Config struct {
 	Address string
 	Targets []Target
 }
 
+// Web provides a documentation web server that aggregates multiple Swagger specifications.
 type Web struct {
 	config *Config
 	server *http.Server
 }
 
+// NewWebServer creates a new documentation web server with the given configuration.
 func NewWebServer(conf *Config) *Web {
 	return &Web{
 		config: conf,
 	}
 }
 
+// Identifier returns the service identifier for the documentation web server.
 func (w *Web) Identifier() string {
 	return "docs"
 }
 
+// Start begins serving the documentation web server with Swagger UI for all configured targets.
+// It sets up proxying to target services and provides a unified documentation interface.
 func (w *Web) Start(ctx context.Context) error {
 	engine := gin.Default()
 	cors.Setup(engine, []string{"*"})
@@ -69,6 +76,7 @@ func (w *Web) Start(ctx context.Context) error {
 	return ginx.Start(w.server)
 }
 
+// Stop gracefully shuts down the documentation web server.
 func (w *Web) Stop(ctx context.Context) error {
 	return ginx.Close(ctx, w.server)
 }
@@ -100,6 +108,7 @@ func setup(spec *swag.Spec, router gin.IRouter, target string) error {
 //go:embed index.tmpl
 var indexHTML string
 
+// createIndex generates an HTML index page listing all available documentation targets.
 func createIndex(targets []Target) ([]byte, error) {
 	tmpl, err := template.New("index").Funcs(template.FuncMap{
 		"lower": strings.ToLower,
@@ -112,6 +121,7 @@ func createIndex(targets []Target) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// Setup registers Swagger UI endpoints for a given Swagger specification.
 func Setup(route gin.IRoutes, doc *swag.Spec) {
 	route.GET("/swagger/*any", ginSwagger.WrapHandler(
 		swaggerFiles.NewHandler(),

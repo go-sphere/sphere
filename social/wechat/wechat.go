@@ -9,32 +9,43 @@ import (
 	"resty.dev/v3"
 )
 
+// MiniAppEnv represents the environment type for WeChat Mini Programs.
 type MiniAppEnv string
 
 const (
+	// MiniAppEnvRelease represents the production environment for Mini Programs.
 	MiniAppEnvRelease MiniAppEnv = "release" // 正式版
-	MiniAppEnvTrial   MiniAppEnv = "trial"   // 体验版
+	// MiniAppEnvTrial represents the trial/staging environment for Mini Programs.
+	MiniAppEnvTrial MiniAppEnv = "trial" // 体验版
+	// MiniAppEnvDevelop represents the development environment for Mini Programs.
 	MiniAppEnvDevelop MiniAppEnv = "develop" // 开发版
 )
 
+// String returns the string representation of the MiniAppEnv.
 func (e MiniAppEnv) String() string {
 	return string(e)
 }
 
+// Config holds the configuration parameters for WeChat API integration.
 type Config struct {
-	AppID     string     `json:"app_id" yaml:"app_id"`
-	AppSecret string     `json:"app_secret" yaml:"app_secret"`
-	Proxy     string     `json:"proxy" yaml:"proxy"`
-	Env       MiniAppEnv `json:"env" yaml:"env"`
+	AppID     string     `json:"app_id" yaml:"app_id"`         // WeChat application ID
+	AppSecret string     `json:"app_secret" yaml:"app_secret"` // WeChat application secret
+	Proxy     string     `json:"proxy" yaml:"proxy"`           // Optional proxy server URL
+	Env       MiniAppEnv `json:"env" yaml:"env"`               // Mini Program environment
 }
 
+// Wechat represents a WeChat API client with token management and caching capabilities.
+// It handles access token lifecycle, API requests, and provides thread-safe operations.
 type Wechat struct {
-	config *Config
-	sf     singleflight.Group
-	cache  *mcache.Map[string, string]
-	client *resty.Client
+	config *Config                     // WeChat application configuration
+	sf     singleflight.Group          // Prevents duplicate token requests
+	cache  *mcache.Map[string, string] // Cache for access tokens and tickets
+	client *resty.Client               // HTTP client for WeChat API requests
 }
 
+// NewWechat creates a new WeChat API client with the provided configuration.
+// It initializes the HTTP client with appropriate timeouts, base URL, and optional proxy settings.
+// If no environment is specified, it defaults to the release environment.
 func NewWechat(config *Config) *Wechat {
 	if config.Env == "" {
 		config.Env = MiniAppEnvRelease
@@ -52,6 +63,15 @@ func NewWechat(config *Config) *Wechat {
 	}
 }
 
+// GetAccessToken retrieves a valid WeChat access token, using cache when possible.
+// It implements automatic token refresh with singleflight to prevent duplicate requests.
+// The token is cached with a 2-second safety margin before the actual expiration time.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - reload: Forces token refresh if true, bypassing cache
+//
+// Returns the access token string or an error if retrieval fails.
 func (w *Wechat) GetAccessToken(ctx context.Context, reload bool) (string, error) {
 	key := "AccessToken"
 	if !reload {
@@ -90,6 +110,15 @@ func (w *Wechat) GetAccessToken(ctx context.Context, reload bool) (string, error
 	return token.(string), nil
 }
 
+// GetJsTicket retrieves a valid JS-SDK ticket for WeChat web applications.
+// Similar to GetAccessToken, it uses caching and singleflight for efficiency.
+// The ticket is required for WeChat JS-SDK initialization in web pages.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout
+//   - reload: Forces ticket refresh if true, bypassing cache
+//
+// Returns the JS ticket string or an error if retrieval fails.
 func (w *Wechat) GetJsTicket(ctx context.Context, reload bool) (string, error) {
 	key := "JsTicket"
 	if !reload {

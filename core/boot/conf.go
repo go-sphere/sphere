@@ -6,6 +6,9 @@ import (
 	"os"
 )
 
+// DefaultConfigParser provides a standard command-line configuration parser with version and help flags.
+// It handles common CLI flags (config, version, help) and parses configuration from the specified file.
+// The parser function should read and parse the configuration file into type T.
 func DefaultConfigParser[T any](ver string, parser func(string) (*T, error)) *T {
 	path := flag.String("config", "config.json", "config file path")
 	version := flag.Bool("version", false, "show version")

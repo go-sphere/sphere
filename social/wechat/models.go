@@ -23,6 +23,8 @@ var (
 	ErrorInvalidAccessToken = errors.New("invalid access token")
 )
 
+// isNeedRetryError determines if an error is recoverable and should trigger a retry.
+// It checks for credential and access token errors that can be resolved by refreshing tokens.
 func isNeedRetryError(err error) bool {
 	if errors.Is(err, ErrorInvalidCredential) {
 		return true
@@ -36,6 +38,8 @@ func isNeedRetryError(err error) bool {
 	return false
 }
 
+// checkResponseError converts WeChat API error codes to Go errors.
+// It maps common error codes to predefined error instances for consistent error handling.
 func checkResponseError(errCode int, errMsg string) error {
 	switch errCode {
 	case ErrCodeInvalidCredential:

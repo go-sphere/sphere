@@ -8,14 +8,19 @@ import (
 	"github.com/dgraph-io/badger/v4"
 )
 
+// Config holds configuration options for BadgerDB.
 type Config struct {
 	Path string `json:"path"`
 }
 
+// Database is a BadgerDB-backed cache implementation that provides persistent key-value storage.
+// It implements the ByteCache interface using BadgerDB as the underlying storage engine.
 type Database struct {
 	db *badger.DB
 }
 
+// NewDatabase creates a new BadgerDB cache with the specified configuration.
+// It opens a BadgerDB instance at the configured path with default options.
 func NewDatabase(config *Config) (*Database, error) {
 	db, err := badger.Open(badger.DefaultOptions(config.Path))
 	if err != nil {
@@ -26,12 +31,16 @@ func NewDatabase(config *Config) (*Database, error) {
 	}, nil
 }
 
+// NewDatabaseWithBadger creates a new Database wrapper around an existing BadgerDB instance.
+// This allows for advanced configuration and sharing of BadgerDB instances.
 func NewDatabaseWithBadger(db *badger.DB) *Database {
 	return &Database{
 		db: db,
 	}
 }
 
+// NewDatabaseWithOptions creates a new BadgerDB cache with custom BadgerDB options.
+// This provides full control over BadgerDB configuration such as compression, encryption, etc.
 func NewDatabaseWithOptions(opts badger.Options) (*Database, error) {
 	db, err := badger.Open(opts)
 	if err != nil {

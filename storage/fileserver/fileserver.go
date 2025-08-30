@@ -10,11 +10,13 @@ import (
 	"github.com/go-sphere/sphere/storage"
 )
 
+// downloaderOptions holds configuration for file download operations.
 type downloaderOptions struct {
 	cacheControl   string
 	abortWithError func(ctx *gin.Context, status int, err error)
 }
 
+// DownloaderOption configures file download behavior.
 type DownloaderOption func(o *downloaderOptions)
 
 func newDownloaderOptions(opts ...DownloaderOption) *downloaderOptions {
@@ -32,12 +34,15 @@ func newDownloaderOptions(opts ...DownloaderOption) *downloaderOptions {
 	return defaults
 }
 
+// WithCacheControl sets the Cache-Control header for downloaded files.
 func WithCacheControl(maxAge uint64) DownloaderOption {
 	return func(o *downloaderOptions) {
 		o.cacheControl = "max-age=" + strconv.FormatUint(maxAge, 10)
 	}
 }
 
+// RegisterFileDownloader registers a Gin route handler for file downloads from storage.
+// It handles GET requests to serve files directly from the storage backend.
 func RegisterFileDownloader(route gin.IRouter, storage storage.Storage, options ...DownloaderOption) {
 	opts := newDownloaderOptions(options...)
 	sharedHeaders := map[string]string{}
@@ -63,13 +68,17 @@ func RegisterFileDownloader(route gin.IRouter, storage storage.Storage, options 
 	})
 }
 
+// FileKeyBuilder generates storage keys from HTTP context and filenames.
+// This allows customization of how uploaded files are named and organized.
 type FileKeyBuilder func(ctx *gin.Context, filename string) string
 
+// uploadOptions holds configuration for file upload operations.
 type uploadOptions struct {
 	abortWithError  func(ctx *gin.Context, status int, err error)
 	successWithData func(ctx *gin.Context, key, url string)
 }
 
+// UploadOption configures file upload behavior and response handling.
 type UploadOption func(*uploadOptions)
 
 func newUploadOptions(opts ...UploadOption) *uploadOptions {
@@ -95,6 +104,8 @@ func newUploadOptions(opts ...UploadOption) *uploadOptions {
 	return defaults
 }
 
+// RegisterFormFileUploader registers a Gin route handler for form-based file uploads.
+// It accepts multipart form uploads and stores files using the provided key builder.
 func RegisterFormFileUploader(route gin.IRouter, storage storage.Storage, keyBuilder FileKeyBuilder, options ...UploadOption) {
 	opts := newUploadOptions(options...)
 	route.POST("/", func(ctx *gin.Context) {

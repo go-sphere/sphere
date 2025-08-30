@@ -8,6 +8,9 @@ import (
 	"strings"
 )
 
+// getPublicFields extracts all public (exported) fields from a struct using reflection.
+// It returns field names transformed by the keyMapper function and a map of field metadata.
+// Fields that are not exported or are anonymous are excluded from the result.
 func getPublicFields(obj interface{}, keyMapper func(s string) string) ([]string, map[string]reflect.StructField) {
 	val := reflect.ValueOf(obj)
 	for val.Kind() == reflect.Ptr {
@@ -36,6 +39,9 @@ func getPublicFields(obj interface{}, keyMapper func(s string) string) ([]string
 	return keys, fields
 }
 
+// getPublicMethods extracts all public methods from a type using reflection.
+// It returns method names transformed by the keyMapper function and a map of method metadata.
+// Interface types are not supported and will return nil values.
 func getPublicMethods(obj interface{}, keyMapper func(s string) string) ([]string, map[string]reflect.Method) {
 	typ := reflect.TypeOf(obj)
 	if typ == nil {
@@ -67,6 +73,9 @@ func getPublicMethods(obj interface{}, keyMapper func(s string) string) ([]strin
 	return keys, methods
 }
 
+// getStructName extracts the struct type name from any value using reflection.
+// It handles pointer types by dereferencing them to get the underlying struct name.
+// Returns "Unknown" if the value is not a struct type.
 func getStructName(value any) string {
 	v := reflect.ValueOf(value)
 	t := reflect.TypeOf(value)
@@ -80,6 +89,9 @@ func getStructName(value any) string {
 	return "Unknown"
 }
 
+// genZeroCheck generates Go code that checks if a struct field contains its zero value.
+// The generated condition varies based on the field's type (pointer, string, numeric, etc.).
+// This is used in template generation for conditional field processing.
 func genZeroCheck(sourceName string, field reflect.StructField) string {
 	if field.Type.Kind() == reflect.Ptr {
 		return fmt.Sprintf("%s.%s == nil", sourceName, field.Name)
@@ -101,6 +113,9 @@ func genZeroCheck(sourceName string, field reflect.StructField) string {
 	}
 }
 
+// genNotZeroCheck generates Go code that checks if a struct field contains a non-zero value.
+// This is the inverse of genZeroCheck and is used for template generation
+// to create conditions that verify field values are set.
 func genNotZeroCheck(sourceName string, field reflect.StructField) string {
 	if field.Type.Kind() == reflect.Ptr {
 		return fmt.Sprintf("%s.%s != nil", sourceName, field.Name)
@@ -143,6 +158,9 @@ func packagePath(val any) string {
 	return typeOf.PkgPath()
 }
 
+// packageName extracts the package name from a struct value's type information.
+// It returns the first part of the fully qualified type name before the dot.
+// Returns empty string if the value is not a struct or has no package qualifier.
 func packageName(val any) string {
 	value := reflect.ValueOf(val)
 	if value.Kind() == reflect.Ptr {
@@ -160,6 +178,9 @@ func packageName(val any) string {
 	return parts[0]
 }
 
+// PackageImport extracts both the package path and package name from a struct value.
+// It returns a 2-element array containing the full import path and the package name.
+// This is used for generating proper import statements in code generation.
 func PackageImport(val any) [2]string {
 	pkgName := packageName(val)
 	pkgPath := packagePath(val)
@@ -169,6 +190,9 @@ func PackageImport(val any) [2]string {
 	}
 }
 
+// compressedImports removes duplicate import entries and sorts them for consistent output.
+// It also optimizes import aliases by removing redundant package names when they match
+// the directory name. This is used in code generation to create clean import statements.
 func compressedImports(extraImports [][2]string) [][2]string {
 	seen := make(map[[2]string]bool)
 	result := make([][2]string, 0, len(extraImports))

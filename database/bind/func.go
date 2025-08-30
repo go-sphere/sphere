@@ -13,6 +13,8 @@ import (
 //go:embed func.tmpl
 var genBindFuncTemplate string
 
+// GenFuncConf holds configuration for generating binding functions between different data structures.
+// It's commonly used for generating code that converts between ORM entities and Protocol Buffer messages.
 type GenFuncConf struct {
 	source        any      // ent entity, e.g. ent.Example
 	target        any      // protobuf entity, e.g. entpb.Example
@@ -22,6 +24,8 @@ type GenFuncConf struct {
 	TargetPkgName string   // package name of target, e.g. "entpb"
 }
 
+// NewGenFuncConf creates a new configuration for binding function generation.
+// It automatically determines package names from the provided source and target types.
 func NewGenFuncConf(source, target, action any) *GenFuncConf {
 	return &GenFuncConf{
 		source:        source,
@@ -33,21 +37,31 @@ func NewGenFuncConf(source, target, action any) *GenFuncConf {
 	}
 }
 
+// WithSourcePkgName sets a custom package name for the source type.
+// Returns the modified configuration for method chaining.
 func (c *GenFuncConf) WithSourcePkgName(pkgName string) *GenFuncConf {
 	c.SourcePkgName = pkgName
 	return c
 }
 
+// WithTargetPkgName sets a custom package name for the target type.
+// Returns the modified configuration for method chaining.
 func (c *GenFuncConf) WithTargetPkgName(pkgName string) *GenFuncConf {
 	c.TargetPkgName = pkgName
 	return c
 }
 
+// WithIgnoreFields specifies field names that should be ignored during binding generation.
+// Returns the modified configuration for method chaining.
 func (c *GenFuncConf) WithIgnoreFields(fields ...string) *GenFuncConf {
 	c.IgnoreFields = fields
 	return c
 }
 
+// GenBindFunc generates Go code for binding functions based on the provided configuration.
+// It creates functions that can convert between source and target types using reflection
+// to analyze field mappings and generate appropriate setter calls.
+// Returns the generated Go code as a string or an error if generation fails.
 func GenBindFunc(conf *GenFuncConf) (string, error) {
 	actionName := getStructName(conf.action)
 	sourceName := getStructName(conf.source)

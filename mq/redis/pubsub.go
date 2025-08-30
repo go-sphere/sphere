@@ -9,6 +9,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// PubSub implements a Redis-backed publish-subscribe message system with typed message support.
+// It uses Redis pub/sub functionality to broadcast messages to all subscribers.
 type PubSub[T any] struct {
 	client *redis.Client
 	codec  codec.Codec
@@ -17,6 +19,8 @@ type PubSub[T any] struct {
 	mu            sync.Mutex
 }
 
+// NewPubSub creates a new Redis-based publish-subscribe system with the specified options.
+// A Redis client must be provided via WithClient option.
 func NewPubSub[T any](opt ...Option) (*PubSub[T], error) {
 	opts := newOptions(opt...)
 	err := opts.validate()

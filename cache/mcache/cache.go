@@ -6,12 +6,16 @@ import (
 	"time"
 )
 
+// Map is a simple in-memory cache implementation using Go's built-in map with read-write mutex protection.
+// It supports TTL-based expiration and is suitable for lightweight caching needs without external dependencies.
 type Map[K comparable, S any] struct {
 	rw         sync.RWMutex
 	store      map[K]S
 	expiration map[K]time.Time
 }
 
+// NewMapCache creates a new map-based cache for string keys and typed values.
+// This is a lightweight alternative to more complex caching solutions.
 func NewMapCache[S any]() *Map[string, S] {
 	return &Map[string, S]{
 		store:      make(map[string]S),
