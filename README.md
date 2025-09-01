@@ -40,10 +40,10 @@ more, speeding up your development workflow.
 
 ## Documentation
 
-- [Quick Start Guide](docs/QUICK_START.md) : A step-by-step guide to setting up a new Sphere project.
-- [API Definitions](docs/API_DEFINITIONS.md) : Guidelines for writing API definitions `.proto` files in Sphere.
-- [Error Handling](docs/ERROR_HANDLING.md) : Guidelines for error handling in Sphere applications.
-- [Logging](docs/LOGGING.md) : How to set up and use logging in Sphere applications.
+- [Quick Start Guide](https://go-sphere.github.io/docs/getting-started) : A step-by-step guide to setting up a new Sphere project.
+- [API Definitions](https://go-sphere.github.io/docs/guides/api-definitions) : Guidelines for writing API definitions `.proto` files in Sphere.
+- [Error Handling](https://go-sphere.github.io/docs/guides/error-handling) : Guidelines for error handling in Sphere applications.
+- [Logging](https://go-sphere.github.io/docs/guides/logging) : How to set up and use logging in Sphere applications.
 
 ## Core Dependencies
 
