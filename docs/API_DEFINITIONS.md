@@ -189,6 +189,184 @@ Content string `db:"content"`
   HTTP service. The standard JSON codec for Protobuf cannot correctly handle `oneof` fields, which will lead to
   serialization and deserialization errors.
 
+## Practical Examples
+
+### Simple GET Request
+
+Referencing the `GetCurrentUser` method in `proto/api/v1/user.proto`:
+
+```protobuf
+service UserService {
+  rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse) {
+    option (google.api.http) = {get: "/api/user/me"};
+  }
+}
+
+message GetCurrentUserRequest {}
+
+message GetCurrentUserResponse {
+  shared.v1.User user = 1;
+}
+```
+
+This generates a GET endpoint `/api/user/me` that returns the current user information.
+
+### POST Request with Path Parameters
+
+Referencing the `RunTest` method in `proto/shared/v1/test.proto`:
+
+```protobuf
+service TestService {
+  rpc RunTest(RunTestRequest) returns (RunTestResponse) {
+    option (google.api.http) = {
+      post: "/api/test/{path_test1}/second/{path_test2}"
+      body: "*"
+    };
+  }
+}
+
+message RunTestRequest {
+  string field_test1 = 1;
+  string path_test1 = 2 [(sphere.binding.location) = BINDING_LOCATION_URI];
+  string path_test2 = 3 [(sphere.binding.location) = BINDING_LOCATION_URI];
+  string query_test1 = 4 [(sphere.binding.location) = BINDING_LOCATION_QUERY];
+}
+```
+
+This demonstrates binding multiple path parameters and query parameters.
+
+### Nested Body
+
+Referencing the `BodyPathTest` method in `proto/shared/v1/test.proto`:
+
+```protobuf
+rpc BodyPathTest(BodyPathTestRequest) returns (BodyPathTestResponse) {
+option (google.api.http) = {
+post: "/api/test/body_path_test"
+    body: "request"
+    response_body: "response"
+    };
+    }
+
+message BodyPathTestRequest {
+  message Request {
+    string field_test1 = 1;
+    string field_test2 = 2;
+  }
+  Request request = 1;
+}
+```
+
+Here, `body: "request"` specifies the field for the request body, and `response_body: "response"` specifies the field
+for the response body.
+
+## Generated Code Example
+
+Sphere generates corresponding Go code based on the `.proto` files. Below is a partial code example generated from
+`test.proto`:
+
+```go
+// Endpoint definitions
+var EndpointsTestService = [...][3]string{
+{OperationTestServiceRunTest, "POST", "/api/test/:path_test1/second/:path_test2"},
+{OperationTestServiceBodyPathTest, "POST", "/api/test/body_path_test"},
+}
+
+// HTTP handler function
+func _TestService_RunTest0_HTTP_Handler(srv TestServiceHTTPServer) func (ctx *gin.Context) {
+return ginx.WithJson(func (ctx *gin.Context) (*RunTestResponse, error) {
+var in RunTestRequest
+if err := ginx.ShouldBindJSON(ctx, &in); err != nil {
+return nil, err
+}
+if err := ginx.ShouldBindQuery(ctx, &in); err != nil {
+return nil, err
+}
+if err := ginx.ShouldBindUri(ctx, &in); err != nil {
+return nil, err
+}
+if err := protovalidate.Validate(&in); err != nil {
+return nil, err
+}
+out, err := srv.RunTest(ctx, &in)
+if err != nil {
+return nil, err
+}
+return out, nil
+})
+}
+
+// Route registration
+func RegisterTestServiceHTTPServer(route gin.IRouter, srv TestServiceHTTPServer) {
+r := route.Group("/")
+r.POST("/api/test/:path_test1/second/:path_test2", _TestService_RunTest0_HTTP_Handler(srv))
+r.POST("/api/test/body_path_test", _TestService_BodyPathTest0_HTTP_Handler(srv))
+}
+```
+
+The generated code includes parameter binding, validation, error handling, and route registration.
+
+## Common Patterns
+
+### Authentication and Authorization
+
+The `proto/api/v1/auth.proto` demonstrates authentication service definitions:
+
+```protobuf
+service AuthService {
+  rpc AuthWithWxMini(AuthWithWxMiniRequest) returns (AuthWithWxMiniResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/wxmini"
+      body: "*"
+    };
+  }
+}
+```
+
+### User Management
+
+The `proto/api/v1/user.proto` shows various user service operations, including getting user information, binding phone
+numbers, etc.
+
+### Error Handling
+
+Sphere supports custom error definitions:
+
+```protobuf
+enum AuthError {
+  option (sphere.errors.default_status) = 500;
+  AUTH_ERROR_UNSPECIFIED = 0;
+  AUTH_ERROR_UNSUPPORTED_PHONE_REGION = 1000 [(sphere.errors.options) = {
+    status: 400
+    message: "Unsupported phone region"
+  }];
+}
+```
+
+## Best Practices
+
+1. **Use Descriptive Paths**: Paths should clearly express resources and operations, e.g., `/api/user/me` instead of
+   `/api/u/m`.
+
+2. **Proper HTTP Methods**: Use GET for queries, POST for creation, PUT for updates, DELETE for deletion.
+
+3. **Field Validation**: Use `buf.validate` for field validation to ensure data integrity.
+
+4. **Error Definitions**: Define specific error enums for each service to provide clear error messages.
+
+5. **Documentation Comments**: Add comments in `.proto` files; these will be used to generate Swagger documentation.
+
+6. **Avoid Route Conflicts**: Ensure path patterns do not conflict, especially when using wildcards.
+
+7. **Use Nested Messages**: For complex requests/responses, use nested messages to organize data.
+
+## Reference Files
+
+- Complete example: `proto/shared/v1/test.proto`
+- Authentication service: `proto/api/v1/auth.proto`
+- User service: `proto/api/v1/user.proto`
+- Generated code: `api/shared/v1/test.sphere.pb.go`
+
 ---
 
 For a complete, practical example, see the [`test.proto`](../layout/proto/shared/v1/test.proto) file and its generated output in [`test_sphere.pb.go`](../layout/api/shared/v1/test_sphere.pb.go).

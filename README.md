@@ -7,35 +7,20 @@
 Sphere comes with powerful code generation tools to create `proto` files, `Swagger` documents, `TypeScript` clients, and
 more, speeding up your development workflow.
 
-## Quick Start
-
-For a detailed walkthrough of setting up a new project, please see the [Quick Start Guide](docs/QUICK_START.md).
-
-
-### API Definition Rules
-
-For detailed guidelines on defining API interfaces, including HTTP transcoding rules, path mapping, and field binding, please refer to the [API Definition Rules](docs/API_DEFINITIONS.md) documentation.
-
-### Error Handling
-
-For guidelines on error handling and how to define errors in your API, please refer to the [Error Handling Documentation](docs/ERROR_HANDLING.md).
-
-
 ## Features
 
-- **Simple & Maintainable**: A clean and straightforward codebase that is straightforward to understand and extend.
-- **Rapid Development**: Use the code generator to quickly scaffold project components.
-- **Modular Design**: All modules are designed to be replaceable to fit your specific needs.
-- **Single-File Deployment**: The entire project can be deployed as a single file for easy management.
-
-## Core Dependencies
-
-- **Web Framework**: [gin](https://github.com/gin-gonic/gin)
-- **Dependency Injection**: [wire](https://github.com/google/wire)
-- **ORM**: [ent](https://github.com/ent/ent)
-- **Docs Generation**: [swag](https://github.com/swaggo/swag)
-- **Protobuf management**: [buf](https://github.com/bufbuild/buf)
-- **Build Tool**: make
+- **Protocol-First Design**: Define once in Protobuf, generate everywhere. Get Go handlers, HTTP routing, client SDKs,
+  and OpenAPI docs from a single source of truth.
+- **Pragmatic Monolith Template**: Start simple with Gin + Wire + Ent in a single binary. Clean architecture that scales
+  from MVP to microservices when needed.
+- **Complete Code Generation**: Automated toolchain with protoc-gen-sphere ecosystem: server stubs, HTTP routing, field
+  binding, typed errors, and validation.
+- **Structured Error Handling**: Define error enums in protobuf with automatic HTTP status mapping. Get consistent JSON
+  responses with code, reason, and message.
+- **Full-Stack Development**: Generate Swagger documentation, TypeScript SDKs, and validation schemas. Bridge backend
+  and frontend with type safety.
+- **Developer Experience**: sphere-cli for project scaffolding, Makefile workflows, and clean project structure. Focus
+  on business logic, not boilerplate.
 
 ## Command line Tool
 
@@ -47,13 +32,27 @@ For guidelines on error handling and how to define errors in your API, please re
 - [`protoc-gen-sphere-errors`](https://github.com/go-sphere/protoc-gen-sphere-errors) : A plugin for generating error handling code
   from `.proto` files.
 
+## Layout template
+
+- [`sphere-layout`](https://github.com/go-sphere/sphere-layout) : Default sphere project template layout.
+- [`sphere-simple-layout`](https://github.com/go-sphere/sphere-simple-layout) : A simplified version of the Sphere
+  project layout.
+
 ## Documentation
 
-- [Standard Layout](https://github.com/go-sphere/sphere-layout) : Default sphere project template layout.
 - [Quick Start Guide](docs/QUICK_START.md) : A step-by-step guide to setting up a new Sphere project.
 - [API Definitions](docs/API_DEFINITIONS.md) : Guidelines for writing API definitions `.proto` files in Sphere.
 - [Error Handling](docs/ERROR_HANDLING.md) : Guidelines for error handling in Sphere applications.
 - [Logging](docs/LOGGING.md) : How to set up and use logging in Sphere applications.
+
+## Core Dependencies
+
+- **Web Framework**: [gin](https://github.com/gin-gonic/gin)
+- **Dependency Injection**: [wire](https://github.com/google/wire)
+- **ORM**: [ent](https://github.com/ent/ent)
+- **Docs Generation**: [swag](https://github.com/swaggo/swag)
+- **Protobuf management**: [buf](https://github.com/bufbuild/buf)
+- **Build Tool**: make
 
 ## License
 

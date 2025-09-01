@@ -55,6 +55,12 @@ func ShouldBindJSON(ctx *gin.Context, obj any) error {
 	return ctx.ShouldBindJSON(obj)
 }
 
+// ShouldBindHeader binds HTTP headers to the given object using Gin's default binding.
+// It delegates to gin.Context.ShouldBindHeader for standard header binding.
+func ShouldBindHeader(ctx *gin.Context, obj any) error {
+	return ctx.ShouldBindHeader(obj)
+}
+
 // ShouldUniverseBindUri binds URI parameters using a custom form decoder that supports
 // both standard struct tags and protobuf name resolution for field mapping.
 func ShouldUniverseBindUri(ctx *gin.Context, obj any) error {
