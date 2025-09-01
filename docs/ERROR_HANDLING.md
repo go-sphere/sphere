@@ -22,7 +22,7 @@ managed:
   enabled: true
   disable:
     - file_option: go_package_prefix
-      module: buf.build/tbxark/errors
+      module: buf.build/go-sphere/errors
   override:
     - file_option: go_package_prefix
       value: github.com/go-sphere/sphere-layout/api

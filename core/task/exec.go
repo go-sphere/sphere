@@ -34,6 +34,6 @@ func logTaskError(task Task, name string, err error) {
 	log.Error(
 		fmt.Sprintf("%s error", name),
 		log.String("task", task.Identifier()),
-		log.Any("error", err),
+		log.Err(err),
 	)
 }

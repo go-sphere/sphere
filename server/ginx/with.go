@@ -15,7 +15,7 @@ type Context = gin.Context
 
 // Value retrieves a typed value from the Gin context.
 // It returns the value and a boolean indicating whether the key exists and the type matches.
-func Value[T any](key string, ctx *gin.Context) (T, bool) {
+func Value[T any](ctx *gin.Context, key string) (T, bool) {
 	v, exists := ctx.Get(key)
 	var zero T
 	if !exists {
