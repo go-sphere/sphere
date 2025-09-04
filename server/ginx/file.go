@@ -3,6 +3,7 @@ package ginx
 import (
 	"errors"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -64,10 +65,10 @@ func WithFormAllowExtensions(extensions ...string) WithFormOption {
 	}
 }
 
-// WithFormFileReader creates a Gin handler that processes uploaded files as io.Reader.
+// WithFormFileReader creates a Gin handler that processes uploaded files as io.ReadSeekCloser.
 // It validates file size, extension constraints, and passes the file content to the handler function.
 // The handler receives the file as an io.Reader along with the original filename.
-func WithFormFileReader[T any](handler func(ctx *gin.Context, file io.Reader, filename string) (*T, error), options ...WithFormOption) gin.HandlerFunc {
+func WithFormFileReader[T any](handler func(ctx *gin.Context, file io.ReadSeekCloser, filename string) (*T, error), options ...WithFormOption) gin.HandlerFunc {
 	return WithJson(func(ctx *gin.Context) (*T, error) {
 		opts := newWithFormOptions(options...)
 		if opts.maxSize > 0 {
@@ -80,7 +81,7 @@ func WithFormFileReader[T any](handler func(ctx *gin.Context, file io.Reader, fi
 			return nil, err
 		}
 		if opts.allowExtensions != nil {
-			ext := file.Filename[strings.LastIndex(file.Filename, ".")+1:]
+			ext := filepath.Ext(file.Filename)
 			if _, ok := opts.allowExtensions[strings.ToLower(ext)]; !ok {
 				return nil, statuserr.BadRequestError(
 					errors.New("FileError:FILE_EXTENSION_NOT_ALLOWED"),
@@ -103,7 +104,7 @@ func WithFormFileReader[T any](handler func(ctx *gin.Context, file io.Reader, fi
 // It reads the entire file content into memory and passes it to the handler function.
 // This is convenient for smaller files but should be used carefully with large files.
 func WithFormFileBytes[T any](handler func(ctx *gin.Context, file []byte, filename string) (*T, error), options ...WithFormOption) gin.HandlerFunc {
-	return WithFormFileReader(func(ctx *gin.Context, file io.Reader, filename string) (*T, error) {
+	return WithFormFileReader(func(ctx *gin.Context, file io.ReadSeekCloser, filename string) (*T, error) {
 		all, err := io.ReadAll(file)
 		if err != nil {
 			return nil, err
