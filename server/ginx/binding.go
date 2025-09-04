@@ -77,6 +77,15 @@ func ShouldUniverseBindQuery(ctx *gin.Context, obj any) error {
 	return queryBinding.Decode(obj, ctx.Request.URL.Query())
 }
 
+// ShouldUniverseBindFormBody binds form data from the request body using a custom form decoder.
+func ShouldUniverseBindFormBody(ctx *gin.Context, obj any) error {
+	multipartForm, err := ctx.MultipartForm()
+	if err != nil {
+		return err
+	}
+	return queryBinding.Decode(obj, multipartForm.Value)
+}
+
 // ShouldUniverseBind performs comprehensive binding from multiple HTTP request sources.
 // It can bind from JSON body, query parameters, and URI parameters based on the boolean flags.
 // The binding order is: body -> query -> uri, with each step potentially overriding previous values.
