@@ -37,6 +37,12 @@ func newUniverseDecoder(key string) *form.Decoder {
 	return decoder
 }
 
+// ShouldBindHeader binds HTTP headers to the given object using Gin's default binding.
+// It delegates to gin.Context.ShouldBindHeader for standard header binding.
+func ShouldBindHeader(ctx *gin.Context, obj any) error {
+	return ctx.ShouldBindHeader(obj)
+}
+
 // ShouldBindUri binds URI path parameters to the given object using Gin's default binding.
 // It delegates to gin.Context.ShouldBindUri for standard URI parameter binding.
 func ShouldBindUri(ctx *gin.Context, obj any) error {
@@ -55,10 +61,9 @@ func ShouldBindJSON(ctx *gin.Context, obj any) error {
 	return ctx.ShouldBindJSON(obj)
 }
 
-// ShouldBindHeader binds HTTP headers to the given object using Gin's default binding.
-// It delegates to gin.Context.ShouldBindHeader for standard header binding.
-func ShouldBindHeader(ctx *gin.Context, obj any) error {
-	return ctx.ShouldBindHeader(obj)
+// ShouldBind binds form data to the given object using Gin's default binding.
+func ShouldBind(ctx *gin.Context, obj any) error {
+	return ctx.ShouldBind(obj)
 }
 
 // ShouldUniverseBindUri binds URI parameters using a custom form decoder that supports
@@ -77,13 +82,25 @@ func ShouldUniverseBindQuery(ctx *gin.Context, obj any) error {
 	return queryBinding.Decode(obj, ctx.Request.URL.Query())
 }
 
-// ShouldUniverseBindFormBody binds form data from the request body using a custom form decoder.
-func ShouldUniverseBindFormBody(ctx *gin.Context, obj any) error {
-	multipartForm, err := ctx.MultipartForm()
-	if err != nil {
-		return err
+// ShouldUniverseBindForm binds form data using a custom form decoder that supports
+// both standard struct tags and protobuf name resolution for field mapping.
+func ShouldUniverseBindForm(ctx *gin.Context, obj any) error {
+	switch ctx.ContentType() {
+	case gin.MIMEMultipartPOSTForm:
+		multiForm, err := ctx.MultipartForm()
+		if err != nil {
+			return err
+		}
+		return queryBinding.Decode(obj, multiForm.Value)
+	case gin.MIMEPOSTForm:
+		err := ctx.Request.ParseForm()
+		if err != nil {
+			return err
+		}
+		return queryBinding.Decode(obj, ctx.Request.PostForm)
+	default:
+		return nil
 	}
-	return queryBinding.Decode(obj, multipartForm.Value)
 }
 
 // ShouldUniverseBind performs comprehensive binding from multiple HTTP request sources.
