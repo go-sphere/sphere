@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TBXark/jsoncompressor"
+	"github.com/go-sphere/jsoncompressor"
 )
 
 // query prefix must be unique and has suffix ":" to separate the data

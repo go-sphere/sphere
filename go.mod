@@ -3,7 +3,6 @@ module github.com/go-sphere/sphere
 go 1.24.0
 
 require (
-	github.com/TBXark/jsoncompressor v0.0.2
 	github.com/dgraph-io/badger/v4 v4.8.0
 	github.com/dgraph-io/ristretto/v2 v2.3.0
 	github.com/fatih/structtag v1.2.0
@@ -12,19 +11,20 @@ require (
 	github.com/gin-contrib/zap v1.1.5
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-playground/form/v4 v4.2.1
-	github.com/go-sphere/confstore v0.0.1
+	github.com/go-sphere/confstore v0.0.2
+	github.com/go-sphere/jsoncompressor v0.0.3
 	github.com/go-telegram/bot v1.17.0
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0
-	github.com/meilisearch/meilisearch-go v0.33.2
+	github.com/meilisearch/meilisearch-go v0.33.3
 	github.com/minio/minio-go/v7 v7.0.95
 	github.com/qiniu/go-sdk/v7 v7.25.4
-	github.com/redis/go-redis/v9 v9.12.1
+	github.com/redis/go-redis/v9 v9.13.0
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/files v1.0.1
-	github.com/swaggo/gin-swagger v1.6.0
+	github.com/swaggo/gin-swagger v1.6.1
 	github.com/swaggo/swag v1.16.6
 	github.com/telegram-mini-apps/init-data-golang v1.5.0
 	github.com/yitter/idgenerator-go v1.3.3
@@ -44,7 +44,8 @@ require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/alex-ant/gomath v0.0.0-20160516115720-89013a210a82 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
-	github.com/bytedance/sonic v1.14.0 // indirect
+	github.com/bytedance/gopkg v0.1.3 // indirect
+	github.com/bytedance/sonic v1.14.1 // indirect
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
