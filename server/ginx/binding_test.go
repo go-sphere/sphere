@@ -133,14 +133,15 @@ func TestShouldUniverseBindForm(t *testing.T) {
 	{
 		form := url.Values{}
 		form.Add("foo", "bar")
-		req, _ := http.NewRequest("POST", "/test", strings.NewReader(form.Encode()))
+		req, err := http.NewRequest("POST", "/test", strings.NewReader(form.Encode()))
+		assert.NoError(t, err)
 		req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, 200, w.Code)
 		var resp Response
-		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		err = json.Unmarshal(w.Body.Bytes(), &resp)
 		assert.NoError(t, err)
 		assert.Equal(t, "bar", resp.Foo)
 	}
@@ -149,14 +150,15 @@ func TestShouldUniverseBindForm(t *testing.T) {
 		writer := multipart.NewWriter(body)
 		_ = writer.WriteField("foo", "bar")
 		_ = writer.Close()
-		req, _ := http.NewRequest("POST", "/test", body)
+		req, err := http.NewRequest("POST", "/test", body)
+		assert.NoError(t, err)
 		req.Header.Add("Content-Type", writer.FormDataContentType())
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, 200, w.Code)
 		var resp Response
-		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		err = json.Unmarshal(w.Body.Bytes(), &resp)
 		assert.NoError(t, err)
 		assert.Equal(t, "bar", resp.Foo)
 	}
