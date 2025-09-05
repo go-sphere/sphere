@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-sphere/confstore/codec"
 	"github.com/go-sphere/sphere/cache"
 	"github.com/go-sphere/sphere/cache/badgerdb"
 	"github.com/go-sphere/sphere/cache/mcache"
 	"github.com/go-sphere/sphere/cache/memory"
 	"github.com/go-sphere/sphere/cache/nocache"
 	"github.com/go-sphere/sphere/cache/redis"
-	"github.com/go-sphere/sphere/core/codec"
 	"github.com/go-sphere/sphere/core/safe"
 	redisConn "github.com/go-sphere/sphere/infra/redis"
 )

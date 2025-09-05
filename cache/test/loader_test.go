@@ -7,9 +7,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/go-sphere/confstore/codec"
 	"github.com/go-sphere/sphere/cache"
 	"github.com/go-sphere/sphere/cache/memory"
-	"github.com/go-sphere/sphere/core/codec"
 )
 
 func testGetObjectEx(ctx context.Context, t *testing.T, byteCache cache.ByteCache) {

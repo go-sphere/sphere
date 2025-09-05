@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-sphere/sphere/core/codec"
+	"github.com/go-sphere/confstore/codec"
 	"github.com/redis/go-redis/v9"
 )
 

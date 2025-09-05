@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/go-sphere/sphere/core/codec"
+	"github.com/go-sphere/confstore/codec"
 	"golang.org/x/sync/singleflight"
 )
 
