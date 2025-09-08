@@ -38,41 +38,45 @@ type HTTPError interface {
 	MessageError
 }
 
-type statusError struct {
+// httpError is an unexported concrete implementation of HTTPError.
+// Keeping it unexported prevents external code from depending on the
+// concrete type, preserving flexibility to change internals.
+type httpError struct {
 	error
 	status  int32
 	code    int32
 	message string
 }
 
-func (e *statusError) GetStatus() int32 {
+func (e *httpError) GetStatus() int32 {
 	return e.status
 }
 
-func (e *statusError) GetCode() int32 {
+func (e *httpError) GetCode() int32 {
 	return e.code
 }
 
-func (e *statusError) GetMessage() string {
+func (e *httpError) GetMessage() string {
 	return e.message
 }
 
-func (e *statusError) Error() string {
+func (e *httpError) Error() string {
 	return e.error.Error()
 }
 
-func (e *statusError) Unwrap() error {
+func (e *httpError) Unwrap() error {
 	return e.error
 }
 
 // NewError creates a new error with HTTP status, custom code, and user message.
-// If err is nil, a default HTTP error based on the status is used.
-// This provides a comprehensive error structure for API responses.
-func NewError(status, code int32, message string, err error) error {
+// It returns the broader HTTPError interface to avoid exposing the concrete type
+// and keep the API surface stable. If err is nil, a default HTTP error based on the
+// status is used.
+func NewError(status, code int32, message string, err error) HTTPError {
 	if err == nil {
-		err = httpError(status)
+		err = httpStatusError(status)
 	}
-	return &statusError{
+	return &httpError{
 		error:   err,
 		status:  status,
 		code:    code,
@@ -80,77 +84,60 @@ func NewError(status, code int32, message string, err error) error {
 	}
 }
 
-// JoinError creates a status error by wrapping an existing error with status and message.
-// If the wrapped error implements CodeError, its code is preserved.
-// This is useful for elevating internal errors to API-level errors.
-func JoinError(status int32, message string, err error) error {
-	if err == nil {
-		err = httpError(status)
+func WithStatus(status int32, err error, messages ...string) HTTPError {
+	code := int32(0)
+	var se CodeError
+	if errors.As(err, &se) {
+		code = se.GetCode()
 	}
-	var code int32
-	var codeError CodeError
-	if errors.As(err, &codeError) {
-		code = codeError.GetCode()
-	} else {
-		code = 0
-	}
-	return &statusError{
-		error:   err,
-		status:  status,
-		code:    code,
-		message: message,
-	}
+	return NewError(status, code, strings.Join(messages, "; "), err)
 }
 
-func WithStatus(status int32, err error, messages ...string) error {
-	return JoinError(status, strings.Join(messages, "\n"), err)
-}
-
-func NewWithStatus(status int32, message string) error {
+func NewWithStatus(status int32, message string) HTTPError {
 	return WithStatus(status, errors.New(message))
 }
 
-func BadRequestError(err error, messages ...string) error {
+func BadRequestError(err error, messages ...string) HTTPError {
 	return WithStatus(http.StatusBadRequest, err, messages...)
 }
 
-func NewBadRequestError(message string) error {
+func NewBadRequestError(message string) HTTPError {
 	return WithStatus(http.StatusBadRequest, errors.New(message))
 }
 
-func UnauthorizedError(err error, messages ...string) error {
+func UnauthorizedError(err error, messages ...string) HTTPError {
 	return WithStatus(http.StatusUnauthorized, err, messages...)
 }
 
-func NewUnauthorizedError(message string) error {
+func NewUnauthorizedError(message string) HTTPError {
 	return WithStatus(http.StatusUnauthorized, errors.New(message))
 }
 
-func ForbiddenError(err error, messages ...string) error {
+func ForbiddenError(err error, messages ...string) HTTPError {
 	return WithStatus(http.StatusForbidden, err, messages...)
 }
 
-func NewForbiddenError(message string) error {
+func NewForbiddenError(message string) HTTPError {
 	return WithStatus(http.StatusForbidden, errors.New(message))
 }
 
-func NotFoundError(err error, messages ...string) error {
+func NotFoundError(err error, messages ...string) HTTPError {
 	return WithStatus(http.StatusNotFound, err, messages...)
 }
 
-func NewNotFoundError(message string) error {
+func NewNotFoundError(message string) HTTPError {
 	return WithStatus(http.StatusNotFound, errors.New(message))
 }
 
-func InternalServerError(err error, messages ...string) error {
+func InternalServerError(err error, messages ...string) HTTPError {
 	return WithStatus(http.StatusInternalServerError, err, messages...)
 }
 
-func NewInternalServerError(message string) error {
+func NewInternalServerError(message string) HTTPError {
 	return WithStatus(http.StatusInternalServerError, errors.New(message))
 }
 
-func httpError(status int32) error {
+func httpStatusError(status int32) error {
 	msg := http.StatusText(int(status))
 	if msg == "" {
 		msg = "Unknown error"
