@@ -24,6 +24,10 @@ func SetDefaultErrorParser(parser ErrorParser) {
 // It recognizes StatusError, CodeError, and MessageError interfaces and falls back
 // to defaults for unknown error types.
 func ParseError(err error) (code int32, status int32, message string) {
+	var he statuserr.HTTPError
+	if errors.As(err, &he) {
+		return he.GetCode(), he.GetStatus(), he.GetMessage()
+	}
 	var se statuserr.StatusError
 	if errors.As(err, &se) {
 		status = se.GetStatus()

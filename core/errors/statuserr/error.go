@@ -30,6 +30,14 @@ type MessageError interface {
 	GetMessage() string
 }
 
+// HTTPError is a comprehensive error type that includes HTTP status, custom code, and user message.
+type HTTPError interface {
+	error
+	StatusError
+	CodeError
+	MessageError
+}
+
 type statusError struct {
 	error
 	status  int32
