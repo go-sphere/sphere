@@ -123,8 +123,8 @@ func GetObject[T any, D codec.Decoder](ctx context.Context, c ByteCache, d D, ke
 }
 
 // GetJson retrieves and decodes a JSON-encoded object from a ByteCache.
-// This is a convenience function that uses JSON unmarshaling for deserialization.
-func GetJson[T any](ctx context.Context, c ByteCache, key string, options ...Option) (T, bool, error) {
+// This is a convenience function that uses JSON unmarshalling for deserialization.
+func GetJson[T any](ctx context.Context, c ByteCache, key string) (T, bool, error) {
 	return GetObject[T, codec.DecoderFunc](ctx, c, json.Unmarshal, key)
 }
 

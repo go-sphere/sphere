@@ -128,7 +128,7 @@ func TestShouldUniverseBindForm(t *testing.T) {
 			c.AbortWithStatus(400)
 			return
 		}
-		c.JSON(200, Response{Foo: req.Foo})
+		c.JSON(200, Response(req))
 	})
 	{
 		form := url.Values{}
