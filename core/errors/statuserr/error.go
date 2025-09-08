@@ -45,6 +45,26 @@ type statusError struct {
 	message string
 }
 
+func (e *statusError) GetStatus() int32 {
+	return e.status
+}
+
+func (e *statusError) GetCode() int32 {
+	return e.code
+}
+
+func (e *statusError) GetMessage() string {
+	return e.message
+}
+
+func (e *statusError) Error() string {
+	return e.error.Error()
+}
+
+func (e *statusError) Unwrap() error {
+	return e.error
+}
+
 // NewError creates a new error with HTTP status, custom code, and user message.
 // If err is nil, a default HTTP error based on the status is used.
 // This provides a comprehensive error structure for API responses.
@@ -82,48 +102,52 @@ func JoinError(status int32, message string, err error) error {
 	}
 }
 
-func (e *statusError) GetStatus() int32 {
-	return e.status
-}
-
-func (e *statusError) GetCode() int32 {
-	return e.code
-}
-
-func (e *statusError) GetMessage() string {
-	return e.message
-}
-
-func (e *statusError) Error() string {
-	return e.error.Error()
-}
-
-func (e *statusError) Unwrap() error {
-	return e.error
-}
-
 func WithStatus(status int32, err error, messages ...string) error {
 	return JoinError(status, strings.Join(messages, "\n"), err)
+}
+
+func NewWithStatus(status int32, message string) error {
+	return WithStatus(status, errors.New(message))
 }
 
 func BadRequestError(err error, messages ...string) error {
 	return WithStatus(http.StatusBadRequest, err, messages...)
 }
 
+func NewBadRequestError(message string) error {
+	return WithStatus(http.StatusBadRequest, errors.New(message))
+}
+
 func UnauthorizedError(err error, messages ...string) error {
 	return WithStatus(http.StatusUnauthorized, err, messages...)
+}
+
+func NewUnauthorizedError(message string) error {
+	return WithStatus(http.StatusUnauthorized, errors.New(message))
 }
 
 func ForbiddenError(err error, messages ...string) error {
 	return WithStatus(http.StatusForbidden, err, messages...)
 }
 
+func NewForbiddenError(message string) error {
+	return WithStatus(http.StatusForbidden, errors.New(message))
+}
+
 func NotFoundError(err error, messages ...string) error {
 	return WithStatus(http.StatusNotFound, err, messages...)
 }
 
+func NewNotFoundError(message string) error {
+	return WithStatus(http.StatusNotFound, errors.New(message))
+}
+
 func InternalServerError(err error, messages ...string) error {
 	return WithStatus(http.StatusInternalServerError, err, messages...)
+}
+
+func NewInternalServerError(message string) error {
+	return WithStatus(http.StatusInternalServerError, errors.New(message))
 }
 
 func httpError(status int32) error {
