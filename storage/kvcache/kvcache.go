@@ -17,8 +17,8 @@ import (
 
 // Config holds the configuration for cache-based storage operations.
 type Config struct {
-	Expires    time.Duration `json:"expires" yaml:"expires"`
-	PublicBase string        `json:"public_base" yaml:"public_base"`
+	Expires    *time.Duration `json:"expires" yaml:"expires"`
+	PublicBase string         `json:"public_base" yaml:"public_base"`
 }
 
 // Client provides cache-based storage operations where files are stored in a byte cache.
@@ -35,9 +35,6 @@ func NewClient(config *Config, cache cache.ByteCache) (*Client, error) {
 	handler, err := urlhandler.NewHandler(config.PublicBase)
 	if err != nil {
 		return nil, err
-	}
-	if config.Expires == 0 {
-		config.Expires = -1
 	}
 	return &Client{
 		Handler: *handler,
@@ -58,7 +55,11 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	if err != nil {
 		return "", err
 	}
-	err = c.cache.SetWithTTL(ctx, key, all, c.config.Expires)
+	if c.config.Expires != nil {
+		err = c.cache.SetWithTTL(ctx, key, all, *c.config.Expires)
+	} else {
+		err = c.cache.Set(ctx, key, all)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -72,7 +73,11 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	if err != nil {
 		return "", err
 	}
-	err = c.cache.SetWithTTL(ctx, key, raw, c.config.Expires)
+	if c.config.Expires != nil {
+		err = c.cache.SetWithTTL(ctx, key, raw, *c.config.Expires)
+	} else {
+		err = c.cache.Set(ctx, key, raw)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -147,7 +152,11 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if !found {
 		return storageerr.ErrorNotFound
 	}
-	err = c.cache.SetWithTTL(ctx, destinationKey, value, c.config.Expires)
+	if c.config.Expires != nil {
+		err = c.cache.SetWithTTL(ctx, destinationKey, value, *c.config.Expires)
+	} else {
+		err = c.cache.Set(ctx, destinationKey, value)
+	}
 	if err != nil {
 		return err
 	}

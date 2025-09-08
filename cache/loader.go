@@ -64,7 +64,7 @@ func WithSingleflight(single *singleflight.Group) Option {
 }
 
 // WithDynamicTTL allows setting a dynamic TTL based on the value type T.
-// The calculator function should return a boolean indicating whether the TTL is set,
+// The calculator function should return a boolean indicating whether the TTL is set
 // and the duration for which the value should be cached.
 func WithDynamicTTL[T any](calculator func(value T) (bool, time.Duration)) Option {
 	return func(o *options) {
@@ -76,7 +76,7 @@ func WithDynamicTTL[T any](calculator func(value T) (bool, time.Duration)) Optio
 
 // Set stores a value in the cache with optional configuration such as TTL.
 // It applies the provided options to determine cache behavior like expiration and dynamic TTL calculation.
-func Set[T any](ctx context.Context, c Cache[T], key string, value T, options ...Option) error {
+func Set[T any](ctx context.Context, c ExpirableCache[T], key string, value T, options ...Option) error {
 	opts := newOptions(options...)
 	if opts.ttlCalculator != nil {
 		opts.hasTTL, opts.expiration = opts.ttlCalculator(value)
@@ -88,9 +88,9 @@ func Set[T any](ctx context.Context, c Cache[T], key string, value T, options ..
 	}
 }
 
-// SetObject stores a typed object in a ByteCache by encoding it with the provided encoder.
+// SetObject stores a typed object in a byte cache by encoding it with the provided encoder.
 // This is useful for storing structured data that needs to be serialized before caching.
-func SetObject[T any, E codec.Encoder](ctx context.Context, c ByteCache, e E, key string, value T, options ...Option) error {
+func SetObject[T any, E codec.Encoder](ctx context.Context, c ExpirableByteCache, e E, key string, value T, options ...Option) error {
 	data, err := e.Marshal(value)
 	if err != nil {
 		return err
@@ -98,15 +98,15 @@ func SetObject[T any, E codec.Encoder](ctx context.Context, c ByteCache, e E, ke
 	return Set(ctx, c, key, data, options...)
 }
 
-// SetJson stores a typed object in a ByteCache by encoding it as JSON.
+// SetJson stores a typed object in a byte cache by encoding it as JSON.
 // This is a convenience function that uses JSON marshaling for serialization.
-func SetJson[T any](ctx context.Context, c ByteCache, key string, value T, options ...Option) error {
+func SetJson[T any](ctx context.Context, c ExpirableByteCache, key string, value T, options ...Option) error {
 	return SetObject[T, codec.EncoderFunc](ctx, c, json.Marshal, key, value, options...)
 }
 
-// GetObject retrieves and decodes a typed object from a ByteCache using the provided decoder.
+// GetObject retrieves and decodes a typed object from a byte cache using the provided decoder.
 // Returns the decoded object, whether it was found, and any error that occurred during retrieval or decoding.
-func GetObject[T any, D codec.Decoder](ctx context.Context, c ByteCache, d D, key string) (T, bool, error) {
+func GetObject[T any, D codec.Decoder](ctx context.Context, c ExpirableByteCache, d D, key string) (T, bool, error) {
 	data, found, err := c.Get(ctx, key)
 	var value T
 	if err != nil {
@@ -122,15 +122,15 @@ func GetObject[T any, D codec.Decoder](ctx context.Context, c ByteCache, d D, ke
 	return value, true, nil
 }
 
-// GetJson retrieves and decodes a JSON-encoded object from a ByteCache.
+// GetJson retrieves and decodes a JSON-encoded object from a byte cache.
 // This is a convenience function that uses JSON unmarshalling for deserialization.
-func GetJson[T any](ctx context.Context, c ByteCache, key string) (T, bool, error) {
+func GetJson[T any](ctx context.Context, c ExpirableByteCache, key string) (T, bool, error) {
 	return GetObject[T, codec.DecoderFunc](ctx, c, json.Unmarshal, key)
 }
 
 // FetchCached is a function type that defines a builder for fetching cached objects.
 // It should return the object of type T and an error if any occurs during the fetching process.
-// If error is nil, it indicates that the object was successfully fetched or built. So cache can be set.
+// If the error is nil, it indicates that the object was successfully fetched or built. So a cache can be set.
 // If the object is not found or cannot be built, it should return a zero value of type T and an error.
 // Then the cache will not be set.
 type FetchCached[T any] = func() (obj T, err error)
@@ -139,7 +139,7 @@ type FetchCached[T any] = func() (obj T, err error)
 // And returns the object, a boolean indicating if it was found, and an error if any occurred.
 // If the object is not found, it uses the builder function to create the object.
 // When the builder returns an error, the cache will not be set. and found will be false.
-func GetEx[T any](ctx context.Context, c Cache[T], key string, builder FetchCached[T], options ...Option) (T, bool, error) {
+func GetEx[T any](ctx context.Context, c ExpirableCache[T], key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return load[T](
 		ctx,
 		key,
@@ -153,9 +153,9 @@ func GetEx[T any](ctx context.Context, c Cache[T], key string, builder FetchCach
 }
 
 // GetObjectEx retrieves an object from the cache using the provided key.
-// Similar to GetEx, but for ByteCache with encoding/decoding support.
+// Similar to GetEx, but for byte cache with encoding/decoding support.
 // If the object is not found in cache, it uses the builder function to create it and caches the result.
-func GetObjectEx[T any, D codec.Decoder, E codec.Encoder](ctx context.Context, c ByteCache, d D, e E, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
+func GetObjectEx[T any, D codec.Decoder, E codec.Encoder](ctx context.Context, c ExpirableByteCache, d D, e E, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return load[T](
 		ctx,
 		key,
@@ -173,7 +173,7 @@ func GetObjectEx[T any, D codec.Decoder, E codec.Encoder](ctx context.Context, c
 // GetJsonEx retrieves a JSON object from the cache using the provided key.
 // Similar to GetObjectEx, but specifically for JSON data with automatic encoding/decoding.
 // If the object is not found in cache, it uses the builder function to create it and caches the result as JSON.
-func GetJsonEx[T any](ctx context.Context, c ByteCache, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
+func GetJsonEx[T any](ctx context.Context, c ExpirableByteCache, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return GetObjectEx[T, codec.DecoderFunc, codec.EncoderFunc](ctx, c, json.Unmarshal, json.Marshal, key, builder, options...)
 }
 
