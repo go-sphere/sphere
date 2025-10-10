@@ -89,7 +89,7 @@ func (s *Searcher[T]) Search(ctx context.Context, params search.Params) (*search
 	var hits []T
 	for _, hit := range resp.Hits {
 		var hitData T
-		dErr := hit.Decode(&hitData)
+		dErr := hit.DecodeInto(&hitData)
 		if dErr != nil {
 			return nil, dErr
 		}

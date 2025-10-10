@@ -13,6 +13,13 @@ type Article struct {
 	Content string `json:"content"`
 }
 
+/*
+docker run -it --rm \
+  -p 7700:7700 \
+  -v $(pwd)/meili_data:/meili_data \
+  getmeili/meilisearch:latest
+*/
+
 func TestSearcher(t *testing.T) {
 	manager, err := NewServiceManager(&Config{
 		Host:   "http://localhost:7700",
