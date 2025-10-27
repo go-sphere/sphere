@@ -13,7 +13,8 @@ var ErrorNotVerifyHost = fmt.Errorf("not verify host")
 // It manages the relationship between storage keys and their public URLs.
 type Handler struct {
 	publicURLBase string
-	publicURLHost string
+	basePath      string
+	publicURL     *url.URL
 }
 
 // NewHandler creates a new URL handler with the specified public base URL.
@@ -23,15 +24,15 @@ func NewHandler(public string) (*Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Handler{
-		publicURLBase: base.String(),
-		publicURLHost: base.Host,
-	}, nil
-}
+	baseStr := base.String()
+	baseStr = strings.TrimSuffix(baseStr, "/")
+	sanitizedPath := strings.Trim(base.EscapedPath(), "/")
 
-// hasHttpScheme checks if the given URI has an HTTP or HTTPS scheme.
-func (n *Handler) hasHttpScheme(uri string) bool {
-	return strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://")
+	return &Handler{
+		publicURLBase: baseStr,
+		basePath:      sanitizedPath,
+		publicURL:     base,
+	}, nil
 }
 
 // GenerateURL creates a public URL for the given storage key.
@@ -40,7 +41,7 @@ func (n *Handler) GenerateURL(key string) string {
 	if key == "" {
 		return ""
 	}
-	if n.hasHttpScheme(key) {
+	if hasHttpScheme(key) {
 		return key
 	}
 	result, err := url.JoinPath(n.publicURLBase, key)
@@ -66,30 +67,85 @@ func (n *Handler) ExtractKeyFromURLWithMode(uri string, strict bool) (string, er
 	if uri == "" {
 		return "", nil
 	}
-	// 不是 http 或者 https 开头的直接返回
-	if !n.hasHttpScheme(uri) {
+	if !hasHttpScheme(uri) {
 		return strings.TrimPrefix(uri, "/"), nil
 	}
-	// 解析URL
+
 	u, err := url.Parse(uri)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	if strict {
-		// 不是以CDN域名开头的直接返回或者报错
-		if u.Host != n.publicURLHost {
+		if !sameHost(u, n.publicURL) {
 			return "", ErrorNotVerifyHost
 		}
 	}
-	u.RawQuery = ""
-	u.RawFragment = ""
-	// 返回去掉base url的key
-	return strings.TrimPrefix(strings.TrimPrefix(u.String(), n.publicURLBase), "/"), nil
+	path := strings.TrimPrefix(u.EscapedPath(), "/")
+
+	if basePath := n.basePath; basePath != "" {
+		switch {
+		case path == basePath: // request path matches base exactly, so the key is empty
+			path = ""
+		case strings.HasPrefix(path, basePath+"/"): // request path is under base path, remove the prefix
+			path = path[len(basePath)+1:]
+		case strict: // base path mismatch in strict mode, reject
+			return "", ErrorNotVerifyHost
+		}
+	}
+
+	key, err := url.PathUnescape(path)
+	if err != nil {
+		return "", err
+	}
+	return key, nil
 }
 
 // ExtractKeyFromURL extracts the storage key from a URL with strict host verification enabled.
-// Returns an empty string if the URL format is invalid or host verification fails.
+// Returns an empty string if host verification fails or if there's a parsing error.
 func (n *Handler) ExtractKeyFromURL(uri string) string {
-	key, _ := n.ExtractKeyFromURLWithMode(uri, true)
+	key, err := n.ExtractKeyFromURLWithMode(uri, true)
+	if err != nil {
+		return ""
+	}
 	return key
+}
+
+func sameHost(target, base *url.URL) bool {
+	if base == nil {
+		return false
+	}
+	if !strings.EqualFold(target.Hostname(), base.Hostname()) {
+		return false
+	}
+
+	userPort := target.Port()
+	basePort := base.Port()
+
+	switch {
+	case basePort == "" && userPort == "":
+		return true
+	case basePort == userPort:
+		return true
+	case basePort == "":
+		return userPort == defaultPortForScheme(base.Scheme)
+	case userPort == "":
+		return basePort == defaultPortForScheme(target.Scheme)
+	default:
+		return false
+	}
+}
+
+func hasHttpScheme(uri string) bool {
+	return strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://")
+}
+
+func defaultPortForScheme(s string) string {
+	switch strings.ToLower(s) {
+	case "http":
+		return "80"
+	case "https":
+		return "443"
+	default:
+		return ""
+	}
 }
