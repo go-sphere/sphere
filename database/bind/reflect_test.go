@@ -23,50 +23,99 @@ func (t *Test) privateMethodPtr() { //nolint
 func (t *Test) PublicMethodPtr() { //nolint
 }
 
-func Test_ExtractPublicFields(t *testing.T) {
-	t.Logf("reflect.VisibleFields")
-	fields := reflect.VisibleFields(reflect.TypeFor[Test]())
-	for _, field := range fields {
-		t.Logf("Field: %s, Index: %v, Anonymous: %v", field.Name, field.Index, field.Anonymous)
+func Test_extractPublicFields(t *testing.T) {
+	type args struct {
+		obj       interface{}
+		keyMapper func(s string) string
 	}
-	t.Logf("extractPublicFields")
-	_, fieldMap := extractPublicFields(Test{}, func(s string) string {
-		return s
-	})
-	for _, field := range fieldMap {
-		t.Logf("Field: %s, Index: %v, Anonymous: %v", field.Name, field.Index, field.Anonymous)
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{
+			name: "test",
+			args: args{
+				obj: Test{},
+				keyMapper: func(s string) string {
+					return s
+				},
+			},
+			want: []string{
+				"PublicField",
+			},
+		},
+		{
+			name: "test_pointer",
+			args: args{
+				obj: &Test{},
+				keyMapper: func(s string) string {
+					return s
+				},
+			},
+			want: []string{
+				"PublicField",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _ := extractPublicFields(tt.args.obj, tt.args.keyMapper)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("extractPublicFields() got = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
-type MyString string
-
-func (s MyString) String() string { //nolint
-	return string(s)
-}
-
-func (s *MyString) StringPtr() string { //nolint
-	return string(*s)
-}
-
-func Test_ExtractPublicMethods(t *testing.T) {
-	methods, _ := extractPublicMethods(Test{}, func(s string) string {
-		return s
-	})
-	for _, method := range methods {
-		t.Logf("Method: %s", method)
+func Test_extractPublicMethods(t *testing.T) {
+	type args struct {
+		obj       any
+		keyMapper func(string) string
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{
+			name: "test",
+			args: args{
+				obj: Test{},
+				keyMapper: func(s string) string {
+					return s
+				},
+			},
+			want: []string{
+				"PublicMethod",
+				"PublicMethodPtr",
+			},
+		},
+		{
+			name: "test_pointer",
+			args: args{
+				obj: &Test{},
+				keyMapper: func(s string) string {
+					return s
+				},
+			},
+			want: []string{
+				"PublicMethod",
+				"PublicMethodPtr",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _ := extractPublicMethods(tt.args.obj, tt.args.keyMapper)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("extractPublicMethods() got = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
-func Test_ExtractPublicMethodsWithString(t *testing.T) {
-	methods, _ := extractPublicMethods(MyString("test"), func(s string) string {
-		return s
-	})
-	for _, method := range methods {
-		t.Logf("Method: %s", method)
-	}
-}
-
-func TestExtractPackageImport(t *testing.T) {
+func Test_extractPackageImport(t *testing.T) {
 	type args struct {
 		val any
 	}
