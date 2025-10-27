@@ -32,8 +32,8 @@ func NewGenFuncConf(source, target, action any) *GenFuncConf {
 		target:        target,
 		action:        action,
 		IgnoreFields:  nil,
-		SourcePkgName: packageName(source),
-		TargetPkgName: packageName(target),
+		SourcePkgName: extractPackageName(source),
+		TargetPkgName: extractPackageName(target),
 	}
 }
 
@@ -63,14 +63,14 @@ func (c *GenFuncConf) WithIgnoreFields(fields ...string) *GenFuncConf {
 // to analyze field mappings and generate appropriate setter calls.
 // Returns the generated Go code as a string or an error if generation fails.
 func GenBindFunc(conf *GenFuncConf) (string, error) {
-	actionName := getStructName(conf.action)
-	sourceName := getStructName(conf.source)
-	targetName := getStructName(conf.target)
+	actionName := typeName(conf.action)
+	sourceName := typeName(conf.source)
+	targetName := typeName(conf.target)
 	funcName := strings.Replace(actionName, sourceName, "", 1) + sourceName
 
-	keys, sourceFields := getPublicFields(conf.source, strcase.ToSnake)
-	_, targetFields := getPublicFields(conf.target, strcase.ToSnake)
-	_, actionMethods := getPublicMethods(conf.action, strcase.ToSnake)
+	keys, sourceFields := extractPublicFields(conf.source, strcase.ToSnake)
+	_, targetFields := extractPublicFields(conf.target, strcase.ToSnake)
+	_, actionMethods := extractPublicMethods(conf.action, strcase.ToSnake)
 
 	context := bindContext{
 		SourcePkgName: conf.SourcePkgName,
@@ -87,7 +87,7 @@ func GenBindFunc(conf *GenFuncConf) (string, error) {
 	for _, field := range conf.IgnoreFields {
 		ignoreFields[strings.ToLower(field)] = true
 	}
-	table := getStructName(conf.source)
+	table := typeName(conf.source)
 
 	for _, n := range keys {
 		if ignoreFields[n] {
@@ -136,8 +136,8 @@ func GenBindFunc(conf *GenFuncConf) (string, error) {
 	}
 
 	parse, err := template.New("gen").Funcs(template.FuncMap{
-		"GenZeroCheck":    genZeroCheck,
-		"GenNotZeroCheck": genNotZeroCheck,
+		"GenZeroCheck":    generateZeroCheckExpr,
+		"GenNotZeroCheck": generateNonZeroCheckExpr,
 		"ToSnakeCase":     strcase.ToSnake,
 	}).Parse(genBindFuncTemplate)
 	if err != nil {

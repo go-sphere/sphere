@@ -8,18 +8,66 @@ import (
 	"strings"
 )
 
-// getPublicFields extracts all public (exported) fields from a struct using reflection.
+// Reflection Utilities
+
+// indirectValue recursively dereferences pointers until a non-pointer value is reached.
+// It returns the final dereferenced reflect.Value.
+func indirectValue(value reflect.Value) reflect.Value {
+	for value.Kind() == reflect.Ptr {
+		value = value.Elem()
+	}
+	return value
+}
+
+// Type Information Extraction
+
+// typeName returns the name of the most deeply dereferenced type of the given value.
+// It handles pointer indirections automatically using reflection.
+func typeName(value any) string {
+	return indirectValue(reflect.ValueOf(value)).Type().Name()
+}
+
+// extractTypeName returns the simple type name without package prefix.
+func extractTypeName(val any) string {
+	value := indirectValue(reflect.ValueOf(val))
+	typeOf := value.Type()
+	return typeOf.Name()
+}
+
+// extractPackagePath returns the full import path of the package containing the type.
+func extractPackagePath(val any) string {
+	value := indirectValue(reflect.ValueOf(val))
+	typeOf := value.Type()
+	return typeOf.PkgPath()
+}
+
+// extractPackageName extracts the package name from a struct value's type information.
+// It returns the first part of the fully qualified type name before the dot.
+// Returns empty string if the value is not a struct or has no package qualifier.
+func extractPackageName(val any) string {
+	value := indirectValue(reflect.ValueOf(val))
+	typeOf := value.Type()
+	fullName := typeOf.String()
+	if !strings.Contains(fullName, ".") {
+		return ""
+	}
+	parts := strings.Split(fullName, ".")
+	return parts[0]
+}
+
+// Struct and Method Inspection
+
+// extractPublicFields extracts all public (exported) fields from a struct using reflection.
 // It returns field names transformed by the keyMapper function and a map of field metadata.
 // Fields that are not exported or are anonymous are excluded from the result.
-func getPublicFields(obj interface{}, keyMapper func(s string) string) ([]string, map[string]reflect.StructField) {
-	val := reflect.ValueOf(obj)
-	for val.Kind() == reflect.Ptr {
-		val = val.Elem()
+func extractPublicFields(obj interface{}, keyMapper func(s string) string) ([]string, map[string]reflect.StructField) {
+	if obj == nil {
+		return nil, nil
 	}
+	val := indirectValue(reflect.ValueOf(obj))
 	if val.Kind() != reflect.Struct {
 		return nil, nil
 	}
-
 	typ := val.Type()
 	keys := make([]string, 0)
 	fields := make(map[string]reflect.StructField)
@@ -39,60 +87,53 @@ func getPublicFields(obj interface{}, keyMapper func(s string) string) ([]string
 	return keys, fields
 }
 
-// getPublicMethods extracts all public methods from a type using reflection.
+// extractPublicMethods extracts all public methods from a type using reflection.
 // It returns method names transformed by the keyMapper function and a map of method metadata.
 // Interface types are not supported and will return nil values.
-func getPublicMethods(obj interface{}, keyMapper func(s string) string) ([]string, map[string]reflect.Method) {
-	typ := reflect.TypeOf(obj)
-	if typ == nil {
+func extractPublicMethods(obj any, keyMapper func(string) string) ([]string, map[string]reflect.Method) {
+	if obj == nil {
 		return nil, nil
 	}
-	for typ.Kind() == reflect.Ptr {
-		typ = typ.Elem()
-	}
-	if typ.Kind() == reflect.Interface {
+	t := reflect.TypeOf(obj)
+	if t.Kind() == reflect.Interface {
 		return nil, nil
 	}
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
 
-	ptrType := reflect.PointerTo(typ)
-	numMethod := ptrType.NumMethod()
-	keys := make([]string, 0, numMethod)
-	methods := make(map[string]reflect.Method, numMethod)
+	types := []reflect.Type{t, reflect.PointerTo(t)}
+	keys := make([]string, 0)
+	methods := make(map[string]reflect.Method)
+	seen := make(map[string]struct{})
 
-	for i := 0; i < numMethod; i++ {
-		method := ptrType.Method(i)
-
-		k := method.Name
-		if keyMapper != nil {
-			k = keyMapper(k)
+	for _, typ := range types {
+		for i := 0; i < typ.NumMethod(); i++ {
+			m := typ.Method(i)
+			if !m.IsExported() {
+				continue
+			}
+			name := m.Name
+			if keyMapper != nil {
+				name = keyMapper(name)
+			}
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			keys = append(keys, name)
+			methods[name] = m
 		}
-
-		keys = append(keys, k)
-		methods[k] = method
 	}
 	return keys, methods
 }
 
-// getStructName extracts the struct type name from any value using reflection.
-// It handles pointer types by dereferencing them to get the underlying struct name.
-// Returns "Unknown" if the value is not a struct type.
-func getStructName(value any) string {
-	v := reflect.ValueOf(value)
-	t := reflect.TypeOf(value)
-	for t.Kind() == reflect.Ptr {
-		t = t.Elem()
-		v = v.Elem()
-	}
-	if v.Kind() == reflect.Struct {
-		return t.Name()
-	}
-	return "Unknown"
-}
+// Code Generation Helpers
 
-// genZeroCheck generates Go code that checks if a struct field contains its zero value.
+// generateZeroCheckExpr generates Go code that checks if a struct field contains its zero value.
 // The generated condition varies based on the field's type (pointer, string, numeric, etc.).
 // This is used in template generation for conditional field processing.
-func genZeroCheck(sourceName string, field reflect.StructField) string {
+func generateZeroCheckExpr(sourceName string, field reflect.StructField) string {
 	if field.Type.Kind() == reflect.Ptr {
 		return fmt.Sprintf("%s.%s == nil", sourceName, field.Name)
 	}
@@ -113,10 +154,10 @@ func genZeroCheck(sourceName string, field reflect.StructField) string {
 	}
 }
 
-// genNotZeroCheck generates Go code that checks if a struct field contains a non-zero value.
-// This is the inverse of genZeroCheck and is used for template generation
+// generateNonZeroCheckExpr generates Go code that checks if a struct field contains a non-zero value.
+// This is the inverse of generateZeroCheckExpr and is used for template generation
 // to create conditions that verify field values are set.
-func genNotZeroCheck(sourceName string, field reflect.StructField) string {
+func generateNonZeroCheckExpr(sourceName string, field reflect.StructField) string {
 	if field.Type.Kind() == reflect.Ptr {
 		return fmt.Sprintf("%s.%s != nil", sourceName, field.Name)
 	}
@@ -137,63 +178,24 @@ func genNotZeroCheck(sourceName string, field reflect.StructField) string {
 	}
 }
 
-func typeName(val any) string {
-	value := reflect.ValueOf(val)
-	for value.Kind() == reflect.Ptr {
-		value = value.Elem()
-	}
-	typeOf := value.Type()
-	return typeOf.Name()
-}
+// Package Information
 
-func packagePath(val any) string {
-	value := reflect.ValueOf(val)
-	for value.Kind() == reflect.Ptr {
-		value = value.Elem()
-	}
-	if value.Kind() != reflect.Struct {
-		return ""
-	}
-	typeOf := value.Type()
-	return typeOf.PkgPath()
-}
-
-// packageName extracts the package name from a struct value's type information.
-// It returns the first part of the fully qualified type name before the dot.
-// Returns empty string if the value is not a struct or has no package qualifier.
-func packageName(val any) string {
-	value := reflect.ValueOf(val)
-	if value.Kind() == reflect.Ptr {
-		value = value.Elem()
-	}
-	if value.Kind() != reflect.Struct {
-		return ""
-	}
-	typeOf := value.Type()
-	fullName := typeOf.String()
-	if !strings.Contains(fullName, ".") {
-		return ""
-	}
-	parts := strings.Split(fullName, ".")
-	return parts[0]
-}
-
-// PackageImport extracts both the package path and package name from a struct value.
+// extractPackageImport extracts both the package path and package name from a struct value.
 // It returns a 2-element array containing the full import path and the package name.
 // This is used for generating proper import statements in code generation.
-func PackageImport(val any) [2]string {
-	pkgName := packageName(val)
-	pkgPath := packagePath(val)
+func extractPackageImport(val any) [2]string {
+	pkgName := extractPackageName(val)
+	pkgPath := extractPackagePath(val)
 	return [2]string{
 		pkgPath,
 		pkgName,
 	}
 }
 
-// compressedImports removes duplicate import entries and sorts them for consistent output.
+// deduplicateImports removes duplicate import entries and sorts them for consistent output.
 // It also optimizes import aliases by removing redundant package names when they match
 // the directory name. This is used in code generation to create clean import statements.
-func compressedImports(extraImports [][2]string) [][2]string {
+func deduplicateImports(extraImports [][2]string) [][2]string {
 	seen := make(map[[2]string]bool)
 	result := make([][2]string, 0, len(extraImports))
 	for _, item := range extraImports {
