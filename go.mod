@@ -17,7 +17,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
-	github.com/iancoleman/strcase v0.3.0
 	github.com/meilisearch/meilisearch-go v0.34.0
 	github.com/minio/minio-go/v7 v7.0.95
 	github.com/qiniu/go-sdk/v7 v7.25.4

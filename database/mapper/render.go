@@ -11,8 +11,8 @@ import (
 // DefaultPageSize defines the standard page size used for pagination operations.
 const DefaultPageSize = 20
 
-// Map transforms a slice of source items to a slice of target items using the provided mapper function.
-// It applies the mapper function to each element and returns a new slice with the transformed results.
+// Map transforms a slice of source items to a slice of target items using the provided entmapper function.
+// It applies the entmapper function to each element and returns a new slice with the transformed results.
 func Map[S any, T any](source []S, mapper func(S) T) []T {
 	result := make([]T, len(source))
 	for i, s := range source {
