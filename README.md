@@ -14,7 +14,7 @@ more, speeding up your development workflow.
 
 - **Pragmatic Monolith Template**
 
-  Start simple with Gin + Wire + Ent in a single binary. Clean architecture that scales
+  Start simple with `sphere layout` in a single binary. Clean architecture that scales
   from MVP to microservices when needed.
   
 - **Complete Code Generation**
@@ -49,9 +49,11 @@ more, speeding up your development workflow.
 
 ## Layout template
 
-- [**`sphere-layout`**](https://github.com/go-sphere/sphere-layout) : Default sphere project layout template.
+- [**`sphere-layout`**](https://github.com/go-sphere/sphere-layout) : Default sphere project layout template with `ent`
+  as ORM.
 - [**`sphere-simple-layout`**](https://github.com/go-sphere/sphere-simple-layout) : A simplified version of the Sphere
   project layout template.
+- [**`sphere-bun-layout`**](https://github.com/go-sphere/sphere-bun-layout) : A layout template with `bun` as ORM.
 
 ## Documentation
 
@@ -64,7 +66,7 @@ more, speeding up your development workflow.
 
 - **Web Framework**: [gin](https://github.com/gin-gonic/gin)
 - **Dependency Injection**: [wire](https://github.com/google/wire)
-- **ORM**: [ent](https://github.com/ent/ent)
+- **ORM**: [ent](https://github.com/ent/ent) or [bun](https://github.com/uptrace/bun)
 - **Docs Generation**: [swag](https://github.com/swaggo/swag)
 - **Protobuf management**: [buf](https://github.com/bufbuild/buf)
 - **Build Tool**: make
