@@ -153,25 +153,10 @@ func (s *Client) DeleteFile(ctx context.Context, key string) error {
 // MoveFile relocates a file from source to destination key within the S3 bucket.
 // It performs a copy operation followed by deletion of the source file.
 func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourceKey = s.keyPreprocess(sourceKey)
-	destinationKey = s.keyPreprocess(destinationKey)
-	if !overwrite {
-		_, err := s.client.StatObject(ctx, s.config.Bucket, destinationKey, minio.StatObjectOptions{})
-		if err == nil {
-			return storageerr.ErrorDistExisted
-		}
-	}
-	_, err := s.client.CopyObject(ctx, minio.CopyDestOptions{
-		Bucket: s.config.Bucket,
-		Object: destinationKey,
-	}, minio.CopySrcOptions{
-		Bucket: s.config.Bucket,
-		Object: sourceKey,
-	})
+	err := s.CopyFile(ctx, sourceKey, destinationKey, overwrite)
 	if err != nil {
 		return err
 	}
-
 	err = s.client.RemoveObject(ctx, s.config.Bucket, sourceKey, minio.RemoveObjectOptions{})
 	if err != nil {
 		return err
