@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-sphere/sphere/server/httpx"
+	"github.com/go-sphere/httpx"
 )
 
 const defaultAllowHeaders = "Origin,Content-Type,Accept,Authorization"

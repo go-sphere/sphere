@@ -1,6 +1,6 @@
 module github.com/go-sphere/sphere
 
-go 1.24.0
+go 1.25
 
 require (
 	github.com/dgraph-io/badger/v4 v4.8.0
@@ -40,6 +40,7 @@ require (
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/go-sphere/httpx v0.0.2-beta.1 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/google/flatbuffers v25.9.23+incompatible // indirect

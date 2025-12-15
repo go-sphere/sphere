@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/core/errors/statuserr"
 )
 
@@ -51,7 +52,7 @@ func ParseError(err error) (code int32, status int32, message string) {
 // AbortWithJsonError terminates the request with a JSON error response.
 // It uses the configured error parser to extract error details and ensures
 // the HTTP status code is valid (200-599 range).
-func AbortWithJsonError(ctx Context, err error) {
+func AbortWithJsonError(ctx httpx.Context, err error) {
 	code, status, message := defaultErrorParser(err)
 	if status < 100 || status > 599 {
 		status = http.StatusInternalServerError

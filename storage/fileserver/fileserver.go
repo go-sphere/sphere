@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/go-sphere/sphere/server/httpx"
+	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/storage"
 )
 

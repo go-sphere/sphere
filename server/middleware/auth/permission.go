@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/server/auth/authorizer"
-	"github.com/go-sphere/sphere/server/httpx"
 )
 
 // AccessControl defines the interface for checking access permissions.

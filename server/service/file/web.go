@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/cache/memory"
-	"github.com/go-sphere/sphere/server/httpx"
 	"github.com/go-sphere/sphere/server/middleware/cors"
 	"github.com/go-sphere/sphere/storage/fileserver"
 	"github.com/go-sphere/sphere/storage/local"

@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/cache"
-	"github.com/go-sphere/sphere/server/httpx"
 	"github.com/go-sphere/sphere/storage"
 	"github.com/google/uuid"
 )

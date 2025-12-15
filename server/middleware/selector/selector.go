@@ -1,7 +1,7 @@
 package selector
 
 import (
-	"github.com/go-sphere/sphere/server/httpx"
+	"github.com/go-sphere/httpx"
 )
 
 // Matcher defines the interface for request matching logic.

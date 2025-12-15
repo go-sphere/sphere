@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/server/auth/authorizer"
-	"github.com/go-sphere/sphere/server/httpx"
 )
 
 const (

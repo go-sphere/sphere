@@ -3,9 +3,9 @@ package online
 import (
 	"time"
 
+	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/cache"
 	"github.com/go-sphere/sphere/cache/mcache"
-	"github.com/go-sphere/sphere/server/httpx"
 )
 
 // Online tracks active users/sessions using a TTL-based cache.

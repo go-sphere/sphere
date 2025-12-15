@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/core/errors/statuserr"
 	"github.com/go-sphere/sphere/log"
 )
@@ -14,7 +15,7 @@ var (
 
 // Value retrieves a typed value from the Gin context.
 // It returns the value and a boolean indicating whether the key exists and the type matches.
-func Value[T any](ctx Context, key string) (T, bool) {
+func Value[T any](ctx httpx.Context, key string) (T, bool) {
 	v, exists := ctx.Get(key)
 	var zero T
 	if !exists {
@@ -28,8 +29,8 @@ func Value[T any](ctx Context, key string) (T, bool) {
 
 // WithRecover wraps a Gin handler with panic recovery.
 // If a panic occurs, it logs the error and returns a standardized internal server error response.
-func WithRecover(message string, handler func(ctx Context) error) Handler {
-	return func(ctx Context) error {
+func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Handler {
+	return func(ctx httpx.Context) error {
 		defer func() {
 			if err := recover(); err != nil {
 				log.Errorf(
@@ -55,8 +56,8 @@ func WithRecover(message string, handler func(ctx Context) error) Handler {
 // WithJson creates a Gin handler that returns JSON responses for typed data.
 // It automatically handles errors by calling AbortWithJsonError and wraps successful
 // responses in a standardized DataResponse structure.
-func WithJson[T any](handler func(ctx Context) (T, error)) Handler {
-	return WithRecover("WithJson panic", func(ctx Context) error {
+func WithJson[T any](handler func(ctx httpx.Context) (T, error)) httpx.Handler {
+	return WithRecover("WithJson panic", func(ctx httpx.Context) error {
 		data, err := handler(ctx)
 		if err != nil {
 			return err
@@ -72,8 +73,8 @@ func WithJson[T any](handler func(ctx Context) (T, error)) Handler {
 // WithText creates a Gin handler that returns plain text responses.
 // It handles errors by calling AbortWithJsonError and returns successful
 // string responses with HTTP 200 status.
-func WithText(handler func(ctx Context) (string, error)) Handler {
-	return WithRecover("WithText panic", func(ctx Context) error {
+func WithText(handler func(ctx httpx.Context) (string, error)) httpx.Handler {
+	return WithRecover("WithText panic", func(ctx httpx.Context) error {
 		data, err := handler(ctx)
 		if err != nil {
 			return err
