@@ -6,6 +6,7 @@ require (
 	github.com/dgraph-io/badger/v4 v4.8.0
 	github.com/dgraph-io/ristretto/v2 v2.3.0
 	github.com/go-sphere/confstore v0.0.4
+	github.com/go-sphere/httpx v0.0.2-beta.1
 	github.com/go-sphere/jsoncompressor v0.0.3
 	github.com/go-telegram/bot v1.17.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
@@ -40,7 +41,6 @@ require (
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-sphere/httpx v0.0.2-beta.1 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/google/flatbuffers v25.9.23+incompatible // indirect

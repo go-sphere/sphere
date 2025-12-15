@@ -10,3 +10,8 @@ lint:
 	golangci-lint fmt --no-config --enable gofmt,goimports
 	golangci-lint run --no-config --fix
 	nilaway -include-pkgs="$(MODULE)" ./...
+
+tags-root:
+	@if [ -z "$(TAG)" ]; then echo "TAG not set. Use TAG=v0.0.1 make tags"; exit 1; fi
+	git tag -a ${TAG} -m "$(TAG)"
+	git push origin --tags

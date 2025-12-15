@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/core/errors/statuserr"
 )
 
@@ -67,8 +68,8 @@ func WithFormAllowExtensions(extensions ...string) WithFormOption {
 // WithFormFileReader creates a Gin handler that processes uploaded files as io.ReadSeekCloser.
 // It validates file size, extension constraints, and passes the file content to the handler function.
 // The handler receives the file as an io.Reader along with the original filename.
-func WithFormFileReader[T any](handler func(ctx Context, file io.ReadSeekCloser, filename string) (*T, error), options ...WithFormOption) Handler {
-	return WithJson(func(ctx Context) (*T, error) {
+func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekCloser, filename string) (*T, error), options ...WithFormOption) httpx.Handler {
+	return WithJson(func(ctx httpx.Context) (*T, error) {
 		opts := newWithFormOptions(options...)
 		file, err := ctx.FormFile(opts.fileFormKey)
 		if err != nil {
@@ -103,8 +104,8 @@ func WithFormFileReader[T any](handler func(ctx Context, file io.ReadSeekCloser,
 // WithFormFileBytes creates a Gin handler that processes uploaded files as byte arrays.
 // It reads the entire file content into memory and passes it to the handler function.
 // This is convenient for smaller files but should be used carefully with large files.
-func WithFormFileBytes[T any](handler func(ctx Context, file []byte, filename string) (*T, error), options ...WithFormOption) Handler {
-	return WithFormFileReader(func(ctx Context, file io.ReadSeekCloser, filename string) (*T, error) {
+func WithFormFileBytes[T any](handler func(ctx httpx.Context, file []byte, filename string) (*T, error), options ...WithFormOption) httpx.Handler {
+	return WithFormFileReader(func(ctx httpx.Context, file io.ReadSeekCloser, filename string) (*T, error) {
 		all, err := io.ReadAll(file)
 		if err != nil {
 			return nil, err
