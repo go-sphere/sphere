@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/go-sphere/sphere/server/auth/authorizer"
+	"github.com/go-sphere/sphere/server/httpx"
 )
 
 const (
@@ -15,7 +15,7 @@ const (
 	AuthorizationPrefixBearer = "Bearer"
 )
 
-func parserToken[T authorizer.UID, C authorizer.Claims[T]](ctx *gin.Context, token string, transform func(text string) (string, error), parser authorizer.Parser[T, C]) error {
+func parserToken[T authorizer.UID, C authorizer.Claims[T]](ctx httpx.Context, token string, transform func(text string) (string, error), parser authorizer.Parser[T, C]) error {
 	if token == "" {
 		return authorizer.TokenNotFoundError
 	}
@@ -47,22 +47,22 @@ func parserToken[T authorizer.UID, C authorizer.Claims[T]](ctx *gin.Context, tok
 }
 
 type options struct {
-	abortWithError func(ctx *gin.Context, err error)
-	loader         func(ctx *gin.Context) (string, error)
+	abortWithError func(ctx httpx.Context, err error)
+	loader         func(ctx httpx.Context) (string, error)
 	transform      func(text string) (string, error)
 	abortOnError   bool
 }
 
 func newOptions(opts ...Option) *options {
 	defaults := &options{
-		abortWithError: func(ctx *gin.Context, err error) {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+		abortWithError: func(ctx httpx.Context, err error) {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, httpx.H{
 				"error":   err.Error(),
 				"message": "没有提供有效的认证信息",
 			})
 		},
-		loader: func(ctx *gin.Context) (string, error) {
-			return ctx.GetHeader(AuthorizationHeader), nil
+		loader: func(ctx httpx.Context) (string, error) {
+			return ctx.Header(AuthorizationHeader), nil
 		},
 		transform: func(text string) (string, error) {
 			return text, nil
@@ -77,26 +77,26 @@ func newOptions(opts ...Option) *options {
 
 type Option func(*options)
 
-func WithAbortWithError(f func(ctx *gin.Context, err error)) Option {
+func WithAbortWithError(f func(ctx httpx.Context, err error)) Option {
 	return func(opts *options) {
 		opts.abortWithError = f
 	}
 }
 
-func WithLoader(f func(ctx *gin.Context) (string, error)) Option {
+func WithLoader(f func(ctx httpx.Context) (string, error)) Option {
 	return func(opts *options) {
 		opts.loader = f
 	}
 }
 
 func WithHeaderLoader(header string) Option {
-	return WithLoader(func(ctx *gin.Context) (string, error) {
-		return ctx.GetHeader(header), nil
+	return WithLoader(func(ctx httpx.Context) (string, error) {
+		return ctx.Header(header), nil
 	})
 }
 
 func WithCookieLoader(cookieName string) Option {
-	return WithLoader(func(ctx *gin.Context) (string, error) {
+	return WithLoader(func(ctx httpx.Context) (string, error) {
 		cookie, err := ctx.Cookie(cookieName)
 		if err != nil {
 			return "", err
@@ -132,22 +132,24 @@ func WithAbortOnError(abort bool) Option {
 	}
 }
 
-// NewAuthMiddleware creates a Gin middleware for JWT authentication.
+// NewAuthMiddleware creates middleware for JWT authentication.
 // It parses tokens using the provided parser and sets authentication context.
 // The middleware can be configured with various options for token loading and error handling.
-func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authorizer.Parser[T, C], options ...Option) gin.HandlerFunc {
+func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authorizer.Parser[T, C], options ...Option) httpx.Middleware {
 	opts := newOptions(options...)
-	return func(ctx *gin.Context) {
-		token, err := opts.loader(ctx)
-		if err != nil && opts.abortOnError {
-			opts.abortWithError(ctx, err)
-			return
+	return func(handler httpx.Handler) httpx.Handler {
+		return func(ctx httpx.Context) error {
+			token, err := opts.loader(ctx)
+			if err != nil && opts.abortOnError {
+				opts.abortWithError(ctx, err)
+				return nil
+			}
+			err = parserToken(ctx, token, opts.transform, parser)
+			if err != nil && opts.abortOnError {
+				opts.abortWithError(ctx, err)
+				return nil
+			}
+			return handler(ctx)
 		}
-		err = parserToken(ctx, token, opts.transform, parser)
-		if err != nil && opts.abortOnError {
-			opts.abortWithError(ctx, err)
-			return
-		}
-		ctx.Next()
 	}
 }

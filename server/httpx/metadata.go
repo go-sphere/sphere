@@ -1,9 +1,7 @@
-package ginx
+package httpx
 
 import (
 	"path"
-
-	"github.com/gin-gonic/gin"
 )
 
 func lastChar(s string) byte {
@@ -40,14 +38,14 @@ func EndpointsToMatches(base string, endpoints ...[][3]string) map[string]map[st
 	return matches
 }
 
-func MatchOperation(base string, endpoints [][3]string, operations ...string) func(ctx *gin.Context) bool {
+func MatchOperation(base string, endpoints [][3]string, operations ...string) func(ctx Context) bool {
 	matches := EndpointsToMatches(base, endpoints)
 	opts := make(map[string]struct{}, len(operations))
 	for _, opt := range operations {
 		opts[opt] = struct{}{}
 	}
-	return func(ctx *gin.Context) bool {
-		if method, ok := matches[ctx.Request.Method]; ok {
+	return func(ctx Context) bool {
+		if method, ok := matches[ctx.Method()]; ok {
 			if opt, exist := method[ctx.FullPath()]; exist {
 				if _, match := opts[opt]; match {
 					return true

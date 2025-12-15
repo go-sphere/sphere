@@ -4,9 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/go-sphere/sphere/cache/memory"
-	"github.com/go-sphere/sphere/server/ginx"
+	"github.com/go-sphere/sphere/server/httpx"
 	"github.com/go-sphere/sphere/server/middleware/cors"
 	"github.com/go-sphere/sphere/storage/fileserver"
 	"github.com/go-sphere/sphere/storage/local"
@@ -14,8 +13,7 @@ import (
 
 // HTTPConfig contains HTTP server configuration for the file service.
 type HTTPConfig struct {
-	Address string   `json:"address" yaml:"address"`
-	Cors    []string `json:"cors" yaml:"cors"`
+	Cors []string `json:"cors" yaml:"cors"`
 }
 
 // Config contains the complete configuration for the file web service.
@@ -26,14 +24,16 @@ type Config struct {
 // Web provides a file upload and download web service with S3-compatible storage.
 type Web struct {
 	config  *Config
+	engine  httpx.Engine
 	server  *http.Server
 	storage *fileserver.S3Adapter
 }
 
 // NewWebServer creates a new file web server with the given configuration and storage adapter.
-func NewWebServer(config *Config, storage *fileserver.S3Adapter) *Web {
+func NewWebServer(config *Config, engine httpx.Engine, storage *fileserver.S3Adapter) *Web {
 	return &Web{
 		config:  config,
+		engine:  engine,
 		storage: storage,
 	}
 }
@@ -61,18 +61,13 @@ func (w *Web) Identifier() string {
 // Start begins serving the file web server with upload and download endpoints.
 // It configures CORS, registers file upload/download handlers, and starts the HTTP server.
 func (w *Web) Start(ctx context.Context) error {
-	engine := gin.Default()
-	cors.Setup(engine, w.config.HTTP.Cors)
-	w.storage.RegisterPutFileUploader(engine)
-	w.storage.RegisterFileDownloader(engine, fileserver.WithCacheControl(3600))
-	w.server = &http.Server{
-		Addr:    w.config.HTTP.Address,
-		Handler: engine.Handler(),
-	}
-	return ginx.Start(w.server)
+	w.engine.Use(cors.NewCORS())
+	w.storage.RegisterPutFileUploader(w.engine.Group("/"))
+	w.storage.RegisterFileDownloader(w.engine.Group("/"), fileserver.WithCacheControl(3600))
+	return w.engine.Start()
 }
 
 // Stop gracefully shuts down the file web server.
 func (w *Web) Stop(ctx context.Context) error {
-	return ginx.Close(ctx, w.server)
+	return httpx.Close(ctx, w.server)
 }

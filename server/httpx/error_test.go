@@ -1,4 +1,4 @@
-package ginx
+package httpx
 
 import (
 	"errors"

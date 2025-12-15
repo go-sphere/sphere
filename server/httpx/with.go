@@ -1,21 +1,20 @@
-package ginx
+package httpx
 
 import (
 	"errors"
 	"fmt"
-	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/go-sphere/sphere/core/errors/statuserr"
 	"github.com/go-sphere/sphere/log"
 )
 
-// Context is a type alias for gin.Context for convenience.
-type Context = gin.Context
+var (
+	errInternalServerPanic = errors.New("ServerError:PANIC")
+)
 
 // Value retrieves a typed value from the Gin context.
 // It returns the value and a boolean indicating whether the key exists and the type matches.
-func Value[T any](ctx *gin.Context, key string) (T, bool) {
+func Value[T any](ctx Context, key string) (T, bool) {
 	v, exists := ctx.Get(key)
 	var zero T
 	if !exists {
@@ -29,8 +28,8 @@ func Value[T any](ctx *gin.Context, key string) (T, bool) {
 
 // WithRecover wraps a Gin handler with panic recovery.
 // If a panic occurs, it logs the error and returns a standardized internal server error response.
-func WithRecover(message string, handler func(ctx *gin.Context)) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
+func WithRecover(message string, handler func(ctx Context) error) Handler {
+	return func(ctx Context) error {
 		defer func() {
 			if err := recover(); err != nil {
 				log.Errorf(
@@ -39,51 +38,47 @@ func WithRecover(message string, handler func(ctx *gin.Context)) gin.HandlerFunc
 				)
 				AbortWithJsonError(ctx,
 					statuserr.InternalServerError(
-						errors.New("ServerError:PANIC"),
+						errInternalServerPanic,
 						fmt.Sprintf("internal server error: %v", err),
 					),
 				)
 			}
 		}()
-		handler(ctx)
+		err := handler(ctx)
+		if err != nil {
+			AbortWithJsonError(ctx, err)
+		}
+		return nil
 	}
 }
 
 // WithJson creates a Gin handler that returns JSON responses for typed data.
 // It automatically handles errors by calling AbortWithJsonError and wraps successful
 // responses in a standardized DataResponse structure.
-func WithJson[T any](handler func(ctx *gin.Context) (T, error)) gin.HandlerFunc {
-	return WithRecover("WithJson panic", func(ctx *gin.Context) {
+func WithJson[T any](handler func(ctx Context) (T, error)) Handler {
+	return WithRecover("WithJson panic", func(ctx Context) error {
 		data, err := handler(ctx)
 		if err != nil {
-			AbortWithJsonError(ctx, err)
-		} else {
-			ctx.JSON(200, DataResponse[T]{
-				Success: true,
-				Data:    data,
-			})
+			return err
 		}
+		ctx.JSON(200, DataResponse[T]{
+			Success: true,
+			Data:    data,
+		})
+		return nil
 	})
 }
 
 // WithText creates a Gin handler that returns plain text responses.
 // It handles errors by calling AbortWithJsonError and returns successful
 // string responses with HTTP 200 status.
-func WithText(handler func(ctx *gin.Context) (string, error)) gin.HandlerFunc {
-	return WithRecover("WithText panic", func(ctx *gin.Context) {
+func WithText(handler func(ctx Context) (string, error)) Handler {
+	return WithRecover("WithText panic", func(ctx Context) error {
 		data, err := handler(ctx)
 		if err != nil {
-			AbortWithJsonError(ctx, err)
-		} else {
-			ctx.String(200, data)
+			return err
 		}
-	})
-}
-
-// WithHandler wraps a standard http.Handler for use as a Gin handler function.
-// It includes panic recovery and delegates the request/response handling to the wrapped handler.
-func WithHandler(h http.Handler) func(ctx *gin.Context) {
-	return WithRecover("WithHandler panic", func(ctx *gin.Context) {
-		h.ServeHTTP(ctx.Writer, ctx.Request)
+		ctx.Text(200, data)
+		return nil
 	})
 }

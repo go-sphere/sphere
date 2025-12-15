@@ -3,8 +3,9 @@ package online
 import (
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-sphere/sphere/cache"
 	"github.com/go-sphere/sphere/cache/mcache"
+	"github.com/go-sphere/sphere/server/httpx"
 )
 
 // Online tracks active users/sessions using a TTL-based cache.
@@ -14,7 +15,7 @@ type Online struct {
 }
 
 // NewOnline creates a new online tracking instance with an in-memory cache.
-func NewOnline() *Online {
+func NewOnline(cache cache.Cache[struct{}]) *Online {
 	return &Online{
 		cache: mcache.NewMapCache[struct{}](),
 	}
@@ -22,13 +23,15 @@ func NewOnline() *Online {
 
 // Middleware creates a Gin middleware that tracks online presence.
 // It extracts a key from the request context and updates the online status with the specified TTL.
-func (l *Online) Middleware(keygen func(ctx *gin.Context) string, ttl time.Duration) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		key := keygen(ctx)
-		if key != "" {
-			_ = l.cache.SetWithTTL(ctx, key, struct{}{}, ttl)
+func (l *Online) Middleware(keygen func(ctx httpx.Context) string, ttl time.Duration) httpx.Middleware {
+	return func(handler httpx.Handler) httpx.Handler {
+		return func(ctx httpx.Context) error {
+			key := keygen(ctx)
+			if key != "" {
+				_ = l.cache.SetWithTTL(ctx, key, struct{}{}, ttl)
+			}
+			return handler(ctx)
 		}
-		ctx.Next()
 	}
 }
 
