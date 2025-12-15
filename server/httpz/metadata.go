@@ -1,4 +1,4 @@
-package httpx
+package httpz
 
 import (
 	"path"

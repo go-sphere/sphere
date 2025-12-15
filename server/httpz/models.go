@@ -1,4 +1,4 @@
-package httpx
+package httpz
 
 // DataResponse represents a successful API response containing typed data.
 // It follows a standard structure for consistent API responses across the application.
