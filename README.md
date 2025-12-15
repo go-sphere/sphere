@@ -64,7 +64,6 @@ more, speeding up your development workflow.
 
 ## Core Dependencies
 
-- **Web Framework**: [gin](https://github.com/gin-gonic/gin)
 - **Dependency Injection**: [wire](https://github.com/google/wire)
 - **ORM**: [ent](https://github.com/ent/ent) or [bun](https://github.com/uptrace/bun)
 - **Docs Generation**: [swag](https://github.com/swaggo/swag)

@@ -1,42 +1,42 @@
 # Repository Guidelines
 
-This repository is a Go library that provides building blocks for Sphere-based services. Keep changes small, tested, and consistent with the existing structure.
-
 ## Project Structure & Module Organization
-- `core/`: boot, tasks, error and safety primitives.
-- `server/`: HTTP helpers (Gin), auth, middleware, service utilities.
-- `database/`: bindings, mappers, SQLite helpers.
-- `cache/`: cache interfaces and implementations (memory, redis, badger) + tests.
-- `storage/`: object storage backends and URL handlers.
-- `infra/`: infrastructure clients (e.g., redis).
-- `mq/`, `search/`, `social/`, `utils/`, `log/`: message queue, search, integrations, utilities, logging.
-- Tests live alongside packages as `*_test.go`.
+
+Sphere is a single Go module (`go.mod` at repo root) with domain packages grouped by concern. Core building blocks live
+under `core` (boot wiring, typed errors, safe helpers, task orchestration) and are consumed by feature packages such as
+`server` (HTTP/auth/reverse proxy), `cache`, `mq`, `search`, `social`, `storage`, `log`, and `utils`. Infrastructure and
+deployment support files sit in `infra`, while generated assets or fixtures belong inside each package’s `test` or
+`internal` subdirectory. Unit and integration tests are co-located with their packages and follow the `_test.go`
+suffix (`server/httpz/error_test.go`, `cache/test/cache_test.go`), so explore the nearest folder when extending
+functionality.
 
 ## Build, Test, and Development Commands
-- `make lint`: format, vet, tidy, run `golangci-lint` and `nilaway`; also runs `go test ./...`.
-- `go test ./...`: run the test suite.
-- `go test -race -cover ./...`: race detector with coverage.
-- `go build ./...`: compile all packages (library only; no binary).
+
+- `go test ./...` — quick way to confirm every package compiles and its tests pass; use before pushing any branch.
+- `make lint` — runs `go fmt`, `go vet`, `go get`, `go test`, `go mod tidy`, `golangci-lint` (with gofmt/goimports
+  rules), and `nilaway` for nil-safety; this is the authoritative “green” signal for CI parity.
+- `go test ./cache/...` or similar scoped commands help iterate rapidly on a single package; mirror the folder path you
+  touch.
 
 ## Coding Style & Naming Conventions
-- Use Go 1.24+. Always `gofmt`/`goimports` (enforced by `make lint`).
-- Packages: lowercase, short, no underscores (e.g., `server/ginx`).
-- Exports: PascalCase for types/functions, non-exports: lowerCamel.
-- Errors: use `errors` package patterns; prefer wrapped errors and typed errors where present.
-- File names mirror the concept (e.g., `logger.go`, `storage.go`).
+
+Code should be gofmt-clean (tabs for indentation, max line length left to gofmt). Keep packages lowercase and concise (
+`search/meilisearch`), exported identifiers in UpperCamelCase, and unexported helpers in lowerCamelCase. Constructors
+follow the `New<Type>` pattern, and context-aware functions accept `context.Context` as their first argument. Do not
+hand-edit import order—`goimports` (via `make lint`) enforces canonical grouping. When touching interfaces, document
+expectations with short comments placed immediately before the type to keep `golangci-lint` happy.
 
 ## Testing Guidelines
-- Place tests in the same package: files end with `_test.go` and functions `TestXxx(t *testing.T)`.
-- Prefer table-driven tests and subtests.
-- Aim for meaningful coverage on new/changed logic; run `go test -race -cover ./...` before pushing.
+
+Prefer table-driven tests using `t.Run` for permutations, mirroring existing suites in `cache/test` and `utils/...`.
+Name files `<feature>_test.go` and keep helper fixtures in the same directory or a `_testdata` folder. Aim to cover new
+error paths and nil-handling since `nilaway` and the logger rely on predictable invariants. Run `go test ./path/...`
+while developing, then `go test ./...` followed by `make lint` before opening a PR; CI expects both.
 
 ## Commit & Pull Request Guidelines
-- Commits: Conventional style (e.g., `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`) as seen in history.
-- PRs: clear description, motivation, and scope; link issues; note breaking changes; include tests and examples.
-- CI must pass. Run `make lint` locally before opening a PR.
 
-## Security & Configuration Tips
-- Do not commit secrets or access tokens; use environment variables or local config.
-- Prefer constructor functions that accept dependencies (for testing and injection).
-- When adding integrations (e.g., storage, mq, redis), provide minimal, secure defaults and clear configuration comments.
-
+History shows `<type>: <imperative summary>` messages (`refactor: rename server/httpx...`). Follow that format (`feat`,
+`fix`, `refactor`, `chore`, etc.) and keep summaries under ~70 characters. Each PR should include: a concise problem
+statement, bullet list of changes, any screenshots/log snippets for behavioral updates, test evidence (`go test ./...`
+output), and links to related issues or specs. Cross-reference directories you touched so reviewers can jump straight to
+the relevant packages.
