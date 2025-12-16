@@ -2,6 +2,7 @@ package cors
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -97,7 +98,7 @@ type config struct {
 
 func newConfig(options ...Option) *config {
 	cfg := &config{
-		allowOrigins: []string{"*"},
+		allowOrigins: []string{""},
 		allowMethods: []string{
 			http.MethodGet,
 			http.MethodPost,
@@ -118,7 +119,7 @@ func newConfig(options ...Option) *config {
 
 func (c *config) compile() {
 	if len(c.allowOrigins) == 0 {
-		c.allowOrigins = []string{"*"}
+		c.allowOrigins = []string{""}
 	}
 	if len(c.allowMethods) == 0 {
 		c.allowMethods = []string{http.MethodOptions}
@@ -181,11 +182,70 @@ func (c *config) resolveOrigin(requestOrigin string) string {
 			}
 			return "*"
 		}
-		if requestOrigin != "" && strings.EqualFold(requestOrigin, allowed) {
+		if originMatches(requestOrigin, allowed) {
 			return requestOrigin
 		}
 	}
 	return ""
+}
+
+func originMatches(requestOrigin, allowed string) bool {
+	if requestOrigin == "" || allowed == "" {
+		return false
+	}
+	if strings.Contains(allowed, "://") {
+		if strings.Contains(allowed, "*") {
+			return wildcardMatch(strings.ToLower(requestOrigin), strings.ToLower(allowed))
+		}
+		return strings.EqualFold(requestOrigin, allowed)
+	}
+
+	host := extractHost(requestOrigin)
+	if host == "" {
+		return false
+	}
+	if strings.Contains(allowed, "*") {
+		return wildcardMatch(strings.ToLower(host), strings.ToLower(allowed))
+	}
+	return strings.EqualFold(host, allowed)
+}
+
+func wildcardMatch(value, pattern string) bool {
+	if pattern == "" {
+		return false
+	}
+	valueIdx, patternIdx := 0, 0
+	starIdx, matchIdx := -1, 0
+
+	for valueIdx < len(value) {
+		switch {
+		case patternIdx < len(pattern) && pattern[patternIdx] == '*':
+			starIdx = patternIdx
+			matchIdx = valueIdx
+			patternIdx++
+		case patternIdx < len(pattern) && pattern[patternIdx] == value[valueIdx]:
+			valueIdx++
+			patternIdx++
+		case starIdx != -1:
+			patternIdx = starIdx + 1
+			matchIdx++
+			valueIdx = matchIdx
+		default:
+			return false
+		}
+	}
+	for patternIdx < len(pattern) && pattern[patternIdx] == '*' {
+		patternIdx++
+	}
+	return patternIdx == len(pattern)
+}
+
+func extractHost(origin string) string {
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return ""
+	}
+	return parsed.Host
 }
 
 func copyStrings(values []string) []string {
