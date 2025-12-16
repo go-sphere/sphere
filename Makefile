@@ -12,7 +12,7 @@ lint:
 	nilaway -include-pkgs="$(MODULE)" ./...
 
 tags-root:
-	@if [ -z "$(TAG)" ]; then echo "TAG not set. Use TAG=v0.0.1 make tags"; exit 1; fi
+	@if [ -z "$(TAG)" ]; then echo "TAG not set. Use TAG=v0.0.1 make tags-root"; exit 1; fi
 	git tag -s ${TAG} -m "$(TAG)"
 	git push origin --tags
 	echo "GOPROXY=direct GONOSUMDB=github.com/go-sphere/sphere go get github.com/go-sphere/sphere@$(TAG)"
