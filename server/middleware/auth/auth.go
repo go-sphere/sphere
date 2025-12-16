@@ -78,6 +78,12 @@ func newOptions(opts ...Option) *options {
 
 type Option func(*options)
 
+func WithAbortWithError(f func(ctx httpx.Context, err error)) Option {
+	return func(opts *options) {
+		opts.abortWithError = f
+	}
+}
+
 func WithLoader(f func(ctx httpx.Context) (string, error)) Option {
 	return func(opts *options) {
 		opts.loader = f
