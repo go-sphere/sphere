@@ -61,7 +61,7 @@ func WithMaxAge(ttl time.Duration) Option {
 // By default it allows all origins, standard HTTP verbs, and reflects requested headers.
 func NewCORS(options ...Option) httpx.Middleware {
 	cfg := newConfig(options...)
-	return func(ctx httpx.Context) error {
+	return func(ctx httpx.Context) {
 		preflight := cfg.apply(
 			ctx.Method(),
 			ctx.Header("Origin"),
@@ -71,9 +71,9 @@ func NewCORS(options ...Option) httpx.Middleware {
 		if preflight {
 			ctx.NoContent(http.StatusNoContent)
 			ctx.Abort()
-			return nil
+			return
 		}
-		return ctx.Next()
+		ctx.Next()
 	}
 }
 

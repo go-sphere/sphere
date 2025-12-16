@@ -50,17 +50,17 @@ func RegisterFileDownloader(route httpx.Router, storage storage.Storage, options
 	if opts.cacheControl != "" {
 		sharedHeaders["Cache-Control"] = opts.cacheControl
 	}
-	route.Handle(http.MethodGet, "/*filename", func(ctx httpx.Context) error {
+	route.Handle(http.MethodGet, "/*filename", func(ctx httpx.Context) {
 		param := ctx.Param("filename")
 		if param == "" {
 			opts.abortWithError(ctx, http.StatusNotFound, errors.New("filename is required"))
-			return nil
+			return
 		}
 		param = param[1:]
 		reader, mime, size, err := storage.DownloadFile(ctx, param)
 		if err != nil {
 			opts.abortWithError(ctx, http.StatusNotFound, err)
-			return nil
+			return
 		}
 		defer func() {
 			_ = reader.Close
@@ -70,7 +70,6 @@ func RegisterFileDownloader(route httpx.Router, storage storage.Storage, options
 			ctx.SetHeader(k, v)
 		}
 		ctx.DataFromReader(200, mime, reader, int(size))
-		return nil
 	})
 }
 
@@ -115,16 +114,16 @@ func newUploadOptions(opts ...UploadOption) *uploadOptions {
 // It accepts multipart form uploads and stores files using the provided key builder.
 func RegisterFormFileUploader(route httpx.Router, storage storage.Storage, keyBuilder FileKeyBuilder, options ...UploadOption) {
 	opts := newUploadOptions(options...)
-	route.Handle(http.MethodPost, "/", func(ctx httpx.Context) error {
+	route.Handle(http.MethodPost, "/", func(ctx httpx.Context) {
 		file, err := ctx.FormFile("file")
 		if err != nil {
 			opts.abortWithError(ctx, http.StatusBadRequest, err)
-			return nil
+			return
 		}
 		read, err := file.Open()
 		if err != nil {
 			opts.abortWithError(ctx, http.StatusInternalServerError, err)
-			return nil
+			return
 		}
 		defer func() {
 			_ = read.Close
@@ -133,9 +132,8 @@ func RegisterFormFileUploader(route httpx.Router, storage storage.Storage, keyBu
 		result, err := storage.UploadFile(ctx, read, filename)
 		if err != nil {
 			opts.abortWithError(ctx, http.StatusInternalServerError, err)
-			return nil
+			return
 		}
 		opts.successWithData(ctx, result, storage.GenerateURL(result))
-		return nil
 	})
 }

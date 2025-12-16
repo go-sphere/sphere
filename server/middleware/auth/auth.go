@@ -138,17 +138,17 @@ func WithAbortOnError(abort bool) Option {
 // The middleware can be configured with various options for token loading and error handling.
 func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authorizer.Parser[T, C], options ...Option) httpx.Middleware {
 	opts := newOptions(options...)
-	return func(ctx httpx.Context) error {
+	return func(ctx httpx.Context) {
 		token, err := opts.loader(ctx)
 		if err != nil && opts.abortOnError {
 			opts.abortWithError(ctx, err)
-			return nil
+			return
 		}
 		err = parserToken(ctx, token, opts.transform, parser)
 		if err != nil && opts.abortOnError {
 			opts.abortWithError(ctx, err)
-			return nil
+			return
 		}
-		return ctx.Next()
+		ctx.Next()
 	}
 }

@@ -30,7 +30,7 @@ func Value[T any](ctx httpx.Context, key string) (T, bool) {
 // WithRecover wraps a Gin handler with panic recovery.
 // If a panic occurs, it logs the error and returns a standardized internal server error response.
 func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Handler {
-	return func(ctx httpx.Context) error {
+	return func(ctx httpx.Context) {
 		defer func() {
 			if err := recover(); err != nil {
 				log.Errorf(
@@ -49,7 +49,6 @@ func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Ha
 		if err != nil {
 			AbortWithJsonError(ctx, err)
 		}
-		return nil
 	}
 }
 

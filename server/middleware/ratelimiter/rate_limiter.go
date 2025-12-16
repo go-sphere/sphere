@@ -67,12 +67,12 @@ func WithSetTTL(ttl time.Duration) Option {
 func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Context) (*rate.Limiter, time.Duration), options ...Option) httpx.Middleware {
 	sf := singleflight.Group{}
 	opts := newOptions(options...)
-	return func(ctx httpx.Context) error {
+	return func(ctx httpx.Context) {
 		k := key(ctx)
 		limiter, exist, gErr := opts.cache.Get(ctx, k)
 		if gErr != nil {
 			opts.abortWithError(ctx, http.StatusInternalServerError, gErr)
-			return nil
+			return
 		}
 		if !exist || limiter == nil {
 			value, nErr, _ := sf.Do(k, func() (interface{}, error) {
@@ -87,16 +87,16 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 			})
 			if nErr != nil {
 				opts.abortWithError(ctx, http.StatusInternalServerError, gErr)
-				return nil
+				return
 			}
 			limiter = value.(*rate.Limiter)
 		}
 		ok := limiter.Allow()
 		if !ok {
 			opts.abortWithError(ctx, http.StatusTooManyRequests, errors.New("rate limit exceeded"))
-			return nil
+			return
 		}
-		return ctx.Next()
+		ctx.Next()
 	}
 }
 

@@ -78,42 +78,41 @@ func (a *S3Adapter) GenerateUploadToken(ctx context.Context, fileName string, di
 // using the original filename mapped from the temporary key.
 func (a *S3Adapter) RegisterPutFileUploader(route httpx.Router, options ...UploadOption) {
 	opts := newUploadOptions(options...)
-	route.Handle(http.MethodPut, "/:key", func(ctx httpx.Context) error {
+	route.Handle(http.MethodPut, "/:key", func(ctx httpx.Context) {
 		key := ctx.Param("key")
 		if key == "" {
 			opts.abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key is required"))
-			return nil
+			return
 		}
 		filename, found, err := a.cache.Get(ctx, key)
 		if err != nil {
 			opts.abortWithError(ctx, http.StatusBadRequest, err)
-			return nil
+			return
 		}
 		if !found {
 			opts.abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key expires or not found"))
-			return nil
+			return
 		}
 		err = a.cache.Del(ctx, key)
 		if err != nil {
 			opts.abortWithError(ctx, http.StatusInternalServerError, err)
-			return nil
+			return
 		}
 		data := ctx.BodyReader()
 		if err != nil {
 			opts.abortWithError(ctx, http.StatusInternalServerError, err)
-			return nil
+			return
 		}
 		if data == nil {
 			opts.abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("empty request body"))
-			return nil
+			return
 		}
 		uploadKey, err := a.UploadFile(ctx, data, string(filename))
 		if err != nil {
 			opts.abortWithError(ctx, http.StatusInternalServerError, err)
-			return nil
+			return
 		}
 		opts.successWithData(ctx, uploadKey, a.GenerateURL(uploadKey))
-		return nil
 	})
 }
 

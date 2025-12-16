@@ -48,7 +48,7 @@ func newPermissionOptions(opts ...PermissionOption) *permissionOptions {
 // using the provided AccessControl implementation.
 func NewPermissionMiddleware(resource string, acl AccessControl, options ...PermissionOption) httpx.Middleware {
 	opts := newPermissionOptions(options...)
-	return func(ctx httpx.Context) error {
+	return func(ctx httpx.Context) {
 		isAllowed := false
 		for _, r := range authorizer.GetCurrentRoles(ctx) {
 			if acl.IsAllowed(r, resource) {
@@ -56,10 +56,10 @@ func NewPermissionMiddleware(resource string, acl AccessControl, options ...Perm
 				break
 			}
 		}
-		if isAllowed {
-			return ctx.Next()
+		if !isAllowed {
+			opts.abortWithError(ctx, http.StatusForbidden, errors.New("no permission to access this resource"))
+			return
 		}
-		opts.abortWithError(ctx, http.StatusForbidden, errors.New("no permission to access this resource"))
-		return nil
+		ctx.Next()
 	}
 }
