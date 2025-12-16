@@ -1,6 +1,7 @@
 package log
 
 import (
+	"errors"
 	"sync/atomic"
 
 	"go.uber.org/zap"
@@ -52,11 +53,6 @@ func Init(config *Config, attrs map[string]any) {
 		WithAttrs(attrs),
 		WithStackAt(zapcore.ErrorLevel),
 	))
-}
-
-// StdBackend returns the underlying *zap.Logger instance from the global logger.
-func StdBackend() *zap.Logger {
-	return std.Load().logger.Desugar()
 }
 
 // Sync flushes any buffered log entries to their destinations.
@@ -112,4 +108,12 @@ func With(options ...Option) Logger {
 	opts = append(opts, options...)
 	opts = append(opts, AddCallerSkip(-1))
 	return std.Load().With(opts...)
+}
+
+func UnwrapZapLogger(logger Logger) (*zap.Logger, error) {
+	zl, ok := logger.(*zapLogger)
+	if !ok {
+		return nil, errors.New("logger is not a zapLogger")
+	}
+	return zl.logger.Desugar(), nil
 }
