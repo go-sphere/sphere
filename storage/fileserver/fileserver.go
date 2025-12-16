@@ -23,9 +23,10 @@ func newDownloaderOptions(opts ...DownloaderOption) *downloaderOptions {
 	defaults := &downloaderOptions{
 		cacheControl: "",
 		abortWithError: func(ctx httpx.Context, status int, err error) {
-			ctx.AbortWithStatusJSON(status, httpx.H{
+			ctx.JSON(status, httpx.H{
 				"error": err.Error(),
 			})
+			ctx.Abort()
 		},
 	}
 	for _, opt := range opts {
@@ -89,9 +90,10 @@ type UploadOption func(*uploadOptions)
 func newUploadOptions(opts ...UploadOption) *uploadOptions {
 	defaults := &uploadOptions{
 		abortWithError: func(ctx httpx.Context, status int, err error) {
-			ctx.AbortWithStatusJSON(status, httpx.H{
+			ctx.JSON(status, httpx.H{
 				"error": err.Error(),
 			})
+			ctx.Abort()
 		},
 		successWithData: func(ctx httpx.Context, key, url string) {
 			ctx.JSON(http.StatusOK, httpx.H{

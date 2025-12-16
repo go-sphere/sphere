@@ -1,7 +1,6 @@
 package fileserver
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -99,12 +98,16 @@ func (a *S3Adapter) RegisterPutFileUploader(route httpx.Router, options ...Uploa
 			opts.abortWithError(ctx, http.StatusInternalServerError, err)
 			return nil
 		}
-		data, err := ctx.GetBodyRaw()
+		data := ctx.BodyReader()
 		if err != nil {
 			opts.abortWithError(ctx, http.StatusInternalServerError, err)
 			return nil
 		}
-		uploadKey, err := a.UploadFile(ctx, bytes.NewReader(data), string(filename))
+		if data == nil {
+			opts.abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("empty request body"))
+			return nil
+		}
+		uploadKey, err := a.UploadFile(ctx, data, string(filename))
 		if err != nil {
 			opts.abortWithError(ctx, http.StatusInternalServerError, err)
 			return nil

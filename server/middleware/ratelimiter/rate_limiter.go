@@ -22,9 +22,10 @@ type options struct {
 func newOptions(opts ...Option) *options {
 	defaults := &options{
 		abortWithError: func(ctx httpx.Context, status int, err error) {
-			ctx.AbortWithStatusJSON(status, httpx.H{
+			ctx.JSON(status, httpx.H{
 				"error": err.Error(),
 			})
+			ctx.Abort()
 		},
 		cache:  memory.NewMemoryCache[*rate.Limiter](),
 		setTTL: 5 * time.Minute,
@@ -66,38 +67,36 @@ func WithSetTTL(ttl time.Duration) Option {
 func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Context) (*rate.Limiter, time.Duration), options ...Option) httpx.Middleware {
 	sf := singleflight.Group{}
 	opts := newOptions(options...)
-	return func(handler httpx.Handler) httpx.Handler {
-		return func(ctx httpx.Context) error {
-			k := key(ctx)
-			limiter, exist, gErr := opts.cache.Get(ctx, k)
-			if gErr != nil {
+	return func(ctx httpx.Context) error {
+		k := key(ctx)
+		limiter, exist, gErr := opts.cache.Get(ctx, k)
+		if gErr != nil {
+			opts.abortWithError(ctx, http.StatusInternalServerError, gErr)
+			return nil
+		}
+		if !exist || limiter == nil {
+			value, nErr, _ := sf.Do(k, func() (interface{}, error) {
+				newLimiter, expire := createLimiter(ctx)
+				setCtx, cancel := context.WithTimeout(context.Background(), opts.setTTL)
+				defer cancel()
+				err := opts.cache.SetWithTTL(setCtx, k, newLimiter, expire)
+				if err != nil {
+					return nil, err
+				}
+				return newLimiter, nil
+			})
+			if nErr != nil {
 				opts.abortWithError(ctx, http.StatusInternalServerError, gErr)
 				return nil
 			}
-			if !exist || limiter == nil {
-				value, nErr, _ := sf.Do(k, func() (interface{}, error) {
-					newLimiter, expire := createLimiter(ctx)
-					setCtx, cancel := context.WithTimeout(context.Background(), opts.setTTL)
-					defer cancel()
-					err := opts.cache.SetWithTTL(setCtx, k, newLimiter, expire)
-					if err != nil {
-						return nil, err
-					}
-					return newLimiter, nil
-				})
-				if nErr != nil {
-					opts.abortWithError(ctx, http.StatusInternalServerError, gErr)
-					return nil
-				}
-				limiter = value.(*rate.Limiter)
-			}
-			ok := limiter.Allow()
-			if !ok {
-				opts.abortWithError(ctx, http.StatusTooManyRequests, errors.New("rate limit exceeded"))
-				return nil
-			}
-			return handler(ctx)
+			limiter = value.(*rate.Limiter)
 		}
+		ok := limiter.Allow()
+		if !ok {
+			opts.abortWithError(ctx, http.StatusTooManyRequests, errors.New("rate limit exceeded"))
+			return nil
+		}
+		return ctx.Next()
 	}
 }
 

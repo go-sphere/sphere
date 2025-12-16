@@ -71,13 +71,14 @@ func NewLogicalAndMatcher(matchers ...Matcher) Matcher {
 // NewSelectorMiddleware creates a chain of middleware that only execute when the matcher condition is met.
 // This allows conditional application of middleware based on request characteristics.
 func NewSelectorMiddleware(matcher Matcher, middlewares ...httpx.Middleware) httpx.Middleware {
-	wrap := httpx.NewMiddlewareChain(middlewares...).Wrap()
-	return func(final httpx.Handler) httpx.Handler {
-		return func(ctx httpx.Context) error {
-			if matcher.Match(ctx) {
-				return wrap(final)(ctx)
+	return func(ctx httpx.Context) error {
+		if matcher.Match(ctx) {
+			for _, mw := range middlewares {
+				if err := mw(ctx); err != nil {
+					return err
+				}
 			}
-			return final(ctx)
 		}
+		return ctx.Next()
 	}
 }

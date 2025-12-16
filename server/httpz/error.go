@@ -57,9 +57,10 @@ func AbortWithJsonError(ctx httpx.Context, err error) {
 	if status < 100 || status > 599 {
 		status = http.StatusInternalServerError
 	}
-	ctx.AbortWithStatusJSON(int(status), ErrorResponse{
+	ctx.JSON(int(status), ErrorResponse{
 		Code:    int(code),
 		Error:   err.Error(),
 		Message: message,
 	})
+	ctx.Abort()
 }

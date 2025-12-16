@@ -56,10 +56,11 @@ type options struct {
 func newOptions(opts ...Option) *options {
 	defaults := &options{
 		abortWithError: func(ctx httpx.Context, err error) {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, httpx.H{
+			ctx.JSON(http.StatusUnauthorized, httpx.H{
 				"error":   err.Error(),
 				"message": "没有提供有效的认证信息",
 			})
+			ctx.Abort()
 		},
 		loader: func(ctx httpx.Context) (string, error) {
 			return ctx.Header(AuthorizationHeader), nil
@@ -76,12 +77,6 @@ func newOptions(opts ...Option) *options {
 }
 
 type Option func(*options)
-
-func WithAbortWithError(f func(ctx httpx.Context, err error)) Option {
-	return func(opts *options) {
-		opts.abortWithError = f
-	}
-}
 
 func WithLoader(f func(ctx httpx.Context) (string, error)) Option {
 	return func(opts *options) {
@@ -137,19 +132,17 @@ func WithAbortOnError(abort bool) Option {
 // The middleware can be configured with various options for token loading and error handling.
 func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authorizer.Parser[T, C], options ...Option) httpx.Middleware {
 	opts := newOptions(options...)
-	return func(handler httpx.Handler) httpx.Handler {
-		return func(ctx httpx.Context) error {
-			token, err := opts.loader(ctx)
-			if err != nil && opts.abortOnError {
-				opts.abortWithError(ctx, err)
-				return nil
-			}
-			err = parserToken(ctx, token, opts.transform, parser)
-			if err != nil && opts.abortOnError {
-				opts.abortWithError(ctx, err)
-				return nil
-			}
-			return handler(ctx)
+	return func(ctx httpx.Context) error {
+		token, err := opts.loader(ctx)
+		if err != nil && opts.abortOnError {
+			opts.abortWithError(ctx, err)
+			return nil
 		}
+		err = parserToken(ctx, token, opts.transform, parser)
+		if err != nil && opts.abortOnError {
+			opts.abortWithError(ctx, err)
+			return nil
+		}
+		return ctx.Next()
 	}
 }

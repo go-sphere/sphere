@@ -31,9 +31,10 @@ func WithAbortForbidden(fn func(ctx httpx.Context, status int, err error)) Permi
 func newPermissionOptions(opts ...PermissionOption) *permissionOptions {
 	defaults := &permissionOptions{
 		abortWithError: func(ctx httpx.Context, status int, err error) {
-			ctx.AbortWithStatusJSON(status, httpx.H{
+			ctx.JSON(status, httpx.H{
 				"error": err.Error(),
 			})
+			ctx.Abort()
 		},
 	}
 	for _, opt := range opts {
@@ -47,20 +48,18 @@ func newPermissionOptions(opts ...PermissionOption) *permissionOptions {
 // using the provided AccessControl implementation.
 func NewPermissionMiddleware(resource string, acl AccessControl, options ...PermissionOption) httpx.Middleware {
 	opts := newPermissionOptions(options...)
-	return func(handler httpx.Handler) httpx.Handler {
-		return func(ctx httpx.Context) error {
-			isAllowed := false
-			for _, r := range authorizer.GetCurrentRoles(ctx) {
-				if acl.IsAllowed(r, resource) {
-					isAllowed = true
-					break
-				}
+	return func(ctx httpx.Context) error {
+		isAllowed := false
+		for _, r := range authorizer.GetCurrentRoles(ctx) {
+			if acl.IsAllowed(r, resource) {
+				isAllowed = true
+				break
 			}
-			if isAllowed {
-				return handler(ctx)
-			}
-			opts.abortWithError(ctx, http.StatusForbidden, errors.New("no permission to access this resource"))
-			return nil
 		}
+		if isAllowed {
+			return ctx.Next()
+		}
+		opts.abortWithError(ctx, http.StatusForbidden, errors.New("no permission to access this resource"))
+		return nil
 	}
 }
