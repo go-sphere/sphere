@@ -1,7 +1,6 @@
 package fileserver
 
 import (
-	"errors"
 	"maps"
 	"net/http"
 	"strconv"
@@ -12,8 +11,7 @@ import (
 
 // downloaderOptions holds configuration for file download operations.
 type downloaderOptions struct {
-	cacheControl   string
-	abortWithError func(ctx httpx.Context, status int, err error)
+	cacheControl string
 }
 
 // DownloaderOption configures file download behavior.
@@ -22,12 +20,6 @@ type DownloaderOption func(o *downloaderOptions)
 func newDownloaderOptions(opts ...DownloaderOption) *downloaderOptions {
 	defaults := &downloaderOptions{
 		cacheControl: "",
-		abortWithError: func(ctx httpx.Context, status int, err error) {
-			ctx.JSON(status, httpx.H{
-				"error": err.Error(),
-			})
-			ctx.Abort()
-		},
 	}
 	for _, opt := range opts {
 		opt(defaults)
@@ -50,17 +42,15 @@ func RegisterFileDownloader(route httpx.Router, storage storage.Storage, options
 	if opts.cacheControl != "" {
 		sharedHeaders["Cache-Control"] = opts.cacheControl
 	}
-	route.Handle(http.MethodGet, "/*filename", func(ctx httpx.Context) {
+	route.Handle(http.MethodGet, "/*filename", func(ctx httpx.Context) error {
 		param := ctx.Param("filename")
 		if param == "" {
-			opts.abortWithError(ctx, http.StatusNotFound, errors.New("filename is required"))
-			return
+			return httpx.NewNotFoundError("filename is required")
 		}
 		param = param[1:]
 		reader, mime, size, err := storage.DownloadFile(ctx, param)
 		if err != nil {
-			opts.abortWithError(ctx, http.StatusNotFound, err)
-			return
+			return httpx.NotFoundError(err)
 		}
 		defer func() {
 			_ = reader.Close
@@ -69,7 +59,7 @@ func RegisterFileDownloader(route httpx.Router, storage storage.Storage, options
 		for k, v := range headers {
 			ctx.SetHeader(k, v)
 		}
-		ctx.DataFromReader(200, mime, reader, int(size))
+		return ctx.DataFromReader(200, mime, reader, int(size))
 	})
 }
 
@@ -79,8 +69,7 @@ type FileKeyBuilder func(ctx httpx.Context, filename string) string
 
 // uploadOptions holds configuration for file upload operations.
 type uploadOptions struct {
-	abortWithError  func(ctx httpx.Context, status int, err error)
-	successWithData func(ctx httpx.Context, key, url string)
+	successWithData func(ctx httpx.Context, key, url string) error
 }
 
 // UploadOption configures file upload behavior and response handling.
@@ -88,14 +77,8 @@ type UploadOption func(*uploadOptions)
 
 func newUploadOptions(opts ...UploadOption) *uploadOptions {
 	defaults := &uploadOptions{
-		abortWithError: func(ctx httpx.Context, status int, err error) {
-			ctx.JSON(status, httpx.H{
-				"error": err.Error(),
-			})
-			ctx.Abort()
-		},
-		successWithData: func(ctx httpx.Context, key, url string) {
-			ctx.JSON(http.StatusOK, httpx.H{
+		successWithData: func(ctx httpx.Context, key, url string) error {
+			return ctx.JSON(http.StatusOK, httpx.H{
 				"success": true,
 				"data": httpx.H{
 					"key": key,
@@ -114,16 +97,14 @@ func newUploadOptions(opts ...UploadOption) *uploadOptions {
 // It accepts multipart form uploads and stores files using the provided key builder.
 func RegisterFormFileUploader(route httpx.Router, storage storage.Storage, keyBuilder FileKeyBuilder, options ...UploadOption) {
 	opts := newUploadOptions(options...)
-	route.Handle(http.MethodPost, "/", func(ctx httpx.Context) {
+	route.Handle(http.MethodPost, "/", func(ctx httpx.Context) error {
 		file, err := ctx.FormFile("file")
 		if err != nil {
-			opts.abortWithError(ctx, http.StatusBadRequest, err)
-			return
+			return httpx.BadRequestError(err)
 		}
 		read, err := file.Open()
 		if err != nil {
-			opts.abortWithError(ctx, http.StatusInternalServerError, err)
-			return
+			return httpx.InternalServerError(err)
 		}
 		defer func() {
 			_ = read.Close
@@ -131,9 +112,8 @@ func RegisterFormFileUploader(route httpx.Router, storage storage.Storage, keyBu
 		filename := keyBuilder(ctx, file.Filename)
 		result, err := storage.UploadFile(ctx, read, filename)
 		if err != nil {
-			opts.abortWithError(ctx, http.StatusInternalServerError, err)
-			return
+			return httpx.InternalServerError(err)
 		}
-		opts.successWithData(ctx, result, storage.GenerateURL(result))
+		return opts.successWithData(ctx, result, storage.GenerateURL(result))
 	})
 }

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/go-sphere/httpx"
-	"github.com/go-sphere/sphere/core/errors/statuserr"
 )
 
 // WithFormOptions contains configuration for file upload handling via multipart forms.
@@ -76,7 +75,7 @@ func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekC
 			return nil, err
 		}
 		if opts.maxSize > 0 && file.Size > opts.maxSize {
-			return nil, statuserr.BadRequestError(
+			return nil, httpx.BadRequestError(
 				errors.New("FileError:FILE_TOO_LARGE"),
 				"File size exceeds maximum allowed size: "+file.Filename,
 			)
@@ -84,7 +83,7 @@ func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekC
 		if opts.allowExtensions != nil {
 			ext := filepath.Ext(file.Filename)
 			if _, ok := opts.allowExtensions[strings.ToLower(ext)]; !ok {
-				return nil, statuserr.BadRequestError(
+				return nil, httpx.BadRequestError(
 					errors.New("FileError:FILE_EXTENSION_NOT_ALLOWED"),
 					"File extension not allowed: "+ext,
 				)

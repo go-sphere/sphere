@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/go-sphere/httpx"
-	"github.com/go-sphere/sphere/core/errors/statuserr"
 	"github.com/go-sphere/sphere/log"
 )
 
@@ -30,7 +29,7 @@ func Value[T any](ctx httpx.Context, key string) (T, bool) {
 // WithRecover wraps a Gin handler with panic recovery.
 // If a panic occurs, it logs the error and returns a standardized internal server error response.
 func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Handler {
-	return func(ctx httpx.Context) {
+	return func(ctx httpx.Context) error {
 		defer func() {
 			if err := recover(); err != nil {
 				log.Errorf(
@@ -38,7 +37,7 @@ func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Ha
 					log.Any("error", err),
 				)
 				AbortWithJsonError(ctx,
-					statuserr.InternalServerError(
+					httpx.InternalServerError(
 						errInternalServerPanic,
 						fmt.Sprintf("internal server error: %v", err),
 					),
@@ -49,6 +48,7 @@ func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Ha
 		if err != nil {
 			AbortWithJsonError(ctx, err)
 		}
+		return nil
 	}
 }
 
@@ -61,11 +61,10 @@ func WithJson[T any](handler func(ctx httpx.Context) (T, error)) httpx.Handler {
 		if err != nil {
 			return err
 		}
-		ctx.JSON(200, DataResponse[T]{
+		return ctx.JSON(200, DataResponse[T]{
 			Success: true,
 			Data:    data,
 		})
-		return nil
 	})
 }
 
@@ -78,7 +77,6 @@ func WithText(handler func(ctx httpx.Context) (string, error)) httpx.Handler {
 		if err != nil {
 			return err
 		}
-		ctx.Text(200, data)
-		return nil
+		return ctx.Text(200, data)
 	})
 }

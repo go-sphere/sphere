@@ -2,7 +2,6 @@ package fileserver
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -78,41 +77,34 @@ func (a *S3Adapter) GenerateUploadToken(ctx context.Context, fileName string, di
 // using the original filename mapped from the temporary key.
 func (a *S3Adapter) RegisterPutFileUploader(route httpx.Router, options ...UploadOption) {
 	opts := newUploadOptions(options...)
-	route.Handle(http.MethodPut, "/:key", func(ctx httpx.Context) {
+	route.Handle(http.MethodPut, "/:key", func(ctx httpx.Context) error {
 		key := ctx.Param("key")
 		if key == "" {
-			opts.abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key is required"))
-			return
+			return httpx.NewBadRequestError("key is required")
 		}
 		filename, found, err := a.cache.Get(ctx, key)
 		if err != nil {
-			opts.abortWithError(ctx, http.StatusBadRequest, err)
-			return
+			return httpx.BadRequestError(err)
 		}
 		if !found {
-			opts.abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("key expires or not found"))
-			return
+			return httpx.NewBadRequestError("key expires or not found")
 		}
 		err = a.cache.Del(ctx, key)
 		if err != nil {
-			opts.abortWithError(ctx, http.StatusInternalServerError, err)
-			return
+			return httpx.InternalServerError(err)
 		}
 		data := ctx.BodyReader()
 		if err != nil {
-			opts.abortWithError(ctx, http.StatusInternalServerError, err)
-			return
+			return httpx.InternalServerError(err)
 		}
 		if data == nil {
-			opts.abortWithError(ctx, http.StatusBadRequest, fmt.Errorf("empty request body"))
-			return
+			return httpx.NewBadRequestError("empty request body")
 		}
 		uploadKey, err := a.UploadFile(ctx, data, string(filename))
 		if err != nil {
-			opts.abortWithError(ctx, http.StatusInternalServerError, err)
-			return
+			return httpx.InternalServerError(err)
 		}
-		opts.successWithData(ctx, uploadKey, a.GenerateURL(uploadKey))
+		return opts.successWithData(ctx, uploadKey, a.GenerateURL(uploadKey))
 	})
 }
 

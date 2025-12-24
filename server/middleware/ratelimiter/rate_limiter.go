@@ -2,7 +2,6 @@ package ratelimiter
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"time"
 
@@ -14,19 +13,12 @@ import (
 )
 
 type options struct {
-	abortWithError func(ctx httpx.Context, status int, err error)
-	cache          cache.Cache[*rate.Limiter]
-	setTTL         time.Duration
+	cache  cache.Cache[*rate.Limiter]
+	setTTL time.Duration
 }
 
 func newOptions(opts ...Option) *options {
 	defaults := &options{
-		abortWithError: func(ctx httpx.Context, status int, err error) {
-			ctx.JSON(status, httpx.H{
-				"error": err.Error(),
-			})
-			ctx.Abort()
-		},
 		cache:  memory.NewMemoryCache[*rate.Limiter](),
 		setTTL: 5 * time.Minute,
 	}
@@ -38,13 +30,6 @@ func newOptions(opts ...Option) *options {
 
 // Option is a functional option for configuring the rate limiter middleware.
 type Option func(*options)
-
-// WithAbort sets a custom error handler for rate limit violations.
-func WithAbort(fn func(ctx httpx.Context, status int, err error)) Option {
-	return func(opts *options) {
-		opts.abortWithError = fn
-	}
-}
 
 // WithCache sets a custom cache implementation for storing rate limiters.
 // The default cache is an in-memory cache.
@@ -67,12 +52,11 @@ func WithSetTTL(ttl time.Duration) Option {
 func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Context) (*rate.Limiter, time.Duration), options ...Option) httpx.Middleware {
 	sf := singleflight.Group{}
 	opts := newOptions(options...)
-	return func(ctx httpx.Context) {
+	return func(ctx httpx.Context) error {
 		k := key(ctx)
 		limiter, exist, gErr := opts.cache.Get(ctx, k)
 		if gErr != nil {
-			opts.abortWithError(ctx, http.StatusInternalServerError, gErr)
-			return
+			return httpx.InternalServerError(gErr)
 		}
 		if !exist || limiter == nil {
 			value, nErr, _ := sf.Do(k, func() (interface{}, error) {
@@ -86,17 +70,15 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 				return newLimiter, nil
 			})
 			if nErr != nil {
-				opts.abortWithError(ctx, http.StatusInternalServerError, gErr)
-				return
+				return httpx.InternalServerError(nErr)
 			}
 			limiter = value.(*rate.Limiter)
 		}
 		ok := limiter.Allow()
 		if !ok {
-			opts.abortWithError(ctx, http.StatusTooManyRequests, errors.New("rate limit exceeded"))
-			return
+			return httpx.NewWithStatus(http.StatusTooManyRequests, "rate limit exceeded")
 		}
-		ctx.Next()
+		return ctx.Next()
 	}
 }
 

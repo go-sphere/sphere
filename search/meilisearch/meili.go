@@ -60,7 +60,9 @@ func PrimaryKey(value string) *string {
 }
 
 func (s *Searcher[T]) Index(ctx context.Context, docs ...T) error {
-	task, err := s.index.AddDocumentsWithContext(ctx, docs, s.primaryKey)
+	task, err := s.index.AddDocumentsWithContext(ctx, docs, &meilisearch.DocumentOptions{
+		PrimaryKey: s.primaryKey,
+	})
 	if err != nil {
 		return err
 	}
@@ -69,7 +71,7 @@ func (s *Searcher[T]) Index(ctx context.Context, docs ...T) error {
 }
 
 func (s *Searcher[T]) Delete(ctx context.Context, ids ...string) error {
-	task, err := s.index.DeleteDocumentsWithContext(ctx, ids)
+	task, err := s.index.DeleteDocumentsWithContext(ctx, ids, &meilisearch.DocumentOptions{})
 	if err != nil {
 		return err
 	}

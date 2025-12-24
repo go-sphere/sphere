@@ -73,12 +73,11 @@ func NewLogicalAndMatcher(matchers ...Matcher) Matcher {
 func NewSelectorMiddleware(matcher Matcher, middlewares ...httpx.Middleware) []httpx.Middleware {
 	val := make([]httpx.Middleware, 0, len(middlewares))
 	for _, m := range middlewares {
-		val = append(val, func(ctx httpx.Context) {
+		val = append(val, func(ctx httpx.Context) error {
 			if matcher.Match(ctx) {
-				m(ctx)
-			} else {
-				ctx.Next()
+				return m(ctx)
 			}
+			return ctx.Next()
 		})
 	}
 	return val

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/go-sphere/sphere/core/errors/multierr"
+	"github.com/go-sphere/sphere/core/task/multierr"
 	"github.com/go-sphere/sphere/log"
 	"golang.org/x/sync/errgroup"
 )

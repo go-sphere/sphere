@@ -24,12 +24,12 @@ func NewOnline(cache cache.Cache[struct{}]) *Online {
 // Middleware creates a Gin middleware that tracks online presence.
 // It extracts a key from the request context and updates the online status with the specified TTL.
 func (l *Online) Middleware(keygen func(ctx httpx.Context) string, ttl time.Duration) httpx.Middleware {
-	return func(ctx httpx.Context) {
+	return func(ctx httpx.Context) error {
 		key := keygen(ctx)
 		if key != "" {
 			_ = l.cache.SetWithTTL(ctx, key, struct{}{}, ttl)
 		}
-		ctx.Next()
+		return ctx.Next()
 	}
 }
 
