@@ -14,10 +14,11 @@ type (
 )
 
 type Options struct {
-	target   *url.URL
-	director func(*http.Request)
-	keygen   RequestCacheKeyFunc
-	checker  ResponseCacheCheckFunc
+	target       *url.URL
+	director     func(*http.Request)
+	errorHandler func(error)
+	keygen       RequestCacheKeyFunc
+	checker      ResponseCacheCheckFunc
 }
 
 type Option = func(*Options)
@@ -38,6 +39,9 @@ func newOptions(opts ...Option) *Options {
 				return false
 			}
 			return true
+		},
+		errorHandler: func(err error) {
+			// default: do nothing
 		},
 	}
 	for _, opt := range opts {
@@ -71,6 +75,12 @@ func WithTargetURL(target *url.URL) Option {
 func WithDirector(director func(*http.Request)) Option {
 	return func(config *Options) {
 		config.director = director
+	}
+}
+
+func WithErrorHandler(handler func(error)) Option {
+	return func(config *Options) {
+		config.errorHandler = handler
 	}
 }
 
@@ -145,6 +155,7 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 			if err := cache.Save(ctx, key, resp.Header, cachePipeReader); err != nil {
 				// Cache save failed, but continue serving client
 				// Error is silently ignored as cache is not critical
+				conf.errorHandler(err)
 			}
 		}()
 

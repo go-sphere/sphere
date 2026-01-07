@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-sphere/sphere/cache/memory"
 	"github.com/go-sphere/sphere/storage/local"
@@ -62,9 +61,6 @@ func TestServeCacheReverseProxy_CacheMiss(t *testing.T) {
 		t.Errorf("Expected 'backend response', got '%s'", body)
 	}
 
-	// Wait a bit for cache to be saved (async operation)
-	time.Sleep(100 * time.Millisecond)
-
 	// Verify cache was populated
 	exists, err := cache.Exists(req.Context(), "/test")
 	if err != nil {
@@ -105,9 +101,6 @@ func TestServeCacheReverseProxy_CacheHit(t *testing.T) {
 	if rec1.Code != http.StatusOK {
 		t.Fatalf("First request failed with status %d", rec1.Code)
 	}
-
-	// Wait for cache to be saved
-	time.Sleep(200 * time.Millisecond)
 
 	// Second request - should hit cache
 	req2 := httptest.NewRequest(http.MethodGet, "/cached", nil)
@@ -150,8 +143,6 @@ func TestServeCacheReverseProxy_NonGETNotCached(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", rec.Code)
 	}
 
-	// Wait and verify cache is empty
-	time.Sleep(100 * time.Millisecond)
 	exists, _ := cache.Exists(req.Context(), "/api/data")
 	if exists {
 		t.Error("POST request should not be cached")
