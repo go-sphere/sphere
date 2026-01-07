@@ -17,7 +17,7 @@ type Cache interface {
 	Exists(ctx context.Context, key string) (bool, error)
 	Delete(ctx context.Context, key string) error
 	Save(ctx context.Context, key string, header http.Header, reader io.Reader) error
-	Load(ctx context.Context, key string) (http.Header, io.Reader, error)
+	Load(ctx context.Context, key string) (http.Header, io.ReadCloser, error)
 	Header(ctx context.Context, key string) (http.Header, error)
 }
 
@@ -63,24 +63,30 @@ func (c *CommonCache) Delete(ctx context.Context, key string) error {
 }
 
 func (c *CommonCache) Save(ctx context.Context, key string, header http.Header, reader io.Reader) error {
-	filename := key // base64.URLEncoding.EncodeToString([]byte(key))
+	filename := key // base64 or uuid
 	cacheFileKey, err := c.storage.UploadFile(ctx, reader, filename)
 	if err != nil {
 		return err
 	}
-	header.Set(cacheFileKeyForReverseProxyBody, cacheFileKey)
-	headerRaw, err := json.Marshal(header)
+	// Clone header to avoid modifying the original
+	headerCopy := header.Clone()
+	headerCopy.Set(cacheFileKeyForReverseProxyBody, cacheFileKey)
+	headerRaw, err := json.Marshal(headerCopy)
 	if err != nil {
+		// Clean up uploaded file on marshal error
+		_ = c.storage.DeleteFile(ctx, cacheFileKey)
 		return err
 	}
 	err = cache.Set(ctx, c.cache, key, headerRaw, c.setCacheOptions...)
 	if err != nil {
+		// Clean up uploaded file on cache set error
+		_ = c.storage.DeleteFile(ctx, cacheFileKey)
 		return err
 	}
 	return nil
 }
 
-func (c *CommonCache) Load(ctx context.Context, key string) (http.Header, io.Reader, error) {
+func (c *CommonCache) Load(ctx context.Context, key string) (http.Header, io.ReadCloser, error) {
 	header, err := c.Header(ctx, key)
 	if err != nil {
 		return nil, nil, err

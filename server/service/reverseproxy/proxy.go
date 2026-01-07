@@ -1,7 +1,6 @@
 package reverseproxy
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -14,15 +13,17 @@ type (
 	ResponseCacheCheckFunc func(*http.Response) bool
 )
 
-type ProxyConfig struct {
+type Options struct {
 	target   *url.URL
 	director func(*http.Request)
 	keygen   RequestCacheKeyFunc
 	checker  ResponseCacheCheckFunc
 }
 
-func NewProxyConfig(opts ...Option) *ProxyConfig {
-	conf := &ProxyConfig{
+type Option = func(*Options)
+
+func newOptions(opts ...Option) *Options {
+	conf := &Options{
 		keygen: func(request *http.Request) string {
 			if request.Method != http.MethodGet {
 				return ""
@@ -45,10 +46,8 @@ func NewProxyConfig(opts ...Option) *ProxyConfig {
 	return conf
 }
 
-type Option = func(*ProxyConfig)
-
 func WithTargetURL(target *url.URL) Option {
-	return func(config *ProxyConfig) {
+	return func(config *Options) {
 		config.target = target
 		if config.director == nil {
 			config.director = func(request *http.Request) {
@@ -70,19 +69,19 @@ func WithTargetURL(target *url.URL) Option {
 }
 
 func WithDirector(director func(*http.Request)) Option {
-	return func(config *ProxyConfig) {
+	return func(config *Options) {
 		config.director = director
 	}
 }
 
 func WithCacheKeyFunc(cacheKeyFunc RequestCacheKeyFunc) Option {
-	return func(config *ProxyConfig) {
+	return func(config *Options) {
 		config.keygen = cacheKeyFunc
 	}
 }
 
 func WithResponseCacheCheck(checker ResponseCacheCheckFunc) Option {
-	return func(config *ProxyConfig) {
+	return func(config *Options) {
 		config.checker = checker
 	}
 }
@@ -92,7 +91,7 @@ func ignoreCloseError(closer func() error) {
 }
 
 func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProxy, error) {
-	conf := NewProxyConfig(opts...)
+	conf := newOptions(opts...)
 	proxy := httputil.NewSingleHostReverseProxy(conf.target)
 	if conf.director != nil {
 		originalDirector := proxy.Director
@@ -120,17 +119,33 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 
 		originalBody := resp.Body
 		resp.Body = clientPipeReader
+
+		// goroutine to copy response body to both client and cache
 		go func() {
-			defer ignoreCloseError(originalBody.Close)
-			defer ignoreCloseError(clientPipeWriter.Close)
-			defer ignoreCloseError(cachePipeWriter.Close)
+			defer func() {
+				ignoreCloseError(originalBody.Close)
+				ignoreCloseError(clientPipeWriter.Close)
+				ignoreCloseError(cachePipeWriter.Close)
+			}()
 			multiWriter := io.MultiWriter(clientPipeWriter, cachePipeWriter)
-			_, _ = io.Copy(multiWriter, originalBody)
+			if _, err := io.Copy(multiWriter, originalBody); err != nil {
+				// Close with error to notify readers
+				_ = clientPipeWriter.CloseWithError(err)
+				_ = cachePipeWriter.CloseWithError(err)
+			}
 		}()
+
+		// goroutine to save cache
 		go func() {
-			defer cacheFlags.Delete(key)
-			defer ignoreCloseError(cachePipeReader.Close)
-			_ = cache.Save(context.Background(), key, resp.Header, cachePipeReader)
+			defer func() {
+				cacheFlags.Delete(key)
+				ignoreCloseError(cachePipeReader.Close)
+			}()
+			ctx := resp.Request.Context()
+			if err := cache.Save(ctx, key, resp.Header, cachePipeReader); err != nil {
+				// Cache save failed, but continue serving client
+				// Error is silently ignored as cache is not critical
+			}
 		}()
 
 		return nil
@@ -138,21 +153,55 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 	return proxy, nil
 }
 
-func ServeCacheReverseProxy(keygen RequestCacheKeyFunc, cache Cache, proxy *httputil.ReverseProxy) func(http.ResponseWriter, *http.Request) {
+type ServeOptions struct {
+	keygen       RequestCacheKeyFunc
+	errorHandler func(http.ResponseWriter, *http.Request, error)
+}
+
+type ServeOption = func(*ServeOptions)
+
+func newServeOptions(opts ...ServeOption) *ServeOptions {
+	conf := &ServeOptions{
+		keygen: func(request *http.Request) string {
+			return request.URL.Path
+		},
+	}
+	for _, opt := range opts {
+		opt(conf)
+	}
+	return conf
+}
+
+func WithServeErrorHandler(handler func(http.ResponseWriter, *http.Request, error)) ServeOption {
+	return func(opts *ServeOptions) {
+		opts.errorHandler = handler
+	}
+}
+
+func WithServeCacheKeyFunc(keygen RequestCacheKeyFunc) ServeOption {
+	return func(opts *ServeOptions) {
+		opts.keygen = keygen
+	}
+}
+
+func ServeCacheReverseProxy(cache Cache, proxy *httputil.ReverseProxy, opts ...ServeOption) func(http.ResponseWriter, *http.Request) {
+	conf := newServeOptions(opts...)
 	return func(w http.ResponseWriter, r *http.Request) {
-		key := keygen(r)
+		key := conf.keygen(r)
 		if key != "" {
-			if header, body, err := cache.Load(r.Context(), key); err == nil {
+			if header, body, err := cache.Load(r.Context(), key); err == nil && body != nil {
+				// Copy headers to response
 				for k, v := range header {
 					for _, vv := range v {
 						w.Header().Add(k, vv)
 					}
 				}
 				w.WriteHeader(http.StatusOK)
-				if closer, ok := body.(io.Closer); ok {
-					defer ignoreCloseError(closer.Close)
+				defer ignoreCloseError(body.Close)
+				if _, cErr := io.Copy(w, body); cErr != nil {
+					conf.errorHandler(w, r, cErr)
+					return
 				}
-				_, _ = io.Copy(w, body)
 				return
 			}
 		}
