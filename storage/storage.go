@@ -42,11 +42,11 @@ type TokenGenerator interface {
 // FileUploader provides file upload capabilities to the storage backend.
 type FileUploader interface {
 	// UploadFile uploads data from a reader to the storage backend with the specified key.
-	// Returns the final storage URL or an error if upload fails.
+	// Returns the storage key or an error if upload fails.
 	UploadFile(ctx context.Context, file io.Reader, key string) (string, error)
 
 	// UploadLocalFile uploads a local file to the storage backend with the specified key.
-	// Returns the final storage URL or an error if upload fails.
+	// Returns the storage key or an error if upload fails.
 	UploadLocalFile(ctx context.Context, file string, key string) (string, error)
 }
 

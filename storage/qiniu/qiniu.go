@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -128,6 +129,14 @@ func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
 	_, err := manager.Stat(n.config.Bucket, key)
 	if err != nil {
+		if errors.Is(err, storage.ErrNoSuchFile) {
+			return false, nil
+		}
+		// Qiniu returns error 612 when file not found
+		var respErr *storage.ErrorInfo
+		if errors.As(err, &respErr) && respErr.Code == 612 {
+			return false, nil
+		}
 		return false, err
 	}
 	return true, nil
