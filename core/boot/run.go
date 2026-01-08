@@ -86,7 +86,7 @@ func run(ctx context.Context, t task.Task, options *options) error {
 	}
 
 	// Execute after stop hooks
-	if err := runHooks(ctx, options.afterStop, "afterStop"); err != nil {
+	if err := runHooks(shutdownCtx, options.afterStop, "afterStop"); err != nil {
 		errs = append(errs, fmt.Errorf("after stop hooks: %w", err))
 	}
 
