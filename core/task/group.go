@@ -37,12 +37,12 @@ func (g *Group) Identifier() string {
 // If any task fails to start, all other tasks will be stopped.
 // Returns an error if the group is already started/stopped or if any task fails.
 func (g *Group) Start(ctx context.Context) error {
-	if !g.started.CompareAndSwap(false, true) {
-		return errors.New("task group already started")
-	}
-
 	if g.stopped.Load() {
 		return errors.New("task group already stopped")
+	}
+
+	if !g.started.CompareAndSwap(false, true) {
+		return errors.New("task group already started")
 	}
 
 	groupCtx, groupCancel := context.WithCancel(ctx)
@@ -55,7 +55,7 @@ func (g *Group) Start(ctx context.Context) error {
 		t := tt
 		eg.Go(func() error {
 			<-egCtx.Done()
-			return execute(ctx, t.Identifier(), t, func(ctx context.Context, task Task) error {
+			return execute(groupCtx, t.Identifier(), t, func(ctx context.Context, task Task) error {
 				log.Infof("<task> %s stopping", t.Identifier())
 				return task.Stop(ctx)
 			})
