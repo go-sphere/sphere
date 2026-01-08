@@ -23,6 +23,26 @@ func NewMapCache[S any]() *Map[string, S] {
 	}
 }
 
+// NewMapCacheWithCapacity creates a new map-based cache with pre-allocated capacity.
+// This can improve performance when the expected number of entries is known in advance.
+func NewMapCacheWithCapacity[S any](capacity int) *Map[string, S] {
+	return &Map[string, S]{
+		store:      make(map[string]S, capacity),
+		expiration: make(map[string]time.Time, capacity),
+	}
+}
+
+// NewCache creates a new map-based cache for string keys and typed values.
+// This is an alias for NewMapCache to match the naming convention of other cache implementations.
+func NewCache[S any]() *Map[string, S] {
+	return NewMapCache[S]()
+}
+
+// NewByteCache creates a new map-based cache for byte slices.
+func NewByteCache() *Map[string, []byte] {
+	return NewMapCache[[]byte]()
+}
+
 func (t *Map[K, S]) Set(ctx context.Context, key K, val S) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()

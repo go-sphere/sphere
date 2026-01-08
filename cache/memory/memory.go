@@ -190,6 +190,12 @@ func (m *Cache[T]) Close() error {
 	return nil
 }
 
+// Wait blocks until all pending writes are processed.
+func (m *Cache[T]) Sync() error {
+	m.cache.Wait()
+	return nil
+}
+
 type ByteCache = Cache[[]byte]
 
 func NewByteCache() *ByteCache {

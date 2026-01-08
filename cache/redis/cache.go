@@ -24,6 +24,16 @@ func NewCache[T any](client *redis.Client, codec codec.Codec) *Cache[T] {
 	}
 }
 
+// GetByteCache returns the underlying ByteCache for direct byte operations.
+func (m *Cache[T]) GetByteCache() *ByteCache {
+	return m.cache
+}
+
+// GetCodec returns the codec used for serialization.
+func (m *Cache[T]) GetCodec() codec.Codec {
+	return m.codec
+}
+
 func (m *Cache[T]) Set(ctx context.Context, key string, val T) error {
 	raw, err := m.codec.Marshal(val)
 	if err != nil {
@@ -96,6 +106,7 @@ func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, e
 		if err != nil {
 			return nil, err
 		}
+		result[key] = val
 	}
 	return result, nil
 }
