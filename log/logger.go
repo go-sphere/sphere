@@ -2,6 +2,7 @@ package log
 
 import (
 	"errors"
+	"log/slog"
 	"sync/atomic"
 
 	"go.uber.org/zap"
@@ -116,4 +117,13 @@ func UnwrapZapLogger(logger Logger) (*zap.Logger, error) {
 		return nil, errors.New("logger is not a zapLogger")
 	}
 	return zl.logger.Desugar(), nil
+}
+
+func UnwarpSlogLogger(logger Logger, options ...Option) (*slog.Logger, error) {
+	zl, ok := logger.(*zapLogger)
+	if !ok {
+		return nil, errors.New("logger is not a zapLogger")
+	}
+	slogLogger := zl.logger.Desugar().Core()
+	return newSlogLogger(slogLogger, options...), nil
 }
