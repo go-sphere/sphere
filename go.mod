@@ -7,8 +7,6 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/go-sphere/confstore v0.0.4
 	github.com/go-sphere/httpx v0.0.2-beta.30
-	github.com/go-sphere/jsoncompressor v0.0.3
-	github.com/go-telegram/bot v1.18.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/meilisearch/meilisearch-go v0.36.0
@@ -18,7 +16,6 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag v1.16.6
-	github.com/telegram-mini-apps/init-data-golang v1.5.0
 	github.com/yitter/idgenerator-go v1.3.3
 	go.uber.org/zap v1.27.1
 	go.uber.org/zap/exp v0.3.0
@@ -28,7 +25,6 @@ require (
 	golang.org/x/time v0.14.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	modernc.org/sqlite v1.44.3
-	resty.dev/v3 v3.0.0-beta.6
 )
 
 require (
