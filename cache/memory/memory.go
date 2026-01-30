@@ -152,6 +152,14 @@ func (m *Cache[T]) Get(ctx context.Context, key string) (T, bool, error) {
 	return val, found, nil
 }
 
+func (m *Cache[T]) GetDel(ctx context.Context, key string) (T, bool, error) {
+	val, found := m.cache.Get(key)
+	if found {
+		m.cache.Del(key)
+	}
+	return val, found, nil
+}
+
 func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, error) {
 	result := make(map[string]T)
 	for _, key := range keys {
@@ -190,7 +198,6 @@ func (m *Cache[T]) Close() error {
 	return nil
 }
 
-// Wait blocks until all pending writes are processed.
 func (m *Cache[T]) Sync() error {
 	m.cache.Wait()
 	return nil

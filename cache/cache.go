@@ -12,6 +12,8 @@ type Core[S any] interface {
 	Set(ctx context.Context, key string, val S) error
 	// Get retrieves a value from the cache by key, returning the value, whether it was found, and any error.
 	Get(ctx context.Context, key string) (S, bool, error)
+	// GetDel retrieves a value from the cache by key and deletes the key, returning the value, whether it was found, and any error.
+	GetDel(ctx context.Context, key string) (S, bool, error)
 	// Del removes a single key from the cache.
 	Del(ctx context.Context, key string) error
 	// Exists checks whether a key exists in the cache.

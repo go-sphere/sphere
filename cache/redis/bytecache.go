@@ -54,6 +54,17 @@ func (c *ByteCache) Get(ctx context.Context, key string) ([]byte, bool, error) {
 	return val, true, nil
 }
 
+func (c *ByteCache) GetDel(ctx context.Context, key string) ([]byte, bool, error) {
+	val, err := c.client.GetDel(ctx, key).Bytes()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return val, true, nil
+}
+
 func (c *ByteCache) MultiGet(ctx context.Context, keys []string) (map[string][]byte, error) {
 	vals, err := c.client.MGet(ctx, keys...).Result()
 	if err != nil {

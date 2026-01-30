@@ -35,6 +35,11 @@ func (n *NoCache[T]) Get(ctx context.Context, key string) (T, bool, error) {
 	return zero, false, nil
 }
 
+func (n *NoCache[T]) GetDel(ctx context.Context, key string) (T, bool, error) {
+	var zero T
+	return zero, false, nil
+}
+
 func (n *NoCache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, error) {
 	return make(map[string]T), nil
 }

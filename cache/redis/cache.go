@@ -90,6 +90,22 @@ func (m *Cache[T]) Get(ctx context.Context, key string) (T, bool, error) {
 	return val, true, nil
 }
 
+func (m *Cache[T]) GetDel(ctx context.Context, key string) (T, bool, error) {
+	raw, found, err := m.cache.GetDel(ctx, key)
+	var val T
+	if err != nil {
+		return val, false, err
+	}
+	if !found {
+		return val, false, nil
+	}
+	err = m.codec.Unmarshal(raw, &val)
+	if err != nil {
+		return val, false, err
+	}
+	return val, true, nil
+}
+
 func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, error) {
 	rawMap, err := m.cache.MultiGet(ctx, keys)
 	if err != nil {

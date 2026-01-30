@@ -106,6 +106,24 @@ func (t *Map[K, S]) Get(ctx context.Context, key K) (S, bool, error) {
 	return val, ok, nil
 }
 
+func (t *Map[K, S]) GetDel(ctx context.Context, key K) (S, bool, error) {
+	t.rw.Lock()
+	defer t.rw.Unlock()
+
+	if exp, ok := t.expiration[key]; ok && time.Now().After(exp) {
+		delete(t.store, key)
+		delete(t.expiration, key)
+		var zeroValue S
+		return zeroValue, false, nil
+	}
+	val, ok := t.store[key]
+	if ok {
+		delete(t.store, key)
+		delete(t.expiration, key)
+	}
+	return val, ok, nil
+}
+
 func (t *Map[K, S]) MultiGet(ctx context.Context, keys []K) (map[K]S, error) {
 	t.rw.RLock()
 	defer t.rw.RUnlock()

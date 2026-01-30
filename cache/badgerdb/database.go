@@ -109,6 +109,28 @@ func (d *Database) Get(ctx context.Context, key string) ([]byte, bool, error) {
 	return val, true, nil
 }
 
+func (d *Database) GetDel(ctx context.Context, key string) ([]byte, bool, error) {
+	var val []byte
+	err := d.db.Update(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(key))
+		if err != nil {
+			return err
+		}
+		val, err = item.ValueCopy(nil)
+		if err != nil {
+			return err
+		}
+		return txn.Delete([]byte(key))
+	})
+	if err != nil {
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return val, true, nil
+}
+
 func (d *Database) MultiGet(ctx context.Context, keys []string) (map[string][]byte, error) {
 	res := make(map[string][]byte)
 	err := d.db.View(func(txn *badger.Txn) error {

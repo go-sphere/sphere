@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-sphere/sphere/cache"
+	"github.com/go-sphere/sphere/core/safe"
 	"github.com/go-sphere/sphere/storage/storageerr"
 	"github.com/go-sphere/sphere/storage/urlhandler"
 )
@@ -68,20 +69,12 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 
 // UploadLocalFile reads a local file and stores it in the cache with the specified key.
 func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
-	key = c.keyPreprocess(key)
-	raw, err := os.ReadFile(file)
+	raw, err := os.Open(file)
 	if err != nil {
 		return "", err
 	}
-	if c.config.Expires != nil {
-		err = c.cache.SetWithTTL(ctx, key, raw, *c.config.Expires)
-	} else {
-		err = c.cache.Set(ctx, key, raw)
-	}
-	if err != nil {
-		return "", err
-	}
-	return key, nil
+	defer safe.IfErrorPresent(raw.Close)
+	return c.UploadFile(ctx, raw, key)
 }
 
 // IsFileExists checks whether a file exists in the cache storage.
