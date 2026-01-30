@@ -7,7 +7,7 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/go-sphere/confstore v0.0.4
 	github.com/go-sphere/httpx v0.0.2-beta.30
-	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/meilisearch/meilisearch-go v0.36.0
 	github.com/minio/minio-go/v7 v7.0.98
