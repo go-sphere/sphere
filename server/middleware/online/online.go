@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/go-sphere/httpx"
-	"github.com/go-sphere/sphere/cache"
 	"github.com/go-sphere/sphere/cache/mcache"
 )
 
@@ -15,7 +14,7 @@ type Online struct {
 }
 
 // NewOnline creates a new online tracking instance with an in-memory cache.
-func NewOnline(cache cache.Cache[struct{}]) *Online {
+func NewOnline() *Online {
 	return &Online{
 		cache: mcache.NewMapCache[struct{}](),
 	}
