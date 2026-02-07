@@ -2,8 +2,6 @@ package cors
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestResolveOriginWildcard(t *testing.T) {
@@ -45,7 +43,10 @@ func TestResolveOriginWildcard(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			cfg := &config{allowOrigins: tt.allowOrigins}
-			require.Equal(t, tt.want, cfg.resolveOrigin(tt.request))
+			got := cfg.resolveOrigin(tt.request)
+			if got != tt.want {
+				t.Fatalf("resolveOrigin(%q) = %q, want %q", tt.request, got, tt.want)
+			}
 		})
 	}
 }
@@ -55,8 +56,12 @@ func TestResolveOriginWildcardCredentials(t *testing.T) {
 	cfg := &config{allowOrigins: []string{"*"}}
 
 	cfg.allowCredentials = false
-	require.Equal(t, "*", cfg.resolveOrigin("https://example.com"))
+	if got := cfg.resolveOrigin("https://example.com"); got != "*" {
+		t.Fatalf("resolveOrigin with credentials disabled = %q, want %q", got, "*")
+	}
 
 	cfg.allowCredentials = true
-	require.Equal(t, "https://example.com", cfg.resolveOrigin("https://example.com"))
+	if got := cfg.resolveOrigin("https://example.com"); got != "https://example.com" {
+		t.Fatalf("resolveOrigin with credentials enabled = %q, want %q", got, "https://example.com")
+	}
 }

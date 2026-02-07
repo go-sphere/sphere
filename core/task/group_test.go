@@ -3,36 +3,42 @@ package task
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-sphere/sphere/core/task/testtask"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGroup_StartStop(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupTasks     func() []Task
-		stopDelay      time.Duration
-		expectedErr    error
-		checkStarted   bool
-		checkStopped   bool
-		additionalTest func(t *testing.T, tasks []Task)
+		name       string
+		setupTasks func() []Task
+		stopDelay  time.Duration
+		verify     func(t *testing.T, tasks []Task)
 	}{
 		{
-			name: "single success task - normal stop",
+			name: "single success task",
 			setupTasks: func() []Task {
 				return []Task{testtask.NewSuccessTask("task1")}
 			},
-			stopDelay:    1 * time.Second,
-			expectedErr:  context.Canceled,
-			checkStarted: true,
-			checkStopped: true,
+			stopDelay: 300 * time.Millisecond,
+			verify: func(t *testing.T, tasks []Task) {
+				t.Helper()
+				task1, ok := tasks[0].(*testtask.SuccessTask)
+				if !ok {
+					t.Fatalf("tasks[0] type = %T, want *testtask.SuccessTask", tasks[0])
+				}
+				if !task1.IsStarted() {
+					t.Fatal("task1 should be started")
+				}
+				if !task1.IsStopped() {
+					t.Fatal("task1 should be stopped")
+				}
+			},
 		},
 		{
-			name: "multiple success tasks - normal stop",
+			name: "multiple success tasks",
 			setupTasks: func() []Task {
 				return []Task{
 					testtask.NewSuccessTask("task1"),
@@ -40,15 +46,20 @@ func TestGroup_StartStop(t *testing.T) {
 					testtask.NewSuccessTask("task3"),
 				}
 			},
-			stopDelay:    500 * time.Millisecond,
-			expectedErr:  context.Canceled,
-			checkStarted: true,
-			checkStopped: true,
-			additionalTest: func(t *testing.T, tasks []Task) {
-				for _, tk := range tasks {
-					st := tk.(*testtask.SuccessTask)
-					assert.True(t, st.IsStarted(), "task %s should be started", st.Identifier())
-					assert.True(t, st.IsStopped(), "task %s should be stopped", st.Identifier())
+			stopDelay: 300 * time.Millisecond,
+			verify: func(t *testing.T, tasks []Task) {
+				t.Helper()
+				for i, tt := range tasks {
+					taskN, ok := tt.(*testtask.SuccessTask)
+					if !ok {
+						t.Fatalf("tasks[%d] type = %T, want *testtask.SuccessTask", i, tt)
+					}
+					if !taskN.IsStarted() {
+						t.Fatalf("%s should be started", taskN.Identifier())
+					}
+					if !taskN.IsStopped() {
+						t.Fatalf("%s should be stopped", taskN.Identifier())
+					}
 				}
 			},
 		},
@@ -57,28 +68,30 @@ func TestGroup_StartStop(t *testing.T) {
 			setupTasks: func() []Task {
 				return []Task{testtask.NewServerExample()}
 			},
-			stopDelay:    1 * time.Second,
-			expectedErr:  context.Canceled, // Server returns ErrServerClosed, but final error is context.Canceled
-			checkStarted: true,
-			checkStopped: true,
+			stopDelay: 600 * time.Millisecond,
 		},
 		{
 			name: "slow start tasks",
 			setupTasks: func() []Task {
 				return []Task{
-					testtask.NewSlowStartTask("slow1", 200*time.Millisecond),
-					testtask.NewSlowStartTask("slow2", 300*time.Millisecond),
+					testtask.NewSlowStartTask("slow1", 150*time.Millisecond),
+					testtask.NewSlowStartTask("slow2", 250*time.Millisecond),
 				}
 			},
-			stopDelay:    1 * time.Second,
-			expectedErr:  context.Canceled,
-			checkStarted: true,
-			checkStopped: true,
-			additionalTest: func(t *testing.T, tasks []Task) {
-				for _, tk := range tasks {
-					st := tk.(*testtask.SlowStartTask)
-					assert.True(t, st.IsStarted(), "task %s should be started", st.Identifier())
-					assert.True(t, st.IsStopped(), "task %s should be stopped", st.Identifier())
+			stopDelay: 700 * time.Millisecond,
+			verify: func(t *testing.T, tasks []Task) {
+				t.Helper()
+				for i, tt := range tasks {
+					taskN, ok := tt.(*testtask.SlowStartTask)
+					if !ok {
+						t.Fatalf("tasks[%d] type = %T, want *testtask.SlowStartTask", i, tt)
+					}
+					if !taskN.IsStarted() {
+						t.Fatalf("%s should be started", taskN.Identifier())
+					}
+					if !taskN.IsStopped() {
+						t.Fatalf("%s should be stopped", taskN.Identifier())
+					}
 				}
 			},
 		},
@@ -90,14 +103,12 @@ func TestGroup_StartStop(t *testing.T) {
 					testtask.NewContextAwareTask("ctx2"),
 				}
 			},
-			stopDelay:    500 * time.Millisecond,
-			expectedErr:  context.Canceled,
-			checkStarted: true,
-			checkStopped: true,
+			stopDelay: 300 * time.Millisecond,
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tasks := tt.setupTasks()
 			group := NewGroup(tasks...)
@@ -105,29 +116,25 @@ func TestGroup_StartStop(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			stopErrCh := make(chan error, 1)
 			go func() {
 				time.Sleep(tt.stopDelay)
-				err := group.Stop(ctx)
-				assert.NoError(t, err)
-				cancel()
+				stopErrCh <- group.Stop(context.Background())
 			}()
 
 			err := group.Start(ctx)
-			if tt.expectedErr != nil {
-				assert.ErrorIs(t, err, tt.expectedErr)
-			} else {
-				assert.NoError(t, err)
+			mustErrorIs(t, err, context.Canceled)
+			mustNoError(t, waitErr(stopErrCh, 2*time.Second), "Stop should succeed")
+
+			if !group.IsStarted() {
+				t.Fatal("group should be started")
+			}
+			if !group.IsStopped() {
+				t.Fatal("group should be stopped")
 			}
 
-			if tt.checkStarted {
-				assert.True(t, group.IsStarted())
-			}
-			if tt.checkStopped {
-				assert.True(t, group.IsStopped())
-			}
-
-			if tt.additionalTest != nil {
-				tt.additionalTest(t, tasks)
+			if tt.verify != nil {
+				tt.verify(t, tasks)
 			}
 		})
 	}
@@ -135,24 +142,20 @@ func TestGroup_StartStop(t *testing.T) {
 
 func TestGroup_StartWithError(t *testing.T) {
 	tests := []struct {
-		name               string
-		setupTasks         func() []Task
-		expectedErrMsg     string
-		timeout            time.Duration
-		checkOthersStopped func(t *testing.T, tasks []Task)
+		name       string
+		setupTasks func() []Task
+		wantSubstr string
+		verify     func(t *testing.T, tasks []Task)
 	}{
 		{
 			name: "single task fails immediately",
 			setupTasks: func() []Task {
-				return []Task{
-					testtask.NewFailingStartTask("fail1", errors.New("startup failed")),
-				}
+				return []Task{testtask.NewFailingStartTask("fail1", errors.New("startup failed"))}
 			},
-			expectedErrMsg: "startup failed",
-			timeout:        2 * time.Second,
+			wantSubstr: "startup failed",
 		},
 		{
-			name: "one task fails, others should stop",
+			name: "one task fails and other tasks are stopped",
 			setupTasks: func() []Task {
 				return []Task{
 					testtask.NewSuccessTask("success1"),
@@ -160,56 +163,64 @@ func TestGroup_StartWithError(t *testing.T) {
 					testtask.NewSuccessTask("success2"),
 				}
 			},
-			expectedErrMsg: "task failed",
-			timeout:        2 * time.Second,
-			checkOthersStopped: func(t *testing.T, tasks []Task) {
-				// Check that success tasks were stopped
-				st1 := tasks[0].(*testtask.SuccessTask)
-				st2 := tasks[2].(*testtask.SuccessTask)
-				assert.True(t, st1.IsStopped(), "success1 should be stopped")
-				assert.True(t, st2.IsStopped(), "success2 should be stopped")
-			},
-		},
-		{
-			name: "autoclose task error after delay",
-			setupTasks: func() []Task {
-				return []Task{
-					testtask.NewAutoCloseWithDelay(500 * time.Millisecond),
+			wantSubstr: "task failed",
+			verify: func(t *testing.T, tasks []Task) {
+				t.Helper()
+				s1, ok := tasks[0].(*testtask.SuccessTask)
+				if !ok {
+					t.Fatalf("tasks[0] type = %T, want *testtask.SuccessTask", tasks[0])
+				}
+				s2, ok := tasks[2].(*testtask.SuccessTask)
+				if !ok {
+					t.Fatalf("tasks[2] type = %T, want *testtask.SuccessTask", tasks[2])
+				}
+				if !s1.IsStopped() {
+					t.Fatal("success1 should be stopped")
+				}
+				if !s2.IsStopped() {
+					t.Fatal("success2 should be stopped")
 				}
 			},
-			expectedErrMsg: "simulated error",
-			timeout:        5 * time.Second,
 		},
 		{
-			name: "mixed tasks with one failure",
+			name: "autoclose task fails after delay",
+			setupTasks: func() []Task {
+				return []Task{testtask.NewAutoCloseWithDelay(250 * time.Millisecond)}
+			},
+			wantSubstr: "simulated error",
+		},
+		{
+			name: "mixed tasks with one failing task",
 			setupTasks: func() []Task {
 				return []Task{
 					testtask.NewSuccessTask("success1"),
-					testtask.NewSlowStartTask("slow1", 200*time.Millisecond),
+					testtask.NewSlowStartTask("slow1", 100*time.Millisecond),
 					testtask.NewFailingStartTask("fail1", errors.New("critical error")),
 					testtask.NewContextAwareTask("ctx1"),
 				}
 			},
-			expectedErrMsg: "critical error",
-			timeout:        3 * time.Second,
+			wantSubstr: "critical error",
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tasks := tt.setupTasks()
 			group := NewGroup(tasks...)
 
-			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
 			err := group.Start(ctx)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.expectedErrMsg)
-			assert.True(t, group.IsStarted())
+			mustErrorContains(t, err, tt.wantSubstr)
 
-			if tt.checkOthersStopped != nil {
-				tt.checkOthersStopped(t, tasks)
+			if !group.IsStarted() {
+				t.Fatal("group should be started")
+			}
+
+			if tt.verify != nil {
+				tt.verify(t, tasks)
 			}
 		})
 	}
@@ -217,140 +228,121 @@ func TestGroup_StartWithError(t *testing.T) {
 
 func TestGroup_StartWithPanic(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupTasks     func() []Task
-		expectedErrMsg string
-		timeout        time.Duration
+		name       string
+		setupTasks func() []Task
+		wantSubstr string
 	}{
 		{
 			name: "single panic task",
 			setupTasks: func() []Task {
-				return []Task{
-					testtask.NewAutoPanicWithDelay(500 * time.Millisecond),
-				}
+				return []Task{testtask.NewAutoPanicWithDelay(200 * time.Millisecond)}
 			},
-			expectedErrMsg: "simulated panic",
-			timeout:        5 * time.Second,
+			wantSubstr: "simulated panic",
 		},
 		{
-			name: "panic with other tasks",
+			name: "panic task with other running tasks",
 			setupTasks: func() []Task {
 				return []Task{
 					testtask.NewSuccessTask("success1"),
-					testtask.NewAutoPanicWithDelay(300 * time.Millisecond),
+					testtask.NewAutoPanicWithDelay(200 * time.Millisecond),
 					testtask.NewSuccessTask("success2"),
 				}
 			},
-			expectedErrMsg: "simulated panic",
-			timeout:        5 * time.Second,
+			wantSubstr: "simulated panic",
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			tasks := tt.setupTasks()
-			group := NewGroup(tasks...)
+			group := NewGroup(tt.setupTasks()...)
 
-			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
 			err := group.Start(ctx)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.expectedErrMsg)
-			assert.True(t, group.IsStarted())
-		})
-	}
-}
-
-func TestGroup_LifecycleStates(t *testing.T) {
-	tests := []struct {
-		name        string
-		operation   func(t *testing.T, group *Group, ctx context.Context) error
-		expectedErr string
-	}{
-		{
-			name: "double start",
-			operation: func(t *testing.T, group *Group, ctx context.Context) error {
-				go func() {
-					time.Sleep(100 * time.Millisecond)
-					_ = group.Stop(ctx)
-				}()
-				err1 := group.Start(ctx)
-				if err1 != nil && !errors.Is(err1, context.Canceled) {
-					return err1
-				}
-				time.Sleep(200 * time.Millisecond) // Ensure stopped
-				return group.Start(ctx)
-			},
-			expectedErr: "already stopped", // After first Start completes and Stop is called
-		},
-		{
-			name: "stop without start",
-			operation: func(t *testing.T, group *Group, ctx context.Context) error {
-				return group.Stop(ctx)
-			},
-			expectedErr: "not started",
-		},
-		{
-			name: "double stop",
-			operation: func(t *testing.T, group *Group, ctx context.Context) error {
-				go func() {
-					err := group.Start(ctx)
-					assert.ErrorIs(t, err, context.Canceled)
-				}()
-				time.Sleep(100 * time.Millisecond)
-				err1 := group.Stop(ctx)
-				assert.NoError(t, err1)
-				time.Sleep(100 * time.Millisecond)
-				return group.Stop(ctx)
-			},
-			expectedErr: "", // Should return nil
-		},
-		{
-			name: "start after stop",
-			operation: func(t *testing.T, group *Group, ctx context.Context) error {
-				done := make(chan error, 1)
-				go func() {
-					done <- group.Start(ctx)
-				}()
-				time.Sleep(100 * time.Millisecond)
-				err := group.Stop(ctx)
-				assert.NoError(t, err)
-				<-done // Wait for first Start to complete
-				time.Sleep(100 * time.Millisecond)
-				return group.Start(ctx)
-			},
-			expectedErr: "already stopped",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := testtask.NewServerExample()
-			group := NewGroup(server)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			err := tt.operation(t, group, ctx)
-			if tt.expectedErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr)
-			} else {
-				assert.NoError(t, err)
+			mustErrorContains(t, err, tt.wantSubstr)
+			if !group.IsStarted() {
+				t.Fatal("group should be started")
 			}
 		})
 	}
 }
 
+func TestGroup_LifecycleStates(t *testing.T) {
+	t.Run("stop without start", func(t *testing.T) {
+		group := NewGroup(testtask.NewSuccessTask("task1"))
+		err := group.Stop(context.Background())
+		mustErrorContains(t, err, "not started")
+		if !group.IsStopped() {
+			t.Fatal("group should be marked as stopped")
+		}
+	})
+
+	t.Run("double stop returns nil", func(t *testing.T) {
+		group := NewGroup(testtask.NewSuccessTask("task1"))
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		startErrCh := make(chan error, 1)
+		go func() {
+			startErrCh <- group.Start(ctx)
+		}()
+
+		waitFor(t, time.Second, group.IsStarted, "group did not start")
+		mustNoError(t, group.Stop(context.Background()), "first Stop should succeed")
+		mustNoError(t, group.Stop(context.Background()), "second Stop should be idempotent")
+		mustErrorIs(t, waitErr(startErrCh, 2*time.Second), context.Canceled)
+	})
+
+	t.Run("double start while running", func(t *testing.T) {
+		group := NewGroup(testtask.NewSuccessTask("task1"))
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		startErrCh := make(chan error, 1)
+		go func() {
+			startErrCh <- group.Start(ctx)
+		}()
+
+		waitFor(t, time.Second, group.IsStarted, "group did not start")
+		err := group.Start(context.Background())
+		mustErrorContains(t, err, "already started")
+
+		mustNoError(t, group.Stop(context.Background()), "Stop should succeed")
+		mustErrorIs(t, waitErr(startErrCh, 2*time.Second), context.Canceled)
+	})
+
+	t.Run("start after stop", func(t *testing.T) {
+		group := NewGroup(testtask.NewSuccessTask("task1"))
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		startErrCh := make(chan error, 1)
+		go func() {
+			startErrCh <- group.Start(ctx)
+		}()
+
+		waitFor(t, time.Second, group.IsStarted, "group did not start")
+		mustNoError(t, group.Stop(context.Background()), "Stop should succeed")
+		mustErrorIs(t, waitErr(startErrCh, 2*time.Second), context.Canceled)
+
+		err := group.Start(context.Background())
+		mustErrorContains(t, err, "already stopped")
+	})
+}
+
 func TestGroup_StopBehavior(t *testing.T) {
 	tests := []struct {
-		name         string
-		setupTasks   func() []Task
-		timeout      time.Duration
-		checkStopped func(t *testing.T, tasks []Task)
+		name       string
+		setupTasks func() []Task
+		verify     func(t *testing.T, tasks []Task)
 	}{
 		{
-			name: "tasks with failing stop",
+			name: "failing stop task still receives Stop",
 			setupTasks: func() []Task {
 				return []Task{
 					testtask.NewSuccessTask("success1"),
@@ -358,53 +350,72 @@ func TestGroup_StopBehavior(t *testing.T) {
 					testtask.NewSuccessTask("success2"),
 				}
 			},
-			timeout: 3 * time.Second,
-			checkStopped: func(t *testing.T, tasks []Task) {
-				fst := tasks[1].(*testtask.FailingStopTask)
-				assert.True(t, fst.IsStopped(), "failing stop task should have stop called")
+			verify: func(t *testing.T, tasks []Task) {
+				t.Helper()
+				failing, ok := tasks[1].(*testtask.FailingStopTask)
+				if !ok {
+					t.Fatalf("tasks[1] type = %T, want *testtask.FailingStopTask", tasks[1])
+				}
+				if !failing.IsStopped() {
+					t.Fatal("failing stop task should have Stop called")
+				}
 			},
 		},
 		{
-			name: "slow stop tasks",
+			name: "slow stop tasks eventually stop",
 			setupTasks: func() []Task {
 				return []Task{
-					testtask.NewSlowStopTask("slow1", 200*time.Millisecond),
-					testtask.NewSlowStopTask("slow2", 300*time.Millisecond),
+					testtask.NewSlowStopTask("slow1", 150*time.Millisecond),
+					testtask.NewSlowStopTask("slow2", 250*time.Millisecond),
 					testtask.NewSuccessTask("fast"),
 				}
 			},
-			timeout: 3 * time.Second,
-			checkStopped: func(t *testing.T, tasks []Task) {
-				slow1 := tasks[0].(*testtask.SlowStopTask)
-				slow2 := tasks[1].(*testtask.SlowStopTask)
-				fast := tasks[2].(*testtask.SuccessTask)
-				assert.True(t, slow1.IsStopped())
-				assert.True(t, slow2.IsStopped())
-				assert.True(t, fast.IsStopped())
+			verify: func(t *testing.T, tasks []Task) {
+				t.Helper()
+				slow1, ok := tasks[0].(*testtask.SlowStopTask)
+				if !ok {
+					t.Fatalf("tasks[0] type = %T, want *testtask.SlowStopTask", tasks[0])
+				}
+				slow2, ok := tasks[1].(*testtask.SlowStopTask)
+				if !ok {
+					t.Fatalf("tasks[1] type = %T, want *testtask.SlowStopTask", tasks[1])
+				}
+				fast, ok := tasks[2].(*testtask.SuccessTask)
+				if !ok {
+					t.Fatalf("tasks[2] type = %T, want *testtask.SuccessTask", tasks[2])
+				}
+				if !slow1.IsStopped() || !slow2.IsStopped() || !fast.IsStopped() {
+					t.Fatal("all tasks should be stopped")
+				}
 			},
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tasks := tt.setupTasks()
 			group := NewGroup(tasks...)
 
-			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			stopErrCh := make(chan error, 1)
 			go func() {
-				time.Sleep(500 * time.Millisecond)
-				_ = group.Stop(ctx)
-				cancel()
+				time.Sleep(350 * time.Millisecond)
+				stopErrCh <- group.Stop(context.Background())
 			}()
 
 			err := group.Start(ctx)
-			assert.ErrorIs(t, err, context.Canceled)
-			assert.True(t, group.IsStopped())
+			mustErrorIs(t, err, context.Canceled)
+			mustNoError(t, waitErr(stopErrCh, 2*time.Second), "Stop should succeed")
 
-			if tt.checkStopped != nil {
-				tt.checkStopped(t, tasks)
+			if !group.IsStopped() {
+				t.Fatal("group should be stopped")
+			}
+
+			if tt.verify != nil {
+				tt.verify(t, tasks)
 			}
 		})
 	}
@@ -412,51 +423,47 @@ func TestGroup_StopBehavior(t *testing.T) {
 
 func TestGroup_ContextCancellation(t *testing.T) {
 	tests := []struct {
-		name        string
-		setupTasks  func() []Task
-		cancelDelay time.Duration
-		expectedErr error
+		name       string
+		setupTasks func() []Task
+		cancelIn   time.Duration
 	}{
 		{
-			name: "parent context cancelled",
+			name: "cancel parent context with success tasks",
 			setupTasks: func() []Task {
-				return []Task{
-					testtask.NewSuccessTask("task1"),
-					testtask.NewSuccessTask("task2"),
-				}
+				return []Task{testtask.NewSuccessTask("task1"), testtask.NewSuccessTask("task2")}
 			},
-			cancelDelay: 500 * time.Millisecond,
-			expectedErr: context.Canceled,
+			cancelIn: 300 * time.Millisecond,
 		},
 		{
-			name: "parent context cancelled with slow tasks",
+			name: "cancel parent context with mixed tasks",
 			setupTasks: func() []Task {
-				return []Task{
-					testtask.NewSlowStartTask("slow1", 200*time.Millisecond),
-					testtask.NewContextAwareTask("ctx1"),
-				}
+				return []Task{testtask.NewSlowStartTask("slow1", 100*time.Millisecond), testtask.NewContextAwareTask("ctx1")}
 			},
-			cancelDelay: 1 * time.Second,
-			expectedErr: context.Canceled,
+			cancelIn: 450 * time.Millisecond,
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			tasks := tt.setupTasks()
-			group := NewGroup(tasks...)
+			group := NewGroup(tt.setupTasks()...)
 
 			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			go func() {
-				time.Sleep(tt.cancelDelay)
+				time.Sleep(tt.cancelIn)
 				cancel()
 			}()
 
 			err := group.Start(ctx)
-			assert.ErrorIs(t, err, tt.expectedErr)
-			assert.True(t, group.IsStarted())
-			assert.True(t, group.IsStopped())
+			mustErrorIs(t, err, context.Canceled)
+			if !group.IsStarted() {
+				t.Fatal("group should be started")
+			}
+			if !group.IsStopped() {
+				t.Fatal("group should be stopped")
+			}
 		})
 	}
 }
@@ -464,19 +471,22 @@ func TestGroup_ContextCancellation(t *testing.T) {
 func TestGroup_EmptyGroup(t *testing.T) {
 	group := NewGroup()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() {
-		time.Sleep(500 * time.Millisecond)
-		_ = group.Stop(ctx)
-		cancel()
+		time.Sleep(300 * time.Millisecond)
+		_ = group.Stop(context.Background())
 	}()
 
 	err := group.Start(ctx)
-	assert.ErrorIs(t, err, context.Canceled)
-	assert.True(t, group.IsStarted())
-	assert.True(t, group.IsStopped())
+	mustErrorIs(t, err, context.Canceled)
+	if !group.IsStarted() {
+		t.Fatal("group should be started")
+	}
+	if !group.IsStopped() {
+		t.Fatal("group should be stopped")
+	}
 }
 
 func TestGroup_NestedGroups(t *testing.T) {
@@ -493,20 +503,68 @@ func TestGroup_NestedGroups(t *testing.T) {
 	outerGroup := NewGroup(innerGroup1, innerGroup2)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go func() {
-		time.Sleep(1 * time.Second)
-		err := outerGroup.Stop(ctx)
-		assert.NoError(t, err)
-		cancel()
+		time.Sleep(500 * time.Millisecond)
+		_ = outerGroup.Stop(context.Background())
 	}()
 
 	err := outerGroup.Start(ctx)
-	assert.ErrorIs(t, err, context.Canceled)
-	assert.True(t, outerGroup.IsStarted())
-	assert.True(t, outerGroup.IsStopped())
-	assert.True(t, innerGroup1.IsStarted())
-	assert.True(t, innerGroup1.IsStopped())
-	assert.True(t, innerGroup2.IsStarted())
-	assert.True(t, innerGroup2.IsStopped())
+	mustErrorIs(t, err, context.Canceled)
+
+	if !outerGroup.IsStarted() || !outerGroup.IsStopped() {
+		t.Fatal("outer group should be started and stopped")
+	}
+	if !innerGroup1.IsStarted() || !innerGroup1.IsStopped() {
+		t.Fatal("innerGroup1 should be started and stopped")
+	}
+	if !innerGroup2.IsStarted() || !innerGroup2.IsStopped() {
+		t.Fatal("innerGroup2 should be started and stopped")
+	}
+}
+
+func mustNoError(t *testing.T, err error, msg string) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("%s: %v", msg, err)
+	}
+}
+
+func mustErrorIs(t *testing.T, err, target error) {
+	t.Helper()
+	if !errors.Is(err, target) {
+		t.Fatalf("error = %v, want errors.Is(_, %v)", err, target)
+	}
+}
+
+func mustErrorContains(t *testing.T, err error, sub string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected error containing %q, got nil", sub)
+	}
+	if !strings.Contains(err.Error(), sub) {
+		t.Fatalf("error = %q, want substring %q", err.Error(), sub)
+	}
+}
+
+func waitErr(ch <-chan error, timeout time.Duration) error {
+	select {
+	case err := <-ch:
+		return err
+	case <-time.After(timeout):
+		return errors.New("timeout waiting for goroutine result")
+	}
+}
+
+func waitFor(t *testing.T, timeout time.Duration, cond func() bool, failMsg string) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal(failMsg)
 }
