@@ -69,7 +69,7 @@ func Debug(msg string, attrs ...any) {
 
 // Debugf logs a debug-level message using printf-style formatting with the global logger.
 func Debugf(format string, args ...any) {
-	std.Load().Debugf(format, args)
+	std.Load().Debugf(format, args...)
 }
 
 // Info logs an info-level message with optional structured attributes using the global logger.
@@ -79,7 +79,7 @@ func Info(msg string, attrs ...any) {
 
 // Infof logs an info-level message using printf-style formatting with the global logger.
 func Infof(format string, args ...any) {
-	std.Load().Infof(format, args)
+	std.Load().Infof(format, args...)
 }
 
 // Warn logs a warning-level message with optional structured attributes using the global logger.
@@ -89,7 +89,7 @@ func Warn(msg string, attrs ...any) {
 
 // Warnf logs a warning-level message using printf-style formatting with the global logger.
 func Warnf(format string, args ...any) {
-	std.Load().Warnf(format, args)
+	std.Load().Warnf(format, args...)
 }
 
 // Error logs an error-level message with optional structured attributes using the global logger.
@@ -99,7 +99,7 @@ func Error(msg string, attrs ...any) {
 
 // Errorf logs an error-level message using printf-style formatting with the global logger.
 func Errorf(format string, args ...any) {
-	std.Load().Errorf(format, args)
+	std.Load().Errorf(format, args...)
 }
 
 // With creates a new logger instance with additional options applied to the global logger.
