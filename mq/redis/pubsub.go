@@ -47,6 +47,10 @@ func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(da
 	defer p.mu.Unlock()
 
 	sub := p.client.Subscribe(ctx, topic)
+	if _, err := sub.Receive(ctx); err != nil {
+		_ = sub.Close()
+		return err
+	}
 	p.subscriptions[topic] = sub
 
 	go func() {

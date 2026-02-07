@@ -276,7 +276,7 @@ func TestGroup_LifecycleStates(t *testing.T) {
 					_ = group.Stop(ctx)
 				}()
 				err1 := group.Start(ctx)
-				if err1 != nil && err1 != context.Canceled {
+				if err1 != nil && !errors.Is(err1, context.Canceled) {
 					return err1
 				}
 				time.Sleep(200 * time.Millisecond) // Ensure stopped

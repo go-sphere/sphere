@@ -78,7 +78,11 @@ func (s *ServerExample) Identifier() string {
 }
 
 func (s *ServerExample) Start(ctx context.Context) error {
-	return s.server.ListenAndServe()
+	err := s.server.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) && ctx.Err() != nil {
+		return errors.Join(ctx.Err(), err)
+	}
+	return err
 }
 
 func (s *ServerExample) Stop(ctx context.Context) error {
