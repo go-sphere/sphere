@@ -2,7 +2,6 @@ package file
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/cache/memory"
@@ -13,7 +12,6 @@ import (
 // Web provides a file upload and download web service with S3-compatible storage.
 type Web struct {
 	engine  httpx.Engine
-	server  *http.Server
 	storage *fileserver.S3Adapter
 }
 
@@ -55,5 +53,5 @@ func (w *Web) Start(ctx context.Context) error {
 
 // Stop gracefully shuts down the file web server.
 func (w *Web) Stop(ctx context.Context) error {
-	return httpx.Close(ctx, w.server)
+	return w.engine.Stop(ctx)
 }
