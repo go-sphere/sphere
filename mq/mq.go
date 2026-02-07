@@ -16,6 +16,11 @@ type Queue[T any] interface {
 	// This operation typically blocks until a message is available or the context is cancelled.
 	Consume(ctx context.Context, topic string) (T, error)
 
+	// TryConsume retrieves the next available message from the specified topic queue without blocking.
+	// The returned bool indicates whether a message was found.
+	// When bool is false, error should be nil.
+	TryConsume(ctx context.Context, topic string) (T, bool, error)
+
 	// PurgeQueue removes all pending messages from the specified topic queue.
 	PurgeQueue(ctx context.Context, topic string) error
 

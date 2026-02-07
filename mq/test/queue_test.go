@@ -2,15 +2,17 @@ package test
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
-	"github.com/go-sphere/sphere/infra/redis"
 	"github.com/go-sphere/sphere/mq"
 	"github.com/go-sphere/sphere/mq/memory"
 	redismq "github.com/go-sphere/sphere/mq/redis"
+	"github.com/go-sphere/sphere/test/redistest"
 )
 
-func testQueue(t *testing.T, queue mq.Queue[int]) {
+func testQueue(t *testing.T, queue mq.Queue[int], testBlocking bool) {
 	topic := "test-topic"
 	ctx := context.Background()
 	err := queue.Publish(ctx, topic, 1)
@@ -47,6 +49,39 @@ func testQueue(t *testing.T, queue mq.Queue[int]) {
 	if data != 3 {
 		t.Fatalf("expected data to be 3, got %d", data)
 	}
+
+	_, found, err := queue.TryConsume(ctx, topic2)
+	if err != nil {
+		t.Fatalf("expected no error on empty non-blocking consume, got %v", err)
+	}
+	if found {
+		t.Fatal("expected no message on empty non-blocking consume")
+	}
+
+	if testBlocking {
+		blockingTopic := "test-topic-blocking"
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			_ = queue.Publish(context.Background(), blockingTopic, 9)
+		}()
+		blockingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		data, err = queue.Consume(blockingCtx, blockingTopic)
+		if err != nil {
+			t.Fatalf("expected no error on blocking consume, got %v", err)
+		}
+		if data != 9 {
+			t.Fatalf("expected data to be 9, got %d", data)
+		}
+
+		emptyTopic := "test-empty-topic"
+		nonBlockingCtx, nonBlockingCancel := context.WithTimeout(ctx, 120*time.Millisecond)
+		defer nonBlockingCancel()
+		_, err = queue.Consume(nonBlockingCtx, emptyTopic)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("expected deadline exceeded for empty blocking consume, got %v", err)
+		}
+	}
 }
 
 func TestQueue_Memory(t *testing.T) {
@@ -57,17 +92,12 @@ func TestQueue_Memory(t *testing.T) {
 			t.Fatalf("expected no error on close, got %v", err)
 		}
 	}()
-	testQueue(t, queue)
+	testQueue(t, queue, true)
 	t.Log("TestQueue_Memory passed")
 }
 
 func TestQueue_Redis(t *testing.T) {
-	client, err := redis.NewClient(&redis.Config{
-		URL: "redis://localhost:6379/0",
-	})
-	if err != nil {
-		t.Skipf("Redis server not available, skipping test: %v", err)
-	}
+	client := redistest.NewTestRedisClient(t)
 	queue, err := redismq.NewQueue[int](
 		redismq.WithClient(client),
 	)
@@ -80,6 +110,6 @@ func TestQueue_Redis(t *testing.T) {
 			t.Fatalf("expected no error on close, got %v", qErr)
 		}
 	}()
-	testQueue(t, queue)
+	testQueue(t, queue, false)
 	t.Log("TestQueue_Redis passed")
 }

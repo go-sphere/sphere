@@ -35,7 +35,11 @@ func NewPubSub[T any](opt ...Option) (*PubSub[T], error) {
 }
 
 func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
-	return p.client.Publish(ctx, topic, data).Err()
+	raw, err := p.codec.Marshal(data)
+	if err != nil {
+		return err
+	}
+	return p.client.Publish(ctx, topic, raw).Err()
 }
 
 func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(data T) error) error {

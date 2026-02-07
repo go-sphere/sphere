@@ -13,7 +13,7 @@ import (
 	"github.com/go-sphere/sphere/cache/nocache"
 	"github.com/go-sphere/sphere/cache/redis"
 	"github.com/go-sphere/sphere/core/safe"
-	redisConn "github.com/go-sphere/sphere/infra/redis"
+	"github.com/go-sphere/sphere/test/redistest"
 )
 
 // testCache tests basic CRUD operations for a cache implementation
@@ -217,12 +217,7 @@ func testTypedCache(ctx context.Context, t *testing.T, cache cache.Cache[string]
 
 // Basic ByteCache Tests
 func TestRedisCache(t *testing.T) {
-	client, err := redisConn.NewClient(&redisConn.Config{
-		URL: "redis://localhost:6379/0",
-	})
-	if err != nil {
-		t.Skipf("Redis server not available, skipping test: %v", err)
-	}
+	client := redistest.NewTestRedisClient(t)
 	db := redis.NewByteCache(client)
 	testCache(context.Background(), t, db)
 }
@@ -297,12 +292,7 @@ func TestNoCache(t *testing.T) {
 
 // Typed Cache Tests
 func TestRedisTypedCache(t *testing.T) {
-	client, err := redisConn.NewClient(&redisConn.Config{
-		URL: "redis://localhost:6379/0",
-	})
-	if err != nil {
-		t.Skipf("Redis server not available, skipping test: %v", err)
-	}
+	client := redistest.NewTestRedisClient(t)
 
 	// Test with string cache
 	stringCache := redis.NewCache[string](client, codec.JsonCodec())

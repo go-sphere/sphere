@@ -3,6 +3,7 @@ module github.com/go-sphere/sphere
 go 1.25.5
 
 require (
+	github.com/alicebob/miniredis/v2 v2.36.1
 	github.com/dgraph-io/badger/v4 v4.9.0
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/go-sphere/confstore v0.0.4
@@ -66,6 +67,7 @@ require (
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/swaggo/files v1.0.1 // indirect
 	github.com/tinylib/msgp v1.6.3 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.39.0 // indirect
 	go.opentelemetry.io/otel/metric v1.39.0 // indirect
