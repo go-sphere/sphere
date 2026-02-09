@@ -1,0 +1,6 @@
+Sphere Framework skill currently does not require bundled runtime assets.
+
+Policy:
+- Do not add sample proto/templates here by default.
+- Add assets only when a task explicitly needs files that must be copied into output artifacts.
+- Keep this directory minimal to avoid misleading signals.
