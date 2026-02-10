@@ -1,56 +1,153 @@
 package fileserver
 
 import (
+	"context"
+	"errors"
+	"io"
 	"maps"
 	"net/http"
-	"strconv"
+	"net/url"
+	"path"
+	"strings"
+	"time"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/sphere/cache"
 	"github.com/go-sphere/sphere/storage"
+	"github.com/go-sphere/sphere/storage/storageerr"
+	"github.com/go-sphere/sphere/storage/urlhandler"
 )
 
-// downloaderOptions holds configuration for file download operations.
-type downloaderOptions struct {
-	cacheControl string
+// Config holds the configuration for S3 adapter operations.
+type Config struct {
+	PublicBase string        `json:"public_base" yaml:"public_base"`
+	PutPrefix  string        `json:"put_prefix" yaml:"put_prefix"`
+	GetPrefix  string        `json:"get_prefix" yaml:"get_prefix"`
+	KeyTTL     time.Duration `json:"key_ttl" yaml:"key_ttl"`
 }
 
-// DownloaderOption configures file download behavior.
-type DownloaderOption func(o *downloaderOptions)
-
-func newDownloaderOptions(opts ...DownloaderOption) *downloaderOptions {
-	defaults := &downloaderOptions{
-		cacheControl: "",
-	}
-	for _, opt := range opts {
-		opt(defaults)
-	}
-	return defaults
+// FileServer provides a caching layer and upload token generation for S3-compatible storage.
+// It extends a base storage implementation with temporary upload URL generation capabilities.
+type FileServer struct {
+	opts    *options
+	config  *Config
+	cache   cache.ByteCache
+	store   storage.Storage
+	handler storage.URLHandler
 }
 
-// WithCacheControl sets the Cache-Control header for downloaded files.
-func WithCacheControl(maxAge uint64) DownloaderOption {
-	return func(o *downloaderOptions) {
-		o.cacheControl = "max-age=" + strconv.FormatUint(maxAge, 10)
+// NewCDNAdapter creates a new CDN adapter with URL and token generation capabilities.
+// It wraps any storage implementation and bridges it to URLStorage/CDNStorage.
+func NewCDNAdapter(config *Config, cache cache.ByteCache, store storage.Storage, options ...Option) (*FileServer, error) {
+	if config == nil {
+		return nil, errors.New("config is required")
 	}
+	if cache == nil {
+		return nil, errors.New("cache is required")
+	}
+	if store == nil {
+		return nil, errors.New("store is required")
+	}
+	if config.KeyTTL == 0 {
+		config.KeyTTL = time.Minute * 5
+	}
+	handler, err := urlhandler.NewHandler(config.PublicBase)
+	if err != nil {
+		return nil, err
+	}
+	opts := newOptions(options...)
+	return &FileServer{
+		opts:    opts,
+		config:  config,
+		cache:   cache,
+		store:   store,
+		handler: handler,
+	}, nil
 }
 
-// RegisterFileDownloader registers a Gin route handler for file downloads from storage.
-// It handles GET requests to serve files directly from the storage backend.
-func RegisterFileDownloader(route httpx.Router, storage storage.Storage, options ...DownloaderOption) {
-	opts := newDownloaderOptions(options...)
+func (a *FileServer) GenerateURL(key string, params ...url.Values) string {
+	return a.handler.GenerateURL(key, params...)
+}
+
+func (a *FileServer) GenerateURLs(keys []string, params ...url.Values) []string {
+	return a.handler.GenerateURLs(keys, params...)
+}
+
+func (a *FileServer) ExtractKeyFromURL(uri string) string {
+	return a.handler.ExtractKeyFromURL(uri)
+}
+
+func (a *FileServer) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
+	return a.handler.ExtractKeyFromURLWithMode(uri, strict)
+}
+
+func (a *FileServer) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
+	return a.store.UploadFile(ctx, file, key)
+}
+
+func (a *FileServer) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
+	return a.store.UploadLocalFile(ctx, file, key)
+}
+
+func (a *FileServer) IsFileExists(ctx context.Context, key string) (bool, error) {
+	return a.store.IsFileExists(ctx, key)
+}
+
+func (a *FileServer) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+	return a.store.DownloadFile(ctx, key)
+}
+
+func (a *FileServer) DeleteFile(ctx context.Context, key string) error {
+	return a.store.DeleteFile(ctx, key)
+}
+
+func (a *FileServer) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	return a.store.MoveFile(ctx, sourceKey, destinationKey, overwrite)
+}
+
+func (a *FileServer) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	return a.store.CopyFile(ctx, sourceKey, destinationKey, overwrite)
+}
+
+// GenerateUploadToken creates a temporary upload URL and token for client-side uploads.
+// Returns the upload URL, final storage key, and public access URL.
+func (a *FileServer) GenerateUploadToken(ctx context.Context, fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {
+	if nameBuilder == nil {
+		return [3]string{}, errors.New("nameBuilder is required")
+	}
+	key := nameBuilder(fileName, dir)
+	newToken, err := a.opts.createFileKey(ctx, a, key)
+	if err != nil {
+		return [3]string{}, err
+	}
+	uri, err := url.JoinPath(a.config.PublicBase, a.config.PutPrefix, newToken)
+	if err != nil {
+		return [3]string{}, err
+	}
+	return [3]string{
+		uri,
+		key,
+		a.GenerateURL(key),
+	}, nil
+}
+
+func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 	sharedHeaders := map[string]string{}
-	if opts.cacheControl != "" {
-		sharedHeaders["Cache-Control"] = opts.cacheControl
+	if a.opts.downloadCacheControl != "" {
+		sharedHeaders["Cache-Control"] = a.opts.downloadCacheControl
 	}
-	route.Handle(http.MethodGet, "/*filename", func(ctx httpx.Context) error {
-		param := ctx.Param("filename")
+	downloadPath := path.Join("/", a.config.GetPrefix, "*filename")
+	route.Handle(http.MethodGet, downloadPath, func(ctx httpx.Context) error {
+		param := normalizeWildcardParam(ctx.Param("filename"))
 		if param == "" {
 			return httpx.NewNotFoundError("filename is required")
 		}
-		param = param[1:]
-		reader, mime, size, err := storage.DownloadFile(ctx, param)
+		reader, mime, size, err := a.store.DownloadFile(ctx, param)
 		if err != nil {
-			return httpx.NotFoundError(err)
+			if errors.Is(err, storageerr.ErrorNotFound) {
+				return httpx.NotFoundError(err)
+			}
+			return httpx.InternalServerError(err)
 		}
 		defer func() {
 			_ = reader.Close()
@@ -63,57 +160,36 @@ func RegisterFileDownloader(route httpx.Router, storage storage.Storage, options
 	})
 }
 
-// FileKeyBuilder generates storage keys from HTTP context and filenames.
-// This allows customization of how uploaded files are named and organized.
-type FileKeyBuilder func(ctx httpx.Context, filename string) string
-
-// uploadOptions holds configuration for file upload operations.
-type uploadOptions struct {
-	successWithData func(ctx httpx.Context, key, url string) error
-}
-
-// UploadOption configures file upload behavior and response handling.
-type UploadOption func(*uploadOptions)
-
-func newUploadOptions(opts ...UploadOption) *uploadOptions {
-	defaults := &uploadOptions{
-		successWithData: func(ctx httpx.Context, key, url string) error {
-			return ctx.JSON(http.StatusOK, httpx.H{
-				"success": true,
-				"data": httpx.H{
-					"key": key,
-					"url": url,
-				},
-			})
-		},
-	}
-	for _, opt := range opts {
-		opt(defaults)
-	}
-	return defaults
-}
-
-// RegisterFormFileUploader registers a Gin route handler for form-based file uploads.
-// It accepts multipart form uploads and stores files using the provided key builder.
-func RegisterFormFileUploader(route httpx.Router, storage storage.Storage, keyBuilder FileKeyBuilder, options ...UploadOption) {
-	opts := newUploadOptions(options...)
-	route.Handle(http.MethodPost, "/", func(ctx httpx.Context) error {
-		file, err := ctx.FormFile("file")
-		if err != nil {
-			return httpx.BadRequestError(err)
+func (a *FileServer) RegisterFileUploader(route httpx.Router) {
+	uploadPath := path.Join("/", a.config.PutPrefix, ":key")
+	route.Handle(http.MethodPut, uploadPath, func(ctx httpx.Context) error {
+		key := ctx.Param("key")
+		if key == "" {
+			return httpx.NewBadRequestError("key is required")
 		}
-		read, err := file.Open()
+		filename, found, err := a.cache.Get(ctx, key)
 		if err != nil {
 			return httpx.InternalServerError(err)
 		}
-		defer func() {
-			_ = read.Close()
-		}()
-		filename := keyBuilder(ctx, file.Filename)
-		result, err := storage.UploadFile(ctx, read, filename)
+		if !found {
+			return httpx.NewBadRequestError("key expires or not found")
+		}
+		err = a.cache.Del(ctx, key)
 		if err != nil {
 			return httpx.InternalServerError(err)
 		}
-		return opts.successWithData(ctx, result, storage.GenerateURL(result))
+		data := ctx.BodyReader()
+		if data == nil {
+			return httpx.NewBadRequestError("empty request body")
+		}
+		uploadKey, err := a.UploadFile(ctx, data, string(filename))
+		if err != nil {
+			return httpx.InternalServerError(err)
+		}
+		return a.opts.uploadSuccessWithData(ctx, uploadKey, a.GenerateURL(uploadKey))
 	})
+}
+
+func normalizeWildcardParam(raw string) string {
+	return strings.TrimPrefix(raw, "/")
 }

@@ -11,21 +11,17 @@ import (
 	"time"
 
 	"github.com/go-sphere/sphere/cache"
-	"github.com/go-sphere/sphere/core/safe"
 	"github.com/go-sphere/sphere/storage/storageerr"
-	"github.com/go-sphere/sphere/storage/urlhandler"
 )
 
 // Config holds the configuration for cache-based storage operations.
 type Config struct {
-	Expires    *time.Duration `json:"expires" yaml:"expires"`
-	PublicBase string         `json:"public_base" yaml:"public_base"`
+	Expires *time.Duration `json:"expires" yaml:"expires"`
 }
 
 // Client provides cache-based storage operations where files are stored in a byte cache.
 // This is useful for temporary storage or small files that benefit from fast cache access.
 type Client struct {
-	urlhandler.Handler
 	config *Config
 	cache  cache.ByteCache
 }
@@ -33,14 +29,9 @@ type Client struct {
 // NewClient creates a new cache-based storage client with the provided configuration and cache backend.
 // If no expiration time is specified, files are cached indefinitely.
 func NewClient(config *Config, cache cache.ByteCache) (*Client, error) {
-	handler, err := urlhandler.NewHandler(config.PublicBase)
-	if err != nil {
-		return nil, err
-	}
 	return &Client{
-		Handler: *handler,
-		config:  config,
-		cache:   cache,
+		config: config,
+		cache:  cache,
 	}, nil
 }
 
@@ -73,7 +64,9 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	if err != nil {
 		return "", err
 	}
-	defer safe.IfErrorPresent(raw.Close)
+	defer func() {
+		_ = raw.Close()
+	}()
 	return c.UploadFile(ctx, raw, key)
 }
 

@@ -3,16 +3,20 @@ package storage
 import (
 	"context"
 	"io"
+	"net/url"
 )
 
 // URLHandler provides URL generation and key extraction capabilities for storage backends.
 // This interface enables URL-based access to stored files and reverse key lookup from URLs.
 type URLHandler interface {
 	// GenerateURL creates a public URL for accessing the file identified by the given key.
-	GenerateURL(key string) string
+	// Optional params are encoded into query string. When multiple values are provided,
+	// only the first non-nil params is used.
+	GenerateURL(key string, params ...url.Values) string
 
 	// GenerateURLs creates public URLs for multiple files in batch.
-	GenerateURLs(keys []string) []string
+	// Optional params are encoded into query string for each generated URL.
+	GenerateURLs(keys []string, params ...url.Values) []string
 
 	// ExtractKeyFromURL extracts the storage key from a given URL.
 	ExtractKeyFromURL(uri string) string
@@ -20,15 +24,6 @@ type URLHandler interface {
 	// ExtractKeyFromURLWithMode extracts the storage key from a URL with strict mode option.
 	// When strict is true, returns an error if the URL format is invalid.
 	ExtractKeyFromURLWithMode(uri string, strict bool) (string, error)
-}
-
-// ImageURLHandler extends URLHandler with image-specific URL generation capabilities.
-// It provides resizing and transformation features for image files.
-type ImageURLHandler interface {
-	URLHandler
-	// GenerateImageURL creates a URL for accessing an image with the specified width.
-	// The height is typically auto-calculated to maintain aspect ratio.
-	GenerateImageURL(key string, width int) string
 }
 
 // TokenGenerator provides secure upload token generation for client-side uploads.
@@ -80,7 +75,6 @@ type FileMoverCopier interface {
 // Storage combines the core file storage operations in a single interface.
 // This is the primary interface for most file storage use cases.
 type Storage interface {
-	URLHandler
 	FileDeleter
 	FileUploader
 	FileDownloader
@@ -91,12 +85,6 @@ type Storage interface {
 // This interface is suitable for cloud storage backends that support direct client uploads.
 type CDNStorage interface {
 	Storage
+	URLHandler
 	TokenGenerator
-}
-
-// ImageStorage combines CDN storage capabilities with image-specific URL handling.
-// This interface is designed for backends that provide image processing and transformation.
-type ImageStorage interface {
-	ImageURLHandler
-	CDNStorage
 }

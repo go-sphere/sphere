@@ -37,7 +37,22 @@ func NewHandler(public string) (*Handler, error) {
 
 // GenerateURL creates a public URL for the given storage key.
 // If the key already contains a full URL, it returns the key unchanged.
-func (n *Handler) GenerateURL(key string) string {
+// The default handler ignores params.
+func (n *Handler) GenerateURL(key string, params ...url.Values) string {
+	return n.generateURL(key)
+}
+
+// GenerateURLs creates public URLs for multiple storage keys in batch.
+// The default handler ignores params.
+func (n *Handler) GenerateURLs(keys []string, params ...url.Values) []string {
+	urls := make([]string, len(keys))
+	for i, key := range keys {
+		urls[i] = n.generateURL(key)
+	}
+	return urls
+}
+
+func (n *Handler) generateURL(key string) string {
 	if key == "" {
 		return ""
 	}
@@ -49,15 +64,6 @@ func (n *Handler) GenerateURL(key string) string {
 		return ""
 	}
 	return result
-}
-
-// GenerateURLs creates public URLs for multiple storage keys in batch.
-func (n *Handler) GenerateURLs(keys []string) []string {
-	urls := make([]string, len(keys))
-	for i, key := range keys {
-		urls[i] = n.GenerateURL(key)
-	}
-	return urls
 }
 
 // ExtractKeyFromURLWithMode extracts the storage key from a URL with optional host verification.
@@ -111,7 +117,7 @@ func (n *Handler) ExtractKeyFromURL(uri string) string {
 }
 
 func sameHost(target, base *url.URL) bool {
-	if base == nil {
+	if target == nil || base == nil {
 		return false
 	}
 	if !strings.EqualFold(target.Hostname(), base.Hostname()) {
@@ -136,7 +142,14 @@ func sameHost(target, base *url.URL) bool {
 }
 
 func hasHttpScheme(uri string) bool {
-	return strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://")
+	return hasPrefixFold(uri, "http://") || hasPrefixFold(uri, "https://")
+}
+
+func hasPrefixFold(s, prefix string) bool {
+	if len(s) < len(prefix) {
+		return false
+	}
+	return strings.EqualFold(s[:len(prefix)], prefix)
 }
 
 func defaultPortForScheme(s string) string {

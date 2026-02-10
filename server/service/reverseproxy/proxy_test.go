@@ -342,8 +342,7 @@ func setupTestCache(t *testing.T) *CommonCache {
 	tempDir := t.TempDir()
 
 	store, err := local.NewClient(&local.Config{
-		RootDir:    tempDir,
-		PublicBase: "/",
+		RootDir: tempDir,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)

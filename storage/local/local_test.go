@@ -13,8 +13,7 @@ func TestClient_fixFilePath(t *testing.T) {
 	rootDir := filepath.Join(tmpDir, "data")
 
 	client, err := NewClient(&Config{
-		RootDir:    rootDir,
-		PublicBase: "http://localhost",
+		RootDir: rootDir,
 	})
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)

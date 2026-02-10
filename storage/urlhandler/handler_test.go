@@ -128,6 +128,29 @@ func TestHandler_GenerateURL(t *testing.T) {
 	}
 }
 
+func TestHandler_GenerateURLIgnoreQueryParams(t *testing.T) {
+	handler, err := NewHandler("http://localhost:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("append query to relative key", func(t *testing.T) {
+		got := handler.GenerateURL("images/test.jpg", nil)
+		want := "http://localhost:8080/images/test.jpg"
+		if got != want {
+			t.Errorf("GenerateURL() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("keep full url query unchanged", func(t *testing.T) {
+		got := handler.GenerateURL("https://cdn.example.com/a.jpg?x=1", nil)
+		want := "https://cdn.example.com/a.jpg?x=1"
+		if got != want {
+			t.Errorf("GenerateURL() = %v, want %v", got, want)
+		}
+	})
+}
+
 func TestHandler_GenerateURLs(t *testing.T) {
 	handler, err := NewHandler("http://localhost:8080")
 	if err != nil {
@@ -173,6 +196,24 @@ func TestHandler_GenerateURLs(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestHandler_GenerateURLsIgnoreQueryParams(t *testing.T) {
+	handler, err := NewHandler("http://localhost:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := handler.GenerateURLs([]string{"a.jpg", "b.jpg"}, nil)
+	want := []string{
+		"http://localhost:8080/a.jpg",
+		"http://localhost:8080/b.jpg",
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Errorf("GenerateURLs()[%d] = %v, want %v", i, got[i], want[i])
+		}
 	}
 }
 
@@ -393,6 +434,11 @@ func TestHasHttpScheme(t *testing.T) {
 		{
 			name: "HTTPS scheme",
 			uri:  "https://example.com",
+			want: true,
+		},
+		{
+			name: "uppercase scheme",
+			uri:  "HTTPS://example.com",
 			want: true,
 		},
 		{

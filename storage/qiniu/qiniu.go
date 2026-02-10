@@ -11,6 +11,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/go-sphere/sphere/storage/storageerr"
 	"github.com/go-sphere/sphere/storage/urlhandler"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
@@ -129,12 +130,7 @@ func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
 	_, err := manager.Stat(n.config.Bucket, key)
 	if err != nil {
-		if errors.Is(err, storage.ErrNoSuchFile) {
-			return false, nil
-		}
-		// Qiniu returns error 612 when file not found
-		var respErr *storage.ErrorInfo
-		if errors.As(err, &respErr) && respErr.Code == 612 {
+		if isNotFoundError(err) {
 			return false, nil
 		}
 		return false, err
@@ -149,6 +145,9 @@ func (n *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
 	object, err := manager.Get(n.config.Bucket, key, &storage.GetObjectInput{Context: ctx})
 	if err != nil {
+		if isNotFoundError(err) {
+			return nil, "", 0, storageerr.ErrorNotFound
+		}
 		return nil, "", 0, err
 	}
 	return object.Body, object.ContentType, object.ContentLength, nil
@@ -172,6 +171,12 @@ func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
 	err := manager.Move(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {
+		if isNotFoundError(err) {
+			return storageerr.ErrorNotFound
+		}
+		if !overwrite && isDestinationExistsError(err) {
+			return storageerr.ErrorDistExisted
+		}
 		return err
 	}
 	return nil
@@ -184,7 +189,32 @@ func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	manager := storage.NewBucketManager(n.mac, &storage.Config{})
 	err := manager.Copy(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {
+		if isNotFoundError(err) {
+			return storageerr.ErrorNotFound
+		}
+		if !overwrite && isDestinationExistsError(err) {
+			return storageerr.ErrorDistExisted
+		}
 		return err
 	}
 	return nil
+}
+
+func isNotFoundError(err error) bool {
+	if errors.Is(err, storage.ErrNoSuchFile) {
+		return true
+	}
+	var respErr *storage.ErrorInfo
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	return respErr != nil && respErr.Code == 612
+}
+
+func isDestinationExistsError(err error) bool {
+	var respErr *storage.ErrorInfo
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	return respErr != nil && respErr.Code == 614
 }

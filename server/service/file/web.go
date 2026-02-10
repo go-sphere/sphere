@@ -12,29 +12,35 @@ import (
 // Web provides a file upload and download web service with S3-compatible storage.
 type Web struct {
 	engine  httpx.Engine
-	storage *fileserver.S3Adapter
+	storage *fileserver.FileServer
 }
 
 // NewWebServer creates a new file web server with the given configuration and storage adapter.
-func NewWebServer(engine httpx.Engine, storage *fileserver.S3Adapter) *Web {
+func NewWebServer(engine httpx.Engine, storage *fileserver.FileServer) *Web {
 	return &Web{
 		engine:  engine,
 		storage: storage,
 	}
 }
 
-// NewLocalFileService creates a new S3Adapter configured for local file storage.
+// NewLocalFileService creates a new CDN adapter configured for local file storage.
 // It sets up the local storage client and wraps it with caching and S3-compatible interface.
-func NewLocalFileService(config *local.Config) (*fileserver.S3Adapter, error) {
+func NewLocalFileService(config *local.Config, publicBase string) (*fileserver.FileServer, error) {
 	client, err := local.NewClient(config)
 	if err != nil {
 		return nil, err
 	}
-	adapter := fileserver.NewS3Adapter(
-		&fileserver.Config{PublicBase: config.PublicBase},
+	adapter, err := fileserver.NewCDNAdapter(
+		&fileserver.Config{
+			PublicBase: publicBase,
+		},
 		memory.NewByteCache(),
 		client,
+		fileserver.WithCacheControl(3600),
 	)
+	if err != nil {
+		return nil, err
+	}
 	return adapter, nil
 }
 
@@ -46,8 +52,8 @@ func (w *Web) Identifier() string {
 // Start begins serving the file web server with upload and download endpoints.
 // It configures CORS, registers file upload/download handlers, and starts the HTTP server.
 func (w *Web) Start(ctx context.Context) error {
-	w.storage.RegisterPutFileUploader(w.engine.Group("/"))
-	w.storage.RegisterFileDownloader(w.engine.Group("/"), fileserver.WithCacheControl(3600))
+	w.storage.RegisterFileUploader(w.engine.Group("/"))
+	w.storage.RegisterFileDownloader(w.engine.Group("/"))
 	return w.engine.Start()
 }
 

@@ -117,7 +117,7 @@ func (s *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	key = s.keyPreprocess(key)
 	_, err := s.client.StatObject(ctx, s.config.Bucket, key, minio.StatObjectOptions{})
 	if err != nil {
-		if minio.ToErrorResponse(err).Code == minio.NoSuchKey {
+		if isNoSuchKeyError(err) {
 			return false, nil
 		}
 		return false, err
@@ -131,10 +131,17 @@ func (s *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 	key = s.keyPreprocess(key)
 	object, err := s.client.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
 	if err != nil {
+		if isNoSuchKeyError(err) {
+			return nil, "", 0, storageerr.ErrorNotFound
+		}
 		return nil, "", 0, err
 	}
 	info, err := object.Stat()
 	if err != nil {
+		_ = object.Close()
+		if isNoSuchKeyError(err) {
+			return nil, "", 0, storageerr.ErrorNotFound
+		}
 		return nil, "", 0, err
 	}
 	return object, info.ContentType, info.Size, nil
@@ -157,6 +164,7 @@ func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return err
 	}
+	sourceKey = s.keyPreprocess(sourceKey)
 	err = s.client.RemoveObject(ctx, s.config.Bucket, sourceKey, minio.RemoveObjectOptions{})
 	if err != nil {
 		return err
@@ -173,6 +181,9 @@ func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 		if err == nil {
 			return storageerr.ErrorDistExisted
 		}
+		if !isNoSuchKeyError(err) {
+			return err
+		}
 	}
 	_, err := s.client.CopyObject(ctx, minio.CopyDestOptions{
 		Bucket: s.config.Bucket,
@@ -182,7 +193,14 @@ func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 		Object: sourceKey,
 	})
 	if err != nil {
+		if isNoSuchKeyError(err) {
+			return storageerr.ErrorNotFound
+		}
 		return err
 	}
 	return nil
+}
+
+func isNoSuchKeyError(err error) bool {
+	return minio.ToErrorResponse(err).Code == minio.NoSuchKey
 }

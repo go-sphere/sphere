@@ -10,19 +10,16 @@ import (
 	"strings"
 
 	"github.com/go-sphere/sphere/storage/storageerr"
-	"github.com/go-sphere/sphere/storage/urlhandler"
 )
 
 // Config holds the configuration for local file storage operations.
 type Config struct {
-	RootDir    string `json:"root_dir" yaml:"root_dir"`
-	PublicBase string `json:"public_base" yaml:"public_base"`
+	RootDir string `json:"root_dir" yaml:"root_dir"`
 }
 
-// Client provides local filesystem storage operations with URL handling capabilities.
+// Client provides local filesystem storage operations.
 // It implements the Storage interface for file operations on the local filesystem.
 type Client struct {
-	urlhandler.Handler
 	config *Config
 }
 
@@ -30,20 +27,15 @@ type Client struct {
 // It validates the root directory and creates it if it doesn't exist.
 // Returns an error if the root directory cannot be created or is invalid.
 func NewClient(config *Config) (*Client, error) {
-	handler, err := urlhandler.NewHandler(config.PublicBase)
-	if err != nil {
-		return nil, err
-	}
 	if config.RootDir == "" {
 		return nil, errors.New("root_dir is required")
 	}
-	err = os.MkdirAll(config.RootDir, 0o750)
+	err := os.MkdirAll(config.RootDir, 0o750)
 	if err != nil {
 		return nil, err
 	}
 	return &Client{
-		Handler: *handler,
-		config:  config,
+		config: config,
 	}, nil
 }
 
@@ -140,6 +132,7 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 	}
 	stat, err := file.Stat()
 	if err != nil {
+		_ = file.Close()
 		return nil, "", 0, err
 	}
 	return file, mime.TypeByExtension(filepath.Ext(key)), stat.Size(), nil
@@ -153,6 +146,9 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 	}
 	err = os.Remove(filePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return storageerr.ErrorNotFound
+		}
 		return err
 	}
 	return nil
@@ -192,8 +188,11 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	if e := os.MkdirAll(filepath.Dir(destinationPath), 0o750); e != nil {
 		return e
 	}
-	if _, e := os.Stat(sourcePath); os.IsNotExist(e) {
-		return storageerr.ErrorNotFound
+	if _, e := os.Stat(sourcePath); e != nil {
+		if os.IsNotExist(e) {
+			return storageerr.ErrorNotFound
+		}
+		return e
 	}
 	if e := c.removeBeforeOverwrite(destinationPath, overwrite); e != nil {
 		return e
@@ -223,6 +222,9 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	}
 	srcFile, err := os.Open(sourcePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return storageerr.ErrorNotFound
+		}
 		return err
 	}
 	defer func() {
