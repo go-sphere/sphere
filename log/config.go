@@ -1,42 +1,5 @@
 package log
 
-import (
-	"go.uber.org/zap/zapcore"
-)
-
-// FileConfig configures file-based logging output with rotation settings.
-// It supports automatic log rotation based on size, age, and backup count.
-type FileConfig struct {
-	FileName   string `json:"file_name" yaml:"file_name"`
-	MaxSize    int    `json:"max_size" yaml:"max_size"`
-	MaxBackups int    `json:"max_backups" yaml:"max_backups"`
-	MaxAge     int    `json:"max_age" yaml:"max_age"`
-}
-
-// ConsoleConfig configures console logging output.
-// When Disable is true, console logging is completely turned off.
-type ConsoleConfig struct {
-	Disable bool `json:"disable" yaml:"disable"`
-}
-
-// Config defines the complete logging configuration including output destinations,
-// log level, and formatting options. It supports both console and file outputs.
-type Config struct {
-	File    *FileConfig    `json:"file" yaml:"file"`
-	Console *ConsoleConfig `json:"console" yaml:"console"`
-	Level   string         `json:"level" yaml:"level"`
-}
-
-// NewDefaultConfig creates a new Config with sensible defaults.
-// Returns a configuration with info level logging and no file output.
-func NewDefaultConfig() *Config {
-	return &Config{
-		File:    nil,
-		Console: nil,
-		Level:   "info",
-	}
-}
-
 // AddCallerStatus represents the state of caller information in log entries.
 type AddCallerStatus int
 
@@ -52,13 +15,22 @@ const (
 type options struct {
 	name       string
 	addCaller  AddCallerStatus
-	addStackAt zapcore.Level
+	addStackAt *Level
 	callerSkip int
 	attrs      map[string]any
 }
 
 // Option is a function type for configuring logger options.
 type Option = func(*options)
+
+// ResolvedOptions is a materialized Option set for backend adapters.
+type ResolvedOptions struct {
+	Name       string
+	AddCaller  AddCallerStatus
+	AddStackAt *Level
+	CallerSkip int
+	Attrs      map[string]any
+}
 
 // WithName sets the logger name for identification purposes.
 // The name appears in log output to help distinguish between different loggers.
@@ -94,9 +66,10 @@ func AddCallerSkip(skip int) Option {
 
 // WithStackAt enables stack trace logging at the specified level and above.
 // Stack traces help debug issues by showing the full call chain.
-func WithStackAt(level zapcore.Level) Option {
+func WithStackAt(level Level) Option {
 	return func(o *options) {
-		o.addStackAt = level
+		l := level
+		o.addStackAt = &l
 	}
 }
 
@@ -118,7 +91,7 @@ func WithAttrs(attrs map[string]any) Option {
 func newOptions(opts ...Option) *options {
 	defaults := &options{
 		addCaller:  AddCallerStatusKeep,
-		addStackAt: zapcore.InvalidLevel,
+		addStackAt: nil,
 		callerSkip: 0,
 		attrs:      make(map[string]any),
 	}
@@ -126,4 +99,25 @@ func newOptions(opts ...Option) *options {
 		opt(defaults)
 	}
 	return defaults
+}
+
+// ResolveOptions materializes options so adapter packages can consume them.
+func ResolveOptions(opts ...Option) ResolvedOptions {
+	o := newOptions(opts...)
+	attrs := make(map[string]any, len(o.attrs))
+	for k, v := range o.attrs {
+		attrs[k] = v
+	}
+	var stackAt *Level
+	if o.addStackAt != nil {
+		l := *o.addStackAt
+		stackAt = &l
+	}
+	return ResolvedOptions{
+		Name:       o.name,
+		AddCaller:  o.addCaller,
+		AddStackAt: stackAt,
+		CallerSkip: o.callerSkip,
+		Attrs:      attrs,
+	}
 }

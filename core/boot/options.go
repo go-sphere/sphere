@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"syscall"
 	"time"
 
 	"github.com/go-sphere/sphere/log"
+	"github.com/go-sphere/sphere/log/zapx"
 )
 
 // Hook defines a function that can be executed at various lifecycle stages of the application.
@@ -79,12 +81,12 @@ func AddAfterStop(f Hook) Option {
 
 // WithLoggerInit configures automatic logger initialization with the provided version and configuration.
 // It adds hooks to initialize the logger before start and sync it after stop.
-func WithLoggerInit(ver string, conf *log.Config) Option {
+func WithLoggerInit(ver string, conf *zapx.Config) Option {
 	return func(o *options) {
 		o.beforeStart = append(o.beforeStart, func(context.Context) error {
-			log.Init(conf, map[string]any{
-				"version": ver,
-			})
+			backend := zapx.NewBackend(conf)
+			log.InitWithBackends(backend)
+			slog.SetDefault(backend.SlogLogger())
 			return nil
 		})
 		o.afterStop = append(o.afterStop, func(context.Context) error {

@@ -1,129 +1,186 @@
 package log
 
 import (
-	"errors"
-	"log/slog"
+	"context"
+	"fmt"
 	"sync/atomic"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
-// BaseLogger defines the core logging interface with structured logging capabilities.
-// It provides the four standard log levels with support for structured attributes.
+// BaseLogger defines structured logging methods.
 type BaseLogger interface {
-	// Debug logs a debug-level message with optional structured attributes.
-	Debug(msg string, args ...any)
-	// Info logs an info-level message with optional structured attributes.
-	Info(msg string, args ...any)
-	// Warn logs a warning-level message with optional structured attributes.
-	Warn(msg string, args ...any)
-	// Error logs an error-level message with optional structured attributes.
-	Error(msg string, args ...any)
+	Debug(msg string, attrs ...Attr)
+	Info(msg string, attrs ...Attr)
+	Warn(msg string, attrs ...Attr)
+	Error(msg string, attrs ...Attr)
 }
 
-// Logger extends BaseLogger with formatted logging capabilities.
-// It combines structured logging with traditional printf-style formatting.
-type Logger interface {
-	BaseLogger
-	// Debugf logs a debug-level message using printf-style formatting.
+// ContextLogger defines context-aware structured logging methods.
+type ContextLogger interface {
+	DebugContext(ctx context.Context, msg string, attrs ...Attr)
+	InfoContext(ctx context.Context, msg string, attrs ...Attr)
+	WarnContext(ctx context.Context, msg string, attrs ...Attr)
+	ErrorContext(ctx context.Context, msg string, attrs ...Attr)
+}
+
+// FormatLogger defines printf-style logging methods.
+type FormatLogger interface {
 	Debugf(format string, args ...any)
-	// Infof logs an info-level message using printf-style formatting.
 	Infof(format string, args ...any)
-	// Warnf logs a warning-level message using printf-style formatting.
 	Warnf(format string, args ...any)
-	// Errorf logs an error-level message using printf-style formatting.
 	Errorf(format string, args ...any)
 }
 
-var (
-	std atomic.Pointer[zapLogger]
-)
+// Logger combines quick-use APIs with type-safe attrs and context support.
+type Logger interface {
+	BaseLogger
+	ContextLogger
+	FormatLogger
 
-func init() {
-	Init(NewDefaultConfig(), nil)
+	Backend() Backend
+	With(options ...Option) Logger
+	Sync() error
 }
 
-// Init initializes the global logger with the provided configuration and attributes.
-// The configuration determines output destinations and formatting, while attrs are
-// added to all log messages. This should be called once during application startup.
-func Init(config *Config, attrs map[string]any) {
-	std.Store(newZapLogger(config,
-		AddCaller(),
-		AddCallerSkip(2),
-		WithAttrs(attrs),
-		WithStackAt(zapcore.ErrorLevel),
-	))
+type coreLogger struct {
+	backend Backend
 }
 
-// Sync flushes any buffered log entries to their destinations.
-// This should typically be called before application shutdown to ensure all logs are written.
-func Sync() error {
-	return std.Load().logger.Sync()
+// Backend returns the underlying backend for bridge adapters.
+func (l *coreLogger) Backend() Backend {
+	return l.backend
 }
 
-// Debug logs a debug-level message with optional structured attributes using the global logger.
-func Debug(msg string, attrs ...any) {
-	std.Load().Debug(msg, attrs...)
+func (l *coreLogger) Debug(msg string, attrs ...Attr) {
+	l.backend.Log(context.Background(), LevelDebug, msg, attrs...)
 }
 
-// Debugf logs a debug-level message using printf-style formatting with the global logger.
-func Debugf(format string, args ...any) {
-	std.Load().Debugf(format, args...)
+func (l *coreLogger) Info(msg string, attrs ...Attr) {
+	l.backend.Log(context.Background(), LevelInfo, msg, attrs...)
 }
 
-// Info logs an info-level message with optional structured attributes using the global logger.
-func Info(msg string, attrs ...any) {
-	std.Load().Info(msg, attrs...)
+func (l *coreLogger) Warn(msg string, attrs ...Attr) {
+	l.backend.Log(context.Background(), LevelWarn, msg, attrs...)
 }
 
-// Infof logs an info-level message using printf-style formatting with the global logger.
-func Infof(format string, args ...any) {
-	std.Load().Infof(format, args...)
+func (l *coreLogger) Error(msg string, attrs ...Attr) {
+	l.backend.Log(context.Background(), LevelError, msg, attrs...)
 }
 
-// Warn logs a warning-level message with optional structured attributes using the global logger.
-func Warn(msg string, attrs ...any) {
-	std.Load().Warn(msg, attrs...)
+func (l *coreLogger) DebugContext(ctx context.Context, msg string, attrs ...Attr) {
+	l.backend.Log(ctx, LevelDebug, msg, attrs...)
 }
 
-// Warnf logs a warning-level message using printf-style formatting with the global logger.
-func Warnf(format string, args ...any) {
-	std.Load().Warnf(format, args...)
+func (l *coreLogger) InfoContext(ctx context.Context, msg string, attrs ...Attr) {
+	l.backend.Log(ctx, LevelInfo, msg, attrs...)
 }
 
-// Error logs an error-level message with optional structured attributes using the global logger.
-func Error(msg string, attrs ...any) {
-	std.Load().Error(msg, attrs...)
+func (l *coreLogger) WarnContext(ctx context.Context, msg string, attrs ...Attr) {
+	l.backend.Log(ctx, LevelWarn, msg, attrs...)
 }
 
-// Errorf logs an error-level message using printf-style formatting with the global logger.
-func Errorf(format string, args ...any) {
-	std.Load().Errorf(format, args...)
+func (l *coreLogger) ErrorContext(ctx context.Context, msg string, attrs ...Attr) {
+	l.backend.Log(ctx, LevelError, msg, attrs...)
 }
 
-// With creates a new logger instance with additional options applied to the global logger.
-// The returned logger includes the caller skip adjustment for proper call site reporting.
-func With(options ...Option) Logger {
+func (l *coreLogger) Debugf(format string, args ...any) {
+	l.Debug(fmt.Sprintf(format, args...))
+}
+
+func (l *coreLogger) Infof(format string, args ...any) {
+	l.Info(fmt.Sprintf(format, args...))
+}
+
+func (l *coreLogger) Warnf(format string, args ...any) {
+	l.Warn(fmt.Sprintf(format, args...))
+}
+
+func (l *coreLogger) Errorf(format string, args ...any) {
+	l.Error(fmt.Sprintf(format, args...))
+}
+
+func (l *coreLogger) With(options ...Option) Logger {
 	opts := make([]Option, 0, len(options)+1)
 	opts = append(opts, options...)
 	opts = append(opts, AddCallerSkip(-1))
-	return std.Load().With(opts...)
+	return &coreLogger{backend: l.backend.With(opts...)}
 }
 
-func UnwrapZapLogger(logger Logger) (*zap.Logger, error) {
-	zl, ok := logger.(*zapLogger)
-	if !ok {
-		return nil, errors.New("logger is not a zapLogger")
-	}
-	return zl.logger.Desugar(), nil
+func (l *coreLogger) Sync() error {
+	return l.backend.Sync()
 }
 
-func WarpAsSlog(logger Logger, options ...Option) (*slog.Logger, error) {
-	zl, ok := logger.(*zapLogger)
-	if !ok {
-		return nil, errors.New("logger is not a zapLogger")
+var std atomic.Pointer[coreLogger]
+
+func init() {
+	std.Store(&coreLogger{backend: &StdioBackend{}})
+}
+
+// InitWithBackends initializes global logger with custom backend(s).
+func InitWithBackends(backends ...Backend) {
+	std.Store(&coreLogger{backend: NewMultiBackend(backends...)})
+}
+
+func logger() *coreLogger {
+	if l := std.Load(); l != nil {
+		return l
 	}
-	slogLogger := zl.logger.Desugar().Core()
-	return newSlogLogger(slogLogger, options...), nil
+	fallback := &coreLogger{backend: &StdioBackend{}}
+	std.Store(fallback)
+	return fallback
+}
+
+func Debug(msg string, attrs ...Attr) {
+	logger().Debug(msg, attrs...)
+}
+
+func DebugContext(ctx context.Context, msg string, attrs ...Attr) {
+	logger().DebugContext(ctx, msg, attrs...)
+}
+
+func Debugf(format string, args ...any) {
+	logger().Debugf(format, args...)
+}
+
+func Info(msg string, attrs ...Attr) {
+	logger().Info(msg, attrs...)
+}
+
+func InfoContext(ctx context.Context, msg string, attrs ...Attr) {
+	logger().InfoContext(ctx, msg, attrs...)
+}
+
+func Infof(format string, args ...any) {
+	logger().Infof(format, args...)
+}
+
+func Warn(msg string, attrs ...Attr) {
+	logger().Warn(msg, attrs...)
+}
+
+func WarnContext(ctx context.Context, msg string, attrs ...Attr) {
+	logger().WarnContext(ctx, msg, attrs...)
+}
+
+func Warnf(format string, args ...any) {
+	logger().Warnf(format, args...)
+}
+
+func Error(msg string, attrs ...Attr) {
+	logger().Error(msg, attrs...)
+}
+
+func ErrorContext(ctx context.Context, msg string, attrs ...Attr) {
+	logger().ErrorContext(ctx, msg, attrs...)
+}
+
+func Errorf(format string, args ...any) {
+	logger().Errorf(format, args...)
+}
+
+func With(options ...Option) Logger {
+	return logger().With(options...)
+}
+
+func Sync() error {
+	return logger().Sync()
 }
