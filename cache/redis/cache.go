@@ -2,153 +2,108 @@ package redis
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
-	"github.com/go-sphere/confstore/codec"
 	"github.com/redis/go-redis/v9"
 )
 
-// Cache is a Redis-backed cache implementation that stores typed values by encoding them with a codec.
-// It wraps a ByteCache and handles serialization/deserialization automatically.
-type Cache[T any] struct {
-	cache *ByteCache
-	codec codec.Codec
+var ErrorType = fmt.Errorf("type error")
+
+// ByteCache is a Redis-backed cache implementation for storing raw byte data.
+// It provides direct access to Redis operations without any encoding/decoding overhead.
+type ByteCache struct {
+	client *redis.Client
 }
 
-// NewCache creates a new Redis cache with the specified codec for value serialization.
-// The codec handles the conversion between typed values and byte slices for Redis storage.
-func NewCache[T any](client *redis.Client, codec codec.Codec) *Cache[T] {
-	return &Cache[T]{
-		cache: NewByteCache(client),
-		codec: codec,
-	}
+// NewByteCache creates a new Redis byte cache using the provided Redis client.
+func NewByteCache(client *redis.Client) *ByteCache {
+	return &ByteCache{client: client}
 }
 
-// GetByteCache returns the underlying ByteCache for direct byte operations.
-func (m *Cache[T]) GetByteCache() *ByteCache {
-	return m.cache
+func (c *ByteCache) Set(ctx context.Context, key string, val []byte) error {
+	return c.SetWithTTL(ctx, key, val, redis.KeepTTL)
 }
 
-// GetCodec returns the codec used for serialization.
-func (m *Cache[T]) GetCodec() codec.Codec {
-	return m.codec
+func (c *ByteCache) SetWithTTL(ctx context.Context, key string, val []byte, expiration time.Duration) error {
+	return c.client.Set(ctx, key, val, expiration).Err()
 }
 
-func (m *Cache[T]) Set(ctx context.Context, key string, val T) error {
-	raw, err := m.codec.Marshal(val)
-	if err != nil {
-		return err
-	}
-	return m.cache.Set(ctx, key, raw)
+func (c *ByteCache) MultiSet(ctx context.Context, valMap map[string][]byte) error {
+	return c.MultiSetWithTTL(ctx, valMap, redis.KeepTTL)
 }
 
-func (m *Cache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration time.Duration) error {
-	raw, err := m.codec.Marshal(val)
-	if err != nil {
-		return err
-	}
-	return m.cache.SetWithTTL(ctx, key, raw, expiration)
-}
-
-func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
-	rawMap := make(map[string][]byte, len(valMap))
+func (c *ByteCache) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
+	pipe := c.client.Pipeline()
 	for k, v := range valMap {
-		raw, err := m.codec.Marshal(v)
-		if err != nil {
-			return err
-		}
-		rawMap[k] = raw
+		pipe.Set(ctx, k, v, expiration)
 	}
-	return m.cache.MultiSet(ctx, rawMap)
+	_, err := pipe.Exec(ctx)
+	return err
 }
 
-func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, expiration time.Duration) error {
-	rawMap := make(map[string][]byte, len(valMap))
-	for k, v := range valMap {
-		raw, err := m.codec.Marshal(v)
-		if err != nil {
-			return err
+func (c *ByteCache) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	val, err := c.client.Get(ctx, key).Bytes()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, false, nil
 		}
-		rawMap[k] = raw
-	}
-	return m.cache.MultiSetWithTTL(ctx, rawMap, expiration)
-}
-
-func (m *Cache[T]) Get(ctx context.Context, key string) (T, bool, error) {
-	raw, found, err := m.cache.Get(ctx, key)
-	var val T
-	if err != nil {
-		return val, false, err
-	}
-	if !found {
-		return val, false, nil
-	}
-	err = m.codec.Unmarshal(raw, &val)
-	if err != nil {
-		return val, false, err
+		return nil, false, err
 	}
 	return val, true, nil
 }
 
-func (m *Cache[T]) GetDel(ctx context.Context, key string) (T, bool, error) {
-	raw, found, err := m.cache.GetDel(ctx, key)
-	var val T
+func (c *ByteCache) GetDel(ctx context.Context, key string) ([]byte, bool, error) {
+	val, err := c.client.GetDel(ctx, key).Bytes()
 	if err != nil {
-		return val, false, err
-	}
-	if !found {
-		return val, false, nil
-	}
-	err = m.codec.Unmarshal(raw, &val)
-	if err != nil {
-		return val, false, err
+		if errors.Is(err, redis.Nil) {
+			return nil, false, nil
+		}
+		return nil, false, err
 	}
 	return val, true, nil
 }
 
-func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, error) {
-	rawMap, err := m.cache.MultiGet(ctx, keys)
+func (c *ByteCache) MultiGet(ctx context.Context, keys []string) (map[string][]byte, error) {
+	vals, err := c.client.MGet(ctx, keys...).Result()
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]T)
-	for _, key := range keys {
-		raw, ok := rawMap[key]
-		if !ok {
-			continue
+
+	result := make(map[string][]byte)
+	for i, key := range keys {
+		if vals[i] != nil {
+			raw, ok := vals[i].(string)
+			if !ok {
+				return nil, ErrorType
+			}
+			result[key] = []byte(raw)
 		}
-		var val T
-		err = m.codec.Unmarshal(raw, &val)
-		if err != nil {
-			return nil, err
-		}
-		result[key] = val
 	}
 	return result, nil
 }
 
-func (m *Cache[T]) Del(ctx context.Context, key string) error {
-	return m.cache.Del(ctx, key)
+func (c *ByteCache) Del(ctx context.Context, key string) error {
+	return c.client.Del(ctx, key).Err()
 }
 
-func (m *Cache[T]) MultiDel(ctx context.Context, keys []string) error {
-	for _, key := range keys {
-		err := m.Del(ctx, key)
-		if err != nil {
-			return err
-		}
+func (c *ByteCache) MultiDel(ctx context.Context, keys []string) error {
+	return c.client.Del(ctx, keys...).Err()
+}
+
+func (c *ByteCache) DelAll(ctx context.Context) error {
+	return c.client.FlushAll(ctx).Err()
+}
+
+func (c *ByteCache) Exists(ctx context.Context, key string) (bool, error) {
+	exists, err := c.client.Exists(ctx, key).Result()
+	if err != nil {
+		return false, err
 	}
-	return nil
+	return exists > 0, nil
 }
 
-func (m *Cache[T]) DelAll(ctx context.Context) error {
-	return m.cache.DelAll(ctx)
-}
-
-func (m *Cache[T]) Exists(ctx context.Context, key string) (bool, error) {
-	return m.cache.Exists(ctx, key)
-}
-
-func (m *Cache[T]) Close() error {
-	return nil
+func (c *ByteCache) Close() error {
+	return c.client.Close()
 }
