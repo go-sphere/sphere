@@ -2,6 +2,7 @@ package log
 
 import (
 	"os"
+	"sort"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -122,9 +123,15 @@ func zapOptions(o *options) []zap.Option {
 }
 
 func mapToZapFields(attrs map[string]any) []zap.Field {
+	keys := make([]string, 0, len(attrs))
+	for k := range attrs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	fields := make([]zap.Field, 0, len(attrs))
-	for k, v := range attrs {
-		fields = append(fields, zap.Any(k, v))
+	for _, k := range keys {
+		fields = append(fields, zap.Any(k, attrs[k]))
 	}
 	return fields
 }

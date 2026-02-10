@@ -119,7 +119,7 @@ func UnwrapZapLogger(logger Logger) (*zap.Logger, error) {
 	return zl.logger.Desugar(), nil
 }
 
-func UnwarpSlogLogger(logger Logger, options ...Option) (*slog.Logger, error) {
+func WarpAsSlog(logger Logger, options ...Option) (*slog.Logger, error) {
 	zl, ok := logger.(*zapLogger)
 	if !ok {
 		return nil, errors.New("logger is not a zapLogger")
