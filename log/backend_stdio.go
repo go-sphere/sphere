@@ -11,11 +11,10 @@ import (
 )
 
 type StdioBackend struct {
-	mu         sync.Mutex
-	name       string
-	attrs      map[string]any
-	minLevel   Level
-	callerSkip int
+	mu       sync.Mutex
+	name     string
+	attrs    map[string]any
+	minLevel Level
 }
 
 func NewStdioBackend(options ...Option) *StdioBackend {
@@ -50,10 +49,9 @@ func (b *StdioBackend) clone() *StdioBackend {
 		attrs[k] = v
 	}
 	return &StdioBackend{
-		name:       b.name,
-		attrs:      attrs,
-		minLevel:   b.minLevel,
-		callerSkip: b.callerSkip,
+		name:     b.name,
+		attrs:    attrs,
+		minLevel: b.minLevel,
 	}
 }
 
@@ -61,7 +59,7 @@ func (b *StdioBackend) apply(options ...Option) *StdioBackend {
 	if len(options) == 0 {
 		return b
 	}
-	o := ResolveOptions(options...)
+	o := NewOptions(options...)
 	if o.Name != "" {
 		if b.name == "" {
 			b.name = o.Name
@@ -72,7 +70,6 @@ func (b *StdioBackend) apply(options ...Option) *StdioBackend {
 	if o.AddStackAt != nil {
 		b.minLevel = *o.AddStackAt
 	}
-	b.callerSkip += o.CallerSkip
 	if len(o.Attrs) > 0 {
 		if b.attrs == nil {
 			b.attrs = make(map[string]any, len(o.Attrs))

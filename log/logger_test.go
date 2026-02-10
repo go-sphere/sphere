@@ -6,7 +6,7 @@ import (
 )
 
 func TestLogger(t *testing.T) {
-	InitWithBackends(nopBackend{})
+	InitWithBackends(NewStdioBackend())
 	Debug("debug")
 	Info("info")
 	With(WithAttrs(map[string]any{
@@ -17,6 +17,6 @@ func TestLogger(t *testing.T) {
 }
 
 func TestContextLogging(t *testing.T) {
-	InitWithBackends(nopBackend{})
+	InitWithBackends(NewStdioBackend())
 	InfoContext(context.Background(), "context info should not panic")
 }

@@ -39,7 +39,7 @@ func NewDefaultConfig() *Config {
 	}
 }
 
-func zapOptions(o corelog.ResolvedOptions) []zap.Option {
+func zapOptions(o corelog.Options) []zap.Option {
 	opts := make([]zap.Option, 0, 3)
 	switch o.AddCaller {
 	case corelog.AddCallerStatusEnable:
@@ -52,12 +52,9 @@ func zapOptions(o corelog.ResolvedOptions) []zap.Option {
 	if o.AddStackAt != nil {
 		opts = append(opts, zap.AddStacktrace(logLevelToZapLevel(*o.AddStackAt)))
 	}
-	if o.CallerSkip != 0 {
-		opts = append(opts, zap.AddCallerSkip(o.CallerSkip))
-	}
 	return opts
 }
-func zapSlogOptions(o corelog.ResolvedOptions) []zapslog.HandlerOption {
+func zapSlogOptions(o corelog.Options) []zapslog.HandlerOption {
 	opts := make([]zapslog.HandlerOption, 0, 4)
 	switch o.AddCaller {
 	case corelog.AddCallerStatusEnable:
@@ -72,9 +69,6 @@ func zapSlogOptions(o corelog.ResolvedOptions) []zapslog.HandlerOption {
 	}
 	if o.AddStackAt != nil {
 		opts = append(opts, zapslog.AddStacktraceAt(logLevelToSlogLevel(*o.AddStackAt)))
-	}
-	if o.CallerSkip != 0 {
-		opts = append(opts, zapslog.WithCallerSkip(o.CallerSkip))
 	}
 	return opts
 }

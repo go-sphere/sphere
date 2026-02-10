@@ -12,88 +12,70 @@ const (
 	AddCallerStatusDisable
 )
 
-type options struct {
-	name       string
-	addCaller  AddCallerStatus
-	addStackAt *Level
-	callerSkip int
-	attrs      map[string]any
-}
-
-// Option is a function type for configuring logger options.
-type Option = func(*options)
-
-// ResolvedOptions is a materialized Option set for backend adapters.
-type ResolvedOptions struct {
+// Options is the materialized option set consumed by backend adapters.
+type Options struct {
 	Name       string
 	AddCaller  AddCallerStatus
 	AddStackAt *Level
-	CallerSkip int
 	Attrs      map[string]any
 }
+
+// Option is a function type for configuring logger options.
+type Option = func(*Options)
 
 // WithName sets the logger name for identification purposes.
 // The name appears in log output to help distinguish between different loggers.
 func WithName(name string) Option {
-	return func(o *options) {
-		o.name = name
+	return func(o *Options) {
+		o.Name = name
 	}
 }
 
 // AddCaller enables caller information in log entries.
 // This includes file names and line numbers where the log call was made.
 func AddCaller() Option {
-	return func(o *options) {
-		o.addCaller = AddCallerStatusEnable
+	return func(o *Options) {
+		o.AddCaller = AddCallerStatusEnable
 	}
 }
 
 // DisableCaller removes caller information from log entries.
 // This can improve performance when caller information is not needed.
 func DisableCaller() Option {
-	return func(o *options) {
-		o.addCaller = AddCallerStatusDisable
-	}
-}
-
-// AddCallerSkip adjusts the caller skip count for accurate call site reporting.
-// This is useful when wrapping the logger to ensure the correct caller is reported.
-func AddCallerSkip(skip int) Option {
-	return func(o *options) {
-		o.callerSkip += skip
+	return func(o *Options) {
+		o.AddCaller = AddCallerStatusDisable
 	}
 }
 
 // WithStackAt enables stack trace logging at the specified level and above.
 // Stack traces help debug issues by showing the full call chain.
 func WithStackAt(level Level) Option {
-	return func(o *options) {
+	return func(o *Options) {
 		l := level
-		o.addStackAt = &l
+		o.AddStackAt = &l
 	}
 }
 
 // WithAttrs adds structured attributes to all log messages from this logger.
 // These attributes provide consistent context across all log entries.
 func WithAttrs(attrs map[string]any) Option {
-	return func(o *options) {
+	return func(o *Options) {
 		if attrs != nil {
-			if o.attrs == nil {
-				o.attrs = make(map[string]any)
+			if o.Attrs == nil {
+				o.Attrs = make(map[string]any)
 			}
 			for k, v := range attrs {
-				o.attrs[k] = v
+				o.Attrs[k] = v
 			}
 		}
 	}
 }
 
-func newOptions(opts ...Option) *options {
-	defaults := &options{
-		addCaller:  AddCallerStatusKeep,
-		addStackAt: nil,
-		callerSkip: 0,
-		attrs:      make(map[string]any),
+func newOptions(opts ...Option) *Options {
+	defaults := &Options{
+		AddCaller:  AddCallerStatusKeep,
+		AddStackAt: nil,
+		Attrs:      make(map[string]any),
 	}
 	for _, opt := range opts {
 		opt(defaults)
@@ -101,23 +83,22 @@ func newOptions(opts ...Option) *options {
 	return defaults
 }
 
-// ResolveOptions materializes options so adapter packages can consume them.
-func ResolveOptions(opts ...Option) ResolvedOptions {
+// NewOptions materializes options so backend adapters can consume them.
+func NewOptions(opts ...Option) Options {
 	o := newOptions(opts...)
-	attrs := make(map[string]any, len(o.attrs))
-	for k, v := range o.attrs {
+	attrs := make(map[string]any, len(o.Attrs))
+	for k, v := range o.Attrs {
 		attrs[k] = v
 	}
 	var stackAt *Level
-	if o.addStackAt != nil {
-		l := *o.addStackAt
+	if o.AddStackAt != nil {
+		l := *o.AddStackAt
 		stackAt = &l
 	}
-	return ResolvedOptions{
-		Name:       o.name,
-		AddCaller:  o.addCaller,
+	return Options{
+		Name:       o.Name,
+		AddCaller:  o.AddCaller,
 		AddStackAt: stackAt,
-		CallerSkip: o.callerSkip,
 		Attrs:      attrs,
 	}
 }

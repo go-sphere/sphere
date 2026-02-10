@@ -83,26 +83,23 @@ func (l *coreLogger) ErrorContext(ctx context.Context, msg string, attrs ...Attr
 }
 
 func (l *coreLogger) Debugf(format string, args ...any) {
-	l.Debug(fmt.Sprintf(format, args...))
+	l.backend.Log(context.Background(), LevelDebug, fmt.Sprintf(format, args...))
 }
 
 func (l *coreLogger) Infof(format string, args ...any) {
-	l.Info(fmt.Sprintf(format, args...))
+	l.backend.Log(context.Background(), LevelInfo, fmt.Sprintf(format, args...))
 }
 
 func (l *coreLogger) Warnf(format string, args ...any) {
-	l.Warn(fmt.Sprintf(format, args...))
+	l.backend.Log(context.Background(), LevelWarn, fmt.Sprintf(format, args...))
 }
 
 func (l *coreLogger) Errorf(format string, args ...any) {
-	l.Error(fmt.Sprintf(format, args...))
+	l.backend.Log(context.Background(), LevelError, fmt.Sprintf(format, args...))
 }
 
 func (l *coreLogger) With(options ...Option) Logger {
-	opts := make([]Option, 0, len(options)+1)
-	opts = append(opts, options...)
-	opts = append(opts, AddCallerSkip(-1))
-	return &coreLogger{backend: l.backend.With(opts...)}
+	return &coreLogger{backend: l.backend.With(options...)}
 }
 
 func (l *coreLogger) Sync() error {
@@ -130,51 +127,51 @@ func logger() *coreLogger {
 }
 
 func Debug(msg string, attrs ...Attr) {
-	logger().Debug(msg, attrs...)
+	logger().backend.Log(context.Background(), LevelDebug, msg, attrs...)
 }
 
 func DebugContext(ctx context.Context, msg string, attrs ...Attr) {
-	logger().DebugContext(ctx, msg, attrs...)
+	logger().backend.Log(ctx, LevelDebug, msg, attrs...)
 }
 
 func Debugf(format string, args ...any) {
-	logger().Debugf(format, args...)
+	logger().backend.Log(context.Background(), LevelDebug, fmt.Sprintf(format, args...))
 }
 
 func Info(msg string, attrs ...Attr) {
-	logger().Info(msg, attrs...)
+	logger().backend.Log(context.Background(), LevelInfo, msg, attrs...)
 }
 
 func InfoContext(ctx context.Context, msg string, attrs ...Attr) {
-	logger().InfoContext(ctx, msg, attrs...)
+	logger().backend.Log(ctx, LevelInfo, msg, attrs...)
 }
 
 func Infof(format string, args ...any) {
-	logger().Infof(format, args...)
+	logger().backend.Log(context.Background(), LevelInfo, fmt.Sprintf(format, args...))
 }
 
 func Warn(msg string, attrs ...Attr) {
-	logger().Warn(msg, attrs...)
+	logger().backend.Log(context.Background(), LevelWarn, msg, attrs...)
 }
 
 func WarnContext(ctx context.Context, msg string, attrs ...Attr) {
-	logger().WarnContext(ctx, msg, attrs...)
+	logger().backend.Log(ctx, LevelWarn, msg, attrs...)
 }
 
 func Warnf(format string, args ...any) {
-	logger().Warnf(format, args...)
+	logger().backend.Log(context.Background(), LevelWarn, fmt.Sprintf(format, args...))
 }
 
 func Error(msg string, attrs ...Attr) {
-	logger().Error(msg, attrs...)
+	logger().backend.Log(context.Background(), LevelError, msg, attrs...)
 }
 
 func ErrorContext(ctx context.Context, msg string, attrs ...Attr) {
-	logger().ErrorContext(ctx, msg, attrs...)
+	logger().backend.Log(ctx, LevelError, msg, attrs...)
 }
 
 func Errorf(format string, args ...any) {
-	logger().Errorf(format, args...)
+	logger().backend.Log(context.Background(), LevelError, fmt.Sprintf(format, args...))
 }
 
 func With(options ...Option) Logger {

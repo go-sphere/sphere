@@ -14,22 +14,49 @@ import (
 
 // Backend is the zap implementation of corelog.Backend.
 type Backend struct {
-	logger *zap.Logger
+	// zapLogger is the raw zap logger exposed to callers via ZapLogger().
+	// It does not include backend-specific caller skip adjustments.
+	zapLogger *zap.Logger
+	// coreLogger is used by Backend.Log and pre-applies caller skip so core log APIs
+	// report the user's call site instead of wrapper frames.
+	coreLogger *zap.Logger
 }
+
+// coreCallerOffset compensates for:
+// 1) Backend.Log itself
+// 2) core logger call sites (both package-level log.* and logger instance methods).
+const coreCallerOffset = 2
 
 // NewBackend creates a zap-based backend.
 func NewBackend(config *Config, options ...corelog.Option) *Backend {
-	resolved := corelog.ResolveOptions(options...)
+	resolved := corelog.NewOptions(options...)
 	core := newCore(config)
 	logger := zap.New(core).Named(resolved.Name).WithOptions(zapOptions(resolved)...)
 	if len(resolved.Attrs) > 0 {
 		logger = logger.With(MapToZapFields(resolved.Attrs)...)
 	}
-	return &Backend{logger: logger}
+	return newBackendWithLogger(logger)
+}
+
+func newBackendWithLogger(zapLogger *zap.Logger) *Backend {
+	return &Backend{
+		zapLogger:  zapLogger,
+		coreLogger: zapLogger.WithOptions(zap.AddCallerSkip(coreCallerOffset)),
+	}
+}
+
+func (z *Backend) logEntryLogger() *zap.Logger {
+	if z.coreLogger != nil {
+		return z.coreLogger
+	}
+	if z.zapLogger != nil {
+		return z.zapLogger.WithOptions(zap.AddCallerSkip(coreCallerOffset))
+	}
+	return zap.NewNop()
 }
 
 func (z *Backend) Log(ctx context.Context, level corelog.Level, msg string, attrs ...corelog.Attr) {
-	_ = ctx
+	logger := z.logEntryLogger()
 	fields := make([]zap.Field, 0, len(attrs))
 	for _, a := range attrs {
 		fields = append(fields, AttrToZapField(a))
@@ -37,21 +64,21 @@ func (z *Backend) Log(ctx context.Context, level corelog.Level, msg string, attr
 
 	switch level {
 	case corelog.LevelDebug:
-		z.logger.Debug(msg, fields...)
+		logger.Debug(msg, fields...)
 	case corelog.LevelInfo:
-		z.logger.Info(msg, fields...)
+		logger.Info(msg, fields...)
 	case corelog.LevelWarn:
-		z.logger.Warn(msg, fields...)
+		logger.Warn(msg, fields...)
 	case corelog.LevelError:
-		z.logger.Error(msg, fields...)
+		logger.Error(msg, fields...)
 	default:
-		z.logger.Info(msg, fields...)
+		logger.Info(msg, fields...)
 	}
 }
 
 func (z *Backend) With(options ...corelog.Option) corelog.Backend {
-	resolved := corelog.ResolveOptions(options...)
-	logger := z.logger
+	resolved := corelog.NewOptions(options...)
+	logger := z.zapLogger
 	if resolved.Name != "" {
 		logger = logger.Named(resolved.Name)
 	}
@@ -59,16 +86,16 @@ func (z *Backend) With(options ...corelog.Option) corelog.Backend {
 	if len(resolved.Attrs) > 0 {
 		logger = logger.With(MapToZapFields(resolved.Attrs)...)
 	}
-	return &Backend{logger: logger}
+	return newBackendWithLogger(logger)
 }
 
 func (z *Backend) Sync() error {
-	return z.logger.Sync()
+	return z.zapLogger.Sync()
 }
 
 func (z *Backend) SlogHandler(options ...corelog.Option) slog.Handler {
-	resolved := corelog.ResolveOptions(options...)
-	var h slog.Handler = zapslog.NewHandler(z.logger.Core(), zapSlogOptions(resolved)...)
+	resolved := corelog.NewOptions(options...)
+	var h slog.Handler = zapslog.NewHandler(z.zapLogger.Core(), zapSlogOptions(resolved)...)
 	if len(resolved.Attrs) > 0 {
 		h = h.WithAttrs(mapToSlogAttrs(resolved.Attrs))
 	}
@@ -80,7 +107,7 @@ func (z *Backend) SlogLogger(options ...corelog.Option) *slog.Logger {
 }
 
 func (z *Backend) ZapLogger() *zap.Logger {
-	return z.logger
+	return z.zapLogger
 }
 
 func newCore(config *Config) zapcore.Core {
