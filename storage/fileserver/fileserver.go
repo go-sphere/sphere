@@ -7,7 +7,6 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
-	"path"
 	"strings"
 	"time"
 
@@ -20,10 +19,9 @@ import (
 
 // Config holds the configuration for S3 adapter operations.
 type Config struct {
-	PublicBase string        `json:"public_base" yaml:"public_base"`
-	PutPrefix  string        `json:"put_prefix" yaml:"put_prefix"`
-	GetPrefix  string        `json:"get_prefix" yaml:"get_prefix"`
-	KeyTTL     time.Duration `json:"key_ttl" yaml:"key_ttl"`
+	PutBase string        `json:"put_base" yaml:"put_base"`
+	GetBase string        `json:"get_base" yaml:"get_base"`
+	KeyTTL  time.Duration `json:"key_ttl" yaml:"key_ttl"`
 }
 
 // FileServer provides a caching layer and upload token generation for S3-compatible storage.
@@ -37,7 +35,6 @@ type FileServer struct {
 }
 
 // NewCDNAdapter creates a new CDN adapter with URL and token generation capabilities.
-// It wraps any storage implementation and bridges it to URLStorage/CDNStorage.
 func NewCDNAdapter(config *Config, cache cache.ByteCache, store storage.Storage, options ...Option) (*FileServer, error) {
 	if config == nil {
 		return nil, errors.New("config is required")
@@ -48,10 +45,16 @@ func NewCDNAdapter(config *Config, cache cache.ByteCache, store storage.Storage,
 	if store == nil {
 		return nil, errors.New("store is required")
 	}
+	if config.PutBase == "" {
+		return nil, errors.New("put_base is required")
+	}
+	if config.GetBase == "" {
+		return nil, errors.New("get_base is required")
+	}
 	if config.KeyTTL == 0 {
 		config.KeyTTL = time.Minute * 5
 	}
-	handler, err := urlhandler.NewHandler(config.PublicBase)
+	handler, err := urlhandler.NewHandler(config.GetBase)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +123,7 @@ func (a *FileServer) GenerateUploadToken(ctx context.Context, fileName string, d
 	if err != nil {
 		return [3]string{}, err
 	}
-	uri, err := url.JoinPath(a.config.PublicBase, a.config.PutPrefix, newToken)
+	uri, err := url.JoinPath(a.config.PutBase, newToken)
 	if err != nil {
 		return [3]string{}, err
 	}
@@ -136,8 +139,7 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 	if a.opts.downloadCacheControl != "" {
 		sharedHeaders["Cache-Control"] = a.opts.downloadCacheControl
 	}
-	downloadPath := path.Join("/", a.config.GetPrefix, "*filename")
-	route.Handle(http.MethodGet, downloadPath, func(ctx httpx.Context) error {
+	route.Handle(http.MethodGet, "/*filename", func(ctx httpx.Context) error {
 		param := normalizeWildcardParam(ctx.Param("filename"))
 		if param == "" {
 			return httpx.NewNotFoundError("filename is required")
@@ -161,8 +163,7 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 }
 
 func (a *FileServer) RegisterFileUploader(route httpx.Router) {
-	uploadPath := path.Join("/", a.config.PutPrefix, ":key")
-	route.Handle(http.MethodPut, uploadPath, func(ctx httpx.Context) error {
+	route.Handle(http.MethodPut, "/:key", func(ctx httpx.Context) error {
 		key := ctx.Param("key")
 		if key == "" {
 			return httpx.NewBadRequestError("key is required")

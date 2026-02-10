@@ -3,6 +3,7 @@ package fileserver
 import (
 	"context"
 	"io"
+	"path"
 	"strings"
 	"testing"
 
@@ -48,14 +49,34 @@ func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
 	})
 
 	t.Run("nil cache", func(t *testing.T) {
-		_, err := NewCDNAdapter(&Config{PublicBase: "https://example.com"}, nil, noopStorage{})
+		_, err := NewCDNAdapter(&Config{
+			PutBase: "https://example.com",
+			GetBase: "https://example.com",
+		}, nil, noopStorage{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
 	})
 
 	t.Run("nil store", func(t *testing.T) {
-		_, err := NewCDNAdapter(&Config{PublicBase: "https://example.com"}, memory.NewByteCache(), nil)
+		_, err := NewCDNAdapter(&Config{
+			PutBase: "https://example.com",
+			GetBase: "https://example.com",
+		}, memory.NewByteCache(), nil)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("empty put base", func(t *testing.T) {
+		_, err := NewCDNAdapter(&Config{GetBase: "https://example.com"}, memory.NewByteCache(), noopStorage{})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("empty get base", func(t *testing.T) {
+		_, err := NewCDNAdapter(&Config{PutBase: "https://example.com"}, memory.NewByteCache(), noopStorage{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -64,7 +85,10 @@ func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
 
 func TestGenerateUploadToken_RejectNilNameBuilder(t *testing.T) {
 	server, err := NewCDNAdapter(
-		&Config{PublicBase: "https://example.com"},
+		&Config{
+			PutBase: "https://example.com",
+			GetBase: "https://example.com",
+		},
 		memory.NewByteCache(),
 		noopStorage{},
 	)
@@ -75,6 +99,37 @@ func TestGenerateUploadToken_RejectNilNameBuilder(t *testing.T) {
 	_, err = server.GenerateUploadToken(context.Background(), "avatar.png", "test", nil)
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestGenerateUploadToken_UsesSeparatedPutAndGetBase(t *testing.T) {
+	server, err := NewCDNAdapter(
+		&Config{
+			PutBase: "https://upload.example.com",
+			GetBase: "https://cdn.example.com",
+		},
+		memory.NewByteCache(),
+		noopStorage{},
+	)
+	if err != nil {
+		t.Fatalf("NewCDNAdapter() error = %v", err)
+	}
+
+	result, err := server.GenerateUploadToken(context.Background(), "avatar.png", "users", func(filename string, dir ...string) string {
+		return path.Join(append(dir, filename)...)
+	})
+	if err != nil {
+		t.Fatalf("GenerateUploadToken() error = %v", err)
+	}
+
+	if !strings.HasPrefix(result[0], "https://upload.example.com/") {
+		t.Fatalf("uploadURL = %q, want prefix %q", result[0], "https://upload.example.com/")
+	}
+	if result[1] != "users/avatar.png" {
+		t.Fatalf("key = %q, want %q", result[1], "users/avatar.png")
+	}
+	if result[2] != "https://cdn.example.com/users/avatar.png" {
+		t.Fatalf("publicURL = %q, want %q", result[2], "https://cdn.example.com/users/avatar.png")
 	}
 }
 

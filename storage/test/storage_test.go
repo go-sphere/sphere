@@ -32,9 +32,8 @@ func TestFileServerGenerateUploadTokenWithMemoryImplementations(t *testing.T) {
 
 	server, err := fileserver.NewCDNAdapter(
 		&fileserver.Config{
-			PublicBase: "https://cdn.example.com",
-			PutPrefix:  "upload",
-			GetPrefix:  "files",
+			PutBase: "https://cdn.example.com",
+			GetBase: "https://cdn.example.com",
 		},
 		tokenCache,
 		memStorage,
@@ -67,8 +66,8 @@ func TestFileServerGenerateUploadTokenWithMemoryImplementations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse upload URI: %v", err)
 	}
-	if !strings.HasPrefix(parsed.Path, "/upload/") {
-		t.Fatalf("upload path = %q, want prefix %q", parsed.Path, "/upload/")
+	if !strings.HasPrefix(parsed.Path, "/") {
+		t.Fatalf("upload path = %q, want prefix %q", parsed.Path, "/")
 	}
 	token := path.Base(parsed.Path)
 	if token == "" || token == "." || token == "/" {
@@ -94,7 +93,10 @@ func TestFileServerStoragePassThroughWithInMemoryStorage(t *testing.T) {
 	memStorage := newInMemoryStorage(t)
 
 	server, err := fileserver.NewCDNAdapter(
-		&fileserver.Config{PublicBase: "https://cdn.example.com"},
+		&fileserver.Config{
+			PutBase: "https://cdn.example.com",
+			GetBase: "https://cdn.example.com",
+		},
 		tokenCache,
 		memStorage,
 	)

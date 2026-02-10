@@ -30,9 +30,8 @@ func TestFileServerUploadAndDownloadOverHTTP(t *testing.T) {
 
 	fileServer, err := fileserver.NewCDNAdapter(
 		&fileserver.Config{
-			PublicBase: server.URL,
-			PutPrefix:  "upload",
-			GetPrefix:  "",
+			PutBase: server.URL + "/upload",
+			GetBase: server.URL + "/files",
 		},
 		tokenCache,
 		memStorage,
@@ -40,8 +39,8 @@ func TestFileServerUploadAndDownloadOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCDNAdapter() error = %v", err)
 	}
-	fileServer.RegisterFileUploader(router)
-	fileServer.RegisterFileDownloader(router)
+	fileServer.RegisterFileUploader(router.Group("/upload"))
+	fileServer.RegisterFileDownloader(router.Group("/files"))
 
 	tokenData, err := fileServer.GenerateUploadToken(context.Background(), "avatar.txt", "users", func(filename string, dir ...string) string {
 		return path.Join(append(dir, filename)...)

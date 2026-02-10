@@ -32,7 +32,8 @@ func NewLocalFileService(config *local.Config, publicBase string) (*fileserver.F
 	}
 	adapter, err := fileserver.NewCDNAdapter(
 		&fileserver.Config{
-			PublicBase: publicBase,
+			PutBase: publicBase,
+			GetBase: publicBase,
 		},
 		memory.NewByteCache(),
 		client,
