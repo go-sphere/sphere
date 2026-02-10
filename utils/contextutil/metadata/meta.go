@@ -1,6 +1,3 @@
-// Package metadata provides utilities for attaching and retrieving metadata from Go contexts.
-// It offers both simple key-value storage and a specialized context implementation
-// that supports string-keyed metadata for efficient data passing between function calls.
 package metadata
 
 import "context"
