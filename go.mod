@@ -50,7 +50,6 @@ require (
 	github.com/go-openapi/swag/stringutils v0.25.4 // indirect
 	github.com/go-openapi/swag/typeutils v0.25.4 // indirect
 	github.com/go-openapi/swag/yamlutils v0.25.4 // indirect
-	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/pprof v0.0.0-20250418163039-24c5476c6587 // indirect
