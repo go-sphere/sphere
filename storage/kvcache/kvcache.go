@@ -93,7 +93,7 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, s
 		return nil, "", 0, err
 	}
 	if !found {
-		return nil, "", 0, err
+		return nil, "", 0, storageerr.ErrorNotFound
 	}
 	return io.NopCloser(bytes.NewReader(data)), mime.TypeByExtension(filepath.Ext(key)), int64(len(data)), nil
 }
@@ -134,7 +134,7 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 		if err != nil {
 			return err
 		}
-		if !found {
+		if found {
 			return storageerr.ErrorDistExisted
 		}
 	}

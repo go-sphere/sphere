@@ -53,7 +53,7 @@ func RegisterFileDownloader(route httpx.Router, storage storage.Storage, options
 			return httpx.NotFoundError(err)
 		}
 		defer func() {
-			_ = reader.Close
+			_ = reader.Close()
 		}()
 		headers := maps.Clone(sharedHeaders)
 		for k, v := range headers {
@@ -107,7 +107,7 @@ func RegisterFormFileUploader(route httpx.Router, storage storage.Storage, keyBu
 			return httpx.InternalServerError(err)
 		}
 		defer func() {
-			_ = read.Close
+			_ = read.Close()
 		}()
 		filename := keyBuilder(ctx, file.Filename)
 		result, err := storage.UploadFile(ctx, read, filename)

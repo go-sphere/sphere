@@ -60,7 +60,11 @@ func (c *Client) fixFilePath(key string) (string, error) {
 	}
 	rootDir = filepath.Clean(rootDir)
 	filePath = filepath.Clean(filePath)
-	if !strings.HasPrefix(filePath, rootDir) {
+	rel, err := filepath.Rel(rootDir, filePath)
+	if err != nil {
+		return "", err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", storageerr.ErrorFileNameInvalid
 	}
 	return filePath, nil
