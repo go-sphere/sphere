@@ -28,7 +28,7 @@ func TestMeta(t *testing.T) {
 	}
 
 	// Test case 3: MetaFrom with wrong type
-	ctx = context.WithValue(context.Background(), metaKey{}, "not a map")
+	ctx = context.WithValue(context.Background(), metaContextKey, "not a map")
 	meta = MetaFrom(ctx)
 	if meta != nil {
 		t.Errorf("MetaFrom() from context with wrong type should be nil, but got %v", meta)
