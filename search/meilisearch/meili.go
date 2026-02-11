@@ -79,25 +79,25 @@ func (s *Searcher[T]) Delete(ctx context.Context, ids ...string) error {
 	return err
 }
 
-func (s *Searcher[T]) Search(ctx context.Context, params search.Params) (*search.Result[T], error) {
+func (s *Searcher[T]) Search(ctx context.Context, params search.Params) (search.Result[T], error) {
 	resp, err := s.index.SearchWithContext(ctx, params.Query, &meilisearch.SearchRequest{
 		Offset: int64(params.Offset),
 		Limit:  int64(params.Limit),
 		Filter: params.Filter,
 	})
 	if err != nil {
-		return nil, err
+		return search.Result[T]{}, err
 	}
 	var hits []T
 	for _, hit := range resp.Hits {
 		var hitData T
 		dErr := hit.DecodeInto(&hitData)
 		if dErr != nil {
-			return nil, dErr
+			return search.Result[T]{}, dErr
 		}
 		hits = append(hits, hitData)
 	}
-	return &search.Result[T]{
+	return search.Result[T]{
 		Hits:       hits,
 		Total:      resp.TotalHits,
 		Offset:     int(resp.Offset),

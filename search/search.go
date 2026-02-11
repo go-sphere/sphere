@@ -32,5 +32,5 @@ type Searcher[T any] interface {
 
 	// Search performs a search operation with the given parameters.
 	// Returns matching results with pagination and metadata.
-	Search(ctx context.Context, params Params) (*Result[T], error)
+	Search(ctx context.Context, params Params) (Result[T], error)
 }
