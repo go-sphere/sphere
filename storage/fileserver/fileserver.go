@@ -19,9 +19,11 @@ import (
 
 // Config holds the configuration for S3 adapter operations.
 type Config struct {
-	PutBase string        `json:"put_base" yaml:"put_base"`
-	GetBase string        `json:"get_base" yaml:"get_base"`
-	KeyTTL  time.Duration `json:"key_ttl" yaml:"key_ttl"`
+	PutBase      string                       `json:"put_base" yaml:"put_base"`
+	GetBase      string                       `json:"get_base" yaml:"get_base"`
+	KeyTTL       time.Duration                `json:"key_ttl" yaml:"key_ttl"`
+	Dir          string                       `json:"dir" yaml:"dir"`
+	UploadNaming storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"`
 }
 
 // FileServer provides a caching layer and upload token generation for S3-compatible storage.
@@ -96,7 +98,7 @@ func (a *FileServer) IsFileExists(ctx context.Context, key string) (bool, error)
 	return a.store.IsFileExists(ctx, key)
 }
 
-func (a *FileServer) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+func (a *FileServer) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
 	return a.store.DownloadFile(ctx, key)
 }
 
@@ -112,25 +114,34 @@ func (a *FileServer) CopyFile(ctx context.Context, sourceKey string, destination
 	return a.store.CopyFile(ctx, sourceKey, destinationKey, overwrite)
 }
 
-// GenerateUploadToken creates a temporary upload URL and token for client-side uploads.
-// Returns the upload URL, final storage key, and public access URL.
-func (a *FileServer) GenerateUploadToken(ctx context.Context, fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {
-	if nameBuilder == nil {
-		return [3]string{}, errors.New("nameBuilder is required")
+// GenerateUploadAuth creates temporary upload authorization for client-side uploads.
+func (a *FileServer) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthRequest) (storage.UploadAuthResult, error) {
+	fileName, err := storage.BuildUploadFileName(req.FileName, a.config.UploadNaming)
+	if err != nil {
+		return storage.UploadAuthResult{}, err
 	}
-	key := nameBuilder(fileName, dir)
+	key, err := storage.JoinUploadKey(a.config.Dir, req.Dir, fileName)
+	if err != nil {
+		return storage.UploadAuthResult{}, err
+	}
 	newToken, err := a.opts.createFileKey(ctx, a, key)
 	if err != nil {
-		return [3]string{}, err
+		return storage.UploadAuthResult{}, err
 	}
 	uri, err := url.JoinPath(a.config.PutBase, newToken)
 	if err != nil {
-		return [3]string{}, err
+		return storage.UploadAuthResult{}, err
 	}
-	return [3]string{
-		uri,
-		key,
-		a.GenerateURL(key),
+	return storage.UploadAuthResult{
+		Authorization: storage.UploadAuthorization{
+			Type:   storage.UploadAuthorizationTypeURL,
+			Value:  uri,
+			Method: http.MethodPut,
+		},
+		File: storage.UploadFileInfo{
+			Key: key,
+			URL: a.GenerateURL(key),
+		},
 	}, nil
 }
 
@@ -144,7 +155,7 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 		if param == "" {
 			return httpx.NewNotFoundError("filename is required")
 		}
-		reader, mime, size, err := a.store.DownloadFile(ctx, param)
+		result, err := a.store.DownloadFile(ctx, param)
 		if err != nil {
 			if errors.Is(err, storageerr.ErrorNotFound) {
 				return httpx.NotFoundError(err)
@@ -152,13 +163,13 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 			return httpx.InternalServerError(err)
 		}
 		defer func() {
-			_ = reader.Close()
+			_ = result.Reader.Close()
 		}()
 		headers := maps.Clone(sharedHeaders)
 		for k, v := range headers {
 			ctx.SetHeader(k, v)
 		}
-		return ctx.DataFromReader(200, mime, reader, int(size))
+		return ctx.DataFromReader(200, result.MIME, result.Reader, int(result.Size))
 	})
 }
 

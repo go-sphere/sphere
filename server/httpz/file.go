@@ -67,15 +67,16 @@ func WithFormAllowExtensions(extensions ...string) WithFormOption {
 // WithFormFileReader creates a Gin handler that processes uploaded files as io.ReadSeekCloser.
 // It validates file size, extension constraints, and passes the file content to the handler function.
 // The handler receives the file as an io.Reader along with the original filename.
-func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekCloser, filename string) (*T, error), options ...WithFormOption) httpx.Handler {
-	return WithJson(func(ctx httpx.Context) (*T, error) {
+func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekCloser, filename string) (T, error), options ...WithFormOption) httpx.Handler {
+	return WithJson(func(ctx httpx.Context) (T, error) {
+		var zero T
 		opts := newWithFormOptions(options...)
 		file, err := ctx.FormFile(opts.fileFormKey)
 		if err != nil {
-			return nil, err
+			return zero, err
 		}
 		if opts.maxSize > 0 && file.Size > opts.maxSize {
-			return nil, httpx.BadRequestError(
+			return zero, httpx.BadRequestError(
 				errors.New("FileError:FILE_TOO_LARGE"),
 				"File size exceeds maximum allowed size: "+file.Filename,
 			)
@@ -83,7 +84,7 @@ func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekC
 		if opts.allowExtensions != nil {
 			ext := filepath.Ext(file.Filename)
 			if _, ok := opts.allowExtensions[strings.ToLower(ext)]; !ok {
-				return nil, httpx.BadRequestError(
+				return zero, httpx.BadRequestError(
 					errors.New("FileError:FILE_EXTENSION_NOT_ALLOWED"),
 					"File extension not allowed: "+ext,
 				)
@@ -91,7 +92,7 @@ func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekC
 		}
 		read, err := file.Open()
 		if err != nil {
-			return nil, err
+			return zero, err
 		}
 		defer func() {
 			_ = read.Close()
@@ -103,11 +104,12 @@ func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekC
 // WithFormFileBytes creates a Gin handler that processes uploaded files as byte arrays.
 // It reads the entire file content into memory and passes it to the handler function.
 // This is convenient for smaller files but should be used carefully with large files.
-func WithFormFileBytes[T any](handler func(ctx httpx.Context, file []byte, filename string) (*T, error), options ...WithFormOption) httpx.Handler {
-	return WithFormFileReader(func(ctx httpx.Context, file io.ReadSeekCloser, filename string) (*T, error) {
+func WithFormFileBytes[T any](handler func(ctx httpx.Context, file []byte, filename string) (T, error), options ...WithFormOption) httpx.Handler {
+	return WithFormFileReader(func(ctx httpx.Context, file io.ReadSeekCloser, filename string) (T, error) {
+		var zero T
 		all, err := io.ReadAll(file)
 		if err != nil {
-			return nil, err
+			return zero, err
 		}
 		return handler(ctx, all, filename)
 	}, options...)

@@ -3,11 +3,11 @@ package fileserver
 import (
 	"context"
 	"io"
-	"path"
 	"strings"
 	"testing"
 
 	"github.com/go-sphere/sphere/cache/memory"
+	"github.com/go-sphere/sphere/storage"
 )
 
 type noopStorage struct{}
@@ -24,8 +24,12 @@ func (noopStorage) IsFileExists(ctx context.Context, key string) (bool, error) {
 	return false, nil
 }
 
-func (noopStorage) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
-	return io.NopCloser(strings.NewReader("")), "application/octet-stream", 0, nil
+func (noopStorage) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
+	return storage.DownloadResult{
+		Reader: io.NopCloser(strings.NewReader("")),
+		MIME:   "application/octet-stream",
+		Size:   0,
+	}, nil
 }
 
 func (noopStorage) DeleteFile(ctx context.Context, key string) error {
@@ -83,7 +87,7 @@ func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
 	})
 }
 
-func TestGenerateUploadToken_RejectNilNameBuilder(t *testing.T) {
+func TestGenerateUploadAuth_RejectEmptyFileName(t *testing.T) {
 	server, err := NewCDNAdapter(
 		&Config{
 			PutBase: "https://example.com",
@@ -96,17 +100,22 @@ func TestGenerateUploadToken_RejectNilNameBuilder(t *testing.T) {
 		t.Fatalf("NewCDNAdapter() error = %v", err)
 	}
 
-	_, err = server.GenerateUploadToken(context.Background(), "avatar.png", "test", nil)
+	_, err = server.GenerateUploadAuth(context.Background(), storage.UploadAuthRequest{
+		FileName: "",
+		Dir:      "test",
+	})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 }
 
-func TestGenerateUploadToken_UsesSeparatedPutAndGetBase(t *testing.T) {
+func TestGenerateUploadAuth_UsesSeparatedPutAndGetBase(t *testing.T) {
 	server, err := NewCDNAdapter(
 		&Config{
-			PutBase: "https://upload.example.com",
-			GetBase: "https://cdn.example.com",
+			PutBase:      "https://upload.example.com",
+			GetBase:      "https://cdn.example.com",
+			Dir:          "base",
+			UploadNaming: storage.UploadNamingStrategyOriginal,
 		},
 		memory.NewByteCache(),
 		noopStorage{},
@@ -115,21 +124,25 @@ func TestGenerateUploadToken_UsesSeparatedPutAndGetBase(t *testing.T) {
 		t.Fatalf("NewCDNAdapter() error = %v", err)
 	}
 
-	result, err := server.GenerateUploadToken(context.Background(), "avatar.png", "users", func(filename string, dir ...string) string {
-		return path.Join(append(dir, filename)...)
+	result, err := server.GenerateUploadAuth(context.Background(), storage.UploadAuthRequest{
+		FileName: "avatar.png",
+		Dir:      "users",
 	})
 	if err != nil {
-		t.Fatalf("GenerateUploadToken() error = %v", err)
+		t.Fatalf("GenerateUploadAuth() error = %v", err)
 	}
 
-	if !strings.HasPrefix(result[0], "https://upload.example.com/") {
-		t.Fatalf("uploadURL = %q, want prefix %q", result[0], "https://upload.example.com/")
+	if !strings.HasPrefix(result.Authorization.Value, "https://upload.example.com/") {
+		t.Fatalf("uploadURL = %q, want prefix %q", result.Authorization.Value, "https://upload.example.com/")
 	}
-	if result[1] != "users/avatar.png" {
-		t.Fatalf("key = %q, want %q", result[1], "users/avatar.png")
+	if result.Authorization.Type != storage.UploadAuthorizationTypeURL {
+		t.Fatalf("auth type = %q, want %q", result.Authorization.Type, storage.UploadAuthorizationTypeURL)
 	}
-	if result[2] != "https://cdn.example.com/users/avatar.png" {
-		t.Fatalf("publicURL = %q, want %q", result[2], "https://cdn.example.com/users/avatar.png")
+	if result.File.Key != "base/users/avatar.png" {
+		t.Fatalf("key = %q, want %q", result.File.Key, "base/users/avatar.png")
+	}
+	if result.File.URL != "https://cdn.example.com/base/users/avatar.png" {
+		t.Fatalf("publicURL = %q, want %q", result.File.URL, "https://cdn.example.com/base/users/avatar.png")
 	}
 }
 

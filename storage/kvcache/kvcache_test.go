@@ -22,12 +22,12 @@ func newTestClient(t *testing.T) *Client {
 
 func TestClientDownloadFileNotFound(t *testing.T) {
 	client := newTestClient(t)
-	read, _, _, err := client.DownloadFile(context.Background(), "missing.txt")
+	result, err := client.DownloadFile(context.Background(), "missing.txt")
 	if !errors.Is(err, storageerr.ErrorNotFound) {
 		t.Fatalf("DownloadFile() error = %v, want %v", err, storageerr.ErrorNotFound)
 	}
-	if read != nil {
-		t.Fatalf("DownloadFile() reader = %v, want nil", read)
+	if result.Reader != nil {
+		t.Fatalf("DownloadFile() reader = %v, want nil", result.Reader)
 	}
 }
 
@@ -45,14 +45,14 @@ func TestClientCopyFileOverwriteBehavior(t *testing.T) {
 		if copyErr != nil {
 			t.Fatalf("CopyFile() error = %v", copyErr)
 		}
-		read, _, _, downErr := client.DownloadFile(ctx, "new-destination.txt")
+		result, downErr := client.DownloadFile(ctx, "new-destination.txt")
 		if downErr != nil {
 			t.Fatalf("DownloadFile() error = %v", downErr)
 		}
 		defer func() {
-			_ = read.Close()
+			_ = result.Reader.Close()
 		}()
-		all, readErr := io.ReadAll(read)
+		all, readErr := io.ReadAll(result.Reader)
 		if readErr != nil {
 			t.Fatalf("ReadAll() error = %v", readErr)
 		}

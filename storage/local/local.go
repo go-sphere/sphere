@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-sphere/sphere/storage"
 	"github.com/go-sphere/sphere/storage/storageerr"
 )
 
@@ -118,24 +119,28 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 
 // DownloadFile retrieves a file from local filesystem storage.
 // Returns the file reader, MIME type based on file extension, and file size.
-func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+func (c *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
-		return nil, "", 0, err
+		return storage.DownloadResult{}, err
 	}
 	file, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, "", 0, storageerr.ErrorNotFound
+			return storage.DownloadResult{}, storageerr.ErrorNotFound
 		}
-		return nil, "", 0, err
+		return storage.DownloadResult{}, err
 	}
 	stat, err := file.Stat()
 	if err != nil {
 		_ = file.Close()
-		return nil, "", 0, err
+		return storage.DownloadResult{}, err
 	}
-	return file, mime.TypeByExtension(filepath.Ext(key)), stat.Size(), nil
+	return storage.DownloadResult{
+		Reader: file,
+		MIME:   mime.TypeByExtension(filepath.Ext(key)),
+		Size:   stat.Size(),
+	}, nil
 }
 
 // DeleteFile removes a file from the local filesystem storage.

@@ -2,13 +2,12 @@ package s3
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
 	"io"
-	"path"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/go-sphere/sphere/storage"
 	"github.com/go-sphere/sphere/storage/storageerr"
 	"github.com/go-sphere/sphere/storage/urlhandler"
 	"github.com/minio/minio-go/v7"
@@ -17,13 +16,15 @@ import (
 
 // Config holds the configuration parameters for S3-compatible object storage.
 type Config struct {
-	Endpoint        string `json:"endpoint"`
-	AccessKeyID     string `json:"access_key"`
-	SecretAccessKey string `json:"secret"`
-	Token           string `json:"token"`
-	Bucket          string `json:"bucket"`
-	UseSSL          bool   `json:"use_ssl"`
-	PublicBase      string `json:"public_base"`
+	Endpoint        string                       `json:"endpoint"`
+	AccessKeyID     string                       `json:"access_key"`
+	SecretAccessKey string                       `json:"secret"`
+	Token           string                       `json:"token"`
+	Bucket          string                       `json:"bucket"`
+	UseSSL          bool                         `json:"use_ssl"`
+	PublicBase      string                       `json:"public_base"`
+	Dir             string                       `json:"dir" yaml:"dir"`
+	UploadNaming    storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"`
 }
 
 // Client provides S3-compatible object storage operations with URL handling capabilities.
@@ -68,14 +69,19 @@ func (s *Client) keyPreprocess(key string) string {
 	return strings.TrimPrefix(key, "/")
 }
 
-// GenerateUploadToken creates a presigned PUT URL for direct client uploads to S3.
-// It generates a unique key based on the filename hash and returns the presigned URL,
-// storage key, and public access URL. The presigned URL expires after 1 hour.
-func (s *Client) GenerateUploadToken(ctx context.Context, fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error) {
-	fileExt := path.Ext(fileName)
-	sum := md5.Sum([]byte(fileName))
-	nameMd5 := hex.EncodeToString(sum[:])
-	key := nameBuilder(nameMd5+fileExt, dir)
+// GenerateUploadAuth creates a presigned PUT URL for direct client uploads to S3.
+// It generates the storage key using configured naming strategy and returns
+// the presigned URL, storage key, and public access URL. The presigned URL
+// expires after 1 hour.
+func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthRequest) (storage.UploadAuthResult, error) {
+	fileName, err := storage.BuildUploadFileName(req.FileName, s.config.UploadNaming)
+	if err != nil {
+		return storage.UploadAuthResult{}, err
+	}
+	key, err := storage.JoinUploadKey(s.config.Dir, req.Dir, fileName)
+	if err != nil {
+		return storage.UploadAuthResult{}, err
+	}
 	key = s.keyPreprocess(key)
 
 	preSignedURL, err := s.client.PresignedPutObject(ctx,
@@ -83,12 +89,18 @@ func (s *Client) GenerateUploadToken(ctx context.Context, fileName string, dir s
 		key,
 		time.Hour)
 	if err != nil {
-		return [3]string{}, err
+		return storage.UploadAuthResult{}, err
 	}
-	return [3]string{
-		preSignedURL.String(),
-		key,
-		s.GenerateURL(key),
+	return storage.UploadAuthResult{
+		Authorization: storage.UploadAuthorization{
+			Type:   storage.UploadAuthorizationTypeURL,
+			Value:  preSignedURL.String(),
+			Method: http.MethodPut,
+		},
+		File: storage.UploadFileInfo{
+			Key: key,
+			URL: s.GenerateURL(key),
+		},
 	}, nil
 }
 
@@ -127,24 +139,28 @@ func (s *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 
 // DownloadFile retrieves a file from S3-compatible storage.
 // Returns the file reader, content type, and content size.
-func (s *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+func (s *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
 	key = s.keyPreprocess(key)
 	object, err := s.client.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
 	if err != nil {
 		if isNoSuchKeyError(err) {
-			return nil, "", 0, storageerr.ErrorNotFound
+			return storage.DownloadResult{}, storageerr.ErrorNotFound
 		}
-		return nil, "", 0, err
+		return storage.DownloadResult{}, err
 	}
 	info, err := object.Stat()
 	if err != nil {
 		_ = object.Close()
 		if isNoSuchKeyError(err) {
-			return nil, "", 0, storageerr.ErrorNotFound
+			return storage.DownloadResult{}, storageerr.ErrorNotFound
 		}
-		return nil, "", 0, err
+		return storage.DownloadResult{}, err
 	}
-	return object, info.ContentType, info.Size, nil
+	return storage.DownloadResult{
+		Reader: object,
+		MIME:   info.ContentType,
+		Size:   info.Size,
+	}, nil
 }
 
 // DeleteFile removes a file from the S3-compatible storage bucket.

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-sphere/sphere/cache"
+	"github.com/go-sphere/sphere/storage"
 	"github.com/go-sphere/sphere/storage/storageerr"
 )
 
@@ -79,16 +80,20 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 
 // DownloadFile retrieves file data from the cache storage.
 // Returns the file content reader, MIME type based on file extension, and content size.
-func (c *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+func (c *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
 	key = c.keyPreprocess(key)
 	data, found, err := c.cache.Get(ctx, key)
 	if err != nil {
-		return nil, "", 0, err
+		return storage.DownloadResult{}, err
 	}
 	if !found {
-		return nil, "", 0, storageerr.ErrorNotFound
+		return storage.DownloadResult{}, storageerr.ErrorNotFound
 	}
-	return io.NopCloser(bytes.NewReader(data)), mime.TypeByExtension(filepath.Ext(key)), int64(len(data)), nil
+	return storage.DownloadResult{
+		Reader: io.NopCloser(bytes.NewReader(data)),
+		MIME:   mime.TypeByExtension(filepath.Ext(key)),
+		Size:   int64(len(data)),
+	}, nil
 }
 
 // DeleteFile removes a file from the cache storage.

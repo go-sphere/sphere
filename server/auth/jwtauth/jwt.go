@@ -59,12 +59,8 @@ func (g *JwtAuth[T]) keyFunc(token *jwt.Token) (interface{}, error) {
 }
 
 // GenerateToken creates a signed JWT token from the provided claims.
-// The claims parameter must not be nil.
-func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims *T) (string, error) {
-	if claims == nil {
-		return "", fmt.Errorf("claims must not be nil")
-	}
-	token, err := jwt.NewWithClaims(g.signingMethod, *claims).SignedString(g.secret)
+func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims T) (string, error) {
+	token, err := jwt.NewWithClaims(g.signingMethod, claims).SignedString(g.secret)
 	if err != nil {
 		return "", err
 	}
@@ -74,7 +70,7 @@ func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims *T) (string, erro
 // ParseToken parses and validates a signed JWT token, returning the claims.
 // It handles both direct jwt.Claims types and custom structs, using JSON
 // marshaling/unmarshaling for struct conversion when necessary.
-func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (*T, error) {
+func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (T, error) {
 	var claims T
 	// Although the second parameter in jwt.ParseWithClaims requires a jwt.Claims type,
 	// when claims is a struct type, directly passing it for parsing will result in the following error:
@@ -83,24 +79,24 @@ func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (*T, er
 	if jwtClaims, ok := any(&claims).(jwt.Claims); ok {
 		_, err := jwt.ParseWithClaims(signedToken, jwtClaims, g.keyFunc)
 		if err != nil {
-			return nil, err
+			return claims, err
 		}
-		return &claims, nil
+		return claims, nil
 	} else {
 		// Otherwise, first parse it into a map, then attempt to convert it into T.
 		token, err := jwt.Parse(signedToken, g.keyFunc)
 		if err != nil {
-			return nil, err
+			return claims, err
 		}
 		// Here, mapstructure cannot be used because it has issues with converting anonymous fields.
 		raw, err := json.Marshal(token.Claims)
 		if err != nil {
-			return nil, err
+			return claims, err
 		}
 		err = json.Unmarshal(raw, &claims)
 		if err != nil {
-			return nil, err
+			return claims, err
 		}
-		return &claims, nil
+		return claims, nil
 	}
 }

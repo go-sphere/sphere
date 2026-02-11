@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/cache/memory"
+	"github.com/go-sphere/sphere/storage"
 	"github.com/go-sphere/sphere/storage/fileserver"
 )
 
@@ -30,8 +31,9 @@ func TestFileServerUploadAndDownloadOverHTTP(t *testing.T) {
 
 	fileServer, err := fileserver.NewCDNAdapter(
 		&fileserver.Config{
-			PutBase: server.URL + "/upload",
-			GetBase: server.URL + "/files",
+			PutBase:      server.URL + "/upload",
+			GetBase:      server.URL + "/files",
+			UploadNaming: storage.UploadNamingStrategyOriginal,
 		},
 		tokenCache,
 		memStorage,
@@ -42,15 +44,16 @@ func TestFileServerUploadAndDownloadOverHTTP(t *testing.T) {
 	fileServer.RegisterFileUploader(router.Group("/upload"))
 	fileServer.RegisterFileDownloader(router.Group("/files"))
 
-	tokenData, err := fileServer.GenerateUploadToken(context.Background(), "avatar.txt", "users", func(filename string, dir ...string) string {
-		return path.Join(append(dir, filename)...)
+	tokenData, err := fileServer.GenerateUploadAuth(context.Background(), storage.UploadAuthRequest{
+		FileName: "avatar.txt",
+		Dir:      "users",
 	})
 	if err != nil {
-		t.Fatalf("GenerateUploadToken() error = %v", err)
+		t.Fatalf("GenerateUploadAuth() error = %v", err)
 	}
-	uploadURL := tokenData[0]
-	key := tokenData[1]
-	downloadURL := tokenData[2]
+	uploadURL := tokenData.Authorization.Value
+	key := tokenData.File.Key
+	downloadURL := tokenData.File.URL
 	if key != "users/avatar.txt" {
 		t.Fatalf("key = %q, want %q", key, "users/avatar.txt")
 	}

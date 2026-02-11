@@ -96,11 +96,11 @@ func (c *CommonCache) Load(ctx context.Context, key string) (http.Header, io.Rea
 		return nil, nil, errors.New("no cache file found")
 	}
 	header.Del(cacheFileKeyForReverseProxyBody)
-	reader, _, _, err := c.storage.DownloadFile(ctx, cacheFileKey)
+	result, err := c.storage.DownloadFile(ctx, cacheFileKey)
 	if err != nil {
 		return nil, nil, err
 	}
-	return header, reader, nil
+	return header, result.Reader, nil
 }
 
 func (c *CommonCache) Header(ctx context.Context, key string) (http.Header, error) {

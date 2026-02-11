@@ -26,12 +26,54 @@ type URLHandler interface {
 	ExtractKeyFromURLWithMode(uri string, strict bool) (string, error)
 }
 
-// TokenGenerator provides secure upload token generation for client-side uploads.
+// UploadAuthorizationType indicates how upload authorization should be interpreted by clients.
+type UploadAuthorizationType string
+
+const (
+	UploadAuthorizationTypeURL   UploadAuthorizationType = "url"
+	UploadAuthorizationTypeToken UploadAuthorizationType = "token"
+)
+
+// UploadAuthorization carries the upload authorization data for client-side uploads.
+type UploadAuthorization struct {
+	Type    UploadAuthorizationType `json:"type" yaml:"type"`
+	Value   string                  `json:"value" yaml:"value"`
+	Method  string                  `json:"method" yaml:"method"`
+	Headers map[string]string       `json:"headers,omitempty" yaml:"headers,omitempty"`
+}
+
+// UploadFileInfo contains the finalized storage information for an upload.
+type UploadFileInfo struct {
+	Key string `json:"key" yaml:"key"`
+	URL string `json:"url" yaml:"url"`
+}
+
+// UploadAuthResult is the structured result for generating upload authorization.
+type UploadAuthResult struct {
+	Authorization UploadAuthorization `json:"authorization" yaml:"authorization"`
+	File          UploadFileInfo      `json:"file" yaml:"file"`
+}
+
+// UploadNamingStrategy controls how upload file names are generated.
+type UploadNamingStrategy string
+
+const (
+	UploadNamingStrategyRandomExt UploadNamingStrategy = "random_ext"
+	UploadNamingStrategyHashExt   UploadNamingStrategy = "hash_ext"
+	UploadNamingStrategyOriginal  UploadNamingStrategy = "original"
+)
+
+// UploadAuthRequest describes the input for upload authorization generation.
+type UploadAuthRequest struct {
+	FileName string `json:"file_name" yaml:"file_name"`
+	Dir      string `json:"dir,omitempty" yaml:"dir,omitempty"`
+}
+
+// UploadAuthorizer provides secure upload authorization generation for client-side uploads.
 // This is commonly used for direct-to-storage uploads from web browsers or mobile apps.
-type TokenGenerator interface {
-	// GenerateUploadToken creates a secure upload token, key, and URL for client uploads.
-	// Returns [token, key, url] where token authorizes the upload operation.
-	GenerateUploadToken(ctx context.Context, fileName string, dir string, nameBuilder func(filename string, dir ...string) string) ([3]string, error)
+type UploadAuthorizer interface {
+	// GenerateUploadAuth creates upload authorization and target file information.
+	GenerateUploadAuth(ctx context.Context, req UploadAuthRequest) (UploadAuthResult, error)
 }
 
 // FileUploader provides file upload capabilities to the storage backend.
@@ -45,14 +87,21 @@ type FileUploader interface {
 	UploadLocalFile(ctx context.Context, file string, key string) (string, error)
 }
 
+// DownloadResult is the structured output for download operations.
+type DownloadResult struct {
+	Reader io.ReadCloser
+	MIME   string
+	Size   int64
+}
+
 // FileDownloader provides file download and existence checking capabilities.
 type FileDownloader interface {
 	// IsFileExists checks whether a file exists in the storage backend.
 	IsFileExists(ctx context.Context, key string) (bool, error)
 
-	// DownloadFile retrieves a file from storage, returning the reader, MIME type, and size.
-	// The caller is responsible for closing the returned ReadCloser.
-	DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) // reader, mime, size
+	// DownloadFile retrieves a file from storage.
+	// The caller is responsible for closing DownloadResult.Reader.
+	DownloadFile(ctx context.Context, key string) (DownloadResult, error)
 }
 
 // FileDeleter provides file deletion capabilities.
@@ -86,5 +135,5 @@ type Storage interface {
 type CDNStorage interface {
 	Storage
 	URLHandler
-	TokenGenerator
+	UploadAuthorizer
 }

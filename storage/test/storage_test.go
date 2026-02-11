@@ -24,7 +24,7 @@ var _ storage.CDNStorage = (*fileserver.FileServer)(nil)
 var _ storage.Storage = (*local.Client)(nil)
 var _ storage.Storage = (*kvcache.Client)(nil)
 
-func TestFileServerGenerateUploadTokenWithMemoryImplementations(t *testing.T) {
+func TestFileServerGenerateUploadAuthWithMemoryImplementations(t *testing.T) {
 	ctx := context.Background()
 	tokenCache := memory.NewByteCache()
 	t.Cleanup(func() { _ = tokenCache.Close() })
@@ -32,8 +32,9 @@ func TestFileServerGenerateUploadTokenWithMemoryImplementations(t *testing.T) {
 
 	server, err := fileserver.NewCDNAdapter(
 		&fileserver.Config{
-			PutBase: "https://cdn.example.com",
-			GetBase: "https://cdn.example.com",
+			PutBase:      "https://cdn.example.com",
+			GetBase:      "https://cdn.example.com",
+			UploadNaming: storage.UploadNamingStrategyOriginal,
 		},
 		tokenCache,
 		memStorage,
@@ -42,19 +43,17 @@ func TestFileServerGenerateUploadTokenWithMemoryImplementations(t *testing.T) {
 		t.Fatalf("NewCDNAdapter() error = %v", err)
 	}
 
-	result, err := server.GenerateUploadToken(ctx, "avatar.png", "users", func(filename string, dir ...string) string {
-		all := make([]string, 0, len(dir)+1)
-		all = append(all, dir...)
-		all = append(all, filename)
-		return path.Join(all...)
+	result, err := server.GenerateUploadAuth(ctx, storage.UploadAuthRequest{
+		FileName: "avatar.png",
+		Dir:      "users",
 	})
 	if err != nil {
-		t.Fatalf("GenerateUploadToken() error = %v", err)
+		t.Fatalf("GenerateUploadAuth() error = %v", err)
 	}
 
-	uploadURI := result[0]
-	key := result[1]
-	publicURL := result[2]
+	uploadURI := result.Authorization.Value
+	key := result.File.Key
+	publicURL := result.File.URL
 	if key != "users/avatar.png" {
 		t.Fatalf("key = %q, want %q", key, "users/avatar.png")
 	}
@@ -121,23 +120,23 @@ func TestFileServerStoragePassThroughWithInMemoryStorage(t *testing.T) {
 		t.Fatal("IsFileExists() = false, want true")
 	}
 
-	reader, mime, size, err := server.DownloadFile(ctx, key)
+	download, err := server.DownloadFile(ctx, key)
 	if err != nil {
 		t.Fatalf("DownloadFile() error = %v", err)
 	}
-	defer func() { _ = reader.Close() }()
-	content, err := io.ReadAll(reader)
+	defer func() { _ = download.Reader.Close() }()
+	content, err := io.ReadAll(download.Reader)
 	if err != nil {
 		t.Fatalf("ReadAll() error = %v", err)
 	}
 	if string(content) != "hello" {
 		t.Fatalf("download content = %q, want %q", string(content), "hello")
 	}
-	if size != int64(len(content)) {
-		t.Fatalf("size = %d, want %d", size, len(content))
+	if download.Size != int64(len(content)) {
+		t.Fatalf("size = %d, want %d", download.Size, len(content))
 	}
-	if mime != "text/plain; charset=utf-8" {
-		t.Fatalf("mime = %q, want %q", mime, "text/plain; charset=utf-8")
+	if download.MIME != "text/plain; charset=utf-8" {
+		t.Fatalf("mime = %q, want %q", download.MIME, "text/plain; charset=utf-8")
 	}
 }
 

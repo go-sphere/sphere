@@ -2,19 +2,18 @@ package qiniu
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
-	"path"
 	"strings"
 
+	"github.com/go-sphere/sphere/storage"
 	"github.com/go-sphere/sphere/storage/storageerr"
 	"github.com/go-sphere/sphere/storage/urlhandler"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
-	"github.com/qiniu/go-sdk/v7/storage"
+	qiniuStorage "github.com/qiniu/go-sdk/v7/storage"
 )
 
 // Config holds the configuration parameters for Qiniu Cloud Object Storage integration.
@@ -22,8 +21,9 @@ type Config struct {
 	AccessKey string `json:"access_key" yaml:"access_key"` // Qiniu access key for authentication
 	SecretKey string `json:"secret_key" yaml:"secret_key"` // Qiniu secret key for authentication
 
-	Bucket string `json:"bucket" yaml:"bucket"` // Storage bucket name
-	Dir    string `json:"dir" yaml:"dir"`       // Default directory prefix for uploads
+	Bucket       string                       `json:"bucket" yaml:"bucket"`               // Storage bucket name
+	Dir          string                       `json:"dir" yaml:"dir"`                     // Default directory prefix for uploads
+	UploadNaming storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"` // Upload file naming strategy
 
 	PublicBase string `json:"public_base" yaml:"public_base"` // Public base URL for file access
 }
@@ -69,37 +69,47 @@ func (n *Client) keyPreprocess(key string) string {
 	return strings.TrimPrefix(key, "/")
 }
 
-// GenerateUploadToken creates a secure upload token for direct client uploads to Qiniu.
-// It generates a unique key based on the filename hash and returns the token, key, and public URL.
+// GenerateUploadAuth creates a secure upload token for direct client uploads to Qiniu.
+// It generates the storage key using configured naming strategy and returns token, key, and public URL.
 // The token includes restrictions for image and video MIME types only.
-func (n *Client) GenerateUploadToken(ctx context.Context, fileName string, dir string, nameBuilder func(fileName string, dir ...string) string) ([3]string, error) {
-	fileExt := path.Ext(fileName)
-	sum := md5.Sum([]byte(fileName))
-	nameMd5 := hex.EncodeToString(sum[:])
-	key := nameBuilder(nameMd5+fileExt, n.config.Dir, dir)
+func (n *Client) GenerateUploadAuth(_ context.Context, req storage.UploadAuthRequest) (storage.UploadAuthResult, error) {
+	fileName, err := storage.BuildUploadFileName(req.FileName, n.config.UploadNaming)
+	if err != nil {
+		return storage.UploadAuthResult{}, err
+	}
+	key, err := storage.JoinUploadKey(n.config.Dir, req.Dir, fileName)
+	if err != nil {
+		return storage.UploadAuthResult{}, err
+	}
 	key = n.keyPreprocess(key)
-	put := &storage.PutPolicy{
+	put := &qiniuStorage.PutPolicy{
 		Scope:      n.config.Bucket + ":" + key,
 		InsertOnly: 1,
 		MimeLimit:  "image/*;video/*",
 	}
-	return [3]string{
-		put.UploadToken(n.mac),
-		key,
-		n.GenerateURL(key),
+	return storage.UploadAuthResult{
+		Authorization: storage.UploadAuthorization{
+			Type:   storage.UploadAuthorizationTypeToken,
+			Value:  put.UploadToken(n.mac),
+			Method: http.MethodPost,
+		},
+		File: storage.UploadFileInfo{
+			Key: key,
+			URL: n.GenerateURL(key),
+		},
 	}, nil
 }
 
 // UploadFile uploads data from a reader to Qiniu Cloud Object Storage with the specified key.
 func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	key = n.keyPreprocess(key)
-	put := &storage.PutPolicy{
+	put := &qiniuStorage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
 	upToken := put.UploadToken(n.mac)
-	cfg := storage.Config{}
-	ret := storage.PutRet{}
-	formUploader := storage.NewFormUploader(&cfg)
+	cfg := qiniuStorage.Config{}
+	ret := qiniuStorage.PutRet{}
+	formUploader := qiniuStorage.NewFormUploader(&cfg)
 	err := formUploader.Put(ctx, &ret, upToken, key, file, -1, nil)
 	if err != nil {
 		return "", err
@@ -110,13 +120,13 @@ func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 // UploadLocalFile uploads an existing local file to Qiniu Cloud Object Storage with the specified key.
 func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
 	key = n.keyPreprocess(key)
-	put := &storage.PutPolicy{
+	put := &qiniuStorage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
 	upToken := put.UploadToken(n.mac)
-	cfg := storage.Config{}
-	ret := storage.PutRet{}
-	formUploader := storage.NewFormUploader(&cfg)
+	cfg := qiniuStorage.Config{}
+	ret := qiniuStorage.PutRet{}
+	formUploader := qiniuStorage.NewFormUploader(&cfg)
 	err := formUploader.PutFile(ctx, &ret, upToken, key, file, nil)
 	if err != nil {
 		return "", err
@@ -127,7 +137,7 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 // IsFileExists checks whether a file exists in the Qiniu Cloud Object Storage bucket.
 func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	key = n.keyPreprocess(key)
-	manager := storage.NewBucketManager(n.mac, &storage.Config{})
+	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
 	_, err := manager.Stat(n.config.Bucket, key)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -140,23 +150,27 @@ func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 
 // DownloadFile retrieves a file from Qiniu Cloud Object Storage.
 // Returns the file reader, content type, and content length.
-func (n *Client) DownloadFile(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+func (n *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
 	key = n.keyPreprocess(key)
-	manager := storage.NewBucketManager(n.mac, &storage.Config{})
-	object, err := manager.Get(n.config.Bucket, key, &storage.GetObjectInput{Context: ctx})
+	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
+	object, err := manager.Get(n.config.Bucket, key, &qiniuStorage.GetObjectInput{Context: ctx})
 	if err != nil {
 		if isNotFoundError(err) {
-			return nil, "", 0, storageerr.ErrorNotFound
+			return storage.DownloadResult{}, storageerr.ErrorNotFound
 		}
-		return nil, "", 0, err
+		return storage.DownloadResult{}, err
 	}
-	return object.Body, object.ContentType, object.ContentLength, nil
+	return storage.DownloadResult{
+		Reader: object.Body,
+		MIME:   object.ContentType,
+		Size:   object.ContentLength,
+	}, nil
 }
 
 // DeleteFile removes a file from the Qiniu Cloud Object Storage bucket.
 func (n *Client) DeleteFile(ctx context.Context, key string) error {
 	key = n.keyPreprocess(key)
-	manager := storage.NewBucketManager(n.mac, &storage.Config{})
+	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
 	err := manager.Delete(n.config.Bucket, key)
 	if err != nil {
 		return err
@@ -168,7 +182,7 @@ func (n *Client) DeleteFile(ctx context.Context, key string) error {
 func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourceKey = n.keyPreprocess(sourceKey)
 	destinationKey = n.keyPreprocess(destinationKey)
-	manager := storage.NewBucketManager(n.mac, &storage.Config{})
+	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
 	err := manager.Move(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -186,7 +200,7 @@ func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourceKey = n.keyPreprocess(sourceKey)
 	destinationKey = n.keyPreprocess(destinationKey)
-	manager := storage.NewBucketManager(n.mac, &storage.Config{})
+	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
 	err := manager.Copy(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -201,10 +215,10 @@ func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 }
 
 func isNotFoundError(err error) bool {
-	if errors.Is(err, storage.ErrNoSuchFile) {
+	if errors.Is(err, qiniuStorage.ErrNoSuchFile) {
 		return true
 	}
-	var respErr *storage.ErrorInfo
+	var respErr *qiniuStorage.ErrorInfo
 	if !errors.As(err, &respErr) {
 		return false
 	}
@@ -212,7 +226,7 @@ func isNotFoundError(err error) bool {
 }
 
 func isDestinationExistsError(err error) bool {
-	var respErr *storage.ErrorInfo
+	var respErr *qiniuStorage.ErrorInfo
 	if !errors.As(err, &respErr) {
 		return false
 	}

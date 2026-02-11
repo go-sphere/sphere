@@ -9,7 +9,7 @@ import (
 )
 
 func TestJwtAuth_GenerateToken(t *testing.T) {
-	claims := NewRBACClaims[int64](12345, "test-subject", []string{"admin", "user"}, time.Now().Add(1*time.Hour))
+	claims := *NewRBACClaims[int64](12345, "test-subject", []string{"admin", "user"}, time.Now().Add(1*time.Hour))
 	jwtAuth := NewJwtAuth[RBACClaims[int64]]("secret")
 	token, err := jwtAuth.GenerateToken(context.Background(), claims)
 	if err != nil {
