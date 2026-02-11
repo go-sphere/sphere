@@ -15,8 +15,8 @@ type RBACClaims[T authorizer.UID] struct {
 	Roles []string `json:"roles,omitempty"`
 }
 
-func NewRBACClaims[T authorizer.UID](uid T, subject string, roles []string, expiresAt time.Time) *RBACClaims[T] {
-	return &RBACClaims[T]{
+func NewRBACClaims[T authorizer.UID](uid T, subject string, roles []string, expiresAt time.Time) RBACClaims[T] {
+	return RBACClaims[T]{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   subject,
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
