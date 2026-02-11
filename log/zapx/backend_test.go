@@ -10,7 +10,7 @@ import (
 )
 
 func TestZapLogger(t *testing.T) {
-	backend := NewBackend(*NewDefaultConfig(), log.AddCaller())
+	backend := NewBackend(NewDefaultConfig(), log.AddCaller())
 
 	log.InitWithBackends(backend)
 	log.Warn("info")

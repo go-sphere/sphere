@@ -31,8 +31,8 @@ type FileConfig struct {
 }
 
 // NewDefaultConfig creates a config with info level logging and no file output.
-func NewDefaultConfig() *Config {
-	return &Config{
+func NewDefaultConfig() Config {
+	return Config{
 		File:    nil,
 		Console: nil,
 		Level:   defaultLevel,

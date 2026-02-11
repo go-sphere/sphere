@@ -16,8 +16,8 @@ type Driver struct {
 
 // NewDriver creates a new SQLite driver instance with enhanced functionality.
 // The returned driver automatically enables foreign key constraints for all connections.
-func NewDriver() *Driver {
-	return &Driver{
+func NewDriver() Driver {
+	return Driver{
 		Driver: sqlite.Driver{},
 	}
 }
