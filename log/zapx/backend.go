@@ -122,7 +122,7 @@ func newCore(conf Config) zapcore.Core {
 
 	var nodes []zapcore.Core
 
-	if conf.Console == nil || !conf.Console.Disable {
+	if !conf.Console.Disable {
 		developmentCfg := zap.NewDevelopmentEncoderConfig()
 		developmentCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
 		consoleEncoder := zapcore.NewConsoleEncoder(developmentCfg)
@@ -130,7 +130,7 @@ func newCore(conf Config) zapcore.Core {
 		nodes = append(nodes, pc)
 	}
 
-	if conf.File != nil {
+	if conf.File.FileName != "" {
 		productionCfg := zap.NewProductionEncoderConfig()
 		productionCfg.TimeKey = "timestamp"
 		productionCfg.EncodeTime = zapcore.ISO8601TimeEncoder

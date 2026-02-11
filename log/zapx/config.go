@@ -10,9 +10,9 @@ const defaultLevel = "info"
 
 // Config defines zap backend output and level settings.
 type Config struct {
-	File    *FileConfig    `json:"file" yaml:"file"`
-	Console *ConsoleConfig `json:"console" yaml:"console"`
-	Level   string         `json:"level" yaml:"level"`
+	File    FileConfig    `json:"file" yaml:"file"`
+	Console ConsoleConfig `json:"console" yaml:"console"`
+	Level   string        `json:"level" yaml:"level"`
 }
 
 // ConsoleConfig configures console logging output.
@@ -33,8 +33,8 @@ type FileConfig struct {
 // NewDefaultConfig creates a config with info level logging and no file output.
 func NewDefaultConfig() Config {
 	return Config{
-		File:    nil,
-		Console: nil,
+		File:    FileConfig{},
+		Console: ConsoleConfig{},
 		Level:   defaultLevel,
 	}
 }

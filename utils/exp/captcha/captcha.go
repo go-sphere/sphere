@@ -16,9 +16,9 @@ type Sender interface {
 
 // Config holds the configuration parameters for the verification code system.
 type Config struct {
-	CodeLength    int                 `json:"code_length"`     // Length of generated verification codes
-	CodeExpiresIn int                 `json:"code_expires_in"` // Code expiration time in seconds
-	RateLimit     *VerificationConfig `json:"rate_limit"`      // Rate limiting configuration
+	CodeLength    int                `json:"code_length"`     // Length of generated verification codes
+	CodeExpiresIn int                `json:"code_expires_in"` // Code expiration time in seconds
+	RateLimit     VerificationConfig `json:"rate_limit"`      // Rate limiting configuration
 }
 
 // Manager provides verification code generation, sending, and validation capabilities.
@@ -33,15 +33,11 @@ type Manager struct {
 // NewManager creates a new verification code manager with the provided configuration and sender.
 // It initializes the verification system with rate limiting capabilities.
 func NewManager(conf Config, sender Sender) *Manager {
-	rateLimit := VerificationConfig{}
-	if conf.RateLimit != nil {
-		rateLimit = *conf.RateLimit
-	}
 	return &Manager{
 		done:         make(chan struct{}),
 		config:       conf,
 		sender:       sender,
-		verification: NewVerificationSystem(rateLimit),
+		verification: NewVerificationSystem(conf.RateLimit),
 	}
 }
 
