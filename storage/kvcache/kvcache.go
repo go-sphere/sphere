@@ -23,15 +23,15 @@ type Config struct {
 // Client provides cache-based storage operations where files are stored in a byte cache.
 // This is useful for temporary storage or small files that benefit from fast cache access.
 type Client struct {
-	config *Config
+	config Config
 	cache  cache.ByteCache
 }
 
 // NewClient creates a new cache-based storage client with the provided configuration and cache backend.
 // If no expiration time is specified, files are cached indefinitely.
-func NewClient(config *Config, cache cache.ByteCache) (*Client, error) {
+func NewClient(conf Config, cache cache.ByteCache) (*Client, error) {
 	return &Client{
-		config: config,
+		config: conf,
 		cache:  cache,
 	}, nil
 }

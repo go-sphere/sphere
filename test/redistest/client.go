@@ -14,7 +14,7 @@ func NewTestRedisClient(t *testing.T) *redis.Client {
 
 	mini := miniredis.RunT(t)
 
-	client, err := redisConn.NewClient(&redisConn.Config{
+	client, err := redisConn.NewClient(redisConn.Config{
 		URL: "redis://" + mini.Addr() + "/0",
 	})
 	if err != nil {

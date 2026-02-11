@@ -341,7 +341,7 @@ func setupTestCache(t *testing.T) *CommonCache {
 	// Create temporary directory for test
 	tempDir := t.TempDir()
 
-	store, err := local.NewClient(&local.Config{
+	store, err := local.NewClient(local.Config{
 		RootDir: tempDir,
 	})
 	if err != nil {

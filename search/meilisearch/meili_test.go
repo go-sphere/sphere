@@ -21,7 +21,7 @@ docker run -it --rm \
 */
 
 func TestSearcher(t *testing.T) {
-	manager, err := NewServiceManager(&Config{
+	manager, err := NewServiceManager(Config{
 		Host:   "http://localhost:7700",
 		APIKey: "8IdbIxzCm86BaD8ZkT4SGv9vaipY1Ax7i0sz_Qv8wTI",
 	})

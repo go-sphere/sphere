@@ -21,22 +21,22 @@ type Config struct {
 // Client provides local filesystem storage operations.
 // It implements the Storage interface for file operations on the local filesystem.
 type Client struct {
-	config *Config
+	config Config
 }
 
 // NewClient creates a new local storage client with the provided configuration.
 // It validates the root directory and creates it if it doesn't exist.
 // Returns an error if the root directory cannot be created or is invalid.
-func NewClient(config *Config) (*Client, error) {
-	if config.RootDir == "" {
+func NewClient(conf Config) (*Client, error) {
+	if conf.RootDir == "" {
 		return nil, errors.New("root_dir is required")
 	}
-	err := os.MkdirAll(config.RootDir, 0o750)
+	err := os.MkdirAll(conf.RootDir, 0o750)
 	if err != nil {
 		return nil, err
 	}
 	return &Client{
-		config: config,
+		config: conf,
 	}, nil
 }
 

@@ -30,40 +30,37 @@ type Config struct {
 // It extends a base storage implementation with temporary upload URL generation capabilities.
 type FileServer struct {
 	opts    *options
-	config  *Config
+	config  Config
 	cache   cache.ByteCache
 	store   storage.Storage
 	handler storage.URLHandler
 }
 
 // NewCDNAdapter creates a new CDN adapter with URL and token generation capabilities.
-func NewCDNAdapter(config *Config, cache cache.ByteCache, store storage.Storage, options ...Option) (*FileServer, error) {
-	if config == nil {
-		return nil, errors.New("config is required")
-	}
+func NewCDNAdapter(conf Config, cache cache.ByteCache, store storage.Storage, options ...Option) (*FileServer, error) {
 	if cache == nil {
 		return nil, errors.New("cache is required")
 	}
 	if store == nil {
 		return nil, errors.New("store is required")
 	}
-	if config.PutBase == "" {
+	if conf.PutBase == "" {
 		return nil, errors.New("put_base is required")
 	}
-	if config.GetBase == "" {
+	if conf.GetBase == "" {
 		return nil, errors.New("get_base is required")
 	}
-	if config.KeyTTL == 0 {
-		config.KeyTTL = time.Minute * 5
+	if conf.KeyTTL == 0 {
+		conf.KeyTTL = time.Minute * 5
 	}
-	handler, err := urlhandler.NewHandler(config.GetBase)
+	handler, err := urlhandler.NewHandler(conf.GetBase)
 	if err != nil {
 		return nil, err
 	}
 	opts := newOptions(options...)
 	return &FileServer{
 		opts:    opts,
-		config:  config,
+		config:  conf,
 		cache:   cache,
 		store:   store,
 		handler: handler,

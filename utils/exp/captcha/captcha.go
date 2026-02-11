@@ -25,19 +25,23 @@ type Config struct {
 // It combines code generation, delivery, and rate limiting in a single component.
 type Manager struct {
 	done         chan struct{}       // Channel for graceful shutdown signaling
-	config       *Config             // Manager configuration
+	config       Config              // Manager configuration
 	sender       Sender              // Code delivery implementation
 	verification *VerificationSystem // Rate limiting and validation system
 }
 
 // NewManager creates a new verification code manager with the provided configuration and sender.
 // It initializes the verification system with rate limiting capabilities.
-func NewManager(config *Config, sender Sender) *Manager {
+func NewManager(conf Config, sender Sender) *Manager {
+	rateLimit := VerificationConfig{}
+	if conf.RateLimit != nil {
+		rateLimit = *conf.RateLimit
+	}
 	return &Manager{
 		done:         make(chan struct{}),
-		config:       config,
+		config:       conf,
 		sender:       sender,
-		verification: NewVerificationSystem(config.RateLimit),
+		verification: NewVerificationSystem(rateLimit),
 	}
 }
 

@@ -21,8 +21,8 @@ type Database struct {
 
 // NewDatabase creates a new BadgerDB cache with the specified configuration.
 // It opens a BadgerDB instance at the configured path with default options.
-func NewDatabase(config *Config) (*Database, error) {
-	db, err := badger.Open(badger.DefaultOptions(config.Path))
+func NewDatabase(conf Config) (*Database, error) {
+	db, err := badger.Open(badger.DefaultOptions(conf.Path))
 	if err != nil {
 		return nil, err
 	}

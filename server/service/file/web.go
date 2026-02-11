@@ -25,13 +25,13 @@ func NewWebServer(engine httpx.Engine, storage *fileserver.FileServer) *Web {
 
 // NewLocalFileService creates a new CDN adapter configured for local file storage.
 // It sets up the local storage client and wraps it with caching and S3-compatible interface.
-func NewLocalFileService(config *local.Config, publicBase string) (*fileserver.FileServer, error) {
-	client, err := local.NewClient(config)
+func NewLocalFileService(conf local.Config, publicBase string) (*fileserver.FileServer, error) {
+	client, err := local.NewClient(conf)
 	if err != nil {
 		return nil, err
 	}
 	adapter, err := fileserver.NewCDNAdapter(
-		&fileserver.Config{
+		fileserver.Config{
 			PutBase: publicBase,
 			GetBase: publicBase,
 		},

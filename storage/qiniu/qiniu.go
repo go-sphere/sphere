@@ -32,22 +32,22 @@ type Config struct {
 // It implements storage interfaces for file uploads and URL generation.
 type Client struct {
 	urlhandler.Handler           // Embedded URL handler for public file access
-	config             *Config   // Qiniu configuration
+	config             Config    // Qiniu configuration
 	mac                *qbox.Mac // Authentication credentials
 }
 
 // NewClient creates a new Qiniu storage client with the provided configuration.
 // It initializes the URL handler for public file access and sets up authentication.
 // Returns an error if the public base URL is invalid.
-func NewClient(config *Config) (*Client, error) {
-	handler, err := urlhandler.NewHandler(config.PublicBase)
+func NewClient(conf Config) (*Client, error) {
+	handler, err := urlhandler.NewHandler(conf.PublicBase)
 	if err != nil {
 		return nil, err
 	}
-	mac := qbox.NewMac(config.AccessKey, config.SecretKey)
+	mac := qbox.NewMac(conf.AccessKey, conf.SecretKey)
 	return &Client{
 		Handler: *handler,
-		config:  config,
+		config:  conf,
 		mac:     mac,
 	}, nil
 }

@@ -31,7 +31,7 @@ func TestFileServerGenerateUploadAuthWithMemoryImplementations(t *testing.T) {
 	memStorage := newInMemoryStorage(t)
 
 	server, err := fileserver.NewCDNAdapter(
-		&fileserver.Config{
+		fileserver.Config{
 			PutBase:      "https://cdn.example.com",
 			GetBase:      "https://cdn.example.com",
 			UploadNaming: storage.UploadNamingStrategyOriginal,
@@ -92,7 +92,7 @@ func TestFileServerStoragePassThroughWithInMemoryStorage(t *testing.T) {
 	memStorage := newInMemoryStorage(t)
 
 	server, err := fileserver.NewCDNAdapter(
-		&fileserver.Config{
+		fileserver.Config{
 			PutBase: "https://cdn.example.com",
 			GetBase: "https://cdn.example.com",
 		},
@@ -144,7 +144,7 @@ func newInMemoryStorage(t *testing.T) *kvcache.Client {
 	t.Helper()
 	storeCache := memory.NewByteCache()
 	t.Cleanup(func() { _ = storeCache.Close() })
-	store, err := kvcache.NewClient(&kvcache.Config{}, storeCache)
+	store, err := kvcache.NewClient(kvcache.Config{}, storeCache)
 	if err != nil {
 		t.Fatalf("new kvcache client: %v", err)
 	}

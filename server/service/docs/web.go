@@ -31,7 +31,7 @@ type Config struct {
 
 // Web provides a documentation web server that aggregates multiple Swagger specifications.
 type Web struct {
-	config *Config
+	config Config
 	server *http.Server
 }
 
@@ -54,7 +54,7 @@ func (w *Web) newHandler() (http.Handler, error) {
 }
 
 // NewWebServer creates a new documentation web server with the given configuration.
-func NewWebServer(conf *Config) *Web {
+func NewWebServer(conf Config) *Web {
 	return &Web{
 		config: conf,
 	}

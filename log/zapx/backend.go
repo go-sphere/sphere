@@ -28,9 +28,9 @@ type Backend struct {
 const coreCallerOffset = 2
 
 // NewBackend creates a zap-based backend.
-func NewBackend(config *Config, options ...corelog.Option) *Backend {
+func NewBackend(conf Config, options ...corelog.Option) *Backend {
 	resolved := corelog.NewOptions(options...)
-	core := newCore(config)
+	core := newCore(conf)
 	logger := zap.New(core).Named(resolved.Name).WithOptions(zapOptions(resolved)...)
 	if len(resolved.Attrs) > 0 {
 		logger = logger.With(MapToZapFields(resolved.Attrs)...)
@@ -110,11 +110,11 @@ func (z *Backend) ZapLogger() *zap.Logger {
 	return z.zapLogger
 }
 
-func newCore(config *Config) zapcore.Core {
-	if config == nil {
-		config = NewDefaultConfig()
+func newCore(conf Config) zapcore.Core {
+	if conf.Level == "" {
+		conf.Level = defaultLevel
 	}
-	levelRaw, err := zapcore.ParseLevel(config.Level)
+	levelRaw, err := zapcore.ParseLevel(conf.Level)
 	if err != nil {
 		levelRaw = zap.InfoLevel
 	}
@@ -122,7 +122,7 @@ func newCore(config *Config) zapcore.Core {
 
 	var nodes []zapcore.Core
 
-	if config.Console == nil || !config.Console.Disable {
+	if conf.Console == nil || !conf.Console.Disable {
 		developmentCfg := zap.NewDevelopmentEncoderConfig()
 		developmentCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
 		consoleEncoder := zapcore.NewConsoleEncoder(developmentCfg)
@@ -130,16 +130,16 @@ func newCore(config *Config) zapcore.Core {
 		nodes = append(nodes, pc)
 	}
 
-	if config.File != nil {
+	if conf.File != nil {
 		productionCfg := zap.NewProductionEncoderConfig()
 		productionCfg.TimeKey = "timestamp"
 		productionCfg.EncodeTime = zapcore.ISO8601TimeEncoder
 		fileEncoder := zapcore.NewJSONEncoder(productionCfg)
 		file := zapcore.AddSync(&lumberjack.Logger{
-			Filename:   config.File.FileName,
-			MaxSize:    config.File.MaxSize,
-			MaxBackups: config.File.MaxBackups,
-			MaxAge:     config.File.MaxAge,
+			Filename:   conf.File.FileName,
+			MaxSize:    conf.File.MaxSize,
+			MaxBackups: conf.File.MaxBackups,
+			MaxAge:     conf.File.MaxAge,
 		})
 		pc := zapcore.NewCore(fileEncoder, file, level)
 		nodes = append(nodes, pc)

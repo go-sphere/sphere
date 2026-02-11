@@ -30,7 +30,7 @@ func TestFileServerUploadAndDownloadOverHTTP(t *testing.T) {
 	memStorage := newInMemoryStorage(t)
 
 	fileServer, err := fileserver.NewCDNAdapter(
-		&fileserver.Config{
+		fileserver.Config{
 			PutBase:      server.URL + "/upload",
 			GetBase:      server.URL + "/files",
 			UploadNaming: storage.UploadNamingStrategyOriginal,

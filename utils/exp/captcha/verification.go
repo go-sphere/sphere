@@ -54,21 +54,21 @@ func (s *VerificationStorage) cleanExpired(number string, now time.Time) {
 // It handles code storage, expiration cleanup, and enforces sending limits per phone number.
 type VerificationSystem struct {
 	mu     sync.RWMutex
-	config *VerificationConfig
+	config VerificationConfig
 	store  *VerificationStorage
 }
 
 // NewVerificationSystem creates a new verification system with the provided configuration.
-// If config is nil, it uses default values for rate limiting and storage capacity.
-func NewVerificationSystem(config *VerificationConfig) *VerificationSystem {
-	if config == nil {
-		config = &VerificationConfig{
-			MinuteLimit: DefaultMinuteLimit,
-			DailyLimit:  DefaultDailyLimit,
-		}
+// If configuration fields are zero, it uses default values for rate limiting and storage capacity.
+func NewVerificationSystem(conf VerificationConfig) *VerificationSystem {
+	if conf.MinuteLimit == 0 {
+		conf.MinuteLimit = DefaultMinuteLimit
+	}
+	if conf.DailyLimit == 0 {
+		conf.DailyLimit = DefaultDailyLimit
 	}
 	return &VerificationSystem{
-		config: config,
+		config: conf,
 		store: &VerificationStorage{
 			Store:            make(map[string][]VerificationCode, DefaultStoreSize),
 			MinuteCounts:     make(map[string]int, DefaultStoreSize),

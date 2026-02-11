@@ -21,8 +21,8 @@ type ServiceManager struct {
 
 // NewServiceManager creates a new ServiceManager instance with the given configuration.
 // It establishes a connection to the Meilisearch server and returns an error if connection fails.
-func NewServiceManager(config *Config) (*ServiceManager, error) {
-	client, err := meilisearch.Connect(config.Host, meilisearch.WithAPIKey(config.APIKey))
+func NewServiceManager(conf Config) (*ServiceManager, error) {
+	client, err := meilisearch.Connect(conf.Host, meilisearch.WithAPIKey(conf.APIKey))
 	if err != nil {
 		return nil, err
 	}

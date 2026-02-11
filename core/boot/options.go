@@ -81,7 +81,7 @@ func AddAfterStop(f Hook) Option {
 
 // WithLoggerInit configures automatic logger initialization with the provided version and configuration.
 // It adds hooks to initialize the logger before start and sync it after stop.
-func WithLoggerInit(ver string, conf *zapx.Config) Option {
+func WithLoggerInit(ver string, conf zapx.Config) Option {
 	return func(o *options) {
 		o.beforeStart = append(o.beforeStart, func(context.Context) error {
 			backend := zapx.NewBackend(conf)

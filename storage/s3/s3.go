@@ -31,35 +31,35 @@ type Config struct {
 // It uses the MinIO client library to interact with S3 or S3-compatible services.
 type Client struct {
 	urlhandler.Handler
-	config *Config
+	config Config
 	client *minio.Client
 }
 
 // NewClient creates a new S3-compatible storage client with the provided configuration.
 // It automatically configures the public base URL if not provided and initializes
 // the URL handler for public file access.
-func NewClient(config *Config) (*Client, error) {
-	client, err := minio.New(config.Endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(config.AccessKeyID, config.SecretAccessKey, config.Token),
-		Secure: config.UseSSL,
+func NewClient(conf Config) (*Client, error) {
+	client, err := minio.New(conf.Endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(conf.AccessKeyID, conf.SecretAccessKey, conf.Token),
+		Secure: conf.UseSSL,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if config.PublicBase == "" {
-		if config.UseSSL {
-			config.PublicBase = "https://" + config.Endpoint + "/" + config.Bucket
+	if conf.PublicBase == "" {
+		if conf.UseSSL {
+			conf.PublicBase = "https://" + conf.Endpoint + "/" + conf.Bucket
 		} else {
-			config.PublicBase = "http://" + config.Endpoint + "/" + config.Bucket
+			conf.PublicBase = "http://" + conf.Endpoint + "/" + conf.Bucket
 		}
 	}
-	handler, err := urlhandler.NewHandler(config.PublicBase)
+	handler, err := urlhandler.NewHandler(conf.PublicBase)
 	if err != nil {
 		return nil, err
 	}
 	return &Client{
 		Handler: *handler,
-		config:  config,
+		config:  conf,
 		client:  client,
 	}, nil
 }

@@ -41,7 +41,7 @@ func statefulByteCacheFactories() []byteCacheFactory {
 			name: "badgerdb",
 			new: func(tb testing.TB) cache.ByteCache {
 				tb.Helper()
-				c, err := badgerdb.NewDatabase(&badgerdb.Config{Path: tb.TempDir()})
+				c, err := badgerdb.NewDatabase(badgerdb.Config{Path: tb.TempDir()})
 				if err != nil {
 					tb.Fatalf("create badgerdb: %v", err)
 				}

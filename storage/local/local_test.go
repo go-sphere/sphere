@@ -12,7 +12,7 @@ func TestClient_fixFilePath(t *testing.T) {
 	tmpDir := t.TempDir()
 	rootDir := filepath.Join(tmpDir, "data")
 
-	client, err := NewClient(&Config{
+	client, err := NewClient(Config{
 		RootDir: rootDir,
 	})
 	if err != nil {

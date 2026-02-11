@@ -45,15 +45,15 @@ func (noopStorage) CopyFile(ctx context.Context, sourceKey string, destinationKe
 }
 
 func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
-	t.Run("nil config", func(t *testing.T) {
-		_, err := NewCDNAdapter(nil, memory.NewByteCache(), noopStorage{})
+	t.Run("empty config", func(t *testing.T) {
+		_, err := NewCDNAdapter(Config{}, memory.NewByteCache(), noopStorage{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
 	})
 
 	t.Run("nil cache", func(t *testing.T) {
-		_, err := NewCDNAdapter(&Config{
+		_, err := NewCDNAdapter(Config{
 			PutBase: "https://example.com",
 			GetBase: "https://example.com",
 		}, nil, noopStorage{})
@@ -63,7 +63,7 @@ func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
 	})
 
 	t.Run("nil store", func(t *testing.T) {
-		_, err := NewCDNAdapter(&Config{
+		_, err := NewCDNAdapter(Config{
 			PutBase: "https://example.com",
 			GetBase: "https://example.com",
 		}, memory.NewByteCache(), nil)
@@ -73,14 +73,14 @@ func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
 	})
 
 	t.Run("empty put base", func(t *testing.T) {
-		_, err := NewCDNAdapter(&Config{GetBase: "https://example.com"}, memory.NewByteCache(), noopStorage{})
+		_, err := NewCDNAdapter(Config{GetBase: "https://example.com"}, memory.NewByteCache(), noopStorage{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
 	})
 
 	t.Run("empty get base", func(t *testing.T) {
-		_, err := NewCDNAdapter(&Config{PutBase: "https://example.com"}, memory.NewByteCache(), noopStorage{})
+		_, err := NewCDNAdapter(Config{PutBase: "https://example.com"}, memory.NewByteCache(), noopStorage{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -89,7 +89,7 @@ func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
 
 func TestGenerateUploadAuth_RejectEmptyFileName(t *testing.T) {
 	server, err := NewCDNAdapter(
-		&Config{
+		Config{
 			PutBase: "https://example.com",
 			GetBase: "https://example.com",
 		},
@@ -111,7 +111,7 @@ func TestGenerateUploadAuth_RejectEmptyFileName(t *testing.T) {
 
 func TestGenerateUploadAuth_UsesSeparatedPutAndGetBase(t *testing.T) {
 	server, err := NewCDNAdapter(
-		&Config{
+		Config{
 			PutBase:      "https://upload.example.com",
 			GetBase:      "https://cdn.example.com",
 			Dir:          "base",
