@@ -160,13 +160,11 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 			}
 			return httpx.InternalServerError(err)
 		}
-		defer func() {
-			_ = result.Reader.Close()
-		}()
 		headers := maps.Clone(sharedHeaders)
 		for k, v := range headers {
 			ctx.SetHeader(k, v)
 		}
+		// result.Reader is expected to be closed by httpx.DataFromReader, so we don't close it here.
 		return ctx.DataFromReader(200, result.MIME, result.Reader, int(result.Size))
 	})
 }
