@@ -109,6 +109,10 @@ type miniRouter struct {
 	routes *[]miniRoute
 }
 
+func (r *miniRouter) SupportsRouterFeature(feature httpx.RouterFeature) bool {
+	return true
+}
+
 func newMiniRouter() *miniRouter {
 	routes := make([]miniRoute, 0, 8)
 	return &miniRouter{
