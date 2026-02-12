@@ -74,8 +74,8 @@ github.com/go-playground/universal-translator v0.18.0/go.mod h1:UvRDBj+xPUEGrFYl
 github.com/go-playground/validator/v10 v10.7.0/go.mod h1:xm76BBt941f7yWdGnI2DVPFFg1UK3YY04qifoXU3lOk=
 github.com/go-sphere/confstore v0.0.4 h1:LJoui4Q1qryvW/rqKHAdEc0j2eLWH2Eb76LvY0vqcrk=
 github.com/go-sphere/confstore v0.0.4/go.mod h1:rvp2oSOW4x3E8JU0efD9JtHpBM2M3VIqM4rohoSMr34=
-github.com/go-sphere/httpx v0.0.2-beta.30 h1:vW67HCRQTWWbp9TzkmwSnb26xQT+lB2HZueYQBFAYXQ=
-github.com/go-sphere/httpx v0.0.2-beta.30/go.mod h1:Vtyau99EFGlImJN/frGdbI8pfR39MojnWMyHXdCCw8U=
+github.com/go-sphere/httpx v0.0.2-beta.30.0.20260212043046-b67514f829ab h1:dqcr/zRXK4sRhNA0wvFcTu/yNy9p8D6XGIVjYbcYtA0=
+github.com/go-sphere/httpx v0.0.2-beta.30.0.20260212043046-b67514f829ab/go.mod h1:Vtyau99EFGlImJN/frGdbI8pfR39MojnWMyHXdCCw8U=
 github.com/gofrs/flock v0.8.1/go.mod h1:F1TvTiK9OcQqauNUHlbJvyl9Qa1QvF/gOUDKA14jxHU=
 github.com/gofrs/flock v0.12.1 h1:MTLVXXHf8ekldpJk3AKicLij9MdwOWkZ+a/jHHZby9E=
 github.com/gofrs/flock v0.12.1/go.mod h1:9zxTsyu5xtJ9DK+1tFZyibEV7y3uwDxPPfbxeeHCoD0=

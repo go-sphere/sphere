@@ -7,7 +7,7 @@ require (
 	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/go-sphere/confstore v0.0.4
-	github.com/go-sphere/httpx v0.0.2-beta.30
+	github.com/go-sphere/httpx v0.0.2-beta.30.0.20260212043046-b67514f829ab
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/meilisearch/meilisearch-go v0.36.0

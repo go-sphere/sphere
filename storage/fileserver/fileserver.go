@@ -147,12 +147,13 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 	if a.opts.downloadCacheControl != "" {
 		sharedHeaders["Cache-Control"] = a.opts.downloadCacheControl
 	}
-	route.Handle(http.MethodGet, "/*filename", func(ctx httpx.Context) error {
-		param := normalizeWildcardParam(ctx.Param("filename"))
-		if param == "" {
+	path, param := httpx.FixWildcardPathIfNeed(route, "/*filename")
+	route.Handle(http.MethodGet, path, func(ctx httpx.Context) error {
+		filename := normalizeWildcardParam(ctx.Param(param))
+		if filename == "" {
 			return httpx.NewNotFoundError("filename is required")
 		}
-		result, err := a.store.DownloadFile(ctx, param)
+		result, err := a.store.DownloadFile(ctx, filename)
 		if err != nil {
 			if errors.Is(err, storageerr.ErrorNotFound) {
 				return httpx.NotFoundError(err)
