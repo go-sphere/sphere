@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"maps"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -189,21 +190,21 @@ func matchRoute(pattern string, inputPath string) (map[string]string, bool) {
 	sp := splitRoute(inputPath)
 	params := map[string]string{}
 
-	for i := 0; i < len(pp); i++ {
+	for i := range pp {
 		if i >= len(sp) {
-			if strings.HasPrefix(pp[i], "*") {
-				params[strings.TrimPrefix(pp[i], "*")] = ""
+			if after, ok := strings.CutPrefix(pp[i], "*"); ok {
+				params[after] = ""
 				return params, true
 			}
 			return nil, false
 		}
 		pseg := pp[i]
-		if strings.HasPrefix(pseg, ":") {
-			params[strings.TrimPrefix(pseg, ":")] = sp[i]
+		if after, ok := strings.CutPrefix(pseg, ":"); ok {
+			params[after] = sp[i]
 			continue
 		}
-		if strings.HasPrefix(pseg, "*") {
-			name := strings.TrimPrefix(pseg, "*")
+		if after, ok := strings.CutPrefix(pseg, "*"); ok {
+			name := after
 			params[name] = "/" + strings.Join(sp[i:], "/")
 			return params, true
 		}
@@ -254,9 +255,7 @@ func (c *miniContext) Param(key string) string {
 
 func (c *miniContext) Params() map[string]string {
 	out := make(map[string]string, len(c.params))
-	for k, v := range c.params {
-		out[k] = v
-	}
+	maps.Copy(out, c.params)
 	return out
 }
 

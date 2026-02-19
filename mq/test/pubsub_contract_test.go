@@ -11,7 +11,6 @@ func TestPubSubContract(t *testing.T) {
 	t.Parallel()
 
 	for _, factory := range pubSubFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -53,7 +52,6 @@ func TestPubSubMultiSubscribers(t *testing.T) {
 	t.Parallel()
 
 	for _, factory := range pubSubFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -91,7 +89,6 @@ func TestPubSubStructPayload(t *testing.T) {
 	t.Parallel()
 
 	for _, factory := range pubSubFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -137,7 +134,6 @@ func TestPubSubClose(t *testing.T) {
 	t.Parallel()
 
 	for _, factory := range pubSubFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -154,7 +150,6 @@ func TestPubSubClose(t *testing.T) {
 
 func TestPubSubConcurrentBroadcast(t *testing.T) {
 	for _, factory := range pubSubFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			if testing.Short() {
 				t.Skip("skip concurrent pubsub test in short mode")
@@ -176,15 +171,13 @@ func TestPubSubConcurrentBroadcast(t *testing.T) {
 			}
 
 			var wg sync.WaitGroup
-			for i := 0; i < n; i++ {
+			for i := range n {
 				i := i
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					if err := p.Broadcast(ctx, topic, i); err != nil {
 						errCh <- err
 					}
-				}()
+				})
 			}
 			wg.Wait()
 			close(errCh)

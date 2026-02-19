@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"io"
+	"maps"
 	"os"
 	"sort"
 	"strings"
@@ -45,9 +46,7 @@ func (b *StdioBackend) With(options ...Option) Backend {
 
 func (b *StdioBackend) clone() *StdioBackend {
 	attrs := make(map[string]any, len(b.attrs))
-	for k, v := range b.attrs {
-		attrs[k] = v
-	}
+	maps.Copy(attrs, b.attrs)
 	return &StdioBackend{
 		name:     b.name,
 		attrs:    attrs,
@@ -74,9 +73,7 @@ func (b *StdioBackend) apply(options ...Option) *StdioBackend {
 		if b.attrs == nil {
 			b.attrs = make(map[string]any, len(o.Attrs))
 		}
-		for k, v := range o.Attrs {
-			b.attrs[k] = v
-		}
+		maps.Copy(b.attrs, o.Attrs)
 	}
 	return b
 }

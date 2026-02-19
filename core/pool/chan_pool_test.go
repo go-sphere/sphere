@@ -112,16 +112,14 @@ func TestChanPoolConcurrent(t *testing.T) {
 	const goroutines = 100
 	const iterations = 1000
 
-	for i := 0; i < goroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+	for range goroutines {
+		wg.Go(func() {
+			for range iterations {
 				buf := pool.Get()
 				buf.WriteString("test")
 				pool.Put(buf)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }

@@ -51,7 +51,7 @@ func NewJwtAuth[T jwt.Claims](secret string, options ...Option) *JwtAuth[T] {
 }
 
 // keyFunc validates the token's signing method and returns the secret key for verification.
-func (g *JwtAuth[T]) keyFunc(token *jwt.Token) (interface{}, error) {
+func (g *JwtAuth[T]) keyFunc(token *jwt.Token) (any, error) {
 	if token.Method.Alg() != g.signingMethod.Alg() {
 		return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
 	}

@@ -75,7 +75,7 @@ func RandomBase32(length int) string {
 		return ""
 	}
 	result := make([]rune, length)
-	for i := 0; i < length; i++ {
+	for i := range length {
 		result[i] = rune(baseconv.AlphabetBase32[rand.IntN(len(baseconv.AlphabetBase32))])
 	}
 	return string(result)
@@ -88,7 +88,7 @@ func RandomBase62(length int) string {
 		return ""
 	}
 	result := make([]rune, length)
-	for i := 0; i < length; i++ {
+	for i := range length {
 		result[i] = rune(baseconv.AlphabetBase62[rand.IntN(len(baseconv.AlphabetBase62))])
 	}
 	return string(result)

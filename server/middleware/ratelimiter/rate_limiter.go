@@ -59,7 +59,7 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 			return httpx.InternalServerError(gErr)
 		}
 		if !exist || limiter == nil {
-			value, nErr, _ := sf.Do(k, func() (interface{}, error) {
+			value, nErr, _ := sf.Do(k, func() (any, error) {
 				newLimiter, expire := createLimiter(ctx)
 				setCtx, cancel := context.WithTimeout(ctx, opts.setTTL)
 				defer cancel()

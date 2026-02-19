@@ -175,9 +175,7 @@ func (g *Group) Start(ctx context.Context) error {
 				defer stopCancel()
 				for _, t := range tasks {
 					task := t
-					stopWG.Add(1)
-					go func() {
-						defer stopWG.Done()
+					stopWG.Go(func() {
 						err := execute(stopCtx, task.Identifier(), task, func(taskCtx context.Context, current Task) error {
 							log.Infof("<task> %s stopping", task.Identifier())
 							return current.Stop(taskCtx)
@@ -185,7 +183,7 @@ func (g *Group) Start(ctx context.Context) error {
 						if err != nil {
 							stopErrs.Add(err)
 						}
-					}()
+					})
 				}
 				stopWG.Wait()
 				close(stopDone)

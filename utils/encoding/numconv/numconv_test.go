@@ -8,7 +8,7 @@ import (
 )
 
 func TestInt64ToBase62(t *testing.T) {
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		num := rand.Int64()
 		encoded := Int64ToBase62(num)
 		decoded, err := Base62ToInt64(encoded)
@@ -24,7 +24,7 @@ func TestInt64ToBase62(t *testing.T) {
 }
 
 func TestInt64ToBase32(t *testing.T) {
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		num := rand.Int64()
 		encoded := Int64ToBase32(num)
 		decoded, err := Base32ToInt64(encoded)

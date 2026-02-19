@@ -12,7 +12,6 @@ func TestQueueContract(t *testing.T) {
 	t.Parallel()
 
 	for _, factory := range queueFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -63,14 +62,13 @@ func TestQueuePurgeQueue(t *testing.T) {
 	t.Parallel()
 
 	for _, factory := range queueFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 
 			ctx := context.Background()
 			q := factory.new(t)
 
-			for i := 0; i < 3; i++ {
+			for i := range 3 {
 				if err := q.Publish(ctx, "purge-topic", i); err != nil {
 					t.Fatalf("Publish for purge: %v", err)
 				}
@@ -97,7 +95,6 @@ func TestQueuePurgeQueue(t *testing.T) {
 
 func TestQueueBlockingConsume(t *testing.T) {
 	for _, factory := range queueFactories() {
-		factory := factory
 		if !factory.blockingConsumeCheck {
 			continue
 		}
@@ -135,7 +132,6 @@ func TestQueueTryConsumeCanceledContext(t *testing.T) {
 	t.Parallel()
 
 	for _, factory := range queueFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -158,7 +154,6 @@ func TestQueueClose(t *testing.T) {
 	t.Parallel()
 
 	for _, factory := range queueFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -177,7 +172,6 @@ func TestQueueClose(t *testing.T) {
 
 func TestQueueConcurrentPublishConsume(t *testing.T) {
 	for _, factory := range queueFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			if testing.Short() {
 				t.Skip("skip concurrent queue test in short mode")
@@ -189,15 +183,13 @@ func TestQueueConcurrentPublishConsume(t *testing.T) {
 			const n = 64
 			errCh := make(chan error, n)
 			var wg sync.WaitGroup
-			for i := 0; i < n; i++ {
+			for i := range n {
 				i := i
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					if err := q.Publish(ctx, "concurrent", i); err != nil {
 						errCh <- err
 					}
-				}()
+				})
 			}
 			wg.Wait()
 			close(errCh)

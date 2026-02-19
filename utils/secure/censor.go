@@ -7,13 +7,13 @@ func CensorString(src string, outLength int) string {
 	runs := []rune(src)
 	out := make([]rune, 0, len(runs))
 	if outLength < 2 {
-		for i := 0; i < outLength; i++ {
+		for range outLength {
 			out = append(out, '*')
 		}
 		return string(out)
 	}
 	if len(runs) == 0 {
-		for i := 0; i < outLength; i++ {
+		for range outLength {
 			out = append(out, '*')
 		}
 	} else if len(runs) == 1 {

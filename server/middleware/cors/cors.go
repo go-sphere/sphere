@@ -132,10 +132,7 @@ func (c *config) compile() {
 		c.exposeHeadersValue = strings.Join(c.exposeHeaders, ",")
 	}
 	if c.maxAge > 0 {
-		seconds := c.maxAge / time.Second
-		if seconds < 0 {
-			seconds = 0
-		}
+		seconds := max(c.maxAge/time.Second, 0)
 		c.maxAgeValue = strconv.FormatInt(int64(seconds), 10)
 		c.hasMaxAge = true
 	}

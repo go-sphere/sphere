@@ -14,7 +14,6 @@ func TestByteCacheCoreContract(t *testing.T) {
 	t.Parallel()
 
 	for _, factory := range statefulByteCacheFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -111,7 +110,6 @@ func TestByteCacheTTLContract(t *testing.T) {
 	t.Parallel()
 
 	for _, factory := range statefulByteCacheFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -139,7 +137,6 @@ func TestByteCacheBoundaryContract(t *testing.T) {
 	t.Parallel()
 
 	for _, factory := range statefulByteCacheFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -214,7 +211,6 @@ func TestNoCacheContract(t *testing.T) {
 
 func TestByteCacheConcurrentAccess(t *testing.T) {
 	for _, factory := range statefulByteCacheFactories() {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			if testing.Short() {
 				t.Skip("skip concurrent test in short mode")
@@ -229,20 +225,18 @@ func TestByteCacheConcurrentAccess(t *testing.T) {
 			var wg sync.WaitGroup
 			errCh := make(chan error, writers)
 
-			for i := 0; i < writers; i++ {
+			for i := range writers {
 				i := i
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					for j := 0; j < perWriter; j++ {
+				wg.Go(func() {
+					for j := range perWriter {
 						key := fmt.Sprintf("k_%d_%d", i, j)
-						val := []byte(fmt.Sprintf("v_%d_%d", i, j))
+						val := fmt.Appendf(nil, "v_%d_%d", i, j)
 						if err := c.Set(ctx, key, val); err != nil {
 							errCh <- err
 							return
 						}
 					}
-				}()
+				})
 			}
 
 			wg.Wait()
@@ -251,8 +245,8 @@ func TestByteCacheConcurrentAccess(t *testing.T) {
 				t.Fatalf("concurrent Set: %v", err)
 			}
 
-			for i := 0; i < writers; i++ {
-				for j := 0; j < perWriter; j++ {
+			for i := range writers {
+				for j := range perWriter {
 					key := fmt.Sprintf("k_%d_%d", i, j)
 					want := fmt.Sprintf("v_%d_%d", i, j)
 					val, found, err := c.Get(ctx, key)
@@ -272,7 +266,6 @@ func TestByteCacheClose(t *testing.T) {
 	t.Parallel()
 
 	for _, factory := range append(statefulByteCacheFactories(), noCacheFactory()) {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 

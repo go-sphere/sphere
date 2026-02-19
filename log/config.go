@@ -1,5 +1,7 @@
 package log
 
+import "maps"
+
 // AddCallerStatus represents the state of caller information in log entries.
 type AddCallerStatus int
 
@@ -64,9 +66,7 @@ func WithAttrs(attrs map[string]any) Option {
 			if o.Attrs == nil {
 				o.Attrs = make(map[string]any)
 			}
-			for k, v := range attrs {
-				o.Attrs[k] = v
-			}
+			maps.Copy(o.Attrs, attrs)
 		}
 	}
 }
@@ -87,9 +87,7 @@ func newOptions(opts ...Option) *Options {
 func NewOptions(opts ...Option) Options {
 	o := newOptions(opts...)
 	attrs := make(map[string]any, len(o.Attrs))
-	for k, v := range o.Attrs {
-		attrs[k] = v
-	}
+	maps.Copy(attrs, o.Attrs)
 	var stackAt *Level
 	if o.AddStackAt != nil {
 		l := *o.AddStackAt

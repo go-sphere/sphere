@@ -208,7 +208,7 @@ func load[T any](
 	if opts.singleflight != nil {
 		originBuild := build
 		build = func() (T, error) {
-			val, err, _ := opts.singleflight.Do(key, func() (interface{}, error) {
+			val, err, _ := opts.singleflight.Do(key, func() (any, error) {
 				return originBuild()
 			})
 			return val.(T), err

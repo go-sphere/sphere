@@ -236,10 +236,8 @@ func TestGetExSingleflight(t *testing.T) {
 	const n = 16
 	var wg sync.WaitGroup
 	errCh := make(chan error, n)
-	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range n {
+		wg.Go(func() {
 			v, found, err := cache.GetEx(ctx, c, "singleflight", builder, cache.WithSingleflight(g))
 			if err != nil {
 				errCh <- err
@@ -248,7 +246,7 @@ func TestGetExSingleflight(t *testing.T) {
 			if !found || v != "shared" {
 				errCh <- errors.New("value mismatch")
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	close(errCh)
