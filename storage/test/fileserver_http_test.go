@@ -17,6 +17,7 @@ import (
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/cache/memory"
+	"github.com/go-sphere/sphere/server/httpz"
 	"github.com/go-sphere/sphere/storage"
 	"github.com/go-sphere/sphere/storage/fileserver"
 )
@@ -73,12 +74,12 @@ func TestFileServerUploadAndDownloadOverHTTP(t *testing.T) {
 		body, _ := io.ReadAll(putResp.Body)
 		t.Fatalf("upload status = %d, want %d, body = %s", putResp.StatusCode, http.StatusOK, string(body))
 	}
-	var putResult map[string]string
+	var putResult httpz.DataResponse[fileserver.UploadResult]
 	if err = json.NewDecoder(putResp.Body).Decode(&putResult); err != nil {
 		t.Fatalf("decode upload response: %v", err)
 	}
-	if putResult["key"] != key {
-		t.Fatalf("upload response key = %q, want %q", putResult["key"], key)
+	if putResult.Data.Key != key {
+		t.Fatalf("upload response key = %q, want %q", putResult.Data.Key, key)
 	}
 
 	getResp, err := server.Client().Get(downloadURL)
