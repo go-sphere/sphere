@@ -5,8 +5,14 @@ import (
 	"strconv"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/sphere/server/httpz"
 	"github.com/google/uuid"
 )
+
+type UploadResult struct {
+	Key string `json:"key"`
+	URL string `json:"url"`
+}
 
 type options struct {
 	uploadSuccessWithData func(ctx httpx.Context, key, url string) error
@@ -58,5 +64,5 @@ func defaultCreateFileKey(ctx context.Context, server *FileServer, filename stri
 }
 
 func defaultUploadSuccessWithData(ctx httpx.Context, key, url string) error {
-	return ctx.JSON(200, map[string]string{"key": key, "url": url})
+	return ctx.JSON(200, httpz.DataResponse[UploadResult]{Data: UploadResult{Key: key, URL: url}})
 }
