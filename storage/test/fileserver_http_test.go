@@ -227,8 +227,10 @@ func splitRoute(raw string) []string {
 	return parts
 }
 
+var _ httpx.Context = (*miniContext)(nil)
+
 type miniContext struct {
-	context.Context
+	ctx    context.Context
 	w      http.ResponseWriter
 	r      *http.Request
 	params map[string]string
@@ -237,11 +239,11 @@ type miniContext struct {
 
 func newMiniContext(ctx context.Context, w http.ResponseWriter, r *http.Request, params map[string]string) *miniContext {
 	return &miniContext{
-		Context: ctx,
-		w:       w,
-		r:       r,
-		params:  params,
-		store:   map[string]any{},
+		ctx:    ctx,
+		w:      w,
+		r:      r,
+		params: params,
+		store:  map[string]any{},
 	}
 }
 
@@ -421,6 +423,14 @@ func (c *miniContext) Set(key string, val any) {
 func (c *miniContext) Get(key string) (any, bool) {
 	val, ok := c.store[key]
 	return val, ok
+}
+
+func (c *miniContext) Context() context.Context {
+	return c.ctx
+}
+
+func (c *miniContext) SetContext(ctx context.Context) {
+	c.ctx = ctx
 }
 
 func (c *miniContext) Next() error {

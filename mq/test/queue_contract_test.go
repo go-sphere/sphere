@@ -184,7 +184,6 @@ func TestQueueConcurrentPublishConsume(t *testing.T) {
 			errCh := make(chan error, n)
 			var wg sync.WaitGroup
 			for i := range n {
-				i := i
 				wg.Go(func() {
 					if err := q.Publish(ctx, "concurrent", i); err != nil {
 						errCh <- err

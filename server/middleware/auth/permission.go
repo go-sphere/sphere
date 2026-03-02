@@ -5,6 +5,10 @@ import (
 	"github.com/go-sphere/sphere/server/auth/authorizer"
 )
 
+var (
+	errPermissionDenied = httpx.NewForbiddenError("no permission to access this resource")
+)
+
 // AccessControl defines the interface for checking access permissions.
 // Implementations should determine if a given role has access to a specific resource.
 type AccessControl interface {
@@ -14,17 +18,21 @@ type AccessControl interface {
 // NewPermissionMiddleware creates a role-based access control middleware.
 // It checks if any of the user's roles have permission to access the specified resource
 // using the provided AccessControl implementation.
-func NewPermissionMiddleware(resource string, acl AccessControl) httpx.Middleware {
+func NewPermissionMiddleware[I authorizer.UID](resource string, acl AccessControl) httpx.Middleware {
 	return func(ctx httpx.Context) error {
 		isAllowed := false
-		for _, r := range authorizer.GetCurrentRoles(ctx) {
+		authData, exist := authorizer.GetAuthData[I](ctx.Context())
+		if !exist {
+			return errPermissionDenied
+		}
+		for _, r := range authData.Roles {
 			if acl.IsAllowed(r, resource) {
 				isAllowed = true
 				break
 			}
 		}
 		if !isAllowed {
-			return httpx.NewForbiddenError("no permission to access this resource")
+			return errPermissionDenied
 		}
 		return ctx.Next()
 	}

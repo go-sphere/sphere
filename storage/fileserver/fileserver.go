@@ -153,7 +153,7 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 		if filename == "" {
 			return httpx.NewNotFoundError("filename is required")
 		}
-		result, err := a.store.DownloadFile(ctx, filename)
+		result, err := a.store.DownloadFile(ctx.Context(), filename)
 		if err != nil {
 			if errors.Is(err, storageerr.ErrorNotFound) {
 				return httpx.NotFoundError(err)
@@ -175,14 +175,14 @@ func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 		if key == "" {
 			return httpx.NewBadRequestError("key is required")
 		}
-		filename, found, err := a.cache.Get(ctx, key)
+		filename, found, err := a.cache.Get(ctx.Context(), key)
 		if err != nil {
 			return httpx.InternalServerError(err)
 		}
 		if !found {
 			return httpx.NewBadRequestError("key expires or not found")
 		}
-		err = a.cache.Del(ctx, key)
+		err = a.cache.Del(ctx.Context(), key)
 		if err != nil {
 			return httpx.InternalServerError(err)
 		}
@@ -190,7 +190,7 @@ func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 		if data == nil {
 			return httpx.NewBadRequestError("empty request body")
 		}
-		uploadKey, err := a.UploadFile(ctx, data, string(filename))
+		uploadKey, err := a.UploadFile(ctx.Context(), data, string(filename))
 		if err != nil {
 			return httpx.InternalServerError(err)
 		}

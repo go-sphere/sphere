@@ -226,7 +226,6 @@ func TestByteCacheConcurrentAccess(t *testing.T) {
 			errCh := make(chan error, writers)
 
 			for i := range writers {
-				i := i
 				wg.Go(func() {
 					for j := range perWriter {
 						key := fmt.Sprintf("k_%d_%d", i, j)

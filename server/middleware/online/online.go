@@ -26,7 +26,7 @@ func (l *Online) Middleware(keygen func(ctx httpx.Context) string, ttl time.Dura
 	return func(ctx httpx.Context) error {
 		key := keygen(ctx)
 		if key != "" {
-			_ = l.cache.SetWithTTL(ctx, key, struct{}{}, ttl)
+			_ = l.cache.SetWithTTL(ctx.Context(), key, struct{}{}, ttl)
 		}
 		return ctx.Next()
 	}

@@ -54,14 +54,14 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 	opts := newOptions(options...)
 	return func(ctx httpx.Context) error {
 		k := key(ctx)
-		limiter, exist, gErr := opts.cache.Get(ctx, k)
+		limiter, exist, gErr := opts.cache.Get(ctx.Context(), k)
 		if gErr != nil {
 			return httpx.InternalServerError(gErr)
 		}
 		if !exist || limiter == nil {
 			value, nErr, _ := sf.Do(k, func() (any, error) {
 				newLimiter, expire := createLimiter(ctx)
-				setCtx, cancel := context.WithTimeout(ctx, opts.setTTL)
+				setCtx, cancel := context.WithTimeout(ctx.Context(), opts.setTTL)
 				defer cancel()
 				err := opts.cache.SetWithTTL(setCtx, k, newLimiter, expire)
 				if err != nil {

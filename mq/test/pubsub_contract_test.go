@@ -172,7 +172,6 @@ func TestPubSubConcurrentBroadcast(t *testing.T) {
 
 			var wg sync.WaitGroup
 			for i := range n {
-				i := i
 				wg.Go(func() {
 					if err := p.Broadcast(ctx, topic, i); err != nil {
 						errCh <- err

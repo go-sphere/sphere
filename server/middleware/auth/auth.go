@@ -28,20 +28,22 @@ func parserToken[T authorizer.UID, C authorizer.Claims[T]](ctx httpx.Context, to
 		}
 		token = tranToken
 	}
-	claims, err := parser.ParseToken(ctx, token)
+	claims, err := parser.ParseToken(ctx.Context(), token)
 	if err != nil {
 		return err
 	}
 
+	var data authorizer.Data[T]
 	if uid, e := claims.GetUID(); e == nil {
-		ctx.Set(authorizer.ContextKeyUID, uid)
+		data.UID = uid
 	}
 	if subject, e := claims.GetSubject(); e == nil {
-		ctx.Set(authorizer.ContextKeySubject, subject)
+		data.Subject = subject
 	}
 	if roles, e := claims.GetRoles(); e == nil {
-		ctx.Set(authorizer.ContextKeyRoles, roles)
+		data.Roles = roles
 	}
+	ctx.SetContext(authorizer.WithAuthData[T](ctx.Context(), data))
 	return nil
 }
 

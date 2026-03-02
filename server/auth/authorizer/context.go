@@ -4,14 +4,31 @@ import (
 	"context"
 )
 
-const (
-	// ContextKeyUID is the context key for storing user ID.
-	ContextKeyUID = "uid"
-	// ContextKeySubject is the context key for storing user subject/username.
-	ContextKeySubject = "subject"
-	// ContextKeyRoles is the context key for storing user roles.
-	ContextKeyRoles = "roles"
-)
+type contextKey string
+
+const contextKeyAuthorizerID = contextKey("authorizer")
+
+type Data[I UID] struct {
+	UID     I        `json:"uid"`
+	Subject string   `json:"subject"`
+	Roles   []string `json:"roles"`
+}
+
+func WithAuthData[I UID](ctx context.Context, data Data[I]) context.Context {
+	return context.WithValue(ctx, contextKeyAuthorizerID, data)
+}
+
+func GetAuthData[I UID](ctx context.Context) (Data[I], bool) {
+	raw := ctx.Value(contextKeyAuthorizerID)
+	if raw == nil {
+		return Data[I]{}, false
+	}
+	data, ok := raw.(Data[I])
+	if !ok {
+		return Data[I]{}, false
+	}
+	return data, true
+}
 
 // ContextUtils provides utility functions for working with authentication context.
 // It is parameterized by the user ID type for type safety.
@@ -20,16 +37,12 @@ type ContextUtils[I UID] struct{}
 // GetCurrentID retrieves the current user ID from the context.
 // It returns NeedLoginError if the user is not authenticated or the ID type is incorrect.
 func (ContextUtils[I]) GetCurrentID(ctx context.Context) (I, error) {
-	var zeroID I
-	raw := ctx.Value(ContextKeyUID)
-	if raw == nil {
-		return zeroID, NeedLoginError
-	}
-	id, ok := raw.(I)
+	data, ok := GetAuthData[I](ctx)
 	if !ok {
-		return zeroID, NeedLoginError
+		var zeroValue I
+		return zeroValue, NeedLoginError
 	}
-	return id, nil
+	return data.UID, nil
 }
 
 // CheckAuthStatus verifies that the user is authenticated.
@@ -54,25 +67,20 @@ func (c ContextUtils[I]) CheckAuthID(ctx context.Context, id I) error {
 
 // GetCurrentSubject retrieves the current user's subject/username from the context.
 // It returns NeedLoginError if the user is not authenticated.
-func GetCurrentSubject(ctx context.Context) (string, error) {
-	raw := ctx.Value(ContextKeySubject)
-	username, ok := raw.(string)
+func (c ContextUtils[I]) GetCurrentSubject(ctx context.Context) (string, error) {
+	data, ok := GetAuthData[I](ctx)
 	if !ok {
 		return "", NeedLoginError
 	}
-	return username, nil
+	return data.Subject, nil
 }
 
 // GetCurrentRoles retrieves the current user's roles from the context.
 // It returns nil if no roles are set or if the user is not authenticated.
-func GetCurrentRoles(ctx context.Context) []string {
-	raw := ctx.Value(ContextKeyRoles)
-	if raw == nil {
-		return nil
-	}
-	roles, ok := raw.([]string)
+func (c ContextUtils[I]) GetCurrentRoles(ctx context.Context) []string {
+	data, ok := GetAuthData[I](ctx)
 	if !ok {
 		return nil
 	}
-	return roles
+	return data.Roles
 }
