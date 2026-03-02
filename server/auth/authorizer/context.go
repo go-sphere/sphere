@@ -4,9 +4,9 @@ import (
 	"context"
 )
 
-type contextKey string
+type authKey struct{}
 
-const contextKeyAuthorizerID = contextKey("authorizer")
+var authContextKey = authKey{}
 
 type Data[I UID] struct {
 	UID     I        `json:"uid"`
@@ -15,11 +15,11 @@ type Data[I UID] struct {
 }
 
 func WithAuthData[I UID](ctx context.Context, data Data[I]) context.Context {
-	return context.WithValue(ctx, contextKeyAuthorizerID, data)
+	return context.WithValue(ctx, authContextKey, data)
 }
 
 func GetAuthData[I UID](ctx context.Context) (Data[I], bool) {
-	raw := ctx.Value(contextKeyAuthorizerID)
+	raw := ctx.Value(authContextKey)
 	if raw == nil {
 		return Data[I]{}, false
 	}
