@@ -2,6 +2,7 @@ package ratelimiter
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -72,7 +73,11 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 			if nErr != nil {
 				return httpx.InternalServerError(nErr)
 			}
-			limiter = value.(*rate.Limiter)
+			typed, ok := value.(*rate.Limiter)
+			if !ok || typed == nil {
+				return httpx.InternalServerError(fmt.Errorf("ratelimiter: unexpected limiter type %T", value))
+			}
+			limiter = typed
 		}
 		ok := limiter.Allow()
 		if !ok {
