@@ -106,7 +106,7 @@ func TestManagerStopTaskReturnsStopError(t *testing.T) {
 }
 
 func TestManagerStopTaskCallerTimeout(t *testing.T) {
-	manager := NewManager(WithManagerAutoStopTimeout(120 * time.Millisecond))
+	manager := NewManager(WithManagerCleanupTimeout(120 * time.Millisecond))
 	worker := scripttask.NewScriptTask("worker", nil, func(ctx context.Context) error {
 		<-ctx.Done()
 		return ctx.Err()
@@ -178,7 +178,7 @@ func TestManagerStopAllConcurrent(t *testing.T) {
 }
 
 func TestManagerStopAllCallerTimeout(t *testing.T) {
-	manager := NewManager(WithManagerAutoStopTimeout(120 * time.Millisecond))
+	manager := NewManager(WithManagerCleanupTimeout(120 * time.Millisecond))
 	worker := scripttask.NewScriptTask("worker", nil, func(ctx context.Context) error {
 		<-ctx.Done()
 		return ctx.Err()
@@ -198,8 +198,8 @@ func TestManagerStopAllCallerTimeout(t *testing.T) {
 	}
 }
 
-func TestManagerAutoStopTimeoutOption(t *testing.T) {
-	manager := NewManager(WithManagerAutoStopTimeout(40 * time.Millisecond))
+func TestManagerCleanupTimeoutOption(t *testing.T) {
+	manager := NewManager(WithManagerCleanupTimeout(40 * time.Millisecond))
 	worker := scripttask.NewScriptTask("worker", nil, func(ctx context.Context) error {
 		<-ctx.Done()
 		return ctx.Err()
@@ -213,10 +213,10 @@ func TestManagerAutoStopTimeoutOption(t *testing.T) {
 	begin := time.Now()
 	stopErr := manager.StopTask(context.Background(), "worker")
 	if !errors.Is(stopErr, context.DeadlineExceeded) {
-		t.Fatalf("expected auto-stop timeout, got %v", stopErr)
+		t.Fatalf("expected cleanup timeout, got %v", stopErr)
 	}
 	if elapsed := time.Since(begin); elapsed < 40*time.Millisecond {
-		t.Fatalf("expected stop to wait for auto-timeout, elapsed=%s", elapsed)
+		t.Fatalf("expected stop to wait for cleanup timeout, elapsed=%s", elapsed)
 	}
 }
 

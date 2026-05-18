@@ -42,15 +42,17 @@ const (
 type GroupOption func(*groupOptions)
 
 type groupOptions struct {
-	autoStopTimeout time.Duration
+	cleanupTimeout time.Duration
 }
 
-// WithAutoStopTimeout configures the timeout used by internal auto-stop cleanup.
-// It affects cleanup triggered from Start (task failure, parent cancellation, or manual stop signal).
-// A non-positive duration disables timeout and uses context.Background().
-func WithAutoStopTimeout(timeout time.Duration) GroupOption {
+// WithCleanupTimeout configures the timeout applied to the ctx passed to each
+// task's Stop() during internal auto-cleanup (task failure / parent cancel /
+// manual stop). It does NOT bound Group.Stop(ctx) — callers should pass their
+// own context for hard caller-side timeouts. A non-positive duration disables
+// the timeout and uses context.Background().
+func WithCleanupTimeout(timeout time.Duration) GroupOption {
 	return func(o *groupOptions) {
-		o.autoStopTimeout = timeout
+		o.cleanupTimeout = timeout
 	}
 }
 
@@ -171,7 +173,7 @@ func (g *Group) Start(ctx context.Context) error {
 
 			go func() {
 				var stopWG sync.WaitGroup
-				stopCtx, stopCancel := g.newAutoStopContext()
+				stopCtx, stopCancel := g.newCleanupContext()
 				defer stopCancel()
 				for _, t := range tasks {
 					task := t
@@ -299,9 +301,9 @@ func (g *Group) waitForDone(ctx context.Context, done <-chan struct{}) error {
 	}
 }
 
-func (g *Group) newAutoStopContext() (context.Context, context.CancelFunc) {
-	if g.opts.autoStopTimeout <= 0 {
+func (g *Group) newCleanupContext() (context.Context, context.CancelFunc) {
+	if g.opts.cleanupTimeout <= 0 {
 		return context.Background(), func() {}
 	}
-	return context.WithTimeout(context.Background(), g.opts.autoStopTimeout)
+	return context.WithTimeout(context.Background(), g.opts.cleanupTimeout)
 }

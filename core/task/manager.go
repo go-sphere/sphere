@@ -19,15 +19,17 @@ var (
 type ManagerOption func(*managerOptions)
 
 type managerOptions struct {
-	autoStopTimeout time.Duration
+	cleanupTimeout time.Duration
 }
 
-// WithManagerAutoStopTimeout configures timeout for internal task stop operations.
-// This timeout is used by manager-triggered stop flows and is independent of caller wait context.
-// A non-positive duration disables timeout and uses context.Background().
-func WithManagerAutoStopTimeout(timeout time.Duration) ManagerOption {
+// WithManagerCleanupTimeout configures the timeout applied to the ctx passed to
+// each task's Stop() inside the manager's internal cleanup goroutine spawned by
+// StopTask / StopAll. It is independent of the caller's wait context — callers
+// pass their own ctx to StopTask/StopAll for hard caller-side timeouts. A
+// non-positive duration disables the timeout and uses context.Background().
+func WithManagerCleanupTimeout(timeout time.Duration) ManagerOption {
 	return func(o *managerOptions) {
-		o.autoStopTimeout = timeout
+		o.cleanupTimeout = timeout
 	}
 }
 
@@ -156,7 +158,7 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 // Returns ErrTaskNotFound if no task with the given name is running.
 // It waits for both Stop and Start goroutines to finish.
 // If the caller ctx expires first, StopTask returns ctx.Err(), but internal stopping continues in background.
-// The task.Stop call itself uses manager-level stop timeout policy (WithManagerAutoStopTimeout).
+// The task.Stop call itself uses manager-level stop timeout policy (WithManagerCleanupTimeout).
 func (m *Manager) StopTask(ctx context.Context, name string) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -183,7 +185,7 @@ func (m *Manager) StopTask(ctx context.Context, name string) error {
 // StopAll stops all currently running tasks concurrently.
 // It waits for all tasks to complete shutdown before returning.
 // If the caller ctx expires first, StopAll returns ctx.Err(), but background stops continue.
-// The task.Stop calls use manager-level stop timeout policy (WithManagerAutoStopTimeout).
+// The task.Stop calls use manager-level stop timeout policy (WithManagerCleanupTimeout).
 // Returns any errors encountered during shutdown and previously collected task run errors.
 func (m *Manager) StopAll(ctx context.Context) error {
 	if ctx == nil {
@@ -312,7 +314,7 @@ func (m *Manager) requestStop(entry *managedTask) {
 			entry.cancel()
 			log.Infof("<manager> %s stopping", entry.name)
 
-			stopCtx, stopCancel := m.newAutoStopContext()
+			stopCtx, stopCancel := m.newCleanupContext()
 			defer stopCancel()
 
 			err := execute(stopCtx, entry.name, entry.task, func(currentCtx context.Context, current Task) error {
@@ -328,11 +330,11 @@ func (m *Manager) requestStop(entry *managedTask) {
 	})
 }
 
-func (m *Manager) newAutoStopContext() (context.Context, context.CancelFunc) {
-	if m.opts.autoStopTimeout <= 0 {
+func (m *Manager) newCleanupContext() (context.Context, context.CancelFunc) {
+	if m.opts.cleanupTimeout <= 0 {
 		return context.Background(), func() {}
 	}
-	return context.WithTimeout(context.Background(), m.opts.autoStopTimeout)
+	return context.WithTimeout(context.Background(), m.opts.cleanupTimeout)
 }
 
 func (m *Manager) resultErr() error {

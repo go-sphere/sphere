@@ -54,7 +54,7 @@ func TestGroupTaskErrorFailFast(t *testing.T) {
 	waitSignal(t, failing.Stopped(), "failing stopped")
 }
 
-func TestGroupAutoStopTimeoutOption(t *testing.T) {
+func TestGroupCleanupTimeoutOption(t *testing.T) {
 	expectedErr := errors.New("boom")
 	failing := scripttask.NewScriptTask("failing", func(context.Context) error {
 		return expectedErr
@@ -66,7 +66,7 @@ func TestGroupAutoStopTimeoutOption(t *testing.T) {
 
 	group := NewGroupWithOptions(
 		[]Task{blockingStop, failing},
-		WithAutoStopTimeout(40*time.Millisecond),
+		WithCleanupTimeout(40*time.Millisecond),
 	)
 
 	err := group.Start(context.Background())
