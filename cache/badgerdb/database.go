@@ -178,6 +178,33 @@ func (d *Database) DelAll(ctx context.Context) error {
 	return d.db.DropAll()
 }
 
+// Keys returns every key whose name starts with prefix. It uses a read-only
+// transaction with value prefetching disabled so the iterator only walks the
+// LSM keyspace.
+func (d *Database) Keys(ctx context.Context, prefix string) ([]string, error) {
+	var keys []string
+	err := d.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		if prefix != "" {
+			opts.Prefix = []byte(prefix)
+		}
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			keys = append(keys, string(it.Item().KeyCopy(nil)))
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
 func (d *Database) Exists(ctx context.Context, key string) (bool, error) {
 	err := d.db.View(func(txn *badger.Txn) error {
 		_, err := txn.Get([]byte(key))

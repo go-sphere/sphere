@@ -2,9 +2,26 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 )
+
+// ErrNotSupported is returned by optional operations that a given driver does
+// not implement. For example, NSCache.DelAll returns it when the wrapped
+// cache does not implement KeyLister.
+var ErrNotSupported = errors.New("cache: operation not supported")
+
+// KeyLister is an optional capability that returns every key whose name
+// starts with prefix (pass "" to list all keys). Drivers that can scan
+// their keyspace cheaply (mcache, badgerdb, redis) implement this; others
+// (such as the ristretto-backed memory driver) intentionally do not.
+//
+// Implementations may load the full key set into the returned slice and
+// must honour ctx cancellation.
+type KeyLister interface {
+	Keys(ctx context.Context, prefix string) ([]string, error)
+}
 
 // Core provides basic methods for single key-value operations in the cache.
 type Core[S any] interface {

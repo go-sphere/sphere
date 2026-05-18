@@ -2,6 +2,8 @@ package mcache
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -173,6 +175,37 @@ func (t *Map[K, S]) DelAll(ctx context.Context) error {
 	t.store = make(map[K]S)
 	t.expiration = make(map[K]time.Time)
 	return nil
+}
+
+// Keys returns every cached key whose string form starts with prefix.
+// Entries whose TTL has passed are skipped so the result stays consistent
+// with Get/Exists; cleanup of those stale map entries is left to Count/Trim
+// or the next Get/MultiGet that touches them.
+func (t *Map[K, S]) Keys(ctx context.Context, prefix string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	t.rw.RLock()
+	defer t.rw.RUnlock()
+	now := time.Now()
+	keys := make([]string, 0, len(t.store))
+	for k := range t.store {
+		if exp, ok := t.expiration[k]; ok && now.After(exp) {
+			continue
+		}
+		ks := keyToString(k)
+		if prefix == "" || strings.HasPrefix(ks, prefix) {
+			keys = append(keys, ks)
+		}
+	}
+	return keys, nil
+}
+
+func keyToString[K comparable](k K) string {
+	if s, ok := any(k).(string); ok {
+		return s
+	}
+	return fmt.Sprint(k)
 }
 
 func (t *Map[K, S]) Count() int {

@@ -7,7 +7,13 @@ import (
 	"github.com/go-sphere/sphere/cache"
 )
 
-// NSCache is a namespaced cache wrapper.
+// NSCache is a namespaced cache wrapper that prefixes every key with
+// "<namespace>:" before delegating to an underlying cache.Cache.
+//
+// DelAll deletes only keys belonging to this namespace, so multiple NSCache
+// instances can safely share a single backend. It requires the wrapped cache
+// to implement cache.KeyLister (currently mcache, badgerdb, redis);
+// otherwise DelAll returns cache.ErrNotSupported.
 type NSCache[S any] struct {
 	namespace string
 	cache     cache.Cache[S]
@@ -92,8 +98,24 @@ func (n *NSCache[S]) MultiSetWithTTL(ctx context.Context, valMap map[string]S, e
 	return n.cache.MultiSetWithTTL(ctx, prefixedValMap, expiration)
 }
 
+// DelAll removes every key in this namespace. It asks the underlying cache
+// for the keys matching the namespace prefix and deletes them with MultiDel.
+// The wrapped cache must implement cache.KeyLister; otherwise DelAll returns
+// cache.ErrNotSupported so it can never accidentally wipe keys belonging to
+// a sibling namespace sharing the same backend.
 func (n *NSCache[S]) DelAll(ctx context.Context) error {
-	return n.cache.DelAll(ctx)
+	lister, ok := n.cache.(cache.KeyLister)
+	if !ok {
+		return cache.ErrNotSupported
+	}
+	keys, err := lister.Keys(ctx, n.namespace+":")
+	if err != nil {
+		return err
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	return n.cache.MultiDel(ctx, keys)
 }
 
 func (n *NSCache[S]) Close() error {

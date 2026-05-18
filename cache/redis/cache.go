@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
+
+const scanBatchSize = 256
 
 var ErrorType = fmt.Errorf("type error")
 
@@ -102,6 +105,47 @@ func (c *ByteCache) Exists(ctx context.Context, key string) (bool, error) {
 		return false, err
 	}
 	return exists > 0, nil
+}
+
+// Keys returns every key in the Redis instance whose name starts with prefix.
+// It drains SCAN with a glob-escaped MATCH pattern so metacharacters in the
+// prefix (*, ?, [, ], \) are treated literally. If any SCAN batch fails the
+// partial result is discarded and the error is returned.
+func (c *ByteCache) Keys(ctx context.Context, prefix string) ([]string, error) {
+	pattern := escapeGlob(prefix) + "*"
+	var (
+		cursor uint64
+		keys   []string
+	)
+	for {
+		batch, next, err := c.client.Scan(ctx, cursor, pattern, scanBatchSize).Result()
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, batch...)
+		cursor = next
+		if cursor == 0 {
+			return keys, nil
+		}
+	}
+}
+
+// escapeGlob quotes Redis glob metacharacters so the input matches literally.
+// See https://redis.io/commands/keys for the supported pattern syntax.
+func escapeGlob(s string) string {
+	if !strings.ContainsAny(s, `*?[]\`) {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s) + 4)
+	for _, r := range s {
+		switch r {
+		case '*', '?', '[', ']', '\\':
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 func (c *ByteCache) Close() error {

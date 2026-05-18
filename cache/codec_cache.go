@@ -143,6 +143,19 @@ func (m *CodecCache[T]) DelAll(ctx context.Context) error {
 	return m.cache.DelAll(ctx)
 }
 
+// Keys forwards prefix listing to the underlying byte cache when it supports
+// KeyLister, so callers that wrap a typed adapter in NSCache (or otherwise
+// rely on the optional listing capability) keep working. Returns
+// ErrNotSupported when the underlying byte cache does not implement
+// KeyLister.
+func (m *CodecCache[T]) Keys(ctx context.Context, prefix string) ([]string, error) {
+	lister, ok := m.cache.(KeyLister)
+	if !ok {
+		return nil, ErrNotSupported
+	}
+	return lister.Keys(ctx, prefix)
+}
+
 func (m *CodecCache[T]) Exists(ctx context.Context, key string) (bool, error) {
 	return m.cache.Exists(ctx, key)
 }
