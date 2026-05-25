@@ -156,6 +156,9 @@ func TestQueueClose(t *testing.T) {
 	for _, factory := range queueFactories() {
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
+			if !factory.closeStopsQueue {
+				t.Skip("queue uses caller-owned resources; Close does not disable operations")
+			}
 
 			q := factory.new(t)
 			if err := q.Close(); err != nil {

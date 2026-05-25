@@ -85,6 +85,51 @@ func TestPubSubMultiSubscribers(t *testing.T) {
 	}
 }
 
+func TestPubSubUnsubscribeAllMultipleSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	for _, factory := range pubSubFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			p := factory.newInt(t)
+
+			const topic = "unsubscribe-all"
+			recvA := make(chan int, 2)
+			recvB := make(chan int, 2)
+
+			if err := p.Subscribe(ctx, topic, func(data int) error {
+				recvA <- data
+				return nil
+			}); err != nil {
+				t.Fatalf("Subscribe A: %v", err)
+			}
+			if err := p.Subscribe(ctx, topic, func(data int) error {
+				recvB <- data
+				return nil
+			}); err != nil {
+				t.Fatalf("Subscribe B: %v", err)
+			}
+
+			if err := p.Broadcast(ctx, topic, 1); err != nil {
+				t.Fatalf("Broadcast before unsubscribe: %v", err)
+			}
+			assertReceiveInt(t, recvA, 1)
+			assertReceiveInt(t, recvB, 1)
+
+			if err := p.UnsubscribeAll(ctx, topic); err != nil {
+				t.Fatalf("UnsubscribeAll: %v", err)
+			}
+			if err := p.Broadcast(ctx, topic, 2); err != nil {
+				t.Fatalf("Broadcast after unsubscribe: %v", err)
+			}
+			assertNoReceiveInt(t, recvA)
+			assertNoReceiveInt(t, recvB)
+		})
+	}
+}
+
 func TestPubSubStructPayload(t *testing.T) {
 	t.Parallel()
 

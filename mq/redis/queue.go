@@ -80,5 +80,5 @@ func (q *Queue[T]) PurgeQueue(ctx context.Context, topic string) error {
 }
 
 func (q *Queue[T]) Close() error {
-	return q.client.Close()
+	return nil
 }

@@ -44,10 +44,10 @@ func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 	if closed {
 		return fmt.Errorf("pubsub is closed")
 	}
-
 	if !exists || len(subscribers) == 0 {
 		return nil
 	}
+	subscribers = append([]*Subscription[T](nil), subscribers...)
 
 	var wg sync.WaitGroup
 	for _, sub := range subscribers {

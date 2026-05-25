@@ -12,6 +12,7 @@ import (
 type queueFactory struct {
 	name                 string
 	blockingConsumeCheck bool
+	closeStopsQueue      bool
 	new                  func(tb testing.TB) mq.Queue[int]
 }
 
@@ -26,6 +27,7 @@ func queueFactories() []queueFactory {
 		{
 			name:                 "memory",
 			blockingConsumeCheck: true,
+			closeStopsQueue:      true,
 			new: func(tb testing.TB) mq.Queue[int] {
 				tb.Helper()
 				q := memory.NewQueue[int]()
@@ -36,6 +38,7 @@ func queueFactories() []queueFactory {
 		{
 			name:                 "redis",
 			blockingConsumeCheck: false,
+			closeStopsQueue:      false,
 			new: func(tb testing.TB) mq.Queue[int] {
 				t, ok := tb.(*testing.T)
 				if !ok {

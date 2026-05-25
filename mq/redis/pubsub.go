@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/go-sphere/confstore/codec"
@@ -15,7 +16,7 @@ type PubSub[T any] struct {
 	client *redis.Client
 	codec  codec.Codec
 
-	subscriptions map[string]*redis.PubSub
+	subscriptions map[string][]*redis.PubSub
 	mu            sync.Mutex
 }
 
@@ -30,7 +31,7 @@ func NewPubSub[T any](opt ...Option) (*PubSub[T], error) {
 	return &PubSub[T]{
 		client:        opts.client,
 		codec:         opts.codec,
-		subscriptions: make(map[string]*redis.PubSub),
+		subscriptions: make(map[string][]*redis.PubSub),
 	}, nil
 }
 
@@ -51,7 +52,7 @@ func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(da
 		_ = sub.Close()
 		return err
 	}
-	p.subscriptions[topic] = sub
+	p.subscriptions[topic] = append(p.subscriptions[topic], sub)
 
 	go func() {
 		defer func() {
@@ -79,9 +80,13 @@ func (p *PubSub[T]) UnsubscribeAll(ctx context.Context, topic string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if sub, ok := p.subscriptions[topic]; ok {
+	if subs, ok := p.subscriptions[topic]; ok {
 		delete(p.subscriptions, topic)
-		return sub.Close()
+		var err error
+		for _, sub := range subs {
+			err = errors.Join(err, sub.Close())
+		}
+		return err
 	}
 
 	return nil
@@ -92,8 +97,10 @@ func (p *PubSub[T]) Close() error {
 	defer p.mu.Unlock()
 
 	var err error
-	for topic, sub := range p.subscriptions {
-		err = sub.Close()
+	for topic, subs := range p.subscriptions {
+		for _, sub := range subs {
+			err = errors.Join(err, sub.Close())
+		}
 		delete(p.subscriptions, topic)
 	}
 

@@ -54,4 +54,7 @@ func TestMessageQueueConstruction(t *testing.T) {
 	if err := r.Close(); err != nil {
 		t.Fatalf("redis message queue close: %v", err)
 	}
+	if err := client.Ping(t.Context()).Err(); err != nil {
+		t.Fatalf("redis message queue should not close shared client: %v", err)
+	}
 }
