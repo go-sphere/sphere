@@ -35,6 +35,7 @@ For complete documentation, visit [go-sphere.github.io](https://go-sphere.github
 - [API Definitions](https://go-sphere.github.io/docs/guides/api-definitions)
 - [Error Handling](https://go-sphere.github.io/docs/guides/error-handling)
 - [Logging](https://go-sphere.github.io/docs/guides/logging)
+- [Scheduler](./docs/scheduler.md)
 
 ## License
 

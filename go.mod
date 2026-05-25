@@ -10,10 +10,12 @@ require (
 	github.com/go-sphere/httpx v0.0.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
+	github.com/hibiken/asynq v0.25.1
 	github.com/meilisearch/meilisearch-go v0.36.1
 	github.com/minio/minio-go/v7 v7.0.98
 	github.com/qiniu/go-sdk/v7 v7.25.6
 	github.com/redis/go-redis/v9 v9.18.0
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag v1.16.6
 	github.com/yitter/idgenerator-go v1.3.3
@@ -64,6 +66,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rs/xid v1.6.0 // indirect
+	github.com/spf13/cast v1.7.0 // indirect
 	github.com/swaggo/files v1.0.1 // indirect
 	github.com/tinylib/msgp v1.6.3 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
