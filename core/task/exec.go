@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/go-sphere/sphere/log"
 )
@@ -27,6 +28,7 @@ func logTaskPanic(task Task, name string, reason any) {
 		fmt.Sprintf("%s panic", name),
 		log.String("task", task.Identifier()),
 		log.Any("recover", reason),
+		log.String("stack", string(debug.Stack())),
 	)
 }
 

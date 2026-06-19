@@ -42,8 +42,9 @@ type managedTask struct {
 	stopDoneCh chan struct{}
 	stopOnce   sync.Once
 
-	mu      sync.Mutex
-	stopErr error
+	mu       sync.Mutex
+	startErr error
+	stopErr  error
 }
 
 func newManagedTask(name string, task Task, cancel context.CancelFunc) *managedTask {
@@ -54,6 +55,18 @@ func newManagedTask(name string, task Task, cancel context.CancelFunc) *managedT
 		doneCh:     make(chan struct{}),
 		stopDoneCh: make(chan struct{}),
 	}
+}
+
+func (t *managedTask) setStartErr(err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.startErr = err
+}
+
+func (t *managedTask) getStartErr() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.startErr
 }
 
 func (t *managedTask) setStopErr(err error) {
@@ -75,6 +88,7 @@ type Manager struct {
 	opts managerOptions
 
 	opsMu sync.Mutex
+	runMu sync.Mutex
 	mu    sync.RWMutex
 	tasks map[string]*managedTask
 
@@ -114,6 +128,9 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 		ctx = context.Background()
 	}
 
+	m.runMu.Lock()
+	defer m.runMu.Unlock()
+
 	m.opsMu.Lock()
 	defer m.opsMu.Unlock()
 
@@ -145,6 +162,7 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 		})
 
 		if err != nil && !errors.Is(err, context.Canceled) {
+			entry.setStartErr(err)
 			m.startErr.Add(err)
 		}
 
@@ -158,7 +176,8 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 // Returns ErrTaskNotFound if no task with the given name is running.
 // It waits for both Stop and Start goroutines to finish.
 // If the caller ctx expires first, StopTask returns ctx.Err(), but internal stopping continues in background.
-// The task.Stop call itself uses manager-level stop timeout policy (WithManagerCleanupTimeout).
+// The provided context only bounds the caller's wait; the task Stop call uses
+// the cleanup context configured by WithManagerCleanupTimeout.
 func (m *Manager) StopTask(ctx context.Context, name string) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -179,13 +198,14 @@ func (m *Manager) StopTask(ctx context.Context, name string) error {
 	}
 
 	m.removeTaskIfSame(name, entry)
-	return entry.getStopErr()
+	return errors.Join(entry.getStartErr(), entry.getStopErr())
 }
 
 // StopAll stops all currently running tasks concurrently.
 // It waits for all tasks to complete shutdown before returning.
 // If the caller ctx expires first, StopAll returns ctx.Err(), but background stops continue.
-// The task.Stop calls use manager-level stop timeout policy (WithManagerCleanupTimeout).
+// The provided context only bounds the caller's wait; task Stop calls use the
+// cleanup context configured by WithManagerCleanupTimeout.
 // Returns any errors encountered during shutdown and previously collected task run errors.
 func (m *Manager) StopAll(ctx context.Context) error {
 	if ctx == nil {
@@ -226,10 +246,10 @@ func (m *Manager) StopAll(ctx context.Context) error {
 }
 
 // Wait blocks until all started task goroutines have exited.
-// It returns joined task run errors and stop errors collected by the manager.
+// It returns task run errors and stop errors accumulated over the manager's lifetime.
 func (m *Manager) Wait() error {
-	m.opsMu.Lock()
-	defer m.opsMu.Unlock()
+	m.runMu.Lock()
+	defer m.runMu.Unlock()
 	m.runWG.Wait()
 	return m.resultErr()
 }

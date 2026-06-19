@@ -222,7 +222,7 @@ func (g *Group) Start(ctx context.Context) error {
 	case shutdownTaskFailure:
 		finalErr = errors.Join(startErrs.Unwrap(), stopErrs.Unwrap())
 	case shutdownManualStop, shutdownParentCancel:
-		finalErr = stopErrs.Unwrap()
+		finalErr = errors.Join(startErrs.Unwrap(), stopErrs.Unwrap())
 	default:
 		finalErr = startErrs.Unwrap()
 	}
@@ -239,6 +239,8 @@ func (g *Group) Start(ctx context.Context) error {
 
 // Stop gracefully shuts down all tasks in the group.
 // It blocks until shutdown completes or the provided context expires.
+// The provided context only bounds the caller's wait; task Stop calls use the
+// cleanup context configured by WithCleanupTimeout.
 // Returns ErrGroupNotStarted when called before Start.
 func (g *Group) Stop(ctx context.Context) error {
 	if ctx == nil {

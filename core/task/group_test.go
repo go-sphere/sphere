@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -133,6 +134,36 @@ func TestGroupManualStopGraceful(t *testing.T) {
 	}
 }
 
+func TestGroupManualStopIncludesTaskError(t *testing.T) {
+	expectedErr := errors.New("worker failed during manual stop")
+	releaseStart := make(chan struct{})
+	var releaseOnce sync.Once
+	worker := scripttask.NewScriptTask("worker", func(context.Context) error {
+		<-releaseStart
+		return expectedErr
+	}, func(context.Context) error {
+		releaseOnce.Do(func() {
+			close(releaseStart)
+		})
+		return nil
+	})
+
+	group := NewGroup(worker)
+	startErrCh := make(chan error, 1)
+	go func() {
+		startErrCh <- group.Start(context.Background())
+	}()
+
+	waitSignal(t, worker.Started(), "worker started")
+
+	if err := group.Stop(context.Background()); !errors.Is(err, expectedErr) {
+		t.Fatalf("expected manual stop to include task error %v, got %v", expectedErr, err)
+	}
+	if err := waitError(t, startErrCh, "group start after manual stop"); !errors.Is(err, expectedErr) {
+		t.Fatalf("expected start result to include task error %v, got %v", expectedErr, err)
+	}
+}
+
 func TestGroupParentCancelGraceful(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	worker := scripttask.NewScriptTask("worker", nil, nil)
@@ -148,6 +179,36 @@ func TestGroupParentCancelGraceful(t *testing.T) {
 
 	if err := waitError(t, startErrCh, "group start after parent cancel"); err != nil {
 		t.Fatalf("expected nil after parent cancel, got %v", err)
+	}
+	waitSignal(t, worker.Stopped(), "worker stopped")
+}
+
+func TestGroupParentCancelIncludesTaskError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	expectedErr := errors.New("worker failed during parent cancel")
+	releaseStart := make(chan struct{})
+	var releaseOnce sync.Once
+	worker := scripttask.NewScriptTask("worker", func(context.Context) error {
+		<-releaseStart
+		return expectedErr
+	}, func(context.Context) error {
+		releaseOnce.Do(func() {
+			close(releaseStart)
+		})
+		return nil
+	})
+	group := NewGroup(worker)
+
+	startErrCh := make(chan error, 1)
+	go func() {
+		startErrCh <- group.Start(ctx)
+	}()
+
+	waitSignal(t, worker.Started(), "worker started")
+	cancel()
+
+	if err := waitError(t, startErrCh, "group start after parent cancel"); !errors.Is(err, expectedErr) {
+		t.Fatalf("expected parent cancel to include task error %v, got %v", expectedErr, err)
 	}
 	waitSignal(t, worker.Stopped(), "worker stopped")
 }

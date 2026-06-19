@@ -19,6 +19,8 @@ type Task interface {
 
 	// Stop gracefully shuts down the task with the given context.
 	// The context may have a deadline for shutdown completion.
+	// Stop must be idempotent and safe to call concurrently.
+	// Stop must also be safe when Start failed, returned already, or has not completed initialization.
 	// Returns an error if the task fails to stop cleanly.
 	Stop(ctx context.Context) error
 }

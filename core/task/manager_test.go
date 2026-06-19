@@ -105,6 +105,30 @@ func TestManagerStopTaskReturnsStopError(t *testing.T) {
 	}
 }
 
+func TestManagerStopTaskReturnsStartError(t *testing.T) {
+	manager := NewManager()
+	expectedStartErr := errors.New("start failed during stop")
+	worker := scripttask.NewScriptTask("worker", func(ctx context.Context) error {
+		<-ctx.Done()
+		return expectedStartErr
+	}, nil)
+
+	if err := manager.StartTask(context.Background(), "worker", worker); err != nil {
+		t.Fatalf("start task failed: %v", err)
+	}
+	waitSignalManager(t, worker.Started(), "worker started")
+
+	stopErr := manager.StopTask(context.Background(), "worker")
+	if !errors.Is(stopErr, expectedStartErr) {
+		t.Fatalf("expected start error %v, got %v", expectedStartErr, stopErr)
+	}
+
+	waitErr := manager.Wait()
+	if !errors.Is(waitErr, expectedStartErr) {
+		t.Fatalf("expected wait to include start error, got %v", waitErr)
+	}
+}
+
 func TestManagerStopTaskCallerTimeout(t *testing.T) {
 	manager := NewManager(WithManagerCleanupTimeout(120 * time.Millisecond))
 	worker := scripttask.NewScriptTask("worker", nil, func(ctx context.Context) error {
@@ -174,6 +198,39 @@ func TestManagerStopAllConcurrent(t *testing.T) {
 	}
 	if err := manager.Wait(); err != nil {
 		t.Fatalf("expected wait success, got %v", err)
+	}
+}
+
+func TestManagerWaitAllowsConcurrentStopAll(t *testing.T) {
+	manager := NewManager()
+	worker := scripttask.NewScriptTask("worker", nil, nil)
+
+	if err := manager.StartTask(context.Background(), "worker", worker); err != nil {
+		t.Fatalf("start task failed: %v", err)
+	}
+	waitSignalManager(t, worker.Started(), "worker started")
+
+	waitErrCh := make(chan error, 1)
+	go func() {
+		waitErrCh <- manager.Wait()
+	}()
+
+	select {
+	case err := <-waitErrCh:
+		t.Fatalf("wait returned before stop all: %v", err)
+	case <-time.After(40 * time.Millisecond):
+	}
+
+	stopErrCh := make(chan error, 1)
+	go func() {
+		stopErrCh <- manager.StopAll(context.Background())
+	}()
+
+	if err := waitError(t, stopErrCh, "stop all while wait is pending"); err != nil {
+		t.Fatalf("expected stop all to succeed, got %v", err)
+	}
+	if err := waitError(t, waitErrCh, "manager wait after stop all"); err != nil {
+		t.Fatalf("expected wait to succeed after stop all, got %v", err)
 	}
 }
 
