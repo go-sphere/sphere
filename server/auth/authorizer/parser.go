@@ -6,7 +6,10 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
-// UID represents valid user identifier types, supporting both integer and string IDs.
+// UID represents valid user identifier types: integers or strings. These mirror
+// the identifier types used for database primary keys, which are effectively only
+// integer or string. For IDs that are neither (for example uuid.UUID), use the
+// string form via its String() representation.
 type UID interface {
 	constraints.Integer | ~string
 }

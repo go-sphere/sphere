@@ -1,6 +1,7 @@
 package httpz
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/go-sphere/httpx"
@@ -33,7 +34,7 @@ func AbortWithJsonError(ctx httpx.Context, err error) {
 	if err == nil {
 		log.Warn("AbortWithJsonError called with nil error")
 		_ = ctx.JSON(http.StatusInternalServerError, ErrorResponse{
-			Code:    http.StatusInternalServerError,
+			Code:    0,
 			Message: http.StatusText(http.StatusInternalServerError),
 		})
 		return
@@ -41,6 +42,16 @@ func AbortWithJsonError(ctx httpx.Context, err error) {
 	code, status, message := defaultErrorParser(err)
 	if status < 100 || status > 599 {
 		status = http.StatusInternalServerError
+	}
+	// Unify the semantics of ErrorResponse.Code: it carries an application
+	// specific error code and is 0 when the error is unclassified. The default
+	// parser (httpx.ParseError) falls back to code=status for errors that do not
+	// implement httpx.CodeError, which conflates the HTTP status with the
+	// application code. Normalize that here so unclassified errors always report
+	// 0 and let the HTTP status carry the transport-level semantics.
+	var ce httpx.CodeError
+	if !errors.As(err, &ce) {
+		code = 0
 	}
 	resp := ErrorResponse{
 		Code:    int(code),
