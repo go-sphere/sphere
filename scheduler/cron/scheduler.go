@@ -20,8 +20,8 @@ const (
 )
 
 type Config struct {
-	Seconds  bool   `json:"seconds"`
-	Timezone string `json:"timezone"`
+	Seconds  bool   `json:"seconds" yaml:"seconds"`
+	Timezone string `json:"timezone" yaml:"timezone"`
 }
 
 type Scheduler struct {

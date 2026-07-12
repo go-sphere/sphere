@@ -26,10 +26,11 @@ const (
 )
 
 type Config struct {
-	Concurrency     int            `json:"concurrency"`
-	Queues          map[string]int `json:"queues"`
-	StrictPriority  bool           `json:"strict_priority"`
-	ShutdownTimeout time.Duration  `json:"shutdown_timeout"`
+	Concurrency     int            `json:"concurrency" yaml:"concurrency"`
+	Queues          map[string]int `json:"queues" yaml:"queues"`
+	StrictPriority  bool           `json:"strict_priority" yaml:"strict_priority"`
+	ShutdownTimeout time.Duration  `json:"shutdown_timeout" yaml:"shutdown_timeout"`
+	Timezone        string         `json:"timezone" yaml:"timezone"`
 }
 
 type Scheduler struct {
@@ -99,8 +100,17 @@ func newAsynqRuntime(cfg Config, applied options) (*sasynq.Client, *sasynq.Serve
 		fn(&serverCfg)
 	}
 
+	location := time.Local
+	if cfg.Timezone != "" {
+		loc, err := time.LoadLocation(cfg.Timezone)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("scheduler/asynq: load timezone: %w", err)
+		}
+		location = loc
+	}
+
 	schedulerOpts := &sasynq.SchedulerOpts{
-		Location: time.Local,
+		Location: location,
 		Logger:   applied.logger,
 		LogLevel: applied.logLevel,
 	}
