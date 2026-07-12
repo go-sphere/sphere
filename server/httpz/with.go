@@ -2,7 +2,7 @@ package httpz
 
 import (
 	"errors"
-	"fmt"
+	"runtime/debug"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/log"
@@ -32,14 +32,15 @@ func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Ha
 	return func(ctx httpx.Context) error {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Errorf(
+				log.Error(
 					message,
 					log.Any("error", err),
+					log.String("stack", string(debug.Stack())),
 				)
 				AbortWithJsonError(ctx,
 					httpx.InternalServerError(
 						errInternalServerPanic,
-						fmt.Sprintf("internal server error: %v", err),
+						"internal server error",
 					),
 				)
 			}
