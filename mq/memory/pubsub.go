@@ -54,10 +54,17 @@ func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 		wg.Add(1)
 		go func(s *Subscription[T]) {
 			defer wg.Done()
+			// The default branch provides back pressure protection: when a
+			// subscriber's buffered channel is full (slow or stalled consumer)
+			// the message is dropped and logged instead of blocking the whole
+			// Broadcast, which would otherwise hang forever under a background
+			// context.
 			select {
 			case s.ch <- data:
 			case <-ctx.Done():
 			case <-s.done:
+			default:
+				log.Warn("pubsub broadcast dropped message: subscriber queue full", log.String("topic", topic))
 			}
 		}(sub)
 	}
@@ -81,14 +88,7 @@ func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(da
 	}
 	p.topics[topic] = append(p.topics[topic], sub)
 
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Error("recovered from panic in subscription handler", log.Any("error", r))
-			}
-		}()
-		p.handleSubscription(sub)
-	}()
+	go p.handleSubscription(sub)
 
 	return nil
 }
@@ -97,12 +97,25 @@ func (p *PubSub[T]) handleSubscription(sub *Subscription[T]) {
 	for {
 		select {
 		case data := <-sub.ch:
-			if err := sub.handler(data); err != nil {
-				fmt.Printf("handler error: %v\n", err)
-			}
+			p.dispatch(sub, data)
 		case <-sub.done:
 			return
 		}
+	}
+}
+
+// dispatch invokes the subscriber handler for a single message with panic
+// recovery scoped to that message. A panic in one message is logged and
+// consumption continues, so a misbehaving handler can no longer kill the
+// consumer goroutine and turn the subscription into a zombie.
+func (p *PubSub[T]) dispatch(sub *Subscription[T], data T) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("recovered from panic in subscription handler", log.Any("error", r))
+		}
+	}()
+	if err := sub.handler(data); err != nil {
+		log.Error("subscription handler error", log.Err(err))
 	}
 }
 
