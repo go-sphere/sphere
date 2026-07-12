@@ -62,12 +62,12 @@ func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(da
 		}()
 		for msg := range sub.Channel() {
 			var data T
-			err := p.codec.Unmarshal([]byte(msg.Payload), &data)
-			if err != nil {
+			if err := p.codec.Unmarshal([]byte(msg.Payload), &data); err != nil {
+				log.Error("failed to unmarshal subscription message", log.Err(err), log.String("topic", topic))
 				continue
 			}
-			err = handler(data)
-			if err != nil {
+			if err := handler(data); err != nil {
+				log.Error("subscription handler error", log.Err(err), log.String("topic", topic))
 				continue
 			}
 		}

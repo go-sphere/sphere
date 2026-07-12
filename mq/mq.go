@@ -36,6 +36,11 @@ type PubSub[T any] interface {
 
 	// Subscribe registers a handler function to receive messages from the specified topic.
 	// The handler will be called for each message received on the topic.
+	//
+	// The ctx governs only the setup of the subscription (the initial registration
+	// call); it does not control the lifetime of the long-running subscription.
+	// Cancelling ctx after Subscribe returns does NOT stop delivery. To stop
+	// receiving messages, call UnsubscribeAll for the topic or Close the PubSub.
 	Subscribe(ctx context.Context, topic string, handler func(data T) error) error
 
 	// UnsubscribeAll removes all subscriptions for the specified topic.

@@ -126,6 +126,27 @@ func (q *Queue[T]) PurgeQueue(ctx context.Context, topic string) error {
 	}
 }
 
+// DeleteQueue removes the topic's queue entry so its memory can be reclaimed.
+// getOrCreateQueue only ever adds entries, so long-lived queues accumulate one
+// channel per topic that is never released; DeleteQueue is the explicit cleanup
+// hook for topics that are no longer in use.
+//
+// Any messages still buffered for the topic are discarded. Callers must only
+// delete a topic that is idle (no active publishers or consumers): a Consume
+// blocked on the old channel will not observe messages published after the
+// entry is recreated by a subsequent Publish. A subsequent Publish/Consume for
+// the same topic transparently recreates the queue.
+func (q *Queue[T]) DeleteQueue(topic string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if q.closed {
+		return ErrQueueClosed
+	}
+	delete(q.queues, topic)
+	return nil
+}
+
 func (q *Queue[T]) Close() error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
