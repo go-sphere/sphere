@@ -19,6 +19,11 @@ type Queue[T any] struct {
 
 	mu     sync.RWMutex
 	closed bool
+	// done is closed exactly once by Close to signal shutdown. The per-topic
+	// data channels are never closed, so a concurrent Publish can never send
+	// on a closed channel; blocked Publish/Consume calls observe shutdown
+	// through done instead.
+	done chan struct{}
 }
 
 // NewQueue creates a new memory-based queue with the specified options.
@@ -28,6 +33,7 @@ func NewQueue[T any](opt ...Option) *Queue[T] {
 	return &Queue[T]{
 		queueSize: opts.queueSize,
 		queues:    make(map[string]chan T),
+		done:      make(chan struct{}),
 	}
 }
 
@@ -40,6 +46,8 @@ func (q *Queue[T]) Publish(ctx context.Context, topic string, data T) error {
 	select {
 	case queue <- data:
 		return nil
+	case <-q.done:
+		return ErrQueueClosed
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -58,6 +66,8 @@ func (q *Queue[T]) Consume(ctx context.Context, topic string) (T, error) {
 			return zero, ErrQueueClosed
 		}
 		return data, nil
+	case <-q.done:
+		return zero, ErrQueueClosed
 	case <-ctx.Done():
 		return zero, ctx.Err()
 	}
@@ -123,9 +133,9 @@ func (q *Queue[T]) Close() error {
 		return nil
 	}
 	q.closed = true
-	for _, ch := range q.queues {
-		close(ch)
-	}
+	// Signal shutdown via done rather than closing the data channels, so a
+	// Publish that is concurrently sending never panics on a closed channel.
+	close(q.done)
 	return nil
 }
 
