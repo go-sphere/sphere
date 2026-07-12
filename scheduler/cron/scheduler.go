@@ -28,10 +28,11 @@ type Scheduler struct {
 	cron    *rcron.Cron
 	entries map[string]rcron.EntryID
 
-	mu     sync.Mutex
-	state  atomic.Int32
-	runCtx context.Context
-	cancel context.CancelFunc
+	mu       sync.Mutex
+	state    atomic.Int32
+	runCtx   context.Context
+	cancel   context.CancelFunc
+	stopDone <-chan struct{}
 }
 
 func NewScheduler(conf Config, opts ...Option) (*Scheduler, error) {
@@ -144,18 +145,32 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if !s.state.CompareAndSwap(stateRunning, stateStopping) {
+
+	// The state transition and the recording of the shutdown-completion channel
+	// happen under the mutex so that concurrent (and repeated) Stop/Close calls
+	// all observe and wait on the same underlying shutdown signal.
+	s.mu.Lock()
+	switch s.state.Load() {
+	case stateInit, stateClosed:
+		s.mu.Unlock()
+		return nil
+	case stateRunning:
+		// First Stop call: trigger the underlying cron shutdown exactly once and
+		// record the channel that reports when in-flight jobs have drained.
+		s.state.Store(stateStopping)
+		if s.cancel != nil {
+			s.cancel()
+		}
+		s.stopDone = s.cron.Stop().Done()
+	case stateStopping:
+		// Shutdown already in progress; fall through to wait on the same channel.
+	}
+	done := s.stopDone
+	s.mu.Unlock()
+
+	if done == nil {
 		return nil
 	}
-
-	s.mu.Lock()
-	cancel := s.cancel
-	s.mu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
-
-	done := s.cron.Stop().Done()
 	select {
 	case <-done:
 		s.state.Store(stateClosed)

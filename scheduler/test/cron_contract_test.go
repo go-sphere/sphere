@@ -111,6 +111,58 @@ func TestCronContractStopWaitsForRunningHandler(t *testing.T) {
 	}
 }
 
+func TestCronContractStopTimeoutThenRetrySucceeds(t *testing.T) {
+	for _, factory := range cronFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			s := factory.new(t)
+			started := make(chan struct{})
+			release := make(chan struct{})
+			if err := s.Register("blocking", "@every 1s", func(context.Context) error {
+				closeOnce(started)
+				<-release
+				return nil
+			}); err != nil {
+				t.Fatalf("register: %v", err)
+			}
+
+			ctx, cancel := context.WithCancel(context.Background())
+			doneStart := make(chan error, 1)
+			go func() { doneStart <- s.Start(ctx) }()
+			waitForChan(t, 3*time.Second, started)
+
+			// First Stop times out while the handler is still blocked.
+			timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer timeoutCancel()
+			if err := s.Stop(timeoutCtx); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("first stop error = %v, want %v", err, context.DeadlineExceeded)
+			}
+
+			// Let the handler finish, then retry Stop with a fresh context: it must
+			// wait on the same shutdown signal and complete successfully.
+			close(release)
+			retryCtx, retryCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer retryCancel()
+			if err := s.Stop(retryCtx); err != nil {
+				t.Fatalf("second stop: %v", err)
+			}
+
+			// State must now be closed, not stuck in stopping.
+			if err := s.Register("after", "@every 1s", func(context.Context) error { return nil }); !errors.Is(err, scheduler.ErrClosed) {
+				t.Fatalf("register after stop error = %v, want %v", err, scheduler.ErrClosed)
+			}
+			if err := s.Close(); !errors.Is(err, scheduler.ErrClosed) {
+				t.Fatalf("close after stop error = %v, want %v", err, scheduler.ErrClosed)
+			}
+
+			cancel()
+			err := <-doneStart
+			if err != nil && !errors.Is(err, context.Canceled) {
+				t.Fatalf("start: %v", err)
+			}
+		})
+	}
+}
+
 func TestCronContractCloseThenMethodsReturnClosed(t *testing.T) {
 	for _, factory := range cronFactories() {
 		t.Run(factory.name, func(t *testing.T) {
