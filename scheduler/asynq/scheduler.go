@@ -45,6 +45,7 @@ type Scheduler struct {
 	cronIDs  map[string]string
 	state    atomic.Int32
 	cancel   context.CancelFunc
+	stopDone <-chan struct{}
 }
 
 func NewScheduler(conf Config, opts ...Option) (*Scheduler, error) {
@@ -273,27 +274,41 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if !s.state.CompareAndSwap(stateRunning, stateStopping) {
+
+	// The state transition and the recording of the shutdown-completion channel
+	// happen under the mutex so that concurrent (and repeated) Stop/Close calls
+	// all observe and wait on the same underlying shutdown signal.
+	s.mu.Lock()
+	switch s.state.Load() {
+	case stateInit, stateClosed:
+		s.mu.Unlock()
+		return nil
+	case stateRunning:
+		// First Stop call: trigger the underlying shutdown exactly once and record
+		// the channel that reports when the server has fully drained.
+		s.state.Store(stateStopping)
+		if s.cancel != nil {
+			s.cancel()
+		}
+		s.cron.Shutdown()
+		s.server.Stop()
+
+		done := make(chan struct{})
+		go func() {
+			s.server.Shutdown()
+			_ = s.closeClient()
+			close(done)
+		}()
+		s.stopDone = done
+	case stateStopping:
+		// Shutdown already in progress; fall through to wait on the same channel.
+	}
+	done := s.stopDone
+	s.mu.Unlock()
+
+	if done == nil {
 		return nil
 	}
-
-	s.mu.Lock()
-	cancel := s.cancel
-	s.mu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
-
-	s.cron.Shutdown()
-	s.server.Stop()
-
-	done := make(chan struct{})
-	go func() {
-		s.server.Shutdown()
-		_ = s.closeClient()
-		close(done)
-	}()
-
 	select {
 	case <-done:
 		s.state.Store(stateClosed)
