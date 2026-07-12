@@ -11,8 +11,8 @@ import (
 
 // Config holds the configuration parameters for connecting to Meilisearch server.
 type Config struct {
-	Host   string `json:"host"`    // Meilisearch server host URL
-	APIKey string `json:"api_key"` // API key for authentication
+	Host   string `json:"host" yaml:"host"`       // Meilisearch server host URL
+	APIKey string `json:"api_key" yaml:"api_key"` // API key for authentication
 }
 
 // ServiceManager wraps the Meilisearch service manager to provide connection management.
@@ -21,12 +21,11 @@ type ServiceManager struct {
 }
 
 // NewServiceManager creates a new ServiceManager instance with the given configuration.
-// It establishes a connection to the Meilisearch server and returns an error if connection fails.
+// It only builds the Meilisearch client; the connection is established lazily, so connectivity
+// errors surface when the service is actually used rather than at construction time. Callers that
+// need an eager readiness check should perform it explicitly after construction.
 func NewServiceManager(conf Config) (*ServiceManager, error) {
-	client, err := meilisearch.Connect(conf.Host, meilisearch.WithAPIKey(conf.APIKey))
-	if err != nil {
-		return nil, err
-	}
+	client := meilisearch.New(conf.Host, meilisearch.WithAPIKey(conf.APIKey))
 	return &ServiceManager{
 		service: client,
 	}, nil

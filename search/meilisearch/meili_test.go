@@ -26,6 +26,11 @@ func TestSearcher(t *testing.T) {
 		APIKey: "8IdbIxzCm86BaD8ZkT4SGv9vaipY1Ax7i0sz_Qv8wTI",
 	})
 	if err != nil {
+		t.Fatalf("Failed to create service manager: %v", err)
+	}
+	// The constructor no longer probes the server, so check availability here and
+	// skip when Meilisearch is not reachable (e.g. in CI without a running server).
+	if _, err := manager.service.HealthWithContext(context.Background()); err != nil {
 		t.Skipf("Meilisearch server not available, skipping test: %v", err)
 	}
 	searcher, err := NewSearcher[Article](manager, "articles", PrimaryKey("id"))
