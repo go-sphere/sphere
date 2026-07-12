@@ -194,11 +194,16 @@ func (g *Group) Start(ctx context.Context) error {
 	}
 
 	remaining := len(tasks)
+	// Capture ctx.Done() locally so it can be disabled once handled. A cancelled
+	// ctx keeps its Done channel readable forever; nil-ing the case prevents the
+	// select from busy-spinning while remaining tasks drain.
+	ctxDone := ctx.Done()
 	for remaining > 0 {
 		select {
 		case reqReason := <-stopReqCh:
 			beginStop(reqReason)
-		case <-ctx.Done():
+		case <-ctxDone:
+			ctxDone = nil
 			beginStop(shutdownParentCancel)
 		case result := <-startResults:
 			remaining--
