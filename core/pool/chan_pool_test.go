@@ -356,3 +356,57 @@ func TestChanPoolGetContextWithAllowCreate(t *testing.T) {
 		}
 	})
 }
+
+// TestChanPoolConcurrentPutClose exercises the Put/Close race (BUG-05): a Put
+// that overlaps with Close must never send on a closed channel. Run with -race.
+func TestChanPoolConcurrentPutClose(t *testing.T) {
+	for iter := 0; iter < 200; iter++ {
+		pool := NewChanPool[int](8)
+
+		var wg sync.WaitGroup
+		for i := 0; i < 8; i++ {
+			wg.Add(1)
+			go func(v int) {
+				defer wg.Done()
+				pool.Put(v)
+			}(i)
+		}
+
+		pool.Close()
+		wg.Wait()
+
+		if !pool.IsClosed() {
+			t.Fatal("pool should report closed")
+		}
+	}
+}
+
+// TestChanPoolGetContextClosedWhileBlocked covers BUG-13: a GetContext blocked
+// on an empty pool must return (zero, false) when Close wakes it, never a zero
+// value with ok=true.
+func TestChanPoolGetContextClosedWhileBlocked(t *testing.T) {
+	pool := NewChanPool[int](1, WithAllowCreate[int](false))
+
+	type result struct {
+		obj int
+		ok  bool
+	}
+	resCh := make(chan result, 1)
+	go func() {
+		obj, ok := pool.GetContext(context.Background())
+		resCh <- result{obj: obj, ok: ok}
+	}()
+
+	// Give the goroutine time to block on the empty pool, then close.
+	time.Sleep(20 * time.Millisecond)
+	pool.Close()
+
+	select {
+	case res := <-resCh:
+		if res.ok {
+			t.Fatalf("expected ok=false after close, got ok=true obj=%d", res.obj)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("GetContext did not return after Close")
+	}
+}

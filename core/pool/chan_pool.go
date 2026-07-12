@@ -2,7 +2,7 @@ package pool
 
 import (
 	"context"
-	"sync/atomic"
+	"sync"
 )
 
 // ChanPool is a bounded object pool based on channels, suitable for scenarios requiring resource limits.
@@ -14,7 +14,8 @@ type ChanPool[T any] struct {
 	accept      func(T) bool
 	closeFn     func(T)
 	allowCreate bool
-	closed      atomic.Bool
+	mu          sync.RWMutex
+	closed      bool
 }
 
 // NewChanPool creates a bounded object pool based on channels.
@@ -55,6 +56,13 @@ func (cp *ChanPool[T]) Put(obj T) bool {
 	if cp.reset != nil {
 		obj = cp.reset(obj)
 	}
+	// Hold the read lock so that closed is observed and the send happens
+	// atomically with respect to Close, preventing a send on a closed channel.
+	cp.mu.RLock()
+	defer cp.mu.RUnlock()
+	if cp.closed {
+		return false
+	}
 	select {
 	case cp.ch <- obj:
 		return true
@@ -67,13 +75,17 @@ func (cp *ChanPool[T]) Put(obj T) bool {
 // If allowCreate is true and newFn is set, creates a new object when pool is empty.
 // If allowCreate is false, always waits for an object from the pool.
 func (cp *ChanPool[T]) GetContext(ctx context.Context) (T, bool) {
-	if cp.closed.Load() {
+	if cp.IsClosed() {
 		var zero T
 		return zero, false
 	}
 
 	select {
-	case obj := <-cp.ch:
+	case obj, ok := <-cp.ch:
+		if !ok {
+			var zero T
+			return zero, false
+		}
 		return obj, true
 	default:
 	}
@@ -83,9 +95,14 @@ func (cp *ChanPool[T]) GetContext(ctx context.Context) (T, bool) {
 		return cp.newFn(), true
 	}
 
-	// Wait for object from pool or context cancellation
+	// Wait for object from pool or context cancellation. If the pool is closed
+	// while blocking here, the receive fails and reports (zero, false).
 	select {
-	case obj := <-cp.ch:
+	case obj, ok := <-cp.ch:
+		if !ok {
+			var zero T
+			return zero, false
+		}
 		return obj, true
 	case <-ctx.Done():
 		var zero T
@@ -106,12 +123,17 @@ func (cp *ChanPool[T]) Cap() int {
 // Close closes the pool and calls closeFn on all remaining objects.
 // After calling Close, Get and GetContext will return zero values.
 func (cp *ChanPool[T]) Close() {
-	if !cp.closed.CompareAndSwap(false, true) {
+	cp.mu.Lock()
+	if cp.closed {
+		cp.mu.Unlock()
 		return // already closed
 	}
-
+	cp.closed = true
 	close(cp.ch)
+	cp.mu.Unlock()
 
+	// Safe to drain without the lock: closed is set, so concurrent Put calls
+	// observe it and never send on the closed channel.
 	if cp.closeFn != nil {
 		for obj := range cp.ch {
 			cp.closeFn(obj)
@@ -121,5 +143,7 @@ func (cp *ChanPool[T]) Close() {
 
 // IsClosed returns whether the pool has been closed.
 func (cp *ChanPool[T]) IsClosed() bool {
-	return cp.closed.Load()
+	cp.mu.RLock()
+	defer cp.mu.RUnlock()
+	return cp.closed
 }
