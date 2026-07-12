@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/go-sphere/sphere/core/safe"
 	"github.com/go-sphere/sphere/core/task"
 	"github.com/go-sphere/sphere/log"
 )
@@ -32,10 +33,7 @@ func run(ctx context.Context, t task.Task, options *options) error {
 		defer close(startErr) // 确保 channel 被关闭
 		defer func() {
 			if r := recover(); r != nil {
-				log.Error("Task panic",
-					log.String("task", t.Identifier()),
-					log.Any("error", r),
-				)
+				safe.LogRecovered(t.Identifier(), r)
 				startErr <- fmt.Errorf("task panic: %v", r)
 			}
 		}()

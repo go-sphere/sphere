@@ -3,15 +3,15 @@ package task
 import (
 	"context"
 	"fmt"
-	"runtime/debug"
 
+	"github.com/go-sphere/sphere/core/safe"
 	"github.com/go-sphere/sphere/log"
 )
 
 func execute(ctx context.Context, name string, task Task, run func(ctx context.Context, task Task) error) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			logTaskPanic(task, name, r)
+			safe.LogRecovered(task.Identifier(), r)
 			err = fmt.Errorf("%s panic: %v", name, r)
 		}
 	}()
@@ -21,15 +21,6 @@ func execute(ctx context.Context, name string, task Task, run func(ctx context.C
 		return
 	}
 	return
-}
-
-func logTaskPanic(task Task, name string, reason any) {
-	log.Error(
-		fmt.Sprintf("%s panic", name),
-		log.String("task", task.Identifier()),
-		log.Any("recover", reason),
-		log.String("stack", string(debug.Stack())),
-	)
 }
 
 func logTaskError(task Task, name string, err error) {
