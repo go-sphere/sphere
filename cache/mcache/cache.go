@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-sphere/sphere/cache"
 )
 
 // Map is a simple in-memory cache implementation using Go's built-in map with read-write mutex protection.
@@ -55,13 +57,17 @@ func (t *Map[K, S]) Set(ctx context.Context, key K, val S) error {
 }
 
 func (t *Map[K, S]) SetWithTTL(ctx context.Context, key K, val S, expiration time.Duration) error {
+	if expiration < 0 {
+		return cache.ErrInvalidTTL
+	}
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
 	t.store[key] = val
-	if expiration >= 0 {
+	if expiration > 0 {
 		t.expiration[key] = time.Now().Add(expiration)
 	} else {
+		// expiration == 0: never expire; drop any existing TTL for the key.
 		delete(t.expiration, key)
 	}
 	return nil
@@ -79,15 +85,19 @@ func (t *Map[K, S]) MultiSet(ctx context.Context, valMap map[K]S) error {
 }
 
 func (t *Map[K, S]) MultiSetWithTTL(ctx context.Context, valMap map[K]S, expiration time.Duration) error {
+	if expiration < 0 {
+		return cache.ErrInvalidTTL
+	}
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
 	now := time.Now()
 	for key, val := range valMap {
 		t.store[key] = val
-		if expiration >= 0 {
+		if expiration > 0 {
 			t.expiration[key] = now.Add(expiration)
 		} else {
+			// expiration == 0: never expire; drop any existing TTL for the key.
 			delete(t.expiration, key)
 		}
 	}

@@ -2,10 +2,10 @@ package memory
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/dgraph-io/ristretto/v2"
+	"github.com/go-sphere/sphere/cache"
 )
 
 const (
@@ -81,14 +81,19 @@ func (m *Cache[T]) SetAllowAsyncWrites(allow bool) {
 	m.allowAsyncWrites = allow
 }
 
+// A false return from ristretto's Set/SetWithTTL does not signal a hard
+// failure: under load the entry may be dropped when the internal setBuf is
+// full. Cache semantics allow such losses, so a dropped write is reported as
+// success (return nil) rather than a non-deterministic error that would push
+// callers into retry storms. A ristretto ttl of 0 means "never expire", which
+// matches the cache TTL contract; negative TTLs are rejected up front.
+
 func (m *Cache[T]) Set(ctx context.Context, key string, val T) error {
 	var cost int64 = 1
 	if m.calculateCost {
 		cost = 0
 	}
-	if !m.cache.Set(key, val, cost) {
-		return errors.New("cache set failed")
-	}
+	m.cache.Set(key, val, cost)
 	if !m.allowAsyncWrites {
 		m.cache.Wait()
 	}
@@ -96,13 +101,14 @@ func (m *Cache[T]) Set(ctx context.Context, key string, val T) error {
 }
 
 func (m *Cache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration time.Duration) error {
+	if expiration < 0 {
+		return cache.ErrInvalidTTL
+	}
 	var cost int64 = 1
 	if m.calculateCost {
 		cost = 0
 	}
-	if !m.cache.SetWithTTL(key, val, cost, expiration) {
-		return errors.New("cache set failed")
-	}
+	m.cache.SetWithTTL(key, val, cost, expiration)
 	if !m.allowAsyncWrites {
 		m.cache.Wait()
 	}
@@ -110,40 +116,29 @@ func (m *Cache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration
 }
 
 func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
-	var errs []error
 	for k, v := range valMap {
 		var cost int64 = 1
 		if m.calculateCost {
 			cost = 0
 		}
-		success := m.cache.Set(k, v, cost)
-		if !success {
-			errs = append(errs, errors.New("cache set failed for key: "+k))
-		}
+		m.cache.Set(k, v, cost)
 	}
 	m.cache.Wait()
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
 	return nil
 }
 
 func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, expiration time.Duration) error {
-	var errs []error
+	if expiration < 0 {
+		return cache.ErrInvalidTTL
+	}
 	for k, v := range valMap {
 		var cost int64 = 1
 		if m.calculateCost {
 			cost = 0
 		}
-		success := m.cache.SetWithTTL(k, v, cost, expiration)
-		if !success {
-			errs = append(errs, errors.New("cache set failed for key: "+k))
-		}
+		m.cache.SetWithTTL(k, v, cost, expiration)
 	}
 	m.cache.Wait()
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
 	return nil
 }
 

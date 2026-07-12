@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-sphere/sphere/cache"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -26,18 +27,26 @@ func NewByteCache(client *redis.Client) *ByteCache {
 }
 
 func (c *ByteCache) Set(ctx context.Context, key string, val []byte) error {
-	return c.SetWithTTL(ctx, key, val, redis.KeepTTL)
+	// expiration 0 issues SET without EX/PX, which clears any existing TTL so
+	// the key never expires (per the TTL contract in the cache package).
+	return c.SetWithTTL(ctx, key, val, 0)
 }
 
 func (c *ByteCache) SetWithTTL(ctx context.Context, key string, val []byte, expiration time.Duration) error {
+	if expiration < 0 {
+		return cache.ErrInvalidTTL
+	}
 	return c.client.Set(ctx, key, val, expiration).Err()
 }
 
 func (c *ByteCache) MultiSet(ctx context.Context, valMap map[string][]byte) error {
-	return c.MultiSetWithTTL(ctx, valMap, redis.KeepTTL)
+	return c.MultiSetWithTTL(ctx, valMap, 0)
 }
 
 func (c *ByteCache) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
+	if expiration < 0 {
+		return cache.ErrInvalidTTL
+	}
 	pipe := c.client.Pipeline()
 	for k, v := range valMap {
 		pipe.Set(ctx, k, v, expiration)

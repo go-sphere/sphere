@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
+	"github.com/go-sphere/sphere/cache"
 )
 
 // Config holds configuration options for BadgerDB.
@@ -58,8 +59,16 @@ func (d *Database) Set(ctx context.Context, key string, val []byte) error {
 }
 
 func (d *Database) SetWithTTL(ctx context.Context, key string, val []byte, expiration time.Duration) error {
+	if expiration < 0 {
+		return cache.ErrInvalidTTL
+	}
 	return d.db.Update(func(txn *badger.Txn) error {
-		return txn.SetEntry(badger.NewEntry([]byte(key), val).WithTTL(expiration))
+		entry := badger.NewEntry([]byte(key), val)
+		if expiration > 0 {
+			entry = entry.WithTTL(expiration)
+		}
+		// expiration == 0: never expire; skip WithTTL so no ExpiresAt is set.
+		return txn.SetEntry(entry)
 	})
 }
 
@@ -76,10 +85,17 @@ func (d *Database) MultiSet(ctx context.Context, valMap map[string][]byte) error
 }
 
 func (d *Database) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
+	if expiration < 0 {
+		return cache.ErrInvalidTTL
+	}
 	return d.db.Update(func(txn *badger.Txn) error {
 		for k, v := range valMap {
-			err := txn.SetEntry(badger.NewEntry([]byte(k), v).WithTTL(expiration))
-			if err != nil {
+			entry := badger.NewEntry([]byte(k), v)
+			if expiration > 0 {
+				entry = entry.WithTTL(expiration)
+			}
+			// expiration == 0: never expire; skip WithTTL so no ExpiresAt is set.
+			if err := txn.SetEntry(entry); err != nil {
 				return err
 			}
 		}

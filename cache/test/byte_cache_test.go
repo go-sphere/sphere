@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -129,6 +130,79 @@ func TestByteCacheTTLContract(t *testing.T) {
 			}
 			assertEventuallyNotFound(t, c, "ttl_a")
 			assertEventuallyNotFound(t, c, "ttl_b")
+		})
+	}
+}
+
+func TestByteCacheTTLZeroNeverExpires(t *testing.T) {
+	t.Parallel()
+
+	for _, factory := range statefulByteCacheFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			c := factory.new(t)
+
+			// expiration == 0 means the entry never expires.
+			if err := c.SetWithTTL(ctx, "zero_key", []byte("zero_value"), 0); err != nil {
+				t.Fatalf("SetWithTTL zero: %v", err)
+			}
+			if err := c.MultiSetWithTTL(ctx, map[string][]byte{
+				"zero_a": []byte("a"),
+				"zero_b": []byte("b"),
+			}, 0); err != nil {
+				t.Fatalf("MultiSetWithTTL zero: %v", err)
+			}
+
+			time.Sleep(50 * time.Millisecond)
+
+			for _, key := range []string{"zero_key", "zero_a", "zero_b"} {
+				_, found, err := c.Get(ctx, key)
+				if err != nil {
+					t.Fatalf("Get %q: %v", key, err)
+				}
+				if !found {
+					t.Fatalf("expected key %q to persist with zero TTL", key)
+				}
+			}
+		})
+	}
+}
+
+func TestByteCacheNegativeTTLRejected(t *testing.T) {
+	t.Parallel()
+
+	for _, factory := range statefulByteCacheFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			c := factory.new(t)
+
+			if err := c.SetWithTTL(ctx, "neg_key", []byte("v"), -time.Second); !errors.Is(err, cache.ErrInvalidTTL) {
+				t.Fatalf("SetWithTTL negative: got err=%v want ErrInvalidTTL", err)
+			}
+			exists, err := c.Exists(ctx, "neg_key")
+			if err != nil {
+				t.Fatalf("Exists after negative SetWithTTL: %v", err)
+			}
+			if exists {
+				t.Fatalf("negative SetWithTTL must not store the key")
+			}
+
+			if err := c.MultiSetWithTTL(ctx, map[string][]byte{
+				"neg_a": []byte("a"),
+			}, -time.Second); !errors.Is(err, cache.ErrInvalidTTL) {
+				t.Fatalf("MultiSetWithTTL negative: got err=%v want ErrInvalidTTL", err)
+			}
+			exists, err = c.Exists(ctx, "neg_a")
+			if err != nil {
+				t.Fatalf("Exists after negative MultiSetWithTTL: %v", err)
+			}
+			if exists {
+				t.Fatalf("negative MultiSetWithTTL must not store the key")
+			}
 		})
 	}
 }

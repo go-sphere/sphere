@@ -12,6 +12,12 @@ import (
 // cache does not implement KeyLister.
 var ErrNotSupported = errors.New("cache: operation not supported")
 
+// ErrInvalidTTL is returned by SetWithTTL/MultiSetWithTTL when the caller
+// passes a negative expiration. A negative TTL has no consistent meaning
+// across drivers, so it is rejected instead of being silently stored or
+// dropped. Use a zero expiration for entries that never expire.
+var ErrInvalidTTL = errors.New("cache: negative TTL is invalid")
+
 // KeyLister is an optional capability that returns every key whose name
 // starts with prefix (pass "" to list all keys). Drivers that can scan
 // their keyspace cheaply (mcache, badgerdb, redis) implement this; others
@@ -48,6 +54,13 @@ type Bulk[S any] interface {
 }
 
 // TTL provides methods to set cache entries with a specified Time To Live (TTL).
+//
+// The expiration argument shares the same semantics across all drivers:
+//   - expiration > 0: the entry expires after the given duration.
+//   - expiration == 0: the entry never expires; it persists until an explicit
+//     Del (any existing TTL on the key is cleared).
+//   - expiration < 0: invalid; the call returns ErrInvalidTTL and writes
+//     nothing.
 type TTL[S any] interface {
 	// SetWithTTL stores a key-value pair in the cache with a specified expiration duration.
 	SetWithTTL(ctx context.Context, key string, val S, expiration time.Duration) error
