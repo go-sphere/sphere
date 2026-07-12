@@ -34,14 +34,17 @@ func parserToken[T authorizer.UID, C authorizer.Claims[T]](ctx httpx.Context, to
 	}
 
 	var data authorizer.Data[T]
-	if uid, e := claims.GetUID(); e == nil {
-		data.UID = uid
+	data.UID, err = claims.GetUID()
+	if err != nil {
+		return err
 	}
-	if subject, e := claims.GetSubject(); e == nil {
-		data.Subject = subject
+	data.Subject, err = claims.GetSubject()
+	if err != nil {
+		return err
 	}
-	if roles, e := claims.GetRoles(); e == nil {
-		data.Roles = roles
+	data.Roles, err = claims.GetRoles()
+	if err != nil {
+		return err
 	}
 	ctx.SetContext(authorizer.WithAuthData[T](ctx.Context(), data))
 	return nil
