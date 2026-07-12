@@ -1,6 +1,9 @@
 package log
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 type nopBackend struct{}
 
@@ -58,13 +61,13 @@ func (m *MultiBackend) Log(ctx context.Context, level Level, msg string, attrs .
 }
 
 func (m *MultiBackend) Sync() error {
-	var firstErr error
+	errs := make([]error, 0, len(m.backends))
 	for _, b := range m.backends {
-		if err := b.Sync(); err != nil && firstErr == nil {
-			firstErr = err
+		if err := b.Sync(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-	return firstErr
+	return errors.Join(errs...)
 }
 
 func (m *MultiBackend) With(options ...Option) Backend {

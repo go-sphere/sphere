@@ -19,6 +19,7 @@ type Options struct {
 	Name       string
 	AddCaller  AddCallerStatus
 	AddStackAt *Level
+	MinLevel   *Level
 	Attrs      map[string]any
 }
 
@@ -51,10 +52,20 @@ func DisableCaller() Option {
 
 // WithStackAt enables stack trace logging at the specified level and above.
 // Stack traces help debug issues by showing the full call chain.
+// It only controls stack trace attachment; it does not filter out log entries.
 func WithStackAt(level Level) Option {
 	return func(o *Options) {
 		l := level
 		o.AddStackAt = &l
+	}
+}
+
+// WithMinLevel sets the minimum level for log entries to be emitted.
+// Entries below the specified level are discarded before they reach output.
+func WithMinLevel(level Level) Option {
+	return func(o *Options) {
+		l := level
+		o.MinLevel = &l
 	}
 }
 
@@ -75,6 +86,7 @@ func newOptions(opts ...Option) *Options {
 	defaults := &Options{
 		AddCaller:  AddCallerStatusKeep,
 		AddStackAt: nil,
+		MinLevel:   nil,
 		Attrs:      make(map[string]any),
 	}
 	for _, opt := range opts {
@@ -93,10 +105,16 @@ func NewOptions(opts ...Option) Options {
 		l := *o.AddStackAt
 		stackAt = &l
 	}
+	var minLevel *Level
+	if o.MinLevel != nil {
+		l := *o.MinLevel
+		minLevel = &l
+	}
 	return Options{
 		Name:       o.Name,
 		AddCaller:  o.AddCaller,
 		AddStackAt: stackAt,
+		MinLevel:   minLevel,
 		Attrs:      attrs,
 	}
 }
