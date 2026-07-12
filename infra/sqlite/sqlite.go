@@ -30,9 +30,12 @@ func (d Driver) Open(name string) (driver.Conn, error) {
 	if err != nil {
 		return conn, err
 	}
-	c := conn.(interface {
+	c, ok := conn.(interface {
 		Exec(stmt string, args []driver.Value) (driver.Result, error)
 	})
+	if !ok {
+		return conn, fmt.Errorf("sqlite: connection does not support Exec, cannot enable foreign keys")
+	}
 	if _, e := c.Exec("PRAGMA foreign_keys = on;", nil); e != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("failed to enable enable foreign keys: %w", e)
