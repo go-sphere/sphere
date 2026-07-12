@@ -121,7 +121,12 @@ func (a *FileServer) GenerateUploadAuth(ctx context.Context, req storage.UploadA
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
-	newToken, err := a.opts.createFileKey(ctx, a, key)
+	// Prefer the per-request TTL, falling back to the configured token TTL.
+	ttl := req.TTL
+	if ttl <= 0 {
+		ttl = a.config.KeyTTL
+	}
+	newToken, err := a.opts.createFileKey(ctx, a, key, ttl)
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}

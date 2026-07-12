@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/url"
+	"time"
 )
 
 // URLHandler provides URL generation and key extraction capabilities for storage backends.
@@ -36,10 +37,13 @@ const (
 
 // UploadAuthorization carries the upload authorization data for client-side uploads.
 type UploadAuthorization struct {
-	Type    UploadAuthorizationType `json:"type" yaml:"type"`
-	Value   string                  `json:"value" yaml:"value"`
-	Method  string                  `json:"method" yaml:"method"`
-	Headers map[string]string       `json:"headers,omitempty" yaml:"headers,omitempty"`
+	Type   UploadAuthorizationType `json:"type" yaml:"type"`
+	Value  string                  `json:"value" yaml:"value"`
+	Method string                  `json:"method" yaml:"method"`
+	// Headers is a reserved field for extra headers a client must send with the
+	// upload request. No driver populates it today; it is kept intentionally as a
+	// stable extension point, so do not remove it as "dead code".
+	Headers map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
 }
 
 // UploadFileInfo contains the finalized storage information for an upload.
@@ -67,6 +71,9 @@ const (
 type UploadAuthRequest struct {
 	FileName string `json:"file_name" yaml:"file_name"`
 	Dir      string `json:"dir,omitempty" yaml:"dir,omitempty"`
+	// TTL optionally overrides how long the generated authorization stays valid.
+	// A zero value falls back to the driver's configured default TTL.
+	TTL time.Duration `json:"ttl,omitempty" yaml:"ttl,omitempty"`
 }
 
 // UploadAuthorizer provides secure upload authorization generation for client-side uploads.
@@ -102,6 +109,37 @@ type FileDownloader interface {
 	// DownloadFile retrieves a file from storage.
 	// The caller is responsible for closing DownloadResult.Reader.
 	DownloadFile(ctx context.Context, key string) (DownloadResult, error)
+}
+
+// FileInfo carries lightweight object metadata returned by FileStater.
+type FileInfo struct {
+	// MIME is the content type of the object; it may be empty when the
+	// backend does not record one.
+	MIME string
+	// Size is the object size in bytes.
+	Size int64
+}
+
+// FileStater is an optional capability for cheaply retrieving object metadata
+// (size and MIME type) without downloading the file body. Backends that expose
+// a native stat/head operation implement it; callers should probe support with
+// a type assertion since it is intentionally kept out of the core Storage
+// interface.
+type FileStater interface {
+	// StatFile returns lightweight metadata for the file identified by key.
+	// It returns storageerr.ErrorNotFound when the key does not exist.
+	StatFile(ctx context.Context, key string) (FileInfo, error)
+}
+
+// FileLister is an optional capability for enumerating stored keys under a
+// prefix using cursor-based pagination. Callers should probe support with a
+// type assertion; it is intentionally kept out of the core Storage interface.
+type FileLister interface {
+	// ListFiles returns up to limit keys under prefix, resuming after cursor
+	// (pass an empty cursor for the first page). The returned next cursor is
+	// non-empty when more keys may remain; feed it back on the following call.
+	// An empty next cursor signals the end of the listing.
+	ListFiles(ctx context.Context, prefix, cursor string, limit int) (keys []string, next string, err error)
 }
 
 // FileDeleter provides file deletion capabilities.

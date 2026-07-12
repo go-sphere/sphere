@@ -3,6 +3,7 @@ package fileserver
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/server/httpz"
@@ -16,7 +17,7 @@ type UploadResult struct {
 
 type options struct {
 	uploadSuccessWithData func(ctx httpx.Context, key, url string) error
-	createFileKey         func(ctx context.Context, server *FileServer, filename string) (string, error)
+	createFileKey         func(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error)
 	downloadCacheControl  string
 }
 
@@ -24,7 +25,10 @@ type options struct {
 type Option func(*options)
 
 // WithCreateFileKey customizes temporary upload key generation behavior.
-func WithCreateFileKey(fn func(ctx context.Context, server *FileServer, filename string) (string, error)) Option {
+// The ttl argument is the resolved token validity (request TTL when provided,
+// otherwise the configured KeyTTL); custom implementations should honor it when
+// persisting the token.
+func WithCreateFileKey(fn func(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error)) Option {
 	return func(options *options) {
 		if fn == nil {
 			return
@@ -51,11 +55,11 @@ func newOptions(opts ...Option) *options {
 	return opt
 }
 
-func defaultCreateFileKey(ctx context.Context, server *FileServer, filename string) (string, error) {
+func defaultCreateFileKey(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error) {
 	// Use a random (v4) UUID for the one-time upload token path so it is not
 	// predictable, matching the generator used in storage/utils.go.
 	id := uuid.NewString()
-	err := server.cache.SetWithTTL(ctx, id, []byte(filename), server.config.KeyTTL)
+	err := server.cache.SetWithTTL(ctx, id, []byte(filename), ttl)
 	if err != nil {
 		return "", err
 	}

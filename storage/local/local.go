@@ -7,6 +7,7 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/go-sphere/sphere/storage"
@@ -130,6 +131,89 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+// StatFile returns lightweight metadata for a file without opening its contents.
+// It implements storage.FileStater by reusing the filesystem stat call.
+func (c *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, error) {
+	filePath, err := c.fixFilePath(key)
+	if err != nil {
+		return storage.FileInfo{}, err
+	}
+	stat, err := os.Stat(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return storage.FileInfo{}, storageerr.ErrorNotFound
+		}
+		return storage.FileInfo{}, err
+	}
+	// A directory is never a retrievable file; report it as missing.
+	if stat.IsDir() {
+		return storage.FileInfo{}, storageerr.ErrorNotFound
+	}
+	return storage.FileInfo{
+		MIME: mime.TypeByExtension(filepath.Ext(key)),
+		Size: stat.Size(),
+	}, nil
+}
+
+// ListFiles enumerates stored keys under prefix with cursor-based pagination.
+// It implements storage.FileLister by walking the root directory; keys use
+// forward slashes and are returned in lexical order. The cursor is exclusive:
+// pass the previous next value to resume after the last returned key.
+func (c *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int) ([]string, string, error) {
+	if limit <= 0 {
+		limit = 1000
+	}
+	prefix = strings.TrimPrefix(prefix, "/")
+	cursor = strings.TrimPrefix(cursor, "/")
+	rootDir, err := filepath.Abs(c.config.RootDir)
+	if err != nil {
+		return nil, "", err
+	}
+	rootDir = filepath.Clean(rootDir)
+
+	var all []string
+	walkErr := filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if e := ctx.Err(); e != nil {
+			return e
+		}
+		if d.IsDir() || !d.Type().IsRegular() {
+			return nil
+		}
+		rel, relErr := filepath.Rel(rootDir, path)
+		if relErr != nil {
+			return relErr
+		}
+		key := filepath.ToSlash(rel)
+		if prefix != "" && !strings.HasPrefix(key, prefix) {
+			return nil
+		}
+		all = append(all, key)
+		return nil
+	})
+	if walkErr != nil {
+		return nil, "", walkErr
+	}
+	sort.Strings(all)
+
+	keys := make([]string, 0, limit)
+	next := ""
+	for _, key := range all {
+		if cursor != "" && key <= cursor {
+			continue
+		}
+		if len(keys) >= limit {
+			// At least one key remains beyond the page; expose a resume cursor.
+			next = keys[len(keys)-1]
+			break
+		}
+		keys = append(keys, key)
+	}
+	return keys, next, nil
 }
 
 // DownloadFile retrieves a file from local filesystem storage.

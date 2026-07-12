@@ -25,7 +25,14 @@ type Config struct {
 	PublicBase      string                       `json:"public_base"`
 	Dir             string                       `json:"dir" yaml:"dir"`
 	UploadNaming    storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"`
+	// UploadTTL is the default validity window for presigned upload URLs.
+	// A zero value falls back to defaultUploadTTL.
+	UploadTTL time.Duration `json:"upload_ttl" yaml:"upload_ttl"`
 }
+
+// defaultUploadTTL is the presigned upload URL validity used when neither the
+// request nor the config specifies one.
+const defaultUploadTTL = time.Hour
 
 // Client provides S3-compatible object storage operations with URL handling capabilities.
 // It uses the MinIO client library to interact with S3 or S3-compatible services.
@@ -72,7 +79,8 @@ func (s *Client) keyPreprocess(key string) string {
 // GenerateUploadAuth creates a presigned PUT URL for direct client uploads to S3.
 // It generates the storage key using configured naming strategy and returns
 // the presigned URL, storage key, and public access URL. The presigned URL
-// expires after 1 hour.
+// validity is resolved from req.TTL, falling back to Config.UploadTTL and then
+// defaultUploadTTL.
 func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthRequest) (storage.UploadAuthResult, error) {
 	fileName, err := storage.BuildUploadFileName(req.FileName, s.config.UploadNaming)
 	if err != nil {
@@ -87,7 +95,7 @@ func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthR
 	preSignedURL, err := s.client.PresignedPutObject(ctx,
 		s.config.Bucket,
 		key,
-		time.Hour)
+		s.resolveUploadTTL(req.TTL))
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
@@ -122,6 +130,72 @@ func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 		return "", err
 	}
 	return info.Key, nil
+}
+
+// resolveUploadTTL selects the presigned URL validity, preferring the per
+// request TTL, then the configured default, then the package default.
+func (s *Client) resolveUploadTTL(reqTTL time.Duration) time.Duration {
+	if reqTTL > 0 {
+		return reqTTL
+	}
+	if s.config.UploadTTL > 0 {
+		return s.config.UploadTTL
+	}
+	return defaultUploadTTL
+}
+
+// StatFile returns lightweight metadata for a file without downloading its body.
+// It implements storage.FileStater by reusing the S3 stat (HEAD) call.
+func (s *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, error) {
+	key = s.keyPreprocess(key)
+	info, err := s.client.StatObject(ctx, s.config.Bucket, key, minio.StatObjectOptions{})
+	if err != nil {
+		if isNoSuchKeyError(err) {
+			return storage.FileInfo{}, storageerr.ErrorNotFound
+		}
+		return storage.FileInfo{}, err
+	}
+	return storage.FileInfo{
+		MIME: info.ContentType,
+		Size: info.Size,
+	}, nil
+}
+
+// ListFiles enumerates object keys under prefix with cursor-based pagination.
+// It implements storage.FileLister on top of the S3 ListObjects API using
+// StartAfter as an exclusive cursor. The returned next cursor is the last key
+// of the page when more objects remain, otherwise empty.
+func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int) ([]string, string, error) {
+	if limit <= 0 {
+		limit = 1000
+	}
+	listCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	ch := s.client.ListObjects(listCtx, s.config.Bucket, minio.ListObjectsOptions{
+		Prefix:     s.keyPreprocess(prefix),
+		StartAfter: s.keyPreprocess(cursor),
+		Recursive:  true,
+	})
+	keys := make([]string, 0, limit)
+	next := ""
+	for object := range ch {
+		if object.Err != nil {
+			return nil, "", object.Err
+		}
+		if len(keys) >= limit {
+			// One object beyond the requested page means more remain; stop the
+			// listing early and surface a resume cursor.
+			next = keys[len(keys)-1]
+			cancel()
+			break
+		}
+		keys = append(keys, object.Key)
+	}
+	// Drain any buffered entries so the ListObjects goroutine can exit cleanly
+	// after an early cancel.
+	for range ch {
+	}
+	return keys, next, nil
 }
 
 // IsFileExists checks whether a file exists in the S3-compatible storage bucket.
@@ -189,6 +263,12 @@ func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 }
 
 // CopyFile duplicates a file from source to destination key within the S3 bucket.
+//
+// When overwrite is false the destination is checked with a separate stat call
+// before copying. The S3 CopyObject API has no portable conditional (there is
+// no If-None-Match on the copy destination), so this guard is best-effort only
+// and is NOT a concurrency-safe guarantee: a racing writer between the stat and
+// the copy can still be clobbered. MoveFile inherits the same caveat.
 func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourceKey = s.keyPreprocess(sourceKey)
 	destinationKey = s.keyPreprocess(destinationKey)

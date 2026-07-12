@@ -17,6 +17,11 @@ import (
 // It combines timestamp, MD5 hash of the filename, and preserves the file extension.
 // The prefix is prepended to the generated key if provided.
 // Format: [prefix_]timestamp_md5hash.ext
+//
+// Deprecated: unused within the module and unsafe for concurrent uploads of the
+// same file name within the same second (second-granularity timestamp + a
+// deterministic MD5 of the name collide). Use BuildUploadFileName together with
+// JoinUploadKey instead.
 func DefaultKeyBuilder(prefix string) func(fileName string, dir ...string) string {
 	return func(fileName string, dir ...string) string {
 		fileExt := path.Ext(fileName)
@@ -34,6 +39,11 @@ func DefaultKeyBuilder(prefix string) func(fileName string, dir ...string) strin
 // It generates a unique directory path using timestamp and MD5 hash, then stores
 // the file with its original name within that directory.
 // Format: timestamp_md5hash/original_filename
+//
+// Deprecated: unused within the module and unsafe for concurrent uploads of the
+// same file name within the same second (second-granularity timestamp + a
+// deterministic MD5 of the name collide). Use BuildUploadFileName together with
+// JoinUploadKey instead.
 func KeepFileNameKeyBuilder() func(fileName string, dir ...string) string {
 	return func(fileName string, dir ...string) string {
 		sum := md5.Sum([]byte(fileName))
