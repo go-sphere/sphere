@@ -300,6 +300,89 @@ func TestManagerCanRestartNameAfterTaskExit(t *testing.T) {
 	}
 }
 
+// TestManagerStopTaskReturnsTombstoneResult covers BUG-49: after a task exits on
+// its own and is removed, StopTask must surface the cached result rather than
+// ErrTaskNotFound.
+func TestManagerStopTaskReturnsTombstoneResult(t *testing.T) {
+	manager := NewManager()
+	expectedErr := errors.New("worker start failed")
+	failing := scripttask.NewScriptTask("failing", func(context.Context) error {
+		return expectedErr
+	}, nil)
+
+	if err := manager.StartTask(context.Background(), "failing", failing); err != nil {
+		t.Fatalf("start task failed: %v", err)
+	}
+	// Task exits on its own and is removed by the run goroutine.
+	if err := manager.Wait(); !errors.Is(err, expectedErr) {
+		t.Fatalf("expected wait to include %v, got %v", expectedErr, err)
+	}
+	if manager.IsRunning("failing") {
+		t.Fatal("expected failing task to be removed")
+	}
+
+	stopErr := manager.StopTask(context.Background(), "failing")
+	if errors.Is(stopErr, ErrTaskNotFound) {
+		t.Fatalf("expected cached tombstone result, got ErrTaskNotFound")
+	}
+	if !errors.Is(stopErr, expectedErr) {
+		t.Fatalf("expected cached error %v, got %v", expectedErr, stopErr)
+	}
+
+	// GetTaskResult must expose the same cached result.
+	result, ok := manager.GetTaskResult("failing")
+	if !ok {
+		t.Fatal("expected tombstone result to be reported")
+	}
+	if !errors.Is(result, expectedErr) {
+		t.Fatalf("expected tombstone result %v, got %v", expectedErr, result)
+	}
+}
+
+// TestManagerTombstoneClearedOnRestart covers the BUG-49 cleanup strategy:
+// re-registering the same name clears the tombstone so stale results do not leak
+// into the restarted task, and unknown names still report ErrTaskNotFound.
+func TestManagerTombstoneClearedOnRestart(t *testing.T) {
+	manager := NewManager()
+
+	if _, ok := manager.GetTaskResult("svc"); ok {
+		t.Fatal("expected unknown name to be absent")
+	}
+
+	expectedErr := errors.New("boom")
+	failing := scripttask.NewScriptTask("svc", func(context.Context) error {
+		return expectedErr
+	}, nil)
+	if err := manager.StartTask(context.Background(), "svc", failing); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+	if err := manager.Wait(); !errors.Is(err, expectedErr) {
+		t.Fatalf("expected wait to include %v, got %v", expectedErr, err)
+	}
+	if result, ok := manager.GetTaskResult("svc"); !ok || !errors.Is(result, expectedErr) {
+		t.Fatalf("expected tombstone result, got result=%v ok=%v", result, ok)
+	}
+
+	// Re-registering the same name clears the tombstone.
+	worker := scripttask.NewScriptTask("svc", nil, nil)
+	if err := manager.StartTask(context.Background(), "svc", worker); err != nil {
+		t.Fatalf("restart failed: %v", err)
+	}
+	waitSignalManager(t, worker.Started(), "worker started")
+
+	result, ok := manager.GetTaskResult("svc")
+	if !ok {
+		t.Fatal("expected running task to be reported")
+	}
+	if result != nil {
+		t.Fatalf("expected cleared tombstone (nil result), got %v", result)
+	}
+
+	if err := manager.StopTask(context.Background(), "svc"); err != nil {
+		t.Fatalf("stop failed: %v", err)
+	}
+}
+
 func waitSignalManager(t *testing.T, ch <-chan struct{}, desc string) {
 	t.Helper()
 	select {

@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -360,6 +361,87 @@ func TestGroupConcurrentStop(t *testing.T) {
 
 	if err := waitError(t, startErrCh, "start result after concurrent stop"); err != nil {
 		t.Fatalf("expected nil start result, got %v", err)
+	}
+}
+
+// TestGroupWrappedCanceledCountsAsFailure covers BUG-35: a task that fails on
+// its own with an error wrapping context.Canceled (rather than being cancelled
+// by the group) must count as a failure, propagate, and stop the other tasks.
+func TestGroupWrappedCanceledCountsAsFailure(t *testing.T) {
+	businessErr := fmt.Errorf("business failure: %w", context.Canceled)
+	failing := scripttask.NewScriptTask("failing", func(context.Context) error {
+		return businessErr
+	}, nil)
+	worker := scripttask.NewScriptTask("worker", nil, nil)
+
+	group := NewGroup(worker, failing)
+
+	err := group.Start(context.Background())
+	if !errors.Is(err, businessErr) {
+		t.Fatalf("expected wrapped-canceled business error in result, got %v", err)
+	}
+
+	waitSignal(t, worker.Stopped(), "worker stopped")
+	waitSignal(t, failing.Stopped(), "failing stopped")
+}
+
+// TestStagedGroupStopsInReverseWaveOrder covers ENC-15: staged groups stop the
+// last wave first and only begin the previous wave once it has fully drained.
+func TestStagedGroupStopsInReverseWaveOrder(t *testing.T) {
+	httpDrained := make(chan struct{})
+	httpSrv := scripttask.NewScriptTask("http", nil, func(context.Context) error {
+		close(httpDrained)
+		return nil
+	})
+
+	var mu sync.Mutex
+	var stopOrder []string
+	infraStop := func(id string) func(context.Context) error {
+		return func(context.Context) error {
+			// The infra wave must not start stopping until the http wave drained.
+			select {
+			case <-httpDrained:
+			default:
+				t.Errorf("%s stopped before http wave drained", id)
+			}
+			mu.Lock()
+			stopOrder = append(stopOrder, id)
+			mu.Unlock()
+			return nil
+		}
+	}
+	db := scripttask.NewScriptTask("db", nil, infraStop("db"))
+	cache := scripttask.NewScriptTask("cache", nil, infraStop("cache"))
+
+	// wave 0: infra (db, cache); wave 1: http server. Stop order must be http
+	// first (last wave), then db and cache.
+	group := NewStagedGroup(
+		[]Task{db, cache},
+		[]Task{httpSrv},
+	)
+
+	startErrCh := make(chan error, 1)
+	go func() {
+		startErrCh <- group.Start(context.Background())
+	}()
+
+	waitSignal(t, db.Started(), "db started")
+	waitSignal(t, cache.Started(), "cache started")
+	waitSignal(t, httpSrv.Started(), "http started")
+
+	if err := group.Stop(context.Background()); err != nil {
+		t.Fatalf("staged stop failed: %v", err)
+	}
+	if err := waitError(t, startErrCh, "staged group result"); err != nil {
+		t.Fatalf("expected nil start result, got %v", err)
+	}
+
+	waitSignal(t, httpSrv.Stopped(), "http stopped")
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(stopOrder) != 2 {
+		t.Fatalf("expected both infra tasks to stop, got %v", stopOrder)
 	}
 }
 

@@ -61,7 +61,11 @@ func WithCleanupTimeout(timeout time.Duration) GroupOption {
 // The group implements the Task interface, allowing it to be nested within other groups.
 type Group struct {
 	tasks []Task
-	opts  groupOptions
+	// stopWaves defines ordered shutdown stages. When nil, all tasks stop
+	// concurrently. When set, waves stop in reverse order (last wave first),
+	// each wave draining fully before the previous begins.
+	stopWaves [][]Task
+	opts      groupOptions
 
 	mu        sync.Mutex
 	state     groupState
@@ -90,6 +94,47 @@ func NewGroupWithOptions(tasks []Task, options ...GroupOption) *Group {
 		tasks: copied,
 		opts:  opts,
 		state: groupStateInit,
+	}
+}
+
+// NewStagedGroup creates a task group whose members start concurrently but shut
+// down in ordered stages. Each wave stops concurrently within itself, and waves
+// stop in reverse order: the last wave drains fully before the previous wave
+// begins stopping. This lets dependents (for example an HTTP server) drain
+// before their dependencies (for example a database or cache cleaner) are torn
+// down.
+//
+// Start semantics match NewGroup: every task across all waves starts
+// concurrently, and a failure in any task tears the whole group down. Passing a
+// single wave is equivalent to NewGroup.
+func NewStagedGroup(waves ...[]Task) *Group {
+	return NewStagedGroupWithOptions(waves)
+}
+
+// NewStagedGroupWithOptions creates a staged task group with explicit options.
+// See NewStagedGroup for the staged shutdown semantics.
+func NewStagedGroupWithOptions(waves [][]Task, options ...GroupOption) *Group {
+	opts := groupOptions{}
+	for _, option := range options {
+		if option == nil {
+			continue
+		}
+		option(&opts)
+	}
+
+	copiedWaves := make([][]Task, 0, len(waves))
+	var flat []Task
+	for _, wave := range waves {
+		copied := append([]Task(nil), wave...)
+		copiedWaves = append(copiedWaves, copied)
+		flat = append(flat, copied...)
+	}
+
+	return &Group{
+		tasks:     flat,
+		stopWaves: copiedWaves,
+		opts:      opts,
+		state:     groupStateInit,
 	}
 }
 
@@ -172,22 +217,9 @@ func (g *Group) Start(ctx context.Context) error {
 			runCancel()
 
 			go func() {
-				var stopWG sync.WaitGroup
 				stopCtx, stopCancel := g.newCleanupContext()
 				defer stopCancel()
-				for _, t := range tasks {
-					task := t
-					stopWG.Go(func() {
-						err := execute(stopCtx, task.Identifier(), task, func(taskCtx context.Context, current Task) error {
-							log.Infof("<task> %s stopping", task.Identifier())
-							return current.Stop(taskCtx)
-						})
-						if err != nil {
-							stopErrs.Add(err)
-						}
-					})
-				}
-				stopWG.Wait()
+				g.stopTasks(stopCtx, &stopErrs)
 				close(stopDone)
 			}()
 		})
@@ -210,7 +242,13 @@ func (g *Group) Start(ctx context.Context) error {
 			if result.err == nil {
 				continue
 			}
-			if errors.Is(result.err, context.Canceled) {
+			// A context.Canceled result is only expected when the group itself
+			// is tearing down: either an internal beginStop cancelled runCtx, or
+			// a parent ctx cancellation propagated into runCtx. When runCtx is
+			// still live the task failed on its own — even if it wraps
+			// context.Canceled — so it must count as a failure and stop the rest
+			// rather than being silently swallowed.
+			if errors.Is(result.err, context.Canceled) && runCtx.Err() != nil {
 				continue
 			}
 			startErrs.Add(result.err)
@@ -305,6 +343,37 @@ func (g *Group) waitForDone(ctx context.Context, done <-chan struct{}) error {
 		return g.resultErr
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+// stopTasks stops the group's tasks, honoring staged shutdown order when
+// configured. When stopWaves is nil all tasks stop concurrently; otherwise waves
+// stop in reverse order (last wave first), each wave draining fully before the
+// previous begins, while tasks within a wave stop concurrently. The provided ctx
+// (the cleanup context) is the shared shutdown budget across every stage.
+func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error) {
+	waves := g.stopWaves
+	if waves == nil {
+		waves = [][]Task{g.tasks}
+	}
+	stopWave := func(wave []Task) {
+		var stopWG sync.WaitGroup
+		for _, t := range wave {
+			task := t
+			stopWG.Go(func() {
+				err := execute(ctx, task.Identifier(), task, func(taskCtx context.Context, current Task) error {
+					log.Infof("<task> %s stopping", task.Identifier())
+					return current.Stop(taskCtx)
+				})
+				if err != nil {
+					stopErrs.Add(err)
+				}
+			})
+		}
+		stopWG.Wait()
+	}
+	for i := len(waves) - 1; i >= 0; i-- {
+		stopWave(waves[i])
 	}
 }
 

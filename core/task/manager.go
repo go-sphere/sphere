@@ -91,6 +91,12 @@ type Manager struct {
 	runMu sync.Mutex
 	mu    sync.RWMutex
 	tasks map[string]*managedTask
+	// tombstones retains the final result of removed tasks so that a StopTask /
+	// GetTaskResult call after a task has already exited surfaces its cached
+	// result instead of ErrTaskNotFound. Entries are cleared when the same name
+	// is re-registered via StartTask, bounding growth to the set of distinct
+	// task names seen since the last re-registration.
+	tombstones map[string]error
 
 	runWG    sync.WaitGroup
 	startErr multierr.Error
@@ -108,8 +114,9 @@ func NewManager(options ...ManagerOption) *Manager {
 	}
 
 	return &Manager{
-		opts:  opts,
-		tasks: make(map[string]*managedTask),
+		opts:       opts,
+		tasks:      make(map[string]*managedTask),
+		tombstones: make(map[string]error),
 	}
 }
 
@@ -148,6 +155,7 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 			delete(m.tasks, name)
 		}
 	}
+	delete(m.tombstones, name)
 	m.tasks[name] = entry
 	m.runWG.Add(1)
 	m.mu.Unlock()
@@ -173,7 +181,9 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 }
 
 // StopTask stops a running task by name.
-// Returns ErrTaskNotFound if no task with the given name is running.
+// If the task has already exited and been removed, its cached result is returned
+// from the tombstone instead of ErrTaskNotFound; ErrTaskNotFound is only returned
+// for names that were never registered (or were cleared by re-registration).
 // It waits for both Stop and Start goroutines to finish.
 // If the caller ctx expires first, StopTask returns ctx.Err(), but internal stopping continues in background.
 // The provided context only bounds the caller's wait; the task Stop call uses
@@ -185,6 +195,9 @@ func (m *Manager) StopTask(ctx context.Context, name string) error {
 
 	entry, ok := m.getTask(name)
 	if !ok || entry == nil {
+		if result, tomb := m.getTombstone(name); tomb {
+			return result
+		}
 		return ErrTaskNotFound
 	}
 
@@ -277,6 +290,24 @@ func (m *Manager) GetRunningTasks() []string {
 	return list
 }
 
+// GetTaskResult returns the accumulated start/stop error for a task by name.
+// It resolves both currently registered tasks (returning the error gathered so
+// far, which may be nil while still running) and tasks that have already exited
+// but whose result is retained in the tombstone. The bool is false only for
+// names that are unknown to the manager.
+func (m *Manager) GetTaskResult(name string) (error, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if entry, ok := m.tasks[name]; ok && entry != nil {
+		return errors.Join(entry.getStartErr(), entry.getStopErr()), true
+	}
+	if result, ok := m.tombstones[name]; ok {
+		return result, true
+	}
+	return nil, false
+}
+
 // GetTaskCount returns the number of currently running tasks.
 func (m *Manager) GetTaskCount() int {
 	m.mu.RLock()
@@ -319,8 +350,16 @@ func (m *Manager) removeTaskIfSame(name string, expected *managedTask) {
 	defer m.mu.Unlock()
 
 	if current, ok := m.tasks[name]; ok && current == expected {
+		m.tombstones[name] = errors.Join(expected.getStartErr(), expected.getStopErr())
 		delete(m.tasks, name)
 	}
+}
+
+func (m *Manager) getTombstone(name string) (error, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	result, ok := m.tombstones[name]
+	return result, ok
 }
 
 func (m *Manager) requestStop(entry *managedTask) {

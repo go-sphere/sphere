@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/go-sphere/sphere/log"
-	"github.com/go-sphere/sphere/log/zapx"
 )
 
 // Hook defines a function that can be executed at various lifecycle stages of the application.
@@ -79,14 +78,25 @@ func AddAfterStop(f Hook) Option {
 	}
 }
 
-// WithLoggerInit configures automatic logger initialization with the provided version and configuration.
-// It adds hooks to initialize the logger before start and sync it after stop.
-func WithLoggerInit(ver string, conf zapx.Config) Option {
+// slogBackend is an optional capability for backends that can expose a
+// *slog.Logger, allowing WithLoggerInit to also route the standard library's
+// slog output through the configured backend.
+type slogBackend interface {
+	SlogLogger(options ...log.Option) *slog.Logger
+}
+
+// WithLoggerInit configures automatic logger initialization with the provided backend.
+// It installs the backend as the global logger before start and syncs it after stop.
+// The caller constructs the backend (for example zapx.NewBackend(conf)), which keeps
+// boot decoupled from any concrete logging driver. When the backend also implements
+// SlogLogger, it is registered as the default slog handler.
+func WithLoggerInit(backend log.Backend) Option {
 	return func(o *options) {
 		o.beforeStart = append(o.beforeStart, func(context.Context) error {
-			backend := zapx.NewBackend(conf)
 			log.InitWithBackends(backend)
-			slog.SetDefault(backend.SlogLogger())
+			if sb, ok := backend.(slogBackend); ok {
+				slog.SetDefault(sb.SlogLogger())
+			}
 			return nil
 		})
 		o.afterStop = append(o.afterStop, func(context.Context) error {
