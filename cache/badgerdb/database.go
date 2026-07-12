@@ -18,37 +18,48 @@ type Config struct {
 // It implements the ByteCache interface using BadgerDB as the underlying storage engine.
 type Database struct {
 	db *badger.DB
+	// owned reports whether this Database opened the underlying BadgerDB
+	// instance and is therefore responsible for closing it. Injected instances
+	// are not owned.
+	owned bool
 }
 
 // NewDatabase creates a new BadgerDB cache with the specified configuration.
 // It opens a BadgerDB instance at the configured path with default options.
+// The instance is owned by this Database, so Close closes it.
 func NewDatabase(conf Config) (*Database, error) {
 	db, err := badger.Open(badger.DefaultOptions(conf.Path))
 	if err != nil {
 		return nil, err
 	}
 	return &Database{
-		db: db,
+		db:    db,
+		owned: true,
 	}, nil
 }
 
 // NewDatabaseWithBadger creates a new Database wrapper around an existing BadgerDB instance.
 // This allows for advanced configuration and sharing of BadgerDB instances.
+// The instance is injected, not owned: Close does not close it, so the caller
+// keeps ownership and must close the *badger.DB itself.
 func NewDatabaseWithBadger(db *badger.DB) *Database {
 	return &Database{
-		db: db,
+		db:    db,
+		owned: false,
 	}
 }
 
 // NewDatabaseWithOptions creates a new BadgerDB cache with custom BadgerDB options.
 // This provides full control over BadgerDB configuration such as compression, encryption, etc.
+// The instance is opened here and owned by this Database, so Close closes it.
 func NewDatabaseWithOptions(opts badger.Options) (*Database, error) {
 	db, err := badger.Open(opts)
 	if err != nil {
 		return nil, err
 	}
 	return &Database{
-		db: db,
+		db:    db,
+		owned: true,
 	}, nil
 }
 
@@ -235,8 +246,14 @@ func (d *Database) Exists(ctx context.Context, key string) (bool, error) {
 	return true, nil
 }
 
+// Close releases resources owned by this Database. When the BadgerDB instance
+// was injected (not owned), Close is a no-op and leaves it open for its owner
+// to close; only an instance opened by this Database is closed here.
 func (d *Database) Close() error {
-	return d.db.Close()
+	if d.owned {
+		return d.db.Close()
+	}
+	return nil
 }
 
 func (d *Database) Sync() error {

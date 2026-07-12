@@ -19,11 +19,17 @@ var ErrorType = fmt.Errorf("type error")
 // It provides direct access to Redis operations without any encoding/decoding overhead.
 type ByteCache struct {
 	client *redis.Client
+	// owned reports whether this cache created the underlying client and is
+	// therefore responsible for closing it. Injected clients are not owned.
+	owned bool
 }
 
 // NewByteCache creates a new Redis byte cache using the provided Redis client.
+// The client is injected, not owned: it is not created here, so Close does not
+// close it. The caller keeps ownership and must close the client itself (this
+// lets a single client be shared with, e.g., an mq driver).
 func NewByteCache(client *redis.Client) *ByteCache {
-	return &ByteCache{client: client}
+	return &ByteCache{client: client, owned: false}
 }
 
 func (c *ByteCache) Set(ctx context.Context, key string, val []byte) error {
@@ -157,6 +163,12 @@ func escapeGlob(s string) string {
 	return b.String()
 }
 
+// Close releases resources owned by this cache. When the Redis client was
+// injected (not owned), Close is a no-op and leaves the client open for its
+// owner to close; only a client created by this cache is closed here.
 func (c *ByteCache) Close() error {
-	return c.client.Close()
+	if c.owned {
+		return c.client.Close()
+	}
+	return nil
 }

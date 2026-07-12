@@ -20,6 +20,10 @@ type Cache[T any] struct {
 	calculateCost    bool
 	allowAsyncWrites bool
 	cache            *ristretto.Cache[string, T]
+	// owned reports whether this Cache created the underlying ristretto cache
+	// and is therefore responsible for closing it. Injected instances are not
+	// owned.
+	owned bool
 }
 
 // NewMemoryCache creates a new in-memory cache with default settings.
@@ -33,6 +37,7 @@ func NewMemoryCache[T any]() *Cache[T] {
 	return &Cache[T]{
 		cache:         cache,
 		calculateCost: false,
+		owned:         true,
 	}
 }
 
@@ -48,16 +53,20 @@ func NewMemoryCacheWithCost[T any](cost func(T) int64) *Cache[T] {
 	return &Cache[T]{
 		cache:         cache,
 		calculateCost: true,
+		owned:         true,
 	}
 }
 
 // NewMemoryCacheWithRistretto creates a new cache wrapper around an existing ristretto cache instance.
 // This allows for advanced configuration and sharing of cache instances across multiple Cache wrappers.
+// The ristretto cache is injected, not owned: Close does not close it, so the
+// caller keeps ownership and must close the *ristretto.Cache itself.
 func NewMemoryCacheWithRistretto[T any](cache *ristretto.Cache[string, T], calculateCost, allowAsyncWrites bool) *Cache[T] {
 	return &Cache[T]{
 		calculateCost:    calculateCost,
 		allowAsyncWrites: allowAsyncWrites,
 		cache:            cache,
+		owned:            false,
 	}
 }
 
@@ -188,8 +197,13 @@ func (m *Cache[T]) Exists(ctx context.Context, key string) (bool, error) {
 	return found, nil
 }
 
+// Close releases resources owned by this Cache. When the ristretto cache was
+// injected (not owned), Close is a no-op and leaves it open for its owner to
+// close; only a cache created by this Cache is closed here.
 func (m *Cache[T]) Close() error {
-	m.cache.Close()
+	if m.owned {
+		m.cache.Close()
+	}
 	return nil
 }
 
