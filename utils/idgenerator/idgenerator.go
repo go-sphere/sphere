@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-sphere/sphere/log"
 	"github.com/yitter/idgenerator-go/idgen"
 )
 
@@ -15,6 +16,7 @@ func init() {
 	workerIDRaw := os.Getenv("WORKER_ID")
 	workerID, err := strconv.ParseUint(workerIDRaw, 10, 16)
 	if err != nil || workerID == 0 {
+		log.Warn("idgenerator: WORKER_ID missing or invalid, using default workerID=1; set WORKER_ID explicitly for multi-instance deployments")
 		workerID = 1
 	}
 	options := idgen.NewIdGeneratorOptions(uint16(workerID))
