@@ -113,8 +113,17 @@ func init() {
 }
 
 // InitWithBackends initializes global logger with custom backend(s).
+// The previously installed backend is closed if it implements the optional
+// `Close() error` method, so resources held by the old backend (for example a
+// lumberjack file handle) are released on hot-swap. Backends that do not
+// implement Close are left untouched, preserving backward compatibility.
 func InitWithBackends(backends ...Backend) {
-	std.Store(&coreLogger{backend: NewMultiBackend(backends...)})
+	next := &coreLogger{backend: NewMultiBackend(backends...)}
+	if old := std.Swap(next); old != nil {
+		if closer, ok := old.backend.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+	}
 }
 
 func logger() *coreLogger {
