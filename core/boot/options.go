@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-sphere/sphere/log"
+	"github.com/go-sphere/sphere/log/zapx"
 )
 
 // Hook defines a function that can be executed at various lifecycle stages of the application.
@@ -79,18 +80,18 @@ func AddAfterStop(f Hook) Option {
 }
 
 // slogBackend is an optional capability for backends that can expose a
-// *slog.Logger, allowing WithLoggerInit to also route the standard library's
+// *slog.Logger, allowing WithLoggerBackend to also route the standard library's
 // slog output through the configured backend.
 type slogBackend interface {
 	SlogLogger(options ...log.Option) *slog.Logger
 }
 
-// WithLoggerInit configures automatic logger initialization with the provided backend.
+// WithLoggerBackend configures automatic logger initialization with the provided backend.
 // It installs the backend as the global logger before start and syncs it after stop.
-// The caller constructs the backend (for example zapx.NewBackend(conf)), which keeps
-// boot decoupled from any concrete logging driver. When the backend also implements
-// SlogLogger, it is registered as the default slog handler.
-func WithLoggerInit(backend log.Backend) Option {
+// The caller constructs the backend (for example zapx.NewBackend(conf)), so the
+// lifecycle implementation works with any logging driver. When the backend also
+// implements SlogLogger, it is registered as the default slog handler.
+func WithLoggerBackend(backend log.Backend) Option {
 	return func(o *options) {
 		o.beforeStart = append(o.beforeStart, func(context.Context) error {
 			log.InitWithBackends(backend)
@@ -104,6 +105,17 @@ func WithLoggerInit(backend log.Backend) Option {
 			return nil
 		})
 	}
+}
+
+// WithLoggerInit configures the legacy zap logger integration. The version is
+// attached to every log entry as a fixed "version" attribute.
+//
+// Deprecated: use WithLoggerBackend with an explicitly constructed backend.
+func WithLoggerInit(version string, conf zapx.Config) Option {
+	return WithLoggerBackend(zapx.NewBackend(
+		conf,
+		log.WithAttrs(map[string]any{"version": version}),
+	))
 }
 
 func runHooks(ctx context.Context, hooks []Hook, hookType string) error {
