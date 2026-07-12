@@ -8,14 +8,16 @@ import (
 )
 
 // CryptPassword hashes a plain text password using bcrypt with default cost.
-// It returns the hashed password string, or the original password if hashing fails.
+// It returns the hashed password string, or an error if hashing fails (for example
+// when the password exceeds bcrypt's 72-byte limit). It never falls back to returning
+// the plain text password.
 // The bcrypt algorithm includes salt generation and is resistant to rainbow table attacks.
-func CryptPassword(pwd string) string {
+func CryptPassword(pwd string) (string, error) {
 	cyPwd, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
 	if err != nil {
-		return pwd
+		return "", err
 	}
-	return string(cyPwd)
+	return string(cyPwd), nil
 }
 
 // IsPasswordMatch verifies if a plain text password matches the provided bcrypt hash.
