@@ -84,6 +84,12 @@ func (c *ByteCache) GetDel(ctx context.Context, key string) ([]byte, bool, error
 }
 
 func (c *ByteCache) MultiGet(ctx context.Context, keys []string) (map[string][]byte, error) {
+	// Redis MGET rejects a zero-argument call ("wrong number of arguments"),
+	// while the other drivers return an empty result for empty input. Return
+	// early to keep behavior consistent and avoid the protocol error.
+	if len(keys) == 0 {
+		return make(map[string][]byte), nil
+	}
 	vals, err := c.client.MGet(ctx, keys...).Result()
 	if err != nil {
 		return nil, err
@@ -107,6 +113,12 @@ func (c *ByteCache) Del(ctx context.Context, key string) error {
 }
 
 func (c *ByteCache) MultiDel(ctx context.Context, keys []string) error {
+	// Redis DEL rejects a zero-argument call ("wrong number of arguments"),
+	// while the other drivers treat an empty key set as a no-op. Return early
+	// to keep behavior consistent and avoid the protocol error.
+	if len(keys) == 0 {
+		return nil
+	}
 	return c.client.Del(ctx, keys...).Err()
 }
 

@@ -132,7 +132,9 @@ func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
 		}
 		m.cache.Set(k, v, cost)
 	}
-	m.cache.Wait()
+	if !m.allowAsyncWrites {
+		m.cache.Wait()
+	}
 	return nil
 }
 
@@ -147,7 +149,9 @@ func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, exp
 		}
 		m.cache.SetWithTTL(k, v, cost, expiration)
 	}
-	m.cache.Wait()
+	if !m.allowAsyncWrites {
+		m.cache.Wait()
+	}
 	return nil
 }
 
