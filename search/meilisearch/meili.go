@@ -2,6 +2,7 @@ package meilisearch
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/go-sphere/sphere/search"
@@ -66,8 +67,11 @@ func (s *Searcher[T]) Index(ctx context.Context, docs ...T) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.service.service.WaitForTaskWithContext(ctx, task.TaskUID, time.Second)
-	return err
+	result, err := s.service.service.WaitForTaskWithContext(ctx, task.TaskUID, time.Second)
+	if err != nil {
+		return err
+	}
+	return taskError(result)
 }
 
 func (s *Searcher[T]) Delete(ctx context.Context, ids ...string) error {
@@ -75,8 +79,24 @@ func (s *Searcher[T]) Delete(ctx context.Context, ids ...string) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.service.service.WaitForTaskWithContext(ctx, task.TaskUID, time.Second)
-	return err
+	result, err := s.service.service.WaitForTaskWithContext(ctx, task.TaskUID, time.Second)
+	if err != nil {
+		return err
+	}
+	return taskError(result)
+}
+
+// taskError inspects a finished task and returns an error when the task did not
+// succeed. WaitForTaskWithContext returns (task, nil) even for failed/canceled
+// terminal states, so callers must check the task status explicitly.
+func taskError(task *meilisearch.Task) error {
+	if task == nil || task.Status == meilisearch.TaskStatusSucceeded {
+		return nil
+	}
+	if msg := task.Error.Message; msg != "" {
+		return fmt.Errorf("meilisearch: task %d %s: %s (%s)", task.TaskUID, task.Status, msg, task.Error.Code)
+	}
+	return fmt.Errorf("meilisearch: task %d %s", task.TaskUID, task.Status)
 }
 
 func (s *Searcher[T]) Search(ctx context.Context, params search.Params) (search.Result[T], error) {
