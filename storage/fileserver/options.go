@@ -52,15 +52,14 @@ func newOptions(opts ...Option) *options {
 }
 
 func defaultCreateFileKey(ctx context.Context, server *FileServer, filename string) (string, error) {
-	id, err := uuid.NewUUID()
+	// Use a random (v4) UUID for the one-time upload token path so it is not
+	// predictable, matching the generator used in storage/utils.go.
+	id := uuid.NewString()
+	err := server.cache.SetWithTTL(ctx, id, []byte(filename), server.config.KeyTTL)
 	if err != nil {
 		return "", err
 	}
-	err = server.cache.SetWithTTL(ctx, id.String(), []byte(filename), server.config.KeyTTL)
-	if err != nil {
-		return "", err
-	}
-	return id.String(), nil
+	return id, nil
 }
 
 func defaultUploadSuccessWithData(ctx httpx.Context, key, url string) error {

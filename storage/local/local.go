@@ -57,7 +57,9 @@ func (c *Client) fixFilePath(key string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+	// rel == "." means the key resolves to the root directory itself (e.g. an
+	// empty key, ".", or "/"); such keys are not valid file targets.
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", storageerr.ErrorFileNameInvalid
 	}
 	return filePath, nil
@@ -74,15 +76,24 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	if err != nil {
 		return "", err
 	}
+	// Bail out early if the caller has already cancelled. The streaming copy
+	// below is not itself interruptible via ctx, so cancellation issued mid
+	// copy is not enforced; the cleanup path still runs on any copy failure.
+	if err = ctx.Err(); err != nil {
+		return "", err
+	}
 	out, err := os.Create(filePath)
 	if err != nil {
 		return "", err
 	}
-	defer func() {
-		_ = out.Close()
-	}()
 	_, err = io.Copy(out, file)
+	if closeErr := out.Close(); closeErr != nil && err == nil {
+		err = closeErr
+	}
 	if err != nil {
+		// Remove the partially written file so a broken "exists but corrupt"
+		// key is not left behind for later reads.
+		_ = os.Remove(filePath)
 		return "", err
 	}
 	return key, nil
@@ -107,12 +118,16 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	_, err = os.Stat(filePath)
+	stat, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
 		return false, err
+	}
+	// A directory is never a retrievable file; report it as non-existent.
+	if stat.IsDir() {
+		return false, nil
 	}
 	return true, nil
 }
@@ -136,6 +151,12 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 		_ = file.Close()
 		return storage.DownloadResult{}, err
 	}
+	// Never hand back a directory handle; treat it as a missing file so the
+	// caller does not leak the descriptor or hit EISDIR on read.
+	if stat.IsDir() {
+		_ = file.Close()
+		return storage.DownloadResult{}, storageerr.ErrorNotFound
+	}
 	return storage.DownloadResult{
 		Reader: file,
 		MIME:   mime.TypeByExtension(filepath.Ext(key)),
@@ -148,6 +169,18 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
 		return err
+	}
+	stat, err := os.Stat(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return storageerr.ErrorNotFound
+		}
+		return err
+	}
+	// Only regular files are valid storage keys; refuse to remove directories
+	// or other special files that may be shared subtrees.
+	if !stat.Mode().IsRegular() {
+		return storageerr.ErrorNotFound
 	}
 	err = os.Remove(filePath)
 	if err != nil {
@@ -193,11 +226,14 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	if e := os.MkdirAll(filepath.Dir(destinationPath), 0o750); e != nil {
 		return e
 	}
-	if _, e := os.Stat(sourcePath); e != nil {
+	if stat, e := os.Stat(sourcePath); e != nil {
 		if os.IsNotExist(e) {
 			return storageerr.ErrorNotFound
 		}
 		return e
+	} else if !stat.Mode().IsRegular() {
+		// Never relocate a whole directory (or special file) under a key.
+		return storageerr.ErrorNotFound
 	}
 	if e := c.removeBeforeOverwrite(destinationPath, overwrite); e != nil {
 		return e
@@ -235,6 +271,14 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	defer func() {
 		_ = srcFile.Close()
 	}()
+	srcStat, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+	// Never duplicate a directory (or special file) as if it were a file key.
+	if !srcStat.Mode().IsRegular() {
+		return storageerr.ErrorNotFound
+	}
 	dstFile, err := os.Create(destinationPath)
 	if err != nil {
 		return err
