@@ -13,6 +13,10 @@ import (
 
 const cacheFileKeyForReverseProxyBody = "X-Cache-ReverseProxy-Body"
 
+// ErrCacheNotFound is returned when no cache entry exists for the requested key.
+// It marks an expected cache miss, distinguishing it from an actual cache-layer failure.
+var ErrCacheNotFound = errors.New("no cache found")
+
 type Cache interface {
 	Exists(ctx context.Context, key string) (bool, error)
 	Delete(ctx context.Context, key string) error
@@ -109,7 +113,7 @@ func (c *CommonCache) Header(ctx context.Context, key string) (http.Header, erro
 		return nil, err
 	}
 	if !found {
-		return nil, errors.New("no cache found")
+		return nil, ErrCacheNotFound
 	}
 	header := http.Header{}
 	err = json.Unmarshal(headerRaw, &header)

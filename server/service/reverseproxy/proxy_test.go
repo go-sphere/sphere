@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -359,6 +360,44 @@ func setupTestCache(t *testing.T) *CommonCache {
 	})
 
 	return cache
+}
+
+// TestServeCacheReverseProxy_CacheHitPreservesStatus verifies that a cache hit
+// replays the original upstream status code instead of a hardcoded 200, and that
+// the internal cache-status header is not leaked to the client.
+func TestServeCacheReverseProxy_CacheHitPreservesStatus(t *testing.T) {
+	cache := setupTestCache(t)
+	ctx := (&http.Request{}).Context()
+
+	// Populate the cache the same way ModifyResponse does for a non-200 response.
+	header := http.Header{
+		"Content-Type":    []string{"text/plain"},
+		cacheStatusHeader: []string{strconv.Itoa(http.StatusInternalServerError)},
+	}
+	if err := cache.Save(ctx, "/status", header, strings.NewReader("cached error body")); err != nil {
+		t.Fatalf("Failed to save cache: %v", err)
+	}
+
+	backendURL, _ := url.Parse("http://example.com")
+	proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL))
+	if err != nil {
+		t.Fatalf("Failed to create proxy: %v", err)
+	}
+	handler := ServeCacheReverseProxy(cache, proxy)
+
+	req := httptest.NewRequest(http.MethodGet, "/status", nil)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("Expected replayed status 500, got %d", rec.Code)
+	}
+	if body := rec.Body.String(); body != "cached error body" {
+		t.Errorf("Expected 'cached error body', got %q", body)
+	}
+	if got := rec.Header().Get(cacheStatusHeader); got != "" {
+		t.Errorf("Internal cache-status header leaked to client: %q", got)
+	}
 }
 
 // TestServeCacheReverseProxy_Integration is a manual integration test

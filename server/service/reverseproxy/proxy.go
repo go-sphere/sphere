@@ -1,12 +1,21 @@
 package reverseproxy
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"sync"
+
+	"github.com/go-sphere/sphere/log"
 )
+
+// cacheStatusHeader carries the original upstream status code inside the persisted
+// header blob so the cached response can be replayed with its real status code.
+// It is stripped from the response headers before they are sent to the client.
+const cacheStatusHeader = "X-Sphere-Cache-Status"
 
 type (
 	RequestCacheKeyFunc    func(*http.Request) string
@@ -152,7 +161,12 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 				ignoreCloseError(cachePipeReader.Close)
 			}()
 			ctx := resp.Request.Context()
-			if err := cache.Save(ctx, key, resp.Header, cachePipeReader); err != nil {
+			// Persist the real status code inside the header blob so it can be
+			// replayed on cache hit. Clone to avoid leaking the internal header
+			// to the client response.
+			cacheHeader := resp.Header.Clone()
+			cacheHeader.Set(cacheStatusHeader, strconv.Itoa(resp.StatusCode))
+			if err := cache.Save(ctx, key, cacheHeader, cachePipeReader); err != nil {
 				// Cache save failed, but continue serving client
 				// Error is silently ignored as cache is not critical
 				conf.errorHandler(err)
@@ -200,14 +214,31 @@ func ServeCacheReverseProxy(cache Cache, proxy *httputil.ReverseProxy, opts ...S
 	return func(w http.ResponseWriter, r *http.Request) {
 		key := conf.keygen(r)
 		if key != "" {
-			if header, body, err := cache.Load(r.Context(), key); err == nil && body != nil {
+			header, body, err := cache.Load(r.Context(), key)
+			switch {
+			case err != nil:
+				// A cache miss is expected; anything else is a cache-layer
+				// failure that should not be silently swallowed.
+				if !errors.Is(err, ErrCacheNotFound) {
+					log.Error("reverseproxy: failed to load cache", log.String("key", key), log.Err(err))
+				}
+			case body != nil:
+				// Replay the persisted status code instead of hardcoding 200,
+				// then strip the internal header from the client response.
+				status := http.StatusOK
+				if s := header.Get(cacheStatusHeader); s != "" {
+					if code, pErr := strconv.Atoi(s); pErr == nil {
+						status = code
+					}
+					header.Del(cacheStatusHeader)
+				}
 				// Copy headers to response
 				for k, v := range header {
 					for _, vv := range v {
 						w.Header().Add(k, vv)
 					}
 				}
-				w.WriteHeader(http.StatusOK)
+				w.WriteHeader(status)
 				defer ignoreCloseError(body.Close)
 				if _, cErr := io.Copy(w, body); cErr != nil {
 					conf.errorHandler(w, r, cErr)
