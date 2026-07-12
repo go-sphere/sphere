@@ -14,6 +14,9 @@ const (
 	DefaultDailyLimit = 100
 	// DefaultStoreSize defines the default initial capacity for the verification storage maps.
 	DefaultStoreSize = 100
+	// DefaultMaxAttempts defines the maximum number of failed verification attempts allowed
+	// for a number before its outstanding codes are invalidated to prevent brute forcing.
+	DefaultMaxAttempts = 5
 )
 
 // VerificationConfig holds the rate limiting configuration for verification code generation.
@@ -36,6 +39,8 @@ type VerificationStorage struct {
 
 	MinuteTimestamps map[string]time.Time `json:"minute_timestamps"`
 	DailyTimestamps  map[string]time.Time `json:"daily_timestamps"`
+
+	FailedAttempts map[string]int `json:"failed_attempts"`
 }
 
 func (s *VerificationStorage) cleanExpired(number string, now time.Time) {
@@ -75,6 +80,7 @@ func NewVerificationSystem(conf VerificationConfig) *VerificationSystem {
 			DailyCounts:      make(map[string]int, DefaultStoreSize),
 			MinuteTimestamps: make(map[string]time.Time, DefaultStoreSize),
 			DailyTimestamps:  make(map[string]time.Time, DefaultStoreSize),
+			FailedAttempts:   make(map[string]int, DefaultStoreSize),
 		},
 	}
 }
@@ -114,6 +120,7 @@ func (s *VerificationSystem) SaveCode(number string, code string, expiresIn time
 	s.store.DailyCounts[number]++
 	s.store.MinuteTimestamps[number] = now
 	s.store.DailyTimestamps[number] = now
+	s.store.FailedAttempts[number] = 0
 
 	newCaptcha := VerificationCode{
 		Code:      code,
@@ -126,17 +133,36 @@ func (s *VerificationSystem) SaveCode(number string, code string, expiresIn time
 // Verify checks if the provided verification code is valid for the given number.
 // It returns true if a matching, non-expired code is found, false otherwise.
 // Expired codes are automatically cleaned up during verification.
+//
+// A matched code is consumed immediately (one-time use), preventing replay after a
+// successful verification. Failed attempts are throttled: once DefaultMaxAttempts
+// failures accumulate for a number, all of its outstanding codes are invalidated to
+// prevent brute forcing. A newly issued code (via SaveCode) resets the failure counter.
 func (s *VerificationSystem) Verify(number, code string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	now := time.Now()
 	s.store.cleanExpired(number, now)
+
+	if s.store.FailedAttempts[number] >= DefaultMaxAttempts {
+		return false
+	}
+
 	if caps, ok := s.store.Store[number]; ok {
-		for _, captcha := range caps {
+		for i, captcha := range caps {
 			if captcha.Code == code {
+				// Consume the matched code so it cannot be replayed.
+				s.store.Store[number] = append(caps[:i], caps[i+1:]...)
+				s.store.FailedAttempts[number] = 0
 				return true
 			}
 		}
+	}
+
+	s.store.FailedAttempts[number]++
+	if s.store.FailedAttempts[number] >= DefaultMaxAttempts {
+		// Too many failures: invalidate all outstanding codes for this number.
+		delete(s.store.Store, number)
 	}
 	return false
 }

@@ -5,6 +5,7 @@ package captcha
 
 import (
 	"context"
+	"sync"
 	"time"
 )
 
@@ -25,6 +26,7 @@ type Config struct {
 // It combines code generation, delivery, and rate limiting in a single component.
 type Manager struct {
 	done         chan struct{}       // Channel for graceful shutdown signaling
+	stopOnce     sync.Once           // Guards done channel close for idempotent Stop
 	config       Config              // Manager configuration
 	sender       Sender              // Code delivery implementation
 	verification *VerificationSystem // Rate limiting and validation system
@@ -74,6 +76,7 @@ func (m *Manager) Identifier() string {
 // This implements the Task interface for lifecycle management integration.
 func (m *Manager) Start(ctx context.Context) error {
 	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -89,6 +92,8 @@ func (m *Manager) Start(ctx context.Context) error {
 // Stop gracefully shuts down the captcha manager by closing the done channel.
 // This signals the cleanup routine to exit and implements the Task interface.
 func (m *Manager) Stop(ctx context.Context) error {
-	close(m.done)
+	m.stopOnce.Do(func() {
+		close(m.done)
+	})
 	return nil
 }
