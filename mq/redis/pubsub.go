@@ -55,25 +55,28 @@ func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(da
 	p.subscriptions[topic] = append(p.subscriptions[topic], sub)
 
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Error("recovered from panic in subscription handler", log.Any("error", r))
-			}
-		}()
 		for msg := range sub.Channel() {
 			var data T
 			if err := p.codec.Unmarshal([]byte(msg.Payload), &data); err != nil {
 				log.Error("failed to unmarshal subscription message", log.Err(err), log.String("topic", topic))
 				continue
 			}
-			if err := handler(data); err != nil {
-				log.Error("subscription handler error", log.Err(err), log.String("topic", topic))
-				continue
-			}
+			p.dispatch(topic, handler, data)
 		}
 	}()
 
 	return nil
+}
+
+func (p *PubSub[T]) dispatch(topic string, handler func(data T) error, data T) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("recovered from panic in subscription handler", log.Any("error", r), log.String("topic", topic))
+		}
+	}()
+	if err := handler(data); err != nil {
+		log.Error("subscription handler error", log.Err(err), log.String("topic", topic))
+	}
 }
 
 func (p *PubSub[T]) UnsubscribeAll(ctx context.Context, topic string) error {
