@@ -71,6 +71,10 @@ func TestSearcher(t *testing.T) {
 		t.Errorf("Expected to find 1 article with title 'hello world', got %d articles", len(result.Hits))
 		return
 	}
+	if result.Total != 1 {
+		t.Errorf("Expected total hits to be 1, got %d", result.Total)
+		return
+	}
 
 	err = searcher.Delete(ctx, "2")
 	if err != nil {

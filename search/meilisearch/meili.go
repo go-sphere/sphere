@@ -118,7 +118,7 @@ func (s *Searcher[T]) Search(ctx context.Context, params search.Params) (search.
 	}
 	return search.Result[T]{
 		Hits:       hits,
-		Total:      resp.TotalHits,
+		Total:      resp.EstimatedTotalHits,
 		Offset:     int(resp.Offset),
 		Limit:      int(resp.Limit),
 		Processing: resp.ProcessingTimeMs,
