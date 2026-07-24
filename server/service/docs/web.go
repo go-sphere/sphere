@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync"
 
 	"github.com/go-sphere/httpx"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -31,8 +32,10 @@ type Config struct {
 
 // Web provides a documentation web server that aggregates multiple Swagger specifications.
 type Web struct {
-	config Config
-	server *http.Server
+	config  Config
+	server  *http.Server
+	mu      sync.Mutex
+	stopped bool
 }
 
 func (w *Web) newHandler() (http.Handler, error) {
@@ -73,16 +76,27 @@ func (w *Web) Start(ctx context.Context) error {
 		return err
 	}
 
-	w.server = &http.Server{
+	server := &http.Server{
 		Addr:    w.config.Address,
 		Handler: handler,
 	}
-	return httpx.Start(w.server)
+	w.mu.Lock()
+	if w.stopped {
+		w.mu.Unlock()
+		return nil
+	}
+	w.server = server
+	w.mu.Unlock()
+	return httpx.Start(server)
 }
 
 // Stop gracefully shuts down the documentation web server.
 func (w *Web) Stop(ctx context.Context) error {
-	return httpx.Close(ctx, w.server)
+	w.mu.Lock()
+	w.stopped = true
+	server := w.server
+	w.mu.Unlock()
+	return httpx.Close(ctx, server)
 }
 
 func registerTarget(mux *http.ServeMux, spec *swag.Spec, target string) error {
