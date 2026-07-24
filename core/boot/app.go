@@ -2,7 +2,6 @@ package boot
 
 import (
 	"context"
-	"errors"
 
 	"github.com/go-sphere/sphere/core/task"
 )
@@ -30,14 +29,7 @@ func (a *Application) Identifier() string {
 // It monitors the context for cancellation and returns nil if cancelled gracefully.
 // Returns an error if any task fails to start.
 func (a *Application) Start(ctx context.Context) error {
-	err := a.group.Start(ctx)
-	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return nil
-		}
-		return err
-	}
-	return nil
+	return a.group.Start(ctx)
 }
 
 // Stop gracefully shuts down all managed tasks in the application.

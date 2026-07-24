@@ -360,11 +360,11 @@ func TestChanPoolGetContextWithAllowCreate(t *testing.T) {
 // TestChanPoolConcurrentPutClose exercises the Put/Close race (BUG-05): a Put
 // that overlaps with Close must never send on a closed channel. Run with -race.
 func TestChanPoolConcurrentPutClose(t *testing.T) {
-	for iter := 0; iter < 200; iter++ {
+	for range 200 {
 		pool := NewChanPool[int](8)
 
 		var wg sync.WaitGroup
-		for i := 0; i < 8; i++ {
+		for i := range 8 {
 			wg.Add(1)
 			go func(v int) {
 				defer wg.Done()

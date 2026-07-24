@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -15,8 +17,8 @@ type mockTask struct {
 	identifier    string
 	startFunc     func(ctx context.Context) error
 	stopFunc      func(ctx context.Context) error
-	startCalled   bool
-	stopCalled    bool
+	startCalled   atomic.Bool
+	stopCalled    atomic.Bool
 	startDuration time.Duration
 }
 
@@ -25,7 +27,7 @@ func (m *mockTask) Identifier() string {
 }
 
 func (m *mockTask) Start(ctx context.Context) error {
-	m.startCalled = true
+	m.startCalled.Store(true)
 	if m.startDuration > 0 {
 		select {
 		case <-time.After(m.startDuration):
@@ -42,7 +44,7 @@ func (m *mockTask) Start(ctx context.Context) error {
 }
 
 func (m *mockTask) Stop(ctx context.Context) error {
-	m.stopCalled = true
+	m.stopCalled.Store(true)
 	if m.stopFunc != nil {
 		return m.stopFunc(ctx)
 	}
@@ -76,10 +78,10 @@ func TestRun_NormalStartAndStop(t *testing.T) {
 		t.Fatal("Test timed out")
 	}
 
-	if !task.startCalled {
+	if !task.startCalled.Load() {
 		t.Error("Task Start was not called")
 	}
-	if !task.stopCalled {
+	if !task.stopCalled.Load() {
 		t.Error("Task Stop was not called")
 	}
 }
@@ -103,11 +105,28 @@ func TestRun_TaskStartError(t *testing.T) {
 		t.Errorf("Expected error to wrap %v, got: %v", expectedErr, err)
 	}
 
-	if !task.startCalled {
+	if !task.startCalled.Load() {
 		t.Error("Task Start was not called")
 	}
-	if !task.stopCalled {
+	if !task.stopCalled.Load() {
 		t.Error("Task Stop was not called")
+	}
+}
+
+func TestApplicationStartPreservesUnexpectedWrappedCancellation(t *testing.T) {
+	task := &mockTask{
+		identifier: "wrapped-cancellation",
+		startFunc: func(context.Context) error {
+			return fmt.Errorf("task failed before shutdown: %w", context.Canceled)
+		},
+	}
+
+	err := NewApplication(task).Start(context.Background())
+	if err == nil {
+		t.Fatal("expected wrapped cancellation to be returned")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want wrapped context.Canceled", err)
 	}
 }
 
@@ -125,7 +144,7 @@ func TestRun_TaskStartPanic(t *testing.T) {
 		t.Fatal("Expected error from panic, got nil")
 	}
 
-	if !errors.Is(err, context.Canceled) && !task.stopCalled {
+	if !errors.Is(err, context.Canceled) && !task.stopCalled.Load() {
 		t.Error("Task Stop should be called after panic")
 	}
 }
@@ -174,7 +193,7 @@ func TestRun_BeforeStartHookError(t *testing.T) {
 	}
 
 	// Task should not start if before start hook fails
-	if task.startCalled {
+	if task.startCalled.Load() {
 		t.Error("Task Start should not be called when beforeStart hook fails")
 	}
 }
@@ -204,7 +223,7 @@ func TestRun_BeforeStopHookError(t *testing.T) {
 		t.Errorf("Expected error to contain hook error, got: %v", err)
 	}
 
-	if !task.stopCalled {
+	if !task.stopCalled.Load() {
 		t.Error("Task Stop should still be called even if beforeStop hook fails")
 	}
 }
@@ -341,10 +360,10 @@ func TestRun_ContextCancellation(t *testing.T) {
 		t.Fatal("Test timed out")
 	}
 
-	if !task.startCalled {
+	if !task.startCalled.Load() {
 		t.Error("Task Start was not called")
 	}
-	if !task.stopCalled {
+	if !task.stopCalled.Load() {
 		t.Error("Task Stop was not called")
 	}
 }
@@ -415,7 +434,7 @@ func TestRun_CustomSignals(t *testing.T) {
 		t.Fatal("Test timed out")
 	}
 
-	if !task.stopCalled {
+	if !task.stopCalled.Load() {
 		t.Error("Task Stop was not called")
 	}
 }
@@ -537,10 +556,10 @@ func TestRun_TaskCompletesNormally(t *testing.T) {
 		t.Errorf("Expected no error when task completes normally, got: %v", err)
 	}
 
-	if !task.startCalled {
+	if !task.startCalled.Load() {
 		t.Error("Task Start was not called")
 	}
-	if !task.stopCalled {
+	if !task.stopCalled.Load() {
 		t.Error("Task Stop was not called after normal completion")
 	}
 }
@@ -634,24 +653,32 @@ func TestRun_ConcurrentSignals(t *testing.T) {
 		t.Fatal("Test timed out")
 	}
 
-	if !task.stopCalled {
+	if !task.stopCalled.Load() {
 		t.Error("Task Stop was not called")
 	}
 }
 
 func TestRun_Integration(t *testing.T) {
 	// Simulates a realistic scenario with all components
-	var logMessages []string
+	var (
+		logMu       sync.Mutex
+		logMessages []string
+	)
+	addLogMessage := func(message string) {
+		logMu.Lock()
+		defer logMu.Unlock()
+		logMessages = append(logMessages, message)
+	}
 
 	task := &mockTask{
 		identifier: "integration-task",
 		startFunc: func(ctx context.Context) error {
-			logMessages = append(logMessages, "task started")
+			addLogMessage("task started")
 			<-ctx.Done()
 			return nil
 		},
 		stopFunc: func(ctx context.Context) error {
-			logMessages = append(logMessages, "task stopped")
+			addLogMessage("task stopped")
 			return nil
 		},
 	}
@@ -659,11 +686,11 @@ func TestRun_Integration(t *testing.T) {
 	opts := newOptions(
 		WithShutdownTimeout(2*time.Second),
 		AddBeforeStart(func(ctx context.Context) error {
-			logMessages = append(logMessages, "initializing resources")
+			addLogMessage("initializing resources")
 			return nil
 		}),
 		AddBeforeStop(func(ctx context.Context) error {
-			logMessages = append(logMessages, "preparing shutdown")
+			addLogMessage("preparing shutdown")
 			return nil
 		}),
 		AddAfterStop(func(ctx context.Context) error {
@@ -672,7 +699,7 @@ func TestRun_Integration(t *testing.T) {
 			case <-ctx.Done():
 				return fmt.Errorf("context cancelled too early in afterStop")
 			default:
-				logMessages = append(logMessages, "cleanup complete")
+				addLogMessage("cleanup complete")
 				return nil
 			}
 		}),
