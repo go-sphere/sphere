@@ -125,10 +125,18 @@ func (e *BaseEncoding) encodeMathematical(data []byte) string {
 		return ""
 	}
 
-	digits := make([]int, 0)
+	leadingZeros := 0
+	for _, b := range data {
+		if b == 0 {
+			leadingZeros++
+		} else {
+			break
+		}
+	}
 
-	temp := make([]int, len(data))
-	for i, b := range data {
+	digits := make([]int, 0)
+	temp := make([]int, len(data)-leadingZeros)
+	for i, b := range data[leadingZeros:] {
 		temp[i] = int(b)
 	}
 
@@ -146,15 +154,6 @@ func (e *BaseEncoding) encodeMathematical(data []byte) string {
 
 		digits = append([]int{carry}, digits...)
 		temp = newTemp
-	}
-
-	leadingZeros := 0
-	for _, b := range data {
-		if b == 0 {
-			leadingZeros++
-		} else {
-			break
-		}
 	}
 
 	var result strings.Builder
@@ -234,8 +233,8 @@ func (e *BaseEncoding) decodeMathematical(data string) ([]byte, error) {
 		}
 	}
 
-	digits := make([]int, 0)
-	for i := 0; i < len(data); i++ {
+	digits := make([]int, 0, len(data)-leadingZeros)
+	for i := leadingZeros; i < len(data); i++ {
 		digits = append(digits, e.decodeMap[data[i]])
 	}
 

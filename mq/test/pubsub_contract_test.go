@@ -175,6 +175,38 @@ func TestPubSubStructPayload(t *testing.T) {
 	}
 }
 
+func TestPubSubContinuesAfterHandlerPanic(t *testing.T) {
+	t.Parallel()
+
+	for _, factory := range pubSubFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			p := factory.newInt(t)
+			received := make(chan int, 1)
+
+			if err := p.Subscribe(ctx, "panic-recovery", func(data int) error {
+				if data == 1 {
+					panic("handler panic")
+				}
+				received <- data
+				return nil
+			}); err != nil {
+				t.Fatalf("Subscribe: %v", err)
+			}
+			if err := p.Broadcast(ctx, "panic-recovery", 1); err != nil {
+				t.Fatalf("Broadcast panic message: %v", err)
+			}
+			if err := p.Broadcast(ctx, "panic-recovery", 2); err != nil {
+				t.Fatalf("Broadcast following message: %v", err)
+			}
+
+			assertReceiveInt(t, received, 2)
+		})
+	}
+}
+
 func TestPubSubClose(t *testing.T) {
 	t.Parallel()
 

@@ -8,8 +8,11 @@ import (
 )
 
 func TestInt64ToBase62(t *testing.T) {
+	numbers := []int64{0}
 	for range 10 {
-		num := rand.Int64()
+		numbers = append(numbers, rand.Int64())
+	}
+	for _, num := range numbers {
 		encoded := Int64ToBase62(num)
 		decoded, err := Base62ToInt64(encoded)
 		if err != nil {
