@@ -342,9 +342,6 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if e := os.MkdirAll(filepath.Dir(destinationPath), 0o750); e != nil {
 		return e
 	}
-	if e := c.removeBeforeOverwrite(destinationPath, overwrite); e != nil {
-		return e
-	}
 	srcFile, err := os.Open(sourcePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -362,6 +359,9 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	// Never duplicate a directory (or special file) as if it were a file key.
 	if !srcStat.Mode().IsRegular() {
 		return storageerr.ErrorNotFound
+	}
+	if e := c.removeBeforeOverwrite(destinationPath, overwrite); e != nil {
+		return e
 	}
 	dstFile, err := os.Create(destinationPath)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/go-sphere/sphere/storage/storageerr"
@@ -152,5 +153,36 @@ func TestClient_DirectoryKeyTreatedAsNotFound(t *testing.T) {
 	// The directory must survive the refused operations.
 	if info, statErr := os.Stat(filepath.Join(root, "images")); statErr != nil || !info.IsDir() {
 		t.Fatalf("directory was modified: err=%v", statErr)
+	}
+}
+
+func TestClient_CopyMissingSourcePreservesDestination(t *testing.T) {
+	ctx := context.Background()
+	client, err := NewClient(Config{RootDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	const destination = "release/live.txt"
+	if _, err := client.UploadFile(ctx, strings.NewReader("current"), destination); err != nil {
+		t.Fatalf("UploadFile(destination): %v", err)
+	}
+
+	err = client.CopyFile(ctx, "release/missing.txt", destination, true)
+	if !errors.Is(err, storageerr.ErrorNotFound) {
+		t.Fatalf("CopyFile() error = %v, want %v", err, storageerr.ErrorNotFound)
+	}
+
+	result, err := client.DownloadFile(ctx, destination)
+	if err != nil {
+		t.Fatalf("DownloadFile(destination): %v", err)
+	}
+	defer func() { _ = result.Reader.Close() }()
+	got, err := io.ReadAll(result.Reader)
+	if err != nil {
+		t.Fatalf("ReadAll(destination): %v", err)
+	}
+	if string(got) != "current" {
+		t.Fatalf("destination content = %q, want %q", got, "current")
 	}
 }
