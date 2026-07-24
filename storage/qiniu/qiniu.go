@@ -247,6 +247,9 @@ func (n *Client) DeleteFile(ctx context.Context, key string) error {
 	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
 	err := manager.Delete(n.config.Bucket, key)
 	if err != nil {
+		if isNotFoundError(err) {
+			return storageerr.ErrorNotFound
+		}
 		return err
 	}
 	return nil
