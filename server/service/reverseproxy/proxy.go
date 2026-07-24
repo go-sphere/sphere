@@ -1,6 +1,7 @@
 package reverseproxy
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -32,14 +33,16 @@ type Options struct {
 
 type Option = func(*Options)
 
+func defaultCacheKey(request *http.Request) string {
+	if request.Method != http.MethodGet {
+		return ""
+	}
+	return request.URL.RequestURI()
+}
+
 func newOptions(opts ...Option) *Options {
 	conf := &Options{
-		keygen: func(request *http.Request) string {
-			if request.Method != http.MethodGet {
-				return ""
-			}
-			return request.URL.Path
-		},
+		keygen: defaultCacheKey,
 		checker: func(resp *http.Response) bool {
 			if resp.StatusCode != http.StatusOK {
 				return false
@@ -160,7 +163,7 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 				cacheFlags.Delete(key)
 				ignoreCloseError(cachePipeReader.Close)
 			}()
-			ctx := resp.Request.Context()
+			ctx := context.WithoutCancel(resp.Request.Context())
 			// Persist the real status code inside the header blob so it can be
 			// replayed on cache hit. Clone to avoid leaking the internal header
 			// to the client response.
@@ -187,9 +190,7 @@ type ServeOption = func(*ServeOptions)
 
 func newServeOptions(opts ...ServeOption) *ServeOptions {
 	conf := &ServeOptions{
-		keygen: func(request *http.Request) string {
-			return request.URL.Path
-		},
+		keygen: defaultCacheKey,
 	}
 	for _, opt := range opts {
 		opt(conf)

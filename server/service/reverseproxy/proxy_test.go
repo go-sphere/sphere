@@ -1,6 +1,7 @@
 package reverseproxy
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,10 +10,34 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-sphere/sphere/cache/memory"
 	"github.com/go-sphere/sphere/storage/local"
 )
+
+func TestDefaultCacheKey(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		target string
+		want   string
+	}{
+		{name: "GET path", method: http.MethodGet, target: "/items", want: "/items"},
+		{name: "GET query", method: http.MethodGet, target: "/items?page=2&owner=alice", want: "/items?page=2&owner=alice"},
+		{name: "HEAD bypasses cache", method: http.MethodHead, target: "/items?page=2", want: ""},
+		{name: "POST bypasses cache", method: http.MethodPost, target: "/items?page=2", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.target, nil)
+			if got := defaultCacheKey(req); got != tt.want {
+				t.Fatalf("defaultCacheKey() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
 
 // TestCreateCacheReverseProxy tests the creation of a cached reverse proxy
 func TestCreateCacheReverseProxy(t *testing.T) {
@@ -147,6 +172,77 @@ func TestServeCacheReverseProxy_NonGETNotCached(t *testing.T) {
 	exists, _ := cache.Exists(req.Context(), "/api/data")
 	if exists {
 		t.Error("POST request should not be cached")
+	}
+}
+
+func TestServeCacheReverseProxy_NonGETDoesNotReplayGETCache(t *testing.T) {
+	cache := setupTestCache(t)
+	ctx := context.Background()
+	if err := cache.Save(ctx, "/api/data?scope=all", http.Header{}, strings.NewReader("cached GET")); err != nil {
+		t.Fatalf("seed cache: %v", err)
+	}
+
+	backendCalls := 0
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backendCalls++
+		_, _ = w.Write([]byte("backend POST"))
+	}))
+	defer backend.Close()
+
+	backendURL, _ := url.Parse(backend.URL)
+	proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL))
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/data?scope=all", strings.NewReader("data"))
+	rec := httptest.NewRecorder()
+	ServeCacheReverseProxy(cache, proxy)(rec, req)
+
+	if backendCalls != 1 {
+		t.Fatalf("backend calls = %d, want 1", backendCalls)
+	}
+	if got := rec.Body.String(); got != "backend POST" {
+		t.Fatalf("response = %q, want backend response", got)
+	}
+}
+
+func TestServeCacheReverseProxy_QueryParametersAreIsolated(t *testing.T) {
+	cache := setupTestCache(t)
+	ctx := context.Background()
+	if err := cache.Save(ctx, "/search?user=alice", http.Header{}, strings.NewReader("alice cache")); err != nil {
+		t.Fatalf("seed cache: %v", err)
+	}
+
+	backendCalls := 0
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backendCalls++
+		_, _ = w.Write([]byte("backend " + r.URL.RawQuery))
+	}))
+	defer backend.Close()
+
+	backendURL, _ := url.Parse(backend.URL)
+	proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL))
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+	handler := ServeCacheReverseProxy(cache, proxy)
+
+	aliceReq := httptest.NewRequest(http.MethodGet, "/search?user=alice", nil)
+	aliceRec := httptest.NewRecorder()
+	handler(aliceRec, aliceReq)
+	if got := aliceRec.Body.String(); got != "alice cache" {
+		t.Fatalf("alice response = %q, want cached response", got)
+	}
+
+	bobReq := httptest.NewRequest(http.MethodGet, "/search?user=bob", nil)
+	bobRec := httptest.NewRecorder()
+	handler(bobRec, bobReq)
+	if got := bobRec.Body.String(); got != "backend user=bob" {
+		t.Fatalf("bob response = %q, want backend response", got)
+	}
+	if backendCalls != 1 {
+		t.Fatalf("backend calls = %d, want 1", backendCalls)
 	}
 }
 
@@ -423,4 +519,81 @@ func TestServeCacheReverseProxy_Integration(t *testing.T) {
 	t.Log("Starting test server on :9999")
 	t.Log("Test with: curl http://localhost:9999/")
 	_ = http.ListenAndServe(":9999", http.HandlerFunc(handler))
+}
+
+type saveContextCache struct {
+	started chan struct{}
+	release chan struct{}
+	result  chan error
+}
+
+func newSaveContextCache() *saveContextCache {
+	return &saveContextCache{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+		result:  make(chan error, 1),
+	}
+}
+
+func (c *saveContextCache) Exists(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+func (c *saveContextCache) Delete(context.Context, string) error {
+	return nil
+}
+
+func (c *saveContextCache) Save(ctx context.Context, _ string, _ http.Header, reader io.Reader) error {
+	if _, err := io.Copy(io.Discard, reader); err != nil {
+		c.result <- err
+		return err
+	}
+	close(c.started)
+	<-c.release
+	c.result <- ctx.Err()
+	return nil
+}
+
+func (c *saveContextCache) Load(context.Context, string) (http.Header, io.ReadCloser, error) {
+	return nil, nil, ErrCacheNotFound
+}
+
+func (c *saveContextCache) Header(context.Context, string) (http.Header, error) {
+	return nil, ErrCacheNotFound
+}
+
+func TestCreateCacheReverseProxy_SaveContextOutlivesRequest(t *testing.T) {
+	cache := newSaveContextCache()
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("response"))
+	}))
+	defer backend.Close()
+
+	backendURL, _ := url.Parse(backend.URL)
+	proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL))
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+
+	requestCtx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest(http.MethodGet, "/detached", nil).WithContext(requestCtx)
+	rec := httptest.NewRecorder()
+	proxy.ServeHTTP(rec, req)
+
+	select {
+	case <-cache.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("cache save did not start")
+	}
+	cancel()
+	close(cache.release)
+
+	select {
+	case err := <-cache.result:
+		if err != nil {
+			t.Fatalf("cache save context was canceled with request: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("cache save did not finish")
+	}
 }
