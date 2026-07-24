@@ -77,15 +77,18 @@ func WithDynamicTTL[T any](calculator func(value T) (bool, time.Duration)) Optio
 // Set stores a value in the cache with optional configuration such as TTL.
 // It applies the provided options to determine cache behavior like expiration and dynamic TTL calculation.
 func Set[T any](ctx context.Context, c ExpirableCache[T], key string, value T, options ...Option) error {
+	return setValue(ctx, c, key, value, value, options...)
+}
+
+func setValue[S, T any](ctx context.Context, c ExpirableCache[S], key string, storedValue S, ttlSource T, options ...Option) error {
 	opts := newOptions(options...)
 	if opts.ttlCalculator != nil {
-		opts.hasTTL, opts.expiration = opts.ttlCalculator(value)
+		opts.hasTTL, opts.expiration = opts.ttlCalculator(ttlSource)
 	}
 	if opts.hasTTL {
-		return c.SetWithTTL(ctx, key, value, opts.expiration)
-	} else {
-		return c.Set(ctx, key, value)
+		return c.SetWithTTL(ctx, key, storedValue, opts.expiration)
 	}
+	return c.Set(ctx, key, storedValue)
 }
 
 // SetObject stores a typed object in a byte cache by encoding it with the provided encoder.
@@ -95,7 +98,7 @@ func SetObject[T any, E codec.Encoder](ctx context.Context, c ExpirableByteCache
 	if err != nil {
 		return err
 	}
-	return Set(ctx, c, key, data, options...)
+	return setValue(ctx, c, key, data, value, options...)
 }
 
 // SetJson stores a typed object in a byte cache by encoding it as JSON.

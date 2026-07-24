@@ -136,6 +136,35 @@ func TestSetObjectAndGetObject(t *testing.T) {
 	}
 }
 
+func TestSetObjectDynamicTTLUsesOriginalValue(t *testing.T) {
+	t.Parallel()
+
+	type payload struct {
+		TTL time.Duration `json:"ttl"`
+	}
+
+	ctx := context.Background()
+	c := &spyExpirableCache[[]byte]{}
+	want := payload{TTL: 5 * time.Second}
+
+	err := cache.SetObject[payload, codec.EncoderFunc](
+		ctx,
+		c,
+		json.Marshal,
+		"dynamic",
+		want,
+		cache.WithDynamicTTL(func(value payload) (bool, time.Duration) {
+			return true, value.TTL
+		}),
+	)
+	if err != nil {
+		t.Fatalf("SetObject WithDynamicTTL: %v", err)
+	}
+	if c.setWithTTLCalls != 1 || c.lastTTL != want.TTL {
+		t.Fatalf("dynamic TTL mismatch: calls=%d ttl=%s want=%s", c.setWithTTLCalls, c.lastTTL, want.TTL)
+	}
+}
+
 func TestSetJsonAndGetJson(t *testing.T) {
 	t.Parallel()
 
