@@ -1,0 +1,4 @@
+- ./core/task.WithAutoStopTimeout: removed
+- ./core/task.WithManagerAutoStopTimeout: removed
+- ./storage/fileserver.WithCreateFileKey: changed from func(func(ctx context.Context, server *FileServer, filename string) (string, error)) Option to func(func(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error)) Option
+- ./utils/secure.CryptPassword: changed from func(string) string to func(string) (string, error)

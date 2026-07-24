@@ -1,5 +1,19 @@
 MODULE := $(shell go list -m)
 
+.PHONY: verify
+verify:
+	@test -z "$$(gofmt -l $$(find . -name '*.go' -not -path './vendor/*'))" || \
+		{ echo "Go files need formatting:"; gofmt -l $$(find . -name '*.go' -not -path './vendor/*'); exit 1; }
+	go mod tidy -diff
+	go vet ./...
+	go test ./...
+	go test -race ./...
+	./scripts/check-api-compat.sh
+
+.PHONY: api-compat
+api-compat:
+	./scripts/check-api-compat.sh
+
 .PHONY: lint
 lint:
 	go fix ./...
