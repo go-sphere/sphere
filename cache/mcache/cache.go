@@ -105,8 +105,8 @@ func (t *Map[K, S]) MultiSetWithTTL(ctx context.Context, valMap map[K]S, expirat
 }
 
 func (t *Map[K, S]) Get(ctx context.Context, key K) (S, bool, error) {
-	t.rw.RLock()
-	defer t.rw.RUnlock()
+	t.rw.Lock()
+	defer t.rw.Unlock()
 
 	if exp, ok := t.expiration[key]; ok && time.Now().After(exp) {
 		delete(t.store, key)
@@ -137,8 +137,8 @@ func (t *Map[K, S]) GetDel(ctx context.Context, key K) (S, bool, error) {
 }
 
 func (t *Map[K, S]) MultiGet(ctx context.Context, keys []K) (map[K]S, error) {
-	t.rw.RLock()
-	defer t.rw.RUnlock()
+	t.rw.Lock()
+	defer t.rw.Unlock()
 
 	result := make(map[K]S, len(keys))
 	now := time.Now()

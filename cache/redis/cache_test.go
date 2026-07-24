@@ -5,7 +5,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/go-sphere/sphere/test/redistest"
+	redisv9 "github.com/redis/go-redis/v9"
 )
 
 func newTestCache(t *testing.T) *ByteCache {
@@ -76,5 +78,34 @@ func TestEscapeGlob(t *testing.T) {
 		if got := escapeGlob(in); got != want {
 			t.Errorf("escapeGlob(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestDelAllOnlyFlushesSelectedDatabase(t *testing.T) {
+	ctx := context.Background()
+	mini := miniredis.RunT(t)
+	db0 := redisv9.NewClient(&redisv9.Options{Addr: mini.Addr(), DB: 0})
+	db1 := redisv9.NewClient(&redisv9.Options{Addr: mini.Addr(), DB: 1})
+	t.Cleanup(func() {
+		_ = db0.Close()
+		_ = db1.Close()
+	})
+
+	c := NewByteCache(db0)
+	if err := c.Set(ctx, "cache-key", []byte("cache-value")); err != nil {
+		t.Fatalf("Set DB 0: %v", err)
+	}
+	if err := db1.Set(ctx, "shared-key", "must-survive", 0).Err(); err != nil {
+		t.Fatalf("Set DB 1: %v", err)
+	}
+
+	if err := c.DelAll(ctx); err != nil {
+		t.Fatalf("DelAll: %v", err)
+	}
+	if exists, err := c.Exists(ctx, "cache-key"); err != nil || exists {
+		t.Fatalf("DB 0 key after DelAll: exists=%v err=%v", exists, err)
+	}
+	if got, err := db1.Get(ctx, "shared-key").Result(); err != nil || got != "must-survive" {
+		t.Fatalf("DB 1 key was modified: value=%q err=%v", got, err)
 	}
 }

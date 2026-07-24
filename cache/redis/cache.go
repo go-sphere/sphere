@@ -123,7 +123,7 @@ func (c *ByteCache) MultiDel(ctx context.Context, keys []string) error {
 }
 
 func (c *ByteCache) DelAll(ctx context.Context) error {
-	return c.client.FlushAll(ctx).Err()
+	return c.client.FlushDB(ctx).Err()
 }
 
 func (c *ByteCache) Exists(ctx context.Context, key string) (bool, error) {
