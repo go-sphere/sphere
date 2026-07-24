@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/go-sphere/httpx"
@@ -123,6 +124,14 @@ func WithAbortOnError(abort bool) Option {
 	}
 }
 
+func unauthorizedError(err error) error {
+	var messageErr httpx.MessageError
+	if errors.As(err, &messageErr) {
+		return httpx.UnauthorizedError(err, messageErr.GetMessage())
+	}
+	return httpx.UnauthorizedError(err)
+}
+
 // NewAuthMiddleware creates middleware for JWT authentication.
 // It parses tokens using the provided parser and sets authentication context.
 // The middleware can be configured with various options for token loading and error handling.
@@ -131,11 +140,11 @@ func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authoriz
 	return func(ctx httpx.Context) error {
 		token, err := opts.loader(ctx)
 		if err != nil && opts.abortOnError {
-			return httpx.UnauthorizedError(err)
+			return unauthorizedError(err)
 		}
 		err = parserToken(ctx, token, opts.transform, parser)
 		if err != nil && opts.abortOnError {
-			return httpx.UnauthorizedError(err)
+			return unauthorizedError(err)
 		}
 		return ctx.Next()
 	}
