@@ -17,8 +17,25 @@ type Queue[T any] interface {
 	Consume(ctx context.Context, topic string) (T, error)
 
 	// TryConsume retrieves the next available message from the specified topic queue without blocking.
-	// The returned bool indicates whether a message was found.
-	// When bool is false, error should be nil.
+	//
+	// Check the error first. A non-nil error means the attempt failed — the queue
+	// is closed, the context was cancelled, the transport broke — and the bool
+	// carries no meaning. Only when the error is nil does the bool report whether
+	// a message was taken, with false meaning the queue was empty.
+	//
+	// A polling loop must therefore be written as:
+	//
+	//	v, ok, err := q.TryConsume(ctx, topic)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	if !ok {
+	//		time.Sleep(interval)
+	//		continue
+	//	}
+	//
+	// Branching on the bool first spins forever once the queue is closed, and
+	// swallows every transport error on the way.
 	TryConsume(ctx context.Context, topic string) (T, bool, error)
 
 	// PurgeQueue removes all pending messages from the specified topic queue.
@@ -47,9 +64,15 @@ type PubSub[T any] interface {
 	// receiving messages, call UnsubscribeAll for the topic or Close the PubSub.
 	Subscribe(ctx context.Context, topic string, handler func(data T) error) error
 
-	// UnsubscribeAll removes all subscriptions for the specified topic.
+	// UnsubscribeAll removes all subscriptions for the specified topic and waits
+	// for handlers already running on it to return.
 	UnsubscribeAll(ctx context.Context, topic string) error
 
+	// Close stops all subscriptions and waits for handlers already running to
+	// return, so that once it returns no handler is still touching resources the
+	// caller is about to release. Ordered shutdown depends on this: a task group
+	// that closes the pubsub before the database or the log backend would
+	// otherwise pull them out from under a handler still executing.
 	io.Closer
 }
 

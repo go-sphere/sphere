@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -87,5 +88,50 @@ func TestBroadcastCanceledContext(t *testing.T) {
 	case data := <-received:
 		t.Fatalf("Broadcast delivered %d despite a canceled context", data)
 	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// TestPubSubIgnoresInvalidQueueSize pins that a bad size falls back to the
+// default rather than crippling delivery.
+//
+// A zero size produced an unbuffered channel, and because Broadcast sends
+// non-blockingly, delivery then depended on a subscriber happening to be parked
+// in its receive at that exact instant — an idle, perfectly healthy subscriber
+// dropped most of its messages, while drop-on-full is meant to shed load only
+// for a subscriber that has fallen behind. A negative size panicked in make,
+// far from the configuration that caused it.
+func TestPubSubIgnoresInvalidQueueSize(t *testing.T) {
+	for _, size := range []int{0, -1} {
+		t.Run(fmt.Sprintf("size=%d", size), func(t *testing.T) {
+			ps := NewPubSub[int](WithQueueSize(size))
+			t.Cleanup(func() { _ = ps.Close() })
+
+			const total = 10
+			received := make(chan int, total)
+			if err := ps.Subscribe(context.Background(), "topic", func(v int) error {
+				received <- v
+				return nil
+			}); err != nil {
+				t.Fatalf("Subscribe: %v", err)
+			}
+
+			// Let the subscriber goroutine reach its receive loop.
+			time.Sleep(50 * time.Millisecond)
+
+			for i := range total {
+				if err := ps.Broadcast(context.Background(), "topic", i); err != nil {
+					t.Fatalf("Broadcast: %v", err)
+				}
+			}
+
+			deadline := time.After(2 * time.Second)
+			for got := 0; got < total; got++ {
+				select {
+				case <-received:
+				case <-deadline:
+					t.Fatalf("an idle subscriber received only %d of %d broadcasts", got, total)
+				}
+			}
+		})
 	}
 }

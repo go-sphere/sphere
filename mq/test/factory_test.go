@@ -37,7 +37,7 @@ func queueFactories() []queueFactory {
 		},
 		{
 			name:                 "redis",
-			blockingConsumeCheck: false,
+			blockingConsumeCheck: true,
 			closeStopsQueue:      false,
 			new: func(tb testing.TB) mq.Queue[int] {
 				t, ok := tb.(*testing.T)

@@ -13,6 +13,9 @@ type Subscription[T any] struct {
 	handler func(data T) error
 	ch      chan T
 	done    chan struct{}
+	// stopped closes once the consumer goroutine has returned, so Close and
+	// UnsubscribeAll can wait for a handler that is mid-execution.
+	stopped chan struct{}
 }
 
 // PubSub implements an in-memory publish-subscribe message system with typed message support.
@@ -86,6 +89,7 @@ func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(da
 		handler: handler,
 		ch:      make(chan T, p.queueSize),
 		done:    make(chan struct{}),
+		stopped: make(chan struct{}),
 	}
 	p.topics[topic] = append(p.topics[topic], sub)
 
@@ -95,6 +99,7 @@ func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(da
 }
 
 func (p *PubSub[T]) handleSubscription(sub *Subscription[T]) {
+	defer close(sub.stopped)
 	for {
 		select {
 		case data := <-sub.ch:
@@ -120,36 +125,58 @@ func (p *PubSub[T]) dispatch(sub *Subscription[T], data T) {
 	}
 }
 
+// UnsubscribeAll stops the topic's subscriptions and waits for handlers already
+// running on them to return, so the topic is quiesced once it returns.
 func (p *PubSub[T]) UnsubscribeAll(ctx context.Context, topic string) error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if p.closed {
+		p.mu.Unlock()
 		return fmt.Errorf("pubsub is closed")
 	}
-
-	if subscribers, exists := p.topics[topic]; exists {
-		for _, sub := range subscribers {
-			close(sub.done)
-		}
-		delete(p.topics, topic)
+	subscribers := p.topics[topic]
+	delete(p.topics, topic)
+	for _, sub := range subscribers {
+		close(sub.done)
 	}
+	p.mu.Unlock()
 
+	// Waiting happens outside the lock: a handler is user code of unbounded
+	// duration, and holding p.mu across it would block every Broadcast and
+	// Subscribe for as long as it runs.
+	waitForSubscriptions(subscribers)
 	return nil
 }
 
+// Close stops every subscription and waits for handlers already running to
+// return. Returning while a handler was still executing meant an ordered
+// shutdown could close the resources it was using — the caller has no other
+// signal that delivery has genuinely stopped.
 func (p *PubSub[T]) Close() error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	if p.closed {
+		p.mu.Unlock()
 		return nil
 	}
 	p.closed = true
 
-	for _, subscribers := range p.topics {
-		for _, sub := range subscribers {
-			close(sub.done)
-		}
+	var subscribers []*Subscription[T]
+	for topic, subs := range p.topics {
+		subscribers = append(subscribers, subs...)
+		delete(p.topics, topic)
 	}
+	for _, sub := range subscribers {
+		close(sub.done)
+	}
+	p.mu.Unlock()
+
+	waitForSubscriptions(subscribers)
 	return nil
+}
+
+// waitForSubscriptions blocks until every consumer goroutine has returned,
+// which happens after the handler it may be running completes.
+func waitForSubscriptions[T any](subscribers []*Subscription[T]) {
+	for _, sub := range subscribers {
+		<-sub.stopped
+	}
 }
