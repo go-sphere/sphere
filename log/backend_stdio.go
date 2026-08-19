@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"maps"
 	"os"
@@ -51,10 +52,26 @@ func (b *StdioBackend) Log(_ context.Context, level Level, msg string, attrs ...
 	if b.stackAt != nil && level >= *b.stackAt {
 		attrs = append(attrs[:len(attrs):len(attrs)], String("stack", string(debug.Stack())))
 	}
-	line := b.buildLine(level, msg, caller, attrs)
+	line := b.buildLineSafely(level, msg, caller, attrs)
 	b.mu.Lock()
 	_, _ = io.WriteString(writerForLevel(level), line)
 	b.mu.Unlock()
+}
+
+// buildLineSafely renders the line, degrading to a diagnostic when rendering an
+// attribute panics. Attribute values are arbitrary caller data — a Stringer or
+// MarshalJSON of their own — so formatting one can panic; letting that escape
+// would mean a log statement aborts the goroutine that made it, and log
+// statements sit on error paths where that is the worst possible moment.
+func (b *StdioBackend) buildLineSafely(level Level, msg, caller string, attrs []Attr) (line string) {
+	defer func() {
+		if r := recover(); r != nil {
+			line = b.buildLine(level, msg, caller, []Attr{
+				String("attr_error", fmt.Sprint(r)),
+			})
+		}
+	}()
+	return b.buildLine(level, msg, caller, attrs)
 }
 
 func (b *StdioBackend) Sync() error {

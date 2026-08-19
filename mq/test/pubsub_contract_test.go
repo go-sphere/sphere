@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -310,5 +311,49 @@ func assertReceivePayload(t *testing.T, ch <-chan payload) payload {
 	case <-time.After(2 * time.Second):
 		t.Fatalf("timed out waiting for payload")
 		return payload{}
+	}
+}
+
+// TestPubSubCloseWaitsForRunningHandler pins that Close is a real quiesce point.
+//
+// Ordered shutdown depends on it: a task group closes the pubsub and then goes
+// on to close the database and the log backend, so a Close that returns while a
+// handler is still running pulls those out from under it. The handler has no
+// other way to signal that it is finished, and the scheduler package already
+// commits to the same rule, so the two subsystems must not disagree.
+func TestPubSubCloseWaitsForRunningHandler(t *testing.T) {
+	for _, factory := range pubSubFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			ctx := context.Background()
+			ps := factory.newInt(t)
+
+			entered := make(chan struct{})
+			var finished atomic.Bool
+			if err := ps.Subscribe(ctx, "topic", func(int) error {
+				close(entered)
+				time.Sleep(300 * time.Millisecond)
+				finished.Store(true)
+				return nil
+			}); err != nil {
+				t.Fatalf("Subscribe: %v", err)
+			}
+
+			if err := ps.Broadcast(ctx, "topic", 1); err != nil {
+				t.Fatalf("Broadcast: %v", err)
+			}
+
+			select {
+			case <-entered:
+			case <-time.After(3 * time.Second):
+				t.Fatal("handler never ran")
+			}
+
+			if err := ps.Close(); err != nil {
+				t.Fatalf("Close: %v", err)
+			}
+			if !finished.Load() {
+				t.Fatal("Close returned while a handler was still running")
+			}
+		})
 	}
 }

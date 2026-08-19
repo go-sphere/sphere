@@ -2,10 +2,13 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/dgraph-io/ristretto/v2"
+	"github.com/go-sphere/sphere/cache"
 )
 
 // TestCloseOwnership pins the ownership rule: Close releases only a ristretto
@@ -51,10 +54,70 @@ func TestCloseOwnership(t *testing.T) {
 			t.Fatalf("Close: %v", err)
 		}
 
-		if _, found, err := c.Get(ctx, "k"); err != nil || found {
-			t.Fatalf("owned ristretto cache must be closed: found=%v err=%v", found, err)
+		if _, found, err := c.Get(ctx, "k"); !errors.Is(err, cache.ErrClosed) || found {
+			t.Fatalf("owned cache must report ErrClosed after Close: found=%v err=%v", found, err)
 		}
 	})
+}
+
+// TestCloseConcurrentOperations pins that Close may race with any other method.
+// task.Group cancels its members concurrently, so an in-flight request can still
+// be writing while the cache is torn down. ristretto sets its own closed flag
+// last, after closing setBuf and the stop channel, so reaching it during that
+// window parks Set on Wait forever or panics with "send on closed channel".
+func TestCloseConcurrentOperations(t *testing.T) {
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		name string
+		op   func(c *ByteCache) error
+	}{
+		{"Set", func(c *ByteCache) error { return c.Set(ctx, "k", []byte("v")) }},
+		{"SetWithTTL", func(c *ByteCache) error { return c.SetWithTTL(ctx, "k", []byte("v"), time.Minute) }},
+		{"Del", func(c *ByteCache) error { return c.Del(ctx, "k") }},
+		{"DelAll", func(c *ByteCache) error { return c.DelAll(ctx) }},
+		{"Get", func(c *ByteCache) error { _, _, err := c.Get(ctx, "k"); return err }},
+		{"Sync", func(c *ByteCache) error { return c.Sync() }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Each cache allocates defaultNumCounters counters, so the iteration
+			// count is kept low enough to stay cheap under -race. The failure
+			// modes this guards against (deadlock on Wait, send on closed
+			// channel) reproduce within a handful of rounds.
+			for i := 0; i < 25; i++ {
+				c := NewByteCache()
+
+				var wg sync.WaitGroup
+				start := make(chan struct{})
+				wg.Go(func() {
+					<-start
+					// Either outcome is valid; neither may deadlock or panic.
+					if err := tc.op(c); err != nil && !errors.Is(err, cache.ErrClosed) {
+						t.Errorf("unexpected error: %v", err)
+					}
+				})
+				wg.Go(func() {
+					<-start
+					if err := c.Close(); err != nil {
+						t.Errorf("Close: %v", err)
+					}
+				})
+				close(start)
+				wg.Wait()
+			}
+		})
+	}
+}
+
+// TestCloseIsIdempotent pins that repeated Close calls stay safe, which the
+// staged shutdown path relies on when a Stop is retried after a timeout.
+func TestCloseIsIdempotent(t *testing.T) {
+	c := NewByteCache()
+	for i := 0; i < 3; i++ {
+		if err := c.Close(); err != nil {
+			t.Fatalf("Close #%d: %v", i+1, err)
+		}
+	}
 }
 
 // TestSetAllowAsyncWritesConcurrent guards allowAsyncWrites against being

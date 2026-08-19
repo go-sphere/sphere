@@ -5,6 +5,7 @@ package numconv
 
 import (
 	"errors"
+	"fmt"
 	"math/rand/v2"
 
 	"github.com/go-sphere/sphere/utils/encoding/baseconv"
@@ -23,14 +24,20 @@ func int64ToBytes(n int64) []byte {
 	return bytes
 }
 
+// ErrNonCanonical reports an encoded string that is not the one Int64ToBase32 or
+// Int64ToBase62 would produce for the value it decodes to.
+var ErrNonCanonical = errors.New("numconv: non-canonical encoding")
+
 func bytesToInt64(b []byte) (int64, error) {
-	if len(b) > 8 {
-		return 0, errors.New("byte slice too long, must be 8 bytes or less")
-	}
-	if len(b) < 8 {
-		padded := make([]byte, 8)
-		copy(padded[8-len(b):], b)
-		b = padded
+	// Exactly eight bytes, no padding. Int64ToBase32/62 always encode the full
+	// eight-byte representation, so anything shorter is not an encoding this
+	// package produced. Left-padding it instead made decoding many-to-one:
+	// "5" and "00000005" both yielded 5, so two distinct strings denoted the
+	// same value and slipped past any deduplication, idempotency check or cache
+	// lookup performed on the string — which is precisely what these compact
+	// identifiers are for.
+	if len(b) != 8 {
+		return 0, fmt.Errorf("%w: decoded %d bytes, want 8", ErrNonCanonical, len(b))
 	}
 	return int64(b[0])<<56 | int64(b[1])<<48 | int64(b[2])<<40 | int64(b[3])<<32 |
 		int64(b[4])<<24 | int64(b[5])<<16 | int64(b[6])<<8 | int64(b[7]), nil

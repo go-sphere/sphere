@@ -431,3 +431,65 @@ func assertEventuallyNotFound(t *testing.T, c cache.ByteCache, key string) {
 		t.Fatalf("expected key %q to expire", key)
 	}
 }
+
+// TestByteCacheValueOwnership pins that a byte cache holds copies, not the
+// caller's backing array, in both directions.
+//
+// The in-process drivers used to store and return the caller's own slice, while
+// redis and badgerdb always produce fresh ones. That split made the same
+// application code correct on one backend and silently corrupting on another:
+// reusing an encoding buffer after Set rewrote the cached entry, and appending
+// to a value returned by Get wrote into it in place whenever the slice had spare
+// capacity — which json.Marshal results routinely do.
+func TestByteCacheValueOwnership(t *testing.T) {
+	t.Parallel()
+
+	for _, factory := range statefulByteCacheFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			c := factory.new(t)
+
+			t.Run("set does not alias the caller's buffer", func(t *testing.T) {
+				buf := []byte("original")
+				if err := c.Set(ctx, "own-set", buf); err != nil {
+					t.Fatalf("Set: %v", err)
+				}
+				copy(buf, "MUTATED!")
+
+				got, found, err := c.Get(ctx, "own-set")
+				if err != nil || !found {
+					t.Fatalf("Get: found=%v err=%v", found, err)
+				}
+				if string(got) != "original" {
+					t.Fatalf("mutating the caller's buffer changed the cached value: got %q", got)
+				}
+			})
+
+			t.Run("get does not alias the stored value", func(t *testing.T) {
+				// Spare capacity is what makes an append write in place rather
+				// than allocate, so the returned slice is grown deliberately.
+				stored := make([]byte, 5, 32)
+				copy(stored, "value")
+				if err := c.Set(ctx, "own-get", stored); err != nil {
+					t.Fatalf("Set: %v", err)
+				}
+
+				first, found, err := c.Get(ctx, "own-get")
+				if err != nil || !found {
+					t.Fatalf("Get: found=%v err=%v", found, err)
+				}
+				_ = append(first, "-appended"...)
+
+				second, found, err := c.Get(ctx, "own-get")
+				if err != nil || !found {
+					t.Fatalf("Get again: found=%v err=%v", found, err)
+				}
+				if string(second) != "value" {
+					t.Fatalf("appending to a returned value changed the cached value: got %q", second)
+				}
+			})
+		})
+	}
+}

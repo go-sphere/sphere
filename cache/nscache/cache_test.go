@@ -21,6 +21,9 @@ type backendFactory struct {
 	name            string
 	new             func(tb testing.TB) cache.ByteCache
 	supportsListing bool
+	// emptyKeyspace marks a backend that implements KeyLister but never stores
+	// anything, so DelAll is supported while round-trip assertions are not.
+	emptyKeyspace bool
 }
 
 func backendFactories() []backendFactory {
@@ -81,7 +84,11 @@ func backendFactories() []backendFactory {
 				tb.Cleanup(func() { _ = c.Close() })
 				return c
 			},
+			// nocache implements KeyLister — over an always-empty keyspace — so
+			// DelAll succeeds, but it stores nothing, so it cannot take part in
+			// the tests that read back what they wrote.
 			supportsListing: false,
+			emptyKeyspace:   true,
 		},
 	}
 }
@@ -158,7 +165,7 @@ func TestNSCacheDelAllEmpty(t *testing.T) {
 
 func TestNSCacheDelAllUnsupportedBackend(t *testing.T) {
 	for _, factory := range backendFactories() {
-		if factory.supportsListing {
+		if factory.supportsListing || factory.emptyKeyspace {
 			continue
 		}
 		t.Run(factory.name, func(t *testing.T) {
@@ -393,5 +400,27 @@ func TestNSCacheKeyMapping(t *testing.T) {
 				t.Fatalf("Del must remove the prefixed key")
 			}
 		})
+	}
+}
+
+// TestNSCacheDelAllOverNoCache pins that turning caching off keeps DelAll
+// working. NSCache refuses DelAll without a KeyLister so it cannot wipe a
+// sibling namespace's keys — but that risk cannot exist over a backend holding
+// no keys at all, and nocache is documented as a drop-in switch, so a startup or
+// admin path calling DelAll used to start failing the moment caching was
+// disabled by configuration.
+func TestNSCacheDelAllOverNoCache(t *testing.T) {
+	ctx := context.Background()
+	ns := nscache.NewNSCache[[]byte]("ns", nocache.NewByteNoCache())
+
+	if err := ns.DelAll(ctx); err != nil {
+		t.Fatalf("DelAll over nocache: %v", err)
+	}
+	keys, err := ns.Keys(ctx, "")
+	if err != nil {
+		t.Fatalf("Keys over nocache: %v", err)
+	}
+	if len(keys) != 0 {
+		t.Fatalf("Keys over nocache = %v, want empty", keys)
 	}
 }

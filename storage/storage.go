@@ -103,6 +103,11 @@ type DownloadResult struct {
 	Size   int64
 }
 
+// Object keys are normalized by every driver before use, so a key stored by one
+// backend addresses the same object on another. See NormalizeKey for the rules.
+// UploadFile returns the normalized key: persist that value rather than the one
+// passed in, since they may differ.
+
 // FileDownloader provides file download and existence checking capabilities.
 type FileDownloader interface {
 	// IsFileExists checks whether a file exists in the storage backend.

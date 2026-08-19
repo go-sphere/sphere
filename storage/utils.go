@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-sphere/sphere/storage/storageerr"
 	"github.com/google/uuid"
 )
 
@@ -147,4 +148,43 @@ func normalizeUploadDir(raw string, rejectAbs bool, field string) (string, error
 		return "", fmt.Errorf("%s must not contain parent path", field)
 	}
 	return value, nil
+}
+
+// NormalizeKey returns the canonical form of an object key, or an error when the
+// key cannot address an object.
+//
+// Every driver applies this at its entry points, and UploadFile returns the
+// normalized key, so a key persisted by one backend addresses the same object on
+// another. Without a shared rule the drivers disagreed: the local driver folded
+// "a/" and "d//x" through filepath.Clean but returned the caller's original
+// string from UploadFile, so a key stored in a database resolved on local — which
+// folded it again on the way back in — and 404'd on s3 or kvcache, which keep
+// keys verbatim. An empty key was rejected by local while kvcache stored an
+// object reachable only by the empty string.
+//
+// The rules are:
+//   - a leading "/" is dropped, so "/a" and "a" are the same object
+//   - repeated separators collapse and "." segments are removed
+//   - a trailing "/" is removed
+//   - a ".." segment is rejected rather than resolved, so a key can never
+//     traverse out of its prefix
+//   - a key that normalizes to nothing is rejected
+func NormalizeKey(key string) (string, error) {
+	trimmed := strings.TrimPrefix(key, "/")
+	if trimmed == "" {
+		return "", storageerr.ErrorFileNameInvalid
+	}
+	// Checked before cleaning: path.Clean resolves ".." against the preceding
+	// segment, which would silently turn a traversal attempt into a valid key
+	// somewhere else rather than refusing it.
+	for _, segment := range strings.Split(trimmed, "/") {
+		if segment == ".." {
+			return "", storageerr.ErrorFileNameInvalid
+		}
+	}
+	cleaned := strings.TrimPrefix(path.Clean(trimmed), "/")
+	if cleaned == "" || cleaned == "." {
+		return "", storageerr.ErrorFileNameInvalid
+	}
+	return cleaned, nil
 }

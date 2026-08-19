@@ -72,7 +72,25 @@ func writeFileAtomic(destPath string, src io.Reader) error {
 		_ = os.Remove(tmpPath)
 		return err
 	}
-	return nil
+	// Syncing the file only guarantees its contents; the directory entry created
+	// by the rename lives in the parent directory and may still be in the page
+	// cache. Without this the durability promised above holds against a process
+	// crash but not against power loss, where the key could come back missing —
+	// or, on an overwrite, still holding the previous contents.
+	return syncDir(filepath.Dir(destPath))
+}
+
+// syncDir flushes a directory's own entries to disk.
+func syncDir(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	err = d.Sync()
+	if closeErr := d.Close(); closeErr != nil && err == nil {
+		err = closeErr
+	}
+	return err
 }
 
 // Client provides local filesystem storage operations.
@@ -99,7 +117,15 @@ func NewClient(conf Config) (*Client, error) {
 
 // fixFilePath resolves and validates file paths to prevent directory traversal attacks.
 // It ensures that all file operations stay within the configured root directory.
+//
+// The key is normalized first so this driver agrees with the others on which
+// keys are valid and which keys denote the same object; the filesystem checks
+// below stay as the last line of defence.
 func (c *Client) fixFilePath(key string) (string, error) {
+	key, err := storage.NormalizeKey(key)
+	if err != nil {
+		return "", err
+	}
 	rootDir, err := filepath.Abs(c.config.RootDir)
 	if err != nil {
 		return "", err
@@ -127,6 +153,14 @@ func (c *Client) fixFilePath(key string) (string, error) {
 // The write is atomic: a failure leaves any previous content at the key intact
 // and never publishes a partially written file.
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
+	// Returned below instead of the caller's original: this driver stores under
+	// the normalized form, and handing back the raw key meant a value persisted
+	// by the caller resolved here — where it was normalized again on the way in —
+	// but addressed nothing on a backend that keeps keys verbatim.
+	key, err := storage.NormalizeKey(key)
+	if err != nil {
+		return "", err
+	}
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
 		return "", err

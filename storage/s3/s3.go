@@ -72,9 +72,11 @@ func NewClient(conf Config) (*Client, error) {
 	}, nil
 }
 
-// keyPreprocess removes leading slash from storage keys to ensure S3 API compatibility.
-func (s *Client) keyPreprocess(key string) string {
-	return strings.TrimPrefix(key, "/")
+// keyPreprocess normalizes a caller-supplied key into its canonical form.
+// See storage.NormalizeKey for the rules; applying them here is what keeps a
+// key addressed on one backend addressing the same object on another.
+func (s *Client) keyPreprocess(key string) (string, error) {
+	return storage.NormalizeKey(key)
 }
 
 // GenerateUploadAuth creates a presigned PUT URL for direct client uploads to S3.
@@ -91,7 +93,10 @@ func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthR
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
-	key = s.keyPreprocess(key)
+	key, err = s.keyPreprocess(key)
+	if err != nil {
+		return storage.UploadAuthResult{}, err
+	}
 
 	preSignedURL, err := s.client.PresignedPutObject(ctx,
 		s.config.Bucket,
@@ -115,7 +120,10 @@ func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthR
 
 // UploadFile uploads data from a reader to S3-compatible storage with the specified key.
 func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
-	key = s.keyPreprocess(key)
+	key, err := s.keyPreprocess(key)
+	if err != nil {
+		return "", err
+	}
 	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, -1, minio.PutObjectOptions{})
 	if err != nil {
 		return "", err
@@ -125,7 +133,10 @@ func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 
 // UploadLocalFile uploads an existing local file to S3-compatible storage with the specified key.
 func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
-	key = s.keyPreprocess(key)
+	key, err := s.keyPreprocess(key)
+	if err != nil {
+		return "", err
+	}
 	info, err := s.client.FPutObject(ctx, s.config.Bucket, key, file, minio.PutObjectOptions{})
 	if err != nil {
 		return "", err
@@ -136,7 +147,10 @@ func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 // StatFile returns lightweight metadata for a file without downloading its body.
 // It implements storage.FileStater by reusing the S3 stat (HEAD) call.
 func (s *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, error) {
-	key = s.keyPreprocess(key)
+	key, err := s.keyPreprocess(key)
+	if err != nil {
+		return storage.FileInfo{}, err
+	}
 	info, err := s.client.StatObject(ctx, s.config.Bucket, key, minio.StatObjectOptions{})
 	if err != nil {
 		if isNoSuchKeyError(err) {
@@ -161,8 +175,10 @@ func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 	listCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	ch := s.client.ListObjects(listCtx, s.config.Bucket, minio.ListObjectsOptions{
-		Prefix:     s.keyPreprocess(prefix),
-		StartAfter: s.keyPreprocess(cursor),
+		// A prefix is not a key: an empty prefix means "list everything", so it
+		// is only stripped of a leading separator rather than normalized.
+		Prefix:     strings.TrimPrefix(prefix, "/"),
+		StartAfter: strings.TrimPrefix(cursor, "/"),
 		Recursive:  true,
 	})
 	keys := make([]string, 0, limit)
@@ -189,8 +205,11 @@ func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 
 // IsFileExists checks whether a file exists in the S3-compatible storage bucket.
 func (s *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
-	key = s.keyPreprocess(key)
-	_, err := s.client.StatObject(ctx, s.config.Bucket, key, minio.StatObjectOptions{})
+	key, err := s.keyPreprocess(key)
+	if err != nil {
+		return false, err
+	}
+	_, err = s.client.StatObject(ctx, s.config.Bucket, key, minio.StatObjectOptions{})
 	if err != nil {
 		if isNoSuchKeyError(err) {
 			return false, nil
@@ -203,7 +222,10 @@ func (s *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 // DownloadFile retrieves a file from S3-compatible storage.
 // Returns the file reader, content type, and content size.
 func (s *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
-	key = s.keyPreprocess(key)
+	key, err := s.keyPreprocess(key)
+	if err != nil {
+		return storage.DownloadResult{}, err
+	}
 	object, err := s.client.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
 	if err != nil {
 		if isNoSuchKeyError(err) {
@@ -228,8 +250,11 @@ func (s *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 
 // DeleteFile removes a file from the S3-compatible storage bucket.
 func (s *Client) DeleteFile(ctx context.Context, key string) error {
-	key = s.keyPreprocess(key)
-	err := s.client.RemoveObject(ctx, s.config.Bucket, key, minio.RemoveObjectOptions{})
+	key, err := s.keyPreprocess(key)
+	if err != nil {
+		return err
+	}
+	err = s.client.RemoveObject(ctx, s.config.Bucket, key, minio.RemoveObjectOptions{})
 	if err != nil {
 		return err
 	}
@@ -243,7 +268,10 @@ func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return err
 	}
-	sourceKey = s.keyPreprocess(sourceKey)
+	sourceKey, err = s.keyPreprocess(sourceKey)
+	if err != nil {
+		return err
+	}
 	err = s.client.RemoveObject(ctx, s.config.Bucket, sourceKey, minio.RemoveObjectOptions{})
 	if err != nil {
 		return err
@@ -259,8 +287,14 @@ func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 // and is NOT a concurrency-safe guarantee: a racing writer between the stat and
 // the copy can still be clobbered. MoveFile inherits the same caveat.
 func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourceKey = s.keyPreprocess(sourceKey)
-	destinationKey = s.keyPreprocess(destinationKey)
+	sourceKey, err := s.keyPreprocess(sourceKey)
+	if err != nil {
+		return err
+	}
+	destinationKey, err = s.keyPreprocess(destinationKey)
+	if err != nil {
+		return err
+	}
 	if !overwrite {
 		_, err := s.client.StatObject(ctx, s.config.Bucket, destinationKey, minio.StatObjectOptions{})
 		if err == nil {
@@ -270,7 +304,7 @@ func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 			return err
 		}
 	}
-	_, err := s.client.CopyObject(ctx, minio.CopyDestOptions{
+	_, err = s.client.CopyObject(ctx, minio.CopyDestOptions{
 		Bucket: s.config.Bucket,
 		Object: destinationKey,
 	}, minio.CopySrcOptions{

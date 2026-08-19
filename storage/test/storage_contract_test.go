@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/go-sphere/sphere/cache/memory"
@@ -185,4 +186,66 @@ func readStorageFile(t *testing.T, ctx context.Context, store storage.Storage, k
 		t.Fatalf("DownloadFile(%q) size = %d, want %d", key, result.Size, len(data))
 	}
 	return string(data)
+}
+
+// TestStorageKeyNormalization pins that every driver agrees on which keys are
+// valid and which keys denote the same object.
+//
+// They used to disagree in ways that only showed up after switching backends:
+// the local driver folded "a/" and "d//x" through filepath.Clean but returned
+// the caller's raw key from UploadFile, so a key persisted in a database
+// resolved on local — normalized again on the way back in — and 404'd on a
+// backend that keeps keys verbatim. An empty key was rejected by local while
+// kvcache happily stored an object reachable only by the empty string.
+func TestStorageKeyNormalization(t *testing.T) {
+	for _, factory := range storageFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			ctx := context.Background()
+			store := factory.new(t)
+
+			t.Run("upload returns the key it stored under", func(t *testing.T) {
+				for _, tc := range []struct{ given, want string }{
+					{given: "plain.txt", want: "plain.txt"},
+					{given: "/leading.txt", want: "leading.txt"},
+					{given: "dir//double.txt", want: "dir/double.txt"},
+					{given: "dir/./dot.txt", want: "dir/dot.txt"},
+				} {
+					got, err := store.UploadFile(ctx, strings.NewReader("body"), tc.given)
+					if err != nil {
+						t.Fatalf("UploadFile(%q): %v", tc.given, err)
+					}
+					if got != tc.want {
+						t.Errorf("UploadFile(%q) returned key %q, want %q", tc.given, got, tc.want)
+					}
+					// The returned key must address the object it just wrote.
+					if _, err := store.DownloadFile(ctx, got); err != nil {
+						t.Errorf("the key returned for %q does not resolve: %v", tc.given, err)
+					}
+				}
+			})
+
+			t.Run("rejects keys that address nothing", func(t *testing.T) {
+				for _, key := range []string{"", "/", ".", "..", "a/../../escape", "dir/.."} {
+					if _, err := store.UploadFile(ctx, strings.NewReader("body"), key); err == nil {
+						t.Errorf("UploadFile(%q) succeeded, want an error", key)
+					}
+				}
+			})
+
+			t.Run("equivalent spellings address one object", func(t *testing.T) {
+				if _, err := store.UploadFile(ctx, strings.NewReader("first"), "shared/obj.txt"); err != nil {
+					t.Fatalf("seed: %v", err)
+				}
+				for _, spelling := range []string{"/shared/obj.txt", "shared//obj.txt", "shared/./obj.txt"} {
+					exists, err := store.IsFileExists(ctx, spelling)
+					if err != nil {
+						t.Fatalf("IsFileExists(%q): %v", spelling, err)
+					}
+					if !exists {
+						t.Errorf("%q should address the same object as %q", spelling, "shared/obj.txt")
+					}
+				}
+			})
+		})
+	}
 }

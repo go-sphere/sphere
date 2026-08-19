@@ -73,3 +73,58 @@ func TestStdioBackendAddCaller(t *testing.T) {
 		t.Fatalf("caller field should be absent by default, got: %q", out2)
 	}
 }
+
+// panicMarshaler panics while being formatted, standing in for a value whose
+// Stringer or MarshalJSON has a bug of its own.
+type panicMarshaler struct{}
+
+func (panicMarshaler) String() string { panic("marshal boom") }
+
+// TestLogSurvivesPanickingAttr pins that a log statement cannot abort the
+// goroutine that made it. Attribute values are arbitrary caller data, and
+// logging happens on error paths — the worst possible moment to raise a second
+// failure. Backends must degrade to a diagnostic instead.
+func TestLogSurvivesPanickingAttr(t *testing.T) {
+	backend := &StdioBackend{}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("a panicking attribute escaped the backend: %v", r)
+		}
+	}()
+	backend.Log(context.Background(), LevelError, "request failed", Any("payload", panicMarshaler{}))
+}
+
+// TestLogSurvivesSelfReferentialValue pins the case that cannot be recovered at
+// all: fmt.Sprint has no cycle detection, so a self-referential container
+// recurses until the goroutine stack is exhausted, and a stack overflow is
+// fatal to the whole process. It has to be prevented before formatting starts.
+func TestLogSurvivesSelfReferentialValue(t *testing.T) {
+	cyclic := map[string]any{}
+	cyclic["self"] = cyclic
+
+	backend := &StdioBackend{}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("a cyclic attribute escaped the backend: %v", r)
+		}
+	}()
+	backend.Log(context.Background(), LevelError, "cyclic", Any("payload", cyclic))
+}
+
+// TestFormatAnyKeepsOrdinaryValues pins that the cycle guard does not degrade
+// values that are merely nested.
+func TestFormatAnyKeepsOrdinaryValues(t *testing.T) {
+	nested := map[string]any{
+		"a": []int{1, 2, 3},
+		"b": map[string]string{"k": "v"},
+	}
+	shared := map[string]string{"x": "y"}
+	// The same value twice side by side is not a cycle.
+	sideBySide := []any{shared, shared}
+
+	for _, v := range []any{42, "text", nested, sideBySide} {
+		if got := formatAny(v); strings.Contains(got, "unformattable") {
+			t.Errorf("formatAny(%v) = %q, want the value formatted", v, got)
+		}
+	}
+}

@@ -11,6 +11,12 @@ import (
 	"strings"
 )
 
+// ErrNonCanonical reports input that decodes cleanly but is not what the
+// encoder would have produced for the resulting bytes. Accepting such input
+// would make decoding many-to-one, so two different strings could stand for the
+// same value — which breaks any use of the encoded form as an identifier.
+var ErrNonCanonical = errors.New("baseconv: non-canonical encoding")
+
 // BaseEncoding provides customizable base encoding/decoding functionality.
 // It supports arbitrary alphabets and optional padding characters for flexible encoding schemes.
 type BaseEncoding struct {
@@ -217,6 +223,27 @@ func (e *BaseEncoding) decodeBitwise(data string, bitsPerChar int) ([]byte, erro
 			b := byte((buffer >> bitsInBuffer) & 0xFF)
 			result = append(result, b)
 		}
+	}
+
+	// Reject anything the encoder could not have produced, so a value has exactly
+	// one valid encoding. Both checks below used to pass silently, which let
+	// distinct strings decode to identical bytes — ruinous wherever an encoded
+	// string is used as an identifier, because two of them then denote the same
+	// entity and slip past any deduplication done on the string.
+	//
+	// A trailing partial group is padding and must be zero: with 5 bits per
+	// character the last character of a 13-character base32 string contributes
+	// one bit beyond the eighth byte, so "…2" and "…3" differed only in a bit
+	// that was discarded.
+	if bitsInBuffer > 0 && buffer&((1<<bitsInBuffer)-1) != 0 {
+		return nil, fmt.Errorf("%w: non-zero padding bits", ErrNonCanonical)
+	}
+	// And the partial group must be shorter than one character, otherwise the
+	// input carries a character that encodes nothing: 14 base32 characters hold
+	// six leftover bits, one more than a character's worth, so the fourteenth
+	// could be dropped without changing the result.
+	if bitsInBuffer >= bitsPerChar {
+		return nil, fmt.Errorf("%w: input has %d trailing bits, at most %d expected", ErrNonCanonical, bitsInBuffer, bitsPerChar-1)
 	}
 
 	return result, nil

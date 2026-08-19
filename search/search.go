@@ -14,8 +14,13 @@ type Params struct {
 // Result represents the response from a search operation with typed documents.
 // It includes the matching documents and metadata about the search.
 type Result[T any] struct {
-	Hits       []T   // The matching documents
-	Total      int64 // Total number of matching documents
+	Hits []T // The matching documents
+	// Total estimates the number of matching documents; it is not an exact count
+	// and a backend may cap it (Meilisearch clamps it to the index's
+	// pagination.maxTotalHits, 1000 by default). Treat it as a hint for a result
+	// summary, not as the basis for a page count — past the cap the backend
+	// returns no further hits, so paginating on this number runs off the end.
+	Total      int64
 	Offset     int   // The offset used in the search
 	Limit      int   // The limit used in the search
 	Processing int64 // Processing time in milliseconds

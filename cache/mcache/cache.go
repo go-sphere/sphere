@@ -3,6 +3,7 @@ package mcache
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -51,7 +52,7 @@ func (t *Map[K, S]) Set(ctx context.Context, key K, val S) error {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
-	t.store[key] = val
+	t.store[key] = cloneValue(val)
 	delete(t.expiration, key)
 	return nil
 }
@@ -63,7 +64,7 @@ func (t *Map[K, S]) SetWithTTL(ctx context.Context, key K, val S, expiration tim
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
-	t.store[key] = val
+	t.store[key] = cloneValue(val)
 	if expiration > 0 {
 		t.expiration[key] = time.Now().Add(expiration)
 	} else {
@@ -78,7 +79,7 @@ func (t *Map[K, S]) MultiSet(ctx context.Context, valMap map[K]S) error {
 	defer t.rw.Unlock()
 
 	for key, val := range valMap {
-		t.store[key] = val
+		t.store[key] = cloneValue(val)
 		delete(t.expiration, key)
 	}
 	return nil
@@ -93,7 +94,7 @@ func (t *Map[K, S]) MultiSetWithTTL(ctx context.Context, valMap map[K]S, expirat
 
 	now := time.Now()
 	for key, val := range valMap {
-		t.store[key] = val
+		t.store[key] = cloneValue(val)
 		if expiration > 0 {
 			t.expiration[key] = now.Add(expiration)
 		} else {
@@ -115,7 +116,7 @@ func (t *Map[K, S]) Get(ctx context.Context, key K) (S, bool, error) {
 		return zeroValue, false, nil
 	}
 	val, ok := t.store[key]
-	return val, ok, nil
+	return cloneValue(val), ok, nil
 }
 
 func (t *Map[K, S]) GetDel(ctx context.Context, key K) (S, bool, error) {
@@ -133,7 +134,7 @@ func (t *Map[K, S]) GetDel(ctx context.Context, key K) (S, bool, error) {
 		delete(t.store, key)
 		delete(t.expiration, key)
 	}
-	return val, ok, nil
+	return cloneValue(val), ok, nil
 }
 
 func (t *Map[K, S]) MultiGet(ctx context.Context, keys []K) (map[K]S, error) {
@@ -151,7 +152,7 @@ func (t *Map[K, S]) MultiGet(ctx context.Context, keys []K) (map[K]S, error) {
 		}
 
 		if val, ok := t.store[key]; ok {
-			result[key] = val
+			result[key] = cloneValue(val)
 		}
 	}
 
@@ -243,4 +244,28 @@ func (t *Map[K, S]) Exists(ctx context.Context, key K) (bool, error) {
 
 func (t *Map[K, S]) Close() error {
 	return nil
+}
+
+// cloneValue returns an independent copy of val when the value type is a byte
+// slice, and val itself otherwise.
+//
+// This driver keeps values in a plain map, so without a copy it would store and
+// hand back the caller's own backing array: reusing an encoding buffer after Set
+// would rewrite what is cached, and appending to a value returned by Get would
+// write into it in place whenever the slice has spare capacity — which
+// json.Marshal results routinely do. The redis and badgerdb drivers always
+// return fresh slices, so skipping the copy here made the same code correct on
+// one backend and silently corrupting on another.
+//
+// Only []byte is copied. Other value types are stored as-is, and the Core
+// documentation states that contract.
+func cloneValue[S any](val S) S {
+	raw, ok := any(val).([]byte)
+	if !ok || raw == nil {
+		return val
+	}
+	if cloned, ok := any(slices.Clone(raw)).(S); ok {
+		return cloned
+	}
+	return val
 }

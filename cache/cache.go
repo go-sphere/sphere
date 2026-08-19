@@ -18,6 +18,14 @@ var ErrNotSupported = errors.New("cache: operation not supported")
 // dropped. Use a zero expiration for entries that never expire.
 var ErrInvalidTTL = errors.New("cache: negative TTL is invalid")
 
+// ErrClosed is returned by operations invoked after Close. Close may run
+// concurrently with any other method — a task group cancels its members
+// concurrently, so an in-flight request can still be writing while the cache is
+// torn down — and drivers must report that as an error rather than deadlocking
+// or panicking. Drivers backed by an external client (redis, badgerdb) surface
+// their own closed-connection error instead.
+var ErrClosed = errors.New("cache: cache is closed")
+
 // KeyLister is an optional capability that returns every key whose name
 // starts with prefix (pass "" to list all keys). Drivers that can scan
 // their keyspace cheaply (mcache, badgerdb, redis) implement this; others
@@ -35,6 +43,16 @@ type KeyLister interface {
 }
 
 // Core provides basic methods for single key-value operations in the cache.
+//
+// Value ownership: for byte-slice caches (ByteCache and the []byte instantiation
+// of any driver), stored and returned values are independent copies. A caller
+// may reuse an encoding buffer after Set and may append to a value returned by
+// Get without disturbing what is cached.
+//
+// For every other value type the cache stores whatever it is given: a driver
+// backed by an in-process map keeps the caller's own value, so mutating a value
+// after Set — or mutating one returned by Get — mutates the cache. Cache values
+// of other types should be treated as immutable once handed over.
 type Core[S any] interface {
 	// Set stores a key-value pair in the cache without expiration.
 	Set(ctx context.Context, key string, val S) error
@@ -49,6 +67,18 @@ type Core[S any] interface {
 }
 
 // Bulk provides methods for batch operations on multiple key-value pairs.
+//
+// Batch operations are not atomic. A non-nil error means at least one entry
+// failed; entries that succeeded before it may already be visible and are not
+// rolled back, so callers must not assume the cache is unchanged after a
+// failure. Compensating for a failed write by deleting what it "would have"
+// written is therefore unsafe — the batch may be half applied.
+//
+// Some drivers do apply a batch atomically (badgerdb writes one transaction,
+// mcache holds a single lock), but that is an implementation detail: redis
+// pipelines the commands and cannot roll back the ones already sent, and the
+// ristretto-backed memory driver may drop an individual write under load with
+// no way to undo the rest.
 type Bulk[S any] interface {
 	// MultiSet stores multiple key-value pairs in the cache without expiration.
 	MultiSet(ctx context.Context, valMap map[string]S) error

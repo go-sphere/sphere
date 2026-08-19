@@ -73,6 +73,18 @@ func (n *NoCache[T]) Exists(ctx context.Context, key string) (bool, error) {
 	return false, nil
 }
 
+// Keys implements cache.KeyLister and always reports an empty keyspace.
+//
+// The capability exists so NoCache stays a drop-in switch. nscache.NSCache
+// requires a KeyLister to scope DelAll to its own namespace and returns
+// ErrNotSupported without one, so turning caching off used to make DelAll start
+// failing — on a cache holding nothing at all. The reason NSCache is cautious
+// (never wipe keys belonging to a sibling namespace) cannot apply here: there
+// are no keys to wipe.
+func (n *NoCache[T]) Keys(ctx context.Context, prefix string) ([]string, error) {
+	return nil, nil
+}
+
 func (n *NoCache[T]) Close() error {
 	return nil
 }

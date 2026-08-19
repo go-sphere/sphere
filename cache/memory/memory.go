@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,6 +25,16 @@ type Cache[T any] struct {
 	cache            *ristretto.Cache[string, T]
 	// getDel serializes GetDel so an entry is handed to at most one caller.
 	getDel sync.Mutex
+	// closeMu guards every call into ristretto against a concurrent Close.
+	// ristretto's own Close sets its internal closed flag last, after it has
+	// already closed setBuf and the stop channel, so its per-method guards do
+	// not cover the teardown window: a concurrent Set parks forever on Wait
+	// (nothing is left to release the wait sentinel) and a concurrent Del or
+	// Clear panics with "send on closed channel". Operations take the read
+	// lock, Close takes the write lock, so no call can be in flight while
+	// ristretto tears down.
+	closeMu sync.RWMutex
+	closed  bool
 	// owned reports whether this Cache created the underlying ristretto cache
 	// and is therefore responsible for closing it. Injected instances are not
 	// owned.
@@ -64,7 +75,9 @@ func NewMemoryCacheWithCost[T any](cost func(T) int64) *Cache[T] {
 // NewMemoryCacheWithRistretto creates a new cache wrapper around an existing ristretto cache instance.
 // This allows for advanced configuration and sharing of cache instances across multiple Cache wrappers.
 // The ristretto cache is injected, not owned: Close does not close it, so the
-// caller keeps ownership and must close the *ristretto.Cache itself.
+// caller keeps ownership and must close the *ristretto.Cache itself. Close still
+// marks this wrapper as closed, so further calls on the wrapper return
+// cache.ErrClosed even though the injected cache stays usable by its owner.
 func NewMemoryCacheWithRistretto[T any](cache *ristretto.Cache[string, T], calculateCost, allowAsyncWrites bool) *Cache[T] {
 	c := &Cache[T]{
 		calculateCost: calculateCost,
@@ -82,6 +95,11 @@ func NewMemoryCacheWithRistretto[T any](cache *ristretto.Cache[string, T], calcu
 // If you want to limit the number of items in the cache, you use this method to set the maximum number of items.
 // If you want to limit the size of the items in the cache, you can use NewMemoryCacheWithCost
 func (m *Cache[T]) UpdateMaxCost(maxItem int64) {
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		return
+	}
 	if maxItem > 0 {
 		m.cache.UpdateMaxCost(maxItem)
 	}
@@ -104,11 +122,16 @@ func (m *Cache[T]) SetAllowAsyncWrites(allow bool) {
 // matches the cache TTL contract; negative TTLs are rejected up front.
 
 func (m *Cache[T]) Set(ctx context.Context, key string, val T) error {
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		return cache.ErrClosed
+	}
 	var cost int64 = 1
 	if m.calculateCost {
 		cost = 0
 	}
-	m.cache.Set(key, val, cost)
+	m.cache.Set(key, cloneValue(val), cost)
 	if !m.allowAsyncWrites.Load() {
 		m.cache.Wait()
 	}
@@ -119,11 +142,16 @@ func (m *Cache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration
 	if expiration < 0 {
 		return cache.ErrInvalidTTL
 	}
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		return cache.ErrClosed
+	}
 	var cost int64 = 1
 	if m.calculateCost {
 		cost = 0
 	}
-	m.cache.SetWithTTL(key, val, cost, expiration)
+	m.cache.SetWithTTL(key, cloneValue(val), cost, expiration)
 	if !m.allowAsyncWrites.Load() {
 		m.cache.Wait()
 	}
@@ -131,12 +159,17 @@ func (m *Cache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration
 }
 
 func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		return cache.ErrClosed
+	}
 	for k, v := range valMap {
 		var cost int64 = 1
 		if m.calculateCost {
 			cost = 0
 		}
-		m.cache.Set(k, v, cost)
+		m.cache.Set(k, cloneValue(v), cost)
 	}
 	if !m.allowAsyncWrites.Load() {
 		m.cache.Wait()
@@ -148,12 +181,17 @@ func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, exp
 	if expiration < 0 {
 		return cache.ErrInvalidTTL
 	}
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		return cache.ErrClosed
+	}
 	for k, v := range valMap {
 		var cost int64 = 1
 		if m.calculateCost {
 			cost = 0
 		}
-		m.cache.SetWithTTL(k, v, cost, expiration)
+		m.cache.SetWithTTL(k, cloneValue(v), cost, expiration)
 	}
 	if !m.allowAsyncWrites.Load() {
 		m.cache.Wait()
@@ -162,8 +200,14 @@ func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, exp
 }
 
 func (m *Cache[T]) Get(ctx context.Context, key string) (T, bool, error) {
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		var zero T
+		return zero, false, cache.ErrClosed
+	}
 	val, found := m.cache.Get(key)
-	return val, found, nil
+	return cloneValue(val), found, nil
 }
 
 // GetDel holds getDel across the read and the delete so an entry is returned
@@ -171,8 +215,15 @@ func (m *Cache[T]) Get(ctx context.Context, key string) (T, bool, error) {
 // single-transaction (badgerdb, mcache) behaviour of the other drivers.
 // ristretto has no atomic get-and-delete, but its Del removes the entry from
 // the store before returning, so the pair is enough. Only GetDel takes this
-// lock; Get/Set stay lock-free.
+// lock; Get/Set stay free of it.
 func (m *Cache[T]) GetDel(ctx context.Context, key string) (T, bool, error) {
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		var zero T
+		return zero, false, cache.ErrClosed
+	}
+
 	m.getDel.Lock()
 	defer m.getDel.Unlock()
 
@@ -180,26 +231,41 @@ func (m *Cache[T]) GetDel(ctx context.Context, key string) (T, bool, error) {
 	if found {
 		m.cache.Del(key)
 	}
-	return val, found, nil
+	return cloneValue(val), found, nil
 }
 
 func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, error) {
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		return nil, cache.ErrClosed
+	}
 	result := make(map[string]T)
 	for _, key := range keys {
 		val, found := m.cache.Get(key)
 		if found {
-			result[key] = val
+			result[key] = cloneValue(val)
 		}
 	}
 	return result, nil
 }
 
 func (m *Cache[T]) Del(ctx context.Context, key string) error {
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		return cache.ErrClosed
+	}
 	m.cache.Del(key)
 	return nil
 }
 
 func (m *Cache[T]) MultiDel(ctx context.Context, keys []string) error {
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		return cache.ErrClosed
+	}
 	for _, key := range keys {
 		m.cache.Del(key)
 	}
@@ -207,19 +273,38 @@ func (m *Cache[T]) MultiDel(ctx context.Context, keys []string) error {
 }
 
 func (m *Cache[T]) DelAll(ctx context.Context) error {
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		return cache.ErrClosed
+	}
 	m.cache.Clear()
 	return nil
 }
 
 func (m *Cache[T]) Exists(ctx context.Context, key string) (bool, error) {
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		return false, cache.ErrClosed
+	}
 	_, found := m.cache.Get(key)
 	return found, nil
 }
 
 // Close releases resources owned by this Cache. When the ristretto cache was
-// injected (not owned), Close is a no-op and leaves it open for its owner to
-// close; only a cache created by this Cache is closed here.
+// injected (not owned), the underlying cache is left open for its owner to
+// close; only a cache created by this Cache is closed here. Close is idempotent
+// and safe to call concurrently with any other method: it takes the write lock,
+// so it waits for in-flight operations to finish and every later call returns
+// cache.ErrClosed instead of reaching a torn-down ristretto.
 func (m *Cache[T]) Close() error {
+	m.closeMu.Lock()
+	defer m.closeMu.Unlock()
+	if m.closed {
+		return nil
+	}
+	m.closed = true
 	if m.owned {
 		m.cache.Close()
 	}
@@ -227,6 +312,11 @@ func (m *Cache[T]) Close() error {
 }
 
 func (m *Cache[T]) Sync() error {
+	m.closeMu.RLock()
+	defer m.closeMu.RUnlock()
+	if m.closed {
+		return cache.ErrClosed
+	}
 	m.cache.Wait()
 	return nil
 }
@@ -237,4 +327,29 @@ func NewByteCache() *ByteCache {
 	return NewMemoryCacheWithCost[[]byte](func(bytes []byte) int64 {
 		return int64(len(bytes))
 	})
+}
+
+// cloneValue returns an independent copy of val when the value type is a byte
+// slice, and val itself otherwise.
+//
+// ristretto stores the value as given and documents that appending to a cached
+// slice may update the backing array behind the cache's back. Without a copy the
+// cache would therefore share the caller's array in both directions: reusing an
+// encoding buffer after Set rewrites what is cached, and appending to a value
+// returned by Get writes into it in place whenever the slice has spare capacity.
+// The redis and badgerdb drivers always return fresh slices, so skipping the
+// copy here made the same code correct on one backend and silently corrupting on
+// another.
+//
+// Only []byte is copied. Other value types are stored as-is, and the Core
+// documentation states that contract.
+func cloneValue[T any](val T) T {
+	raw, ok := any(val).([]byte)
+	if !ok || raw == nil {
+		return val
+	}
+	if cloned, ok := any(slices.Clone(raw)).(T); ok {
+		return cloned
+	}
+	return val
 }

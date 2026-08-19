@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-sphere/confstore/codec"
+	"github.com/go-sphere/sphere/log"
 )
 
 var _ Cache[any] = (*CodecCache[any])(nil)
@@ -122,9 +123,27 @@ func (m *CodecCache[T]) MultiGet(ctx context.Context, keys []string) (map[string
 			continue
 		}
 		var val T
-		err = m.codec.Unmarshal(raw, &val)
-		if err != nil {
-			return nil, err
+		if err = m.codec.Unmarshal(raw, &val); err != nil {
+			// Skip the entry instead of failing the batch. A single undecodable
+			// value — written under an older schema, or by a different type
+			// sharing the key space — used to discard every other result in the
+			// request. The underlying MultiGet already omits keys it cannot
+			// produce, and single-key Get only ever affects its own key, so
+			// omitting matches both. The stale entry is dropped so the next read
+			// misses cleanly and rebuilds it; without that, an entry stored with
+			// no TTL poisoned the same batch forever, since the loader only
+			// rebuilds on a miss and never sees one.
+			log.Warn("cache: dropping undecodable entry",
+				log.String("key", key),
+				log.Err(err),
+			)
+			if delErr := m.cache.Del(ctx, key); delErr != nil {
+				log.Warn("cache: failed to drop undecodable entry",
+					log.String("key", key),
+					log.Err(delErr),
+				)
+			}
+			continue
 		}
 		result[key] = val
 	}
