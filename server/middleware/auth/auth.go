@@ -35,17 +35,19 @@ func parserToken[T authorizer.UID, C authorizer.Claims[T]](ctx httpx.Context, to
 	}
 
 	var data authorizer.Data[T]
+	// The identity is mandatory: without it a zero UID would be stored as a valid
+	// authenticated user and pass every downstream ownership check.
 	data.UID, err = claims.GetUID()
 	if err != nil {
 		return err
 	}
-	data.Subject, err = claims.GetSubject()
-	if err != nil {
-		return err
+	// Subject and roles are optional. Implementations that cannot supply them leave
+	// the zero value, which only ever narrows what the request is allowed to do.
+	if subject, e := claims.GetSubject(); e == nil {
+		data.Subject = subject
 	}
-	data.Roles, err = claims.GetRoles()
-	if err != nil {
-		return err
+	if roles, e := claims.GetRoles(); e == nil {
+		data.Roles = roles
 	}
 	ctx.SetContext(authorizer.WithAuthData[T](ctx.Context(), data))
 	return nil

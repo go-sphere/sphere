@@ -16,6 +16,11 @@ type UID interface {
 
 // Claims represents the interface for extracting user information from authentication tokens.
 // Implementations should provide methods to extract user ID, subject, and roles.
+//
+// An error from GetUID rejects the request, because the identity cannot be defaulted.
+// GetSubject and GetRoles are optional: when they fail the field is left at its zero
+// value and the request continues, so absent data should be reported as a zero value
+// with a nil error rather than as an error.
 type Claims[T UID] interface {
 	GetUID() (T, error)
 	GetSubject() (string, error)
