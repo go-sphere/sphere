@@ -240,7 +240,13 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 			return current.Start(startCtx)
 		})
 
-		if err != nil && !errors.Is(err, context.Canceled) {
+		// A context.Canceled result is only expected when this task's run context
+		// was actually cancelled — by requestStop or by the caller's parent ctx.
+		// When runCtx is still live the task failed on its own, even if the error
+		// wraps context.Canceled (upstream HTTP/DB clients routinely do), so it
+		// must be recorded as a failure rather than silently discarded. This
+		// mirrors the same guard in Group.Start.
+		if err != nil && !(errors.Is(err, context.Canceled) && runCtx.Err() != nil) {
 			entry.setStartErr(err)
 			m.startErr.Add(err)
 		}

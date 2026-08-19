@@ -12,13 +12,37 @@ import (
 	"github.com/go-sphere/sphere/core/task/scripttask"
 )
 
+// TestGroupStopBeforeStart pins the contract that a Stop arriving before Start
+// is recorded rather than dropped: Stop is the only way to shut a group down and
+// stopReqCh does not exist until Start creates it, so an ignored early Stop
+// would leave the group running with no way to stop it.
 func TestGroupStopBeforeStart(t *testing.T) {
 	worker := scripttask.NewScriptTask("worker", nil, nil)
 	group := NewGroup(worker)
 
-	if err := group.Stop(context.Background()); !errors.Is(err, ErrGroupNotStarted) {
-		t.Fatalf("expected ErrGroupNotStarted, got %v", err)
+	if err := group.Stop(context.Background()); err != nil {
+		t.Fatalf("expected stop before start to succeed, got %v", err)
 	}
+
+	startErrCh := make(chan error, 1)
+	go func() {
+		startErrCh <- group.Start(context.Background())
+	}()
+
+	// The pending stop must tear the group down without any further Stop call.
+	if err := waitError(t, startErrCh, "group start result"); err != nil {
+		t.Fatalf("expected nil start result after pending stop, got %v", err)
+	}
+	waitSignal(t, worker.Stopped(), "worker stopped")
+
+	if !group.IsStopped() {
+		t.Fatal("expected group to be stopped after honouring the pending stop")
+	}
+}
+
+func TestGroupStopAfterStart(t *testing.T) {
+	worker := scripttask.NewScriptTask("worker", nil, nil)
+	group := NewGroup(worker)
 
 	startErrCh := make(chan error, 1)
 	go func() {

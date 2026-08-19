@@ -41,6 +41,12 @@ type Option func(*options)
 
 // WithShutdownTimeout configures the maximum duration to wait for graceful shutdown.
 // If the timeout is exceeded, the application will be forcefully terminated.
+//
+// A non-positive duration means no limit, matching task.WithCleanupTimeout and
+// task.WithManagerCleanupTimeout. Passing it straight through instead produced a
+// context that was already expired when shutdown began, so the graceful phase
+// was skipped entirely and even the after-stop hooks ran on a dead context —
+// the exact opposite of what "no timeout" reads like next to the other two.
 func WithShutdownTimeout(d time.Duration) Option {
 	return func(o *options) {
 		o.shutdownTimeout = d

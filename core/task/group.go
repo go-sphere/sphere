@@ -16,8 +16,6 @@ var (
 	ErrGroupAlreadyStarted = errors.New("task group already started")
 	// ErrGroupAlreadyStopped indicates the group has already completed its lifecycle.
 	ErrGroupAlreadyStopped = errors.New("task group already stopped")
-	// ErrGroupNotStarted indicates the group has not been started yet.
-	ErrGroupNotStarted = errors.New("task group not started")
 )
 
 type groupState uint8
@@ -43,7 +41,18 @@ type GroupOption func(*groupOptions)
 
 type groupOptions struct {
 	cleanupTimeout time.Duration
+	// cleanupTimeoutSet distinguishes "left at the default" from an explicit
+	// non-positive value, which is how a caller asks for an unbounded cleanup.
+	cleanupTimeoutSet bool
 }
+
+// defaultCleanupTimeout bounds the ctx handed to each task's Stop when the
+// caller configures nothing. Start waits on the cleanup to finish and takes no
+// context of its own, so without a bound one task whose Stop honours its context
+// but never completes would leave the group stopping — and Start blocked —
+// forever. It matches defaultManagerCleanupTimeout, which exists for the same
+// reason on the same lifecycle.
+const defaultCleanupTimeout = 30 * time.Second
 
 // WithCleanupTimeout configures the timeout applied to the ctx passed to each
 // task's Stop() during internal auto-cleanup (task failure / parent cancel /
@@ -51,12 +60,19 @@ type groupOptions struct {
 // own context for hard caller-side timeouts. A non-positive duration disables
 // the timeout and uses context.Background().
 //
+// Disabling it is a deliberate choice, not a safe default: Group.Start waits on
+// the cleanup to finish and has no context of its own, so an unbounded budget
+// lets one task that never returns from Stop keep the group in its stopping
+// state permanently. Every later Stop then just times out. That is why the
+// default is defaultCleanupTimeout, matching WithManagerCleanupTimeout.
+//
 // This replaces WithAutoStopTimeout, which was removed without an alias. The
 // behaviour is unchanged — the old name never bounded Group.Stop either — so the
 // migration is a rename and nothing more.
 func WithCleanupTimeout(timeout time.Duration) GroupOption {
 	return func(o *groupOptions) {
 		o.cleanupTimeout = timeout
+		o.cleanupTimeoutSet = true
 	}
 }
 
@@ -76,6 +92,11 @@ type Group struct {
 	stopReqCh chan shutdownReason
 	doneCh    chan struct{}
 	resultErr error
+	// stopPending records a Stop that arrived before Start completed its state
+	// transition. Start consumes it so the group tears down immediately instead
+	// of running forever: Stop is the only way in, and stopReqCh does not exist
+	// until Start creates it, so a dropped early Stop would be unrecoverable.
+	stopPending bool
 }
 
 // NewGroup creates a new task group with the provided tasks.
@@ -169,6 +190,11 @@ func (g *Group) Start(ctx context.Context) error {
 		g.stopReqCh = make(chan shutdownReason, 1)
 		g.doneCh = make(chan struct{})
 		g.resultErr = nil
+		if g.stopPending {
+			// Stop raced ahead of this transition; honour it now.
+			g.stopPending = false
+			g.stopReqCh <- shutdownManualStop
+		}
 	case groupStateRunning, groupStateStopping:
 		g.mu.Unlock()
 		return ErrGroupAlreadyStarted
@@ -296,13 +322,23 @@ func (g *Group) Start(ctx context.Context) error {
 // It blocks until shutdown completes or the provided context expires.
 // The provided context only bounds the caller's wait; task Stop calls use the
 // cleanup context configured by WithCleanupTimeout.
-// Returns ErrGroupNotStarted when called before Start.
+// Calling Stop before Start records the request and returns nil: a subsequent
+// Start tears the group down immediately rather than running unstoppably.
 func (g *Group) Stop(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	g.mu.Lock()
+	if g.state == groupStateInit {
+		// Nothing is running yet, so there is nothing to wait for. Record the
+		// request under the same lock Start uses for its transition, otherwise a
+		// Stop that loses this race would be dropped and the group could never be
+		// stopped again.
+		g.stopPending = true
+		g.mu.Unlock()
+		return nil
+	}
 	state := g.state
 	stopReqCh := g.stopReqCh
 	doneCh := g.doneCh
@@ -310,8 +346,6 @@ func (g *Group) Stop(ctx context.Context) error {
 	g.mu.Unlock()
 
 	switch state {
-	case groupStateInit:
-		return ErrGroupNotStarted
 	case groupStateRunning:
 		if stopReqCh != nil {
 			select {
@@ -390,8 +424,12 @@ func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error) {
 }
 
 func (g *Group) newCleanupContext() (context.Context, context.CancelFunc) {
-	if g.opts.cleanupTimeout <= 0 {
+	timeout := g.opts.cleanupTimeout
+	if !g.opts.cleanupTimeoutSet {
+		timeout = defaultCleanupTimeout
+	}
+	if timeout <= 0 {
 		return context.Background(), func() {}
 	}
-	return context.WithTimeout(context.Background(), g.opts.cleanupTimeout)
+	return context.WithTimeout(context.Background(), timeout)
 }

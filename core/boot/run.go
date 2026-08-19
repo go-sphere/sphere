@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/go-sphere/sphere/core/safe"
 	"github.com/go-sphere/sphere/core/task"
@@ -75,8 +76,10 @@ func run(ctx context.Context, t task.Task, options *options) error {
 	// Cancel context to signal shutdown
 	cancel()
 
-	// Graceful shutdown with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), options.shutdownTimeout)
+	// Graceful shutdown with timeout. A non-positive timeout means unbounded,
+	// consistent with task.WithCleanupTimeout; handing it to WithTimeout would
+	// produce an already-expired context and skip the graceful phase outright.
+	shutdownCtx, shutdownCancel := newShutdownContext(options.shutdownTimeout)
 	defer shutdownCancel()
 
 	if err := t.Stop(shutdownCtx); err != nil {
@@ -115,4 +118,13 @@ func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Opti
 	opts := newOptions(options...)
 	// Run application
 	return run(context.Background(), app, opts)
+}
+
+// newShutdownContext builds the context bounding graceful shutdown. A
+// non-positive timeout disables the bound rather than expiring immediately.
+func newShutdownContext(timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return context.WithCancel(context.Background())
+	}
+	return context.WithTimeout(context.Background(), timeout)
 }
