@@ -17,6 +17,36 @@ func newTestCache(t *testing.T) *ByteCache {
 	return c
 }
 
+// TestCloseOwnership pins the two ownership modes: an injected client survives
+// Close (it may be shared with an mq driver), while a client built by this
+// package is closed with the cache.
+func TestCloseOwnership(t *testing.T) {
+	t.Run("injected client stays open", func(t *testing.T) {
+		client := redistest.NewTestRedisClient(t)
+		c := NewByteCache(client)
+		if err := c.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := client.Ping(context.Background()).Err(); err != nil {
+			t.Fatalf("injected client was closed by cache.Close: %v", err)
+		}
+	})
+
+	t.Run("owned client is closed", func(t *testing.T) {
+		server := miniredis.RunT(t)
+		c := NewByteCacheWithOptions(&redisv9.Options{Addr: server.Addr()})
+		if err := c.Set(context.Background(), "key", []byte("value")); err != nil {
+			t.Fatalf("Set: %v", err)
+		}
+		if err := c.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := c.client.Ping(context.Background()).Err(); err == nil {
+			t.Fatal("owned client should be closed after cache.Close")
+		}
+	})
+}
+
 func TestKeys(t *testing.T) {
 	ctx := context.Background()
 	c := newTestCache(t)

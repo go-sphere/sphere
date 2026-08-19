@@ -123,20 +123,26 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// The state transition and the underlying startup must happen together under
+	// the mutex. If a Stop interleaved between them it would observe stateRunning
+	// and stop a cron that had not been started, then Start would bring it up with
+	// the scheduler already marked closed and nobody left to stop it.
+	s.mu.Lock()
 	if !s.state.CompareAndSwap(stateInit, stateRunning) {
-		if s.state.Load() == stateClosed {
+		state := s.state.Load()
+		s.mu.Unlock()
+		if state == stateClosed {
 			return scheduler.ErrClosed
 		}
 		return scheduler.ErrAfterStart
 	}
 
 	runCtx, cancel := context.WithCancel(ctx)
-	s.mu.Lock()
 	s.runCtx = runCtx
 	s.cancel = cancel
+	s.cron.Start()
 	s.mu.Unlock()
 
-	s.cron.Start()
 	<-runCtx.Done()
 	return runCtx.Err()
 }
@@ -156,11 +162,12 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 		return nil
 	case stateRunning:
 		// First Stop call: trigger the underlying cron shutdown exactly once and
-		// record the channel that reports when in-flight jobs have drained.
+		// record the channel that reports when in-flight jobs have drained. The
+		// run context is deliberately NOT cancelled here — cancelling first would
+		// hand every in-flight handler a dead context and turn the drain below
+		// into a formality. It is cancelled once they finish, or when the caller
+		// stops waiting.
 		s.state.Store(stateStopping)
-		if s.cancel != nil {
-			s.cancel()
-		}
 		s.stopDone = s.cron.Stop().Done()
 	case stateStopping:
 		// Shutdown already in progress; fall through to wait on the same channel.
@@ -169,14 +176,31 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	s.mu.Unlock()
 
 	if done == nil {
+		s.cancelRun()
 		return nil
 	}
 	select {
 	case <-done:
+		// Handlers have drained; release Start.
+		s.cancelRun()
 		s.state.Store(stateClosed)
 		return nil
 	case <-ctx.Done():
+		// The caller gave up waiting, so signal the stragglers to abort. A later
+		// Stop call waits on the same channel and completes the transition.
+		s.cancelRun()
 		return ctx.Err()
+	}
+}
+
+// cancelRun cancels the context handed to running handlers, which also unblocks
+// Start. It is safe to call repeatedly.
+func (s *Scheduler) cancelRun() {
+	s.mu.Lock()
+	cancel := s.cancel
+	s.mu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 }
 

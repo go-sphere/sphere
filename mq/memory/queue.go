@@ -53,34 +53,38 @@ func (q *Queue[T]) Publish(ctx context.Context, topic string, data T) error {
 	}
 }
 
+// Consume blocks until a message is available for topic, the queue is closed, or
+// ctx is done. Messages that were accepted before Close are still delivered:
+// ErrQueueClosed is only reported once the topic has been drained, so shutting
+// down never silently discards work the queue already acknowledged.
 func (q *Queue[T]) Consume(ctx context.Context, topic string) (T, error) {
-	queue, err := q.getOrCreateQueue(topic)
+	queue, closed, err := q.consumeQueue(topic)
 	var zero T
 	if err != nil {
 		return zero, err
 	}
+	if closed {
+		return drain(queue)
+	}
 
 	select {
-	case data, ok := <-queue:
-		if !ok {
-			return zero, ErrQueueClosed
-		}
+	case data := <-queue:
 		return data, nil
 	case <-q.done:
-		return zero, ErrQueueClosed
+		// Close raced with this wait. A buffered message and q.done are both
+		// ready now, and a plain select would pick between them at random, so
+		// drain explicitly to keep the delivery guarantee deterministic.
+		return drain(queue)
 	case <-ctx.Done():
 		return zero, ctx.Err()
 	}
 }
 
 func (q *Queue[T]) TryConsume(ctx context.Context, topic string) (T, bool, error) {
-	queue, exists, err := q.getQueue(topic)
+	queue, closed, err := q.consumeQueue(topic)
 	var zero T
 	if err != nil {
 		return zero, false, err
-	}
-	if !exists {
-		return zero, false, nil
 	}
 	select {
 	case <-ctx.Done():
@@ -89,13 +93,25 @@ func (q *Queue[T]) TryConsume(ctx context.Context, topic string) (T, bool, error
 	}
 
 	select {
-	case data, ok := <-queue:
-		if !ok {
-			return zero, false, ErrQueueClosed
-		}
+	case data := <-queue:
 		return data, true, nil
 	default:
+		if closed {
+			return zero, false, ErrQueueClosed
+		}
 		return zero, false, nil
+	}
+}
+
+// drain returns a message that is already buffered, or ErrQueueClosed when the
+// topic is empty.
+func drain[T any](queue chan T) (T, error) {
+	var zero T
+	select {
+	case data := <-queue:
+		return data, nil
+	default:
+		return zero, ErrQueueClosed
 	}
 }
 
@@ -175,13 +191,24 @@ func (q *Queue[T]) getOrCreateQueue(topic string) (chan T, error) {
 	return queue, nil
 }
 
-func (q *Queue[T]) getQueue(topic string) (chan T, bool, error) {
-	q.mu.RLock()
-	defer q.mu.RUnlock()
+// consumeQueue resolves the channel for topic for reading. Unlike
+// getOrCreateQueue it still resolves after Close (reporting closed=true) so a
+// consumer can drain messages accepted before the shutdown; it never creates a
+// queue for an unseen topic once closed.
+func (q *Queue[T]) consumeQueue(topic string) (chan T, bool, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 
-	if q.closed {
-		return nil, false, ErrQueueClosed
-	}
 	queue, exists := q.queues[topic]
-	return queue, exists, nil
+	if q.closed {
+		if !exists {
+			return nil, true, ErrQueueClosed
+		}
+		return queue, true, nil
+	}
+	if !exists {
+		queue = make(chan T, q.queueSize)
+		q.queues[topic] = queue
+	}
+	return queue, false, nil
 }

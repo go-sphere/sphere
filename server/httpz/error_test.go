@@ -3,7 +3,9 @@ package httpz
 import (
 	"errors"
 	"net/http"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-sphere/httpx"
 )
@@ -43,9 +45,9 @@ func TestAbortWithJsonError_NilDoesNotPanic(t *testing.T) {
 }
 
 func TestAbortWithJsonError_UnclassifiedDoesNotLeak(t *testing.T) {
-	prev := DebugMode
-	DebugMode = false
-	defer func() { DebugMode = prev }()
+	prev := DebugMode()
+	SetDebugMode(false)
+	defer SetDebugMode(prev)
 
 	ctx := &fakeContext{}
 	AbortWithJsonError(ctx, errors.New("sensitive internal detail"))
@@ -57,9 +59,9 @@ func TestAbortWithJsonError_UnclassifiedDoesNotLeak(t *testing.T) {
 }
 
 func TestAbortWithJsonError_DebugModeExposesError(t *testing.T) {
-	prev := DebugMode
-	DebugMode = true
-	defer func() { DebugMode = prev }()
+	prev := DebugMode()
+	SetDebugMode(true)
+	defer SetDebugMode(prev)
 
 	ctx := &fakeContext{}
 	AbortWithJsonError(ctx, errors.New("sensitive internal detail"))
@@ -71,9 +73,9 @@ func TestAbortWithJsonError_DebugModeExposesError(t *testing.T) {
 }
 
 func TestAbortWithJsonError_ClassifiedMessageReturned(t *testing.T) {
-	prev := DebugMode
-	DebugMode = false
-	defer func() { DebugMode = prev }()
+	prev := DebugMode()
+	SetDebugMode(false)
+	defer SetDebugMode(prev)
 
 	ctx := &fakeContext{}
 	err := httpx.BadRequestError(errors.New("raw sql detail"), "please provide a valid id")
@@ -88,5 +90,55 @@ func TestAbortWithJsonError_ClassifiedMessageReturned(t *testing.T) {
 	}
 	if resp.Error != "" {
 		t.Fatalf("expected empty Error field (raw detail must not leak), got %q", resp.Error)
+	}
+}
+
+// TestAbortWithJsonErrorConcurrentConfig exercises the globals that
+// AbortWithJsonError reads on every request against concurrent reconfiguration.
+// It asserts nothing by itself; the race detector is the oracle.
+func TestAbortWithJsonErrorConcurrentConfig(t *testing.T) {
+	prevDebug := DebugMode()
+	t.Cleanup(func() {
+		SetDebugMode(prevDebug)
+		SetDefaultErrorParser(httpx.ParseError)
+	})
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+
+	wg.Go(func() {
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			SetDebugMode(i%2 == 0)
+			SetDefaultErrorParser(httpx.ParseError)
+		}
+	})
+	for range 4 {
+		wg.Go(func() {
+			for range 500 {
+				AbortWithJsonError(&fakeContext{}, errors.New("boom"))
+			}
+		})
+	}
+
+	time.Sleep(20 * time.Millisecond)
+	close(stop)
+	wg.Wait()
+}
+
+// TestSetDefaultErrorParserIgnoresNil pins that a nil parser cannot be installed,
+// which would otherwise panic on the next request.
+func TestSetDefaultErrorParserIgnoresNil(t *testing.T) {
+	t.Cleanup(func() { SetDefaultErrorParser(httpx.ParseError) })
+
+	SetDefaultErrorParser(nil)
+	ctx := &fakeContext{}
+	AbortWithJsonError(ctx, httpx.BadRequestError(errors.New("raw"), "friendly"))
+	if ctx.status != http.StatusBadRequest {
+		t.Fatalf("expected the previous parser to remain active, got status %d", ctx.status)
 	}
 }

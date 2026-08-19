@@ -303,34 +303,56 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// The state transition and the underlying startup must happen together under
+	// the mutex. If a Stop interleaved between them it would observe stateRunning
+	// and "shut down" a server asynq still considers new — both Stop and Shutdown
+	// return immediately in that state — and then Start would bring the server up
+	// with the scheduler already marked closed and nobody left to stop it. The
+	// leaked server keeps a subscriber goroutine on the injected Redis client,
+	// which panics inside asynq once that client is closed.
+	s.mu.Lock()
 	if !s.state.CompareAndSwap(stateInit, stateRunning) {
-		if s.state.Load() == stateClosed {
+		state := s.state.Load()
+		s.mu.Unlock()
+		if state == stateClosed {
 			return scheduler.ErrClosed
 		}
 		return scheduler.ErrAfterStart
 	}
 
 	runCtx, cancel := context.WithCancel(ctx)
-	s.mu.Lock()
 	s.cancel = cancel
-	s.mu.Unlock()
 
 	if err := s.server.Start(s.mux); err != nil {
 		s.state.Store(stateClosed)
+		s.mu.Unlock()
 		cancel()
 		return err
 	}
 	if err := s.cron.Start(); err != nil {
-		s.server.Shutdown()
 		s.state.Store(stateClosed)
+		// Unlock before Shutdown: it waits for in-flight workers, and a worker
+		// blocked in dispatch (which takes s.mu) would deadlock against us.
+		s.mu.Unlock()
+		s.server.Shutdown()
 		cancel()
 		return err
 	}
+	s.mu.Unlock()
 
 	<-runCtx.Done()
 	return runCtx.Err()
 }
 
+// Stop shuts the scheduler down and waits for the asynq server to drain.
+//
+// A nil return means the drain finished. If ctx expires first Stop returns
+// ctx.Err() and the shutdown continues in the background — the scheduler is not
+// yet quiesced. Because the Redis client is injected and not owned (see
+// WithClient), callers must not close that client until a Stop returns nil or
+// Close returns: asynq's subscriber goroutine is still using it, and closing it
+// underneath asynq panics inside the library. Retrying Stop with a longer budget
+// waits on the same shutdown.
 func (s *Scheduler) Stop(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -357,7 +379,6 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 		done := make(chan struct{})
 		go func() {
 			s.server.Shutdown()
-			_ = s.closeClient()
 			close(done)
 		}()
 		s.stopDone = done
@@ -379,22 +400,20 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	}
 }
 
+// Close shuts the scheduler down, waiting for an in-flight drain to finish. The
+// Redis client is injected and not owned (see WithClient), so it is deliberately
+// left open for its owner to close; asynq refuses to close a shared connection
+// anyway.
 func (s *Scheduler) Close() error {
 	switch s.state.Load() {
 	case stateClosed:
 		return scheduler.ErrClosed
 	case stateInit:
-		if !s.state.CompareAndSwap(stateInit, stateClosed) {
-			return nil
-		}
-		return s.closeClient()
+		s.state.CompareAndSwap(stateInit, stateClosed)
+		return nil
 	default:
 		return s.Stop(context.Background())
 	}
-}
-
-func (s *Scheduler) closeClient() error {
-	return nil
 }
 
 func applyDefaults(cfg Config) Config {

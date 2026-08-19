@@ -45,15 +45,49 @@ type VerificationStorage struct {
 }
 
 func (s *VerificationStorage) cleanExpired(number string, now time.Time) {
-	if captcha, ok := s.Store[number]; ok {
-		var validCaptcha []VerificationCode
-		for _, capt := range captcha {
-			if capt.ExpiresAt.After(now) {
-				validCaptcha = append(validCaptcha, capt)
-			}
-		}
-		s.Store[number] = validCaptcha
+	captcha, ok := s.Store[number]
+	if !ok {
+		return
 	}
+	var validCaptcha []VerificationCode
+	for _, capt := range captcha {
+		if capt.ExpiresAt.After(now) {
+			validCaptcha = append(validCaptcha, capt)
+		}
+	}
+	if len(validCaptcha) == 0 {
+		// Drop the key entirely instead of leaving an empty slice behind, so the
+		// map does not retain one entry per number ever seen.
+		delete(s.Store, number)
+		// The failure counter exists to protect outstanding codes from brute
+		// forcing. With no code left there is nothing to guess, so keeping the
+		// counter would only leak memory and could lock the number out for good
+		// when the send limit prevents SaveCode from resetting it.
+		delete(s.FailedAttempts, number)
+		return
+	}
+	s.Store[number] = validCaptcha
+}
+
+// forgetIdle drops all per-number bookkeeping once the number's daily rate-limit
+// window has elapsed and it has no outstanding codes. SaveCode already resets a
+// counter whose window has passed, so removing the entry is equivalent to
+// keeping it and is what bounds the storage maps over time.
+func (s *VerificationStorage) forgetIdle(number string, now time.Time) {
+	if _, ok := s.Store[number]; ok {
+		return
+	}
+	// A failure count without a code to protect is meaningless. Verify maintains
+	// that invariant, but storage restored from JSON may not, so enforce it here.
+	delete(s.FailedAttempts, number)
+	if last, ok := s.DailyTimestamps[number]; ok && now.Sub(last) < 24*time.Hour {
+		return
+	}
+	delete(s.MinuteCounts, number)
+	delete(s.DailyCounts, number)
+	delete(s.MinuteTimestamps, number)
+	delete(s.DailyTimestamps, number)
+	delete(s.FailedAttempts, number)
 }
 
 // VerificationSystem provides thread-safe verification code management with rate limiting.
@@ -139,43 +173,74 @@ func (s *VerificationSystem) SaveCode(number string, code string, expiresIn time
 // successful verification. Failed attempts are throttled: once DefaultMaxAttempts
 // failures accumulate for a number, all of its outstanding codes are invalidated to
 // prevent brute forcing. A newly issued code (via SaveCode) resets the failure counter.
+//
+// Attempts against a number with no outstanding code are rejected without being
+// counted: there is nothing to brute force, and counting them would let any caller
+// grow the failure map with arbitrary numbers.
 func (s *VerificationSystem) Verify(number, code string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
 	s.store.cleanExpired(number, now)
 
-	if s.store.FailedAttempts[number] >= DefaultMaxAttempts {
+	caps, ok := s.store.Store[number]
+	if !ok || len(caps) == 0 {
 		return false
 	}
 
-	if caps, ok := s.store.Store[number]; ok {
-		for i, captcha := range caps {
-			if captcha.Code == code {
-				// Consume the matched code so it cannot be replayed.
-				s.store.Store[number] = append(caps[:i], caps[i+1:]...)
+	for i, captcha := range caps {
+		if captcha.Code == code {
+			// Consume the matched code so it cannot be replayed.
+			remaining := append(caps[:i], caps[i+1:]...)
+			if len(remaining) == 0 {
+				delete(s.store.Store, number)
+				delete(s.store.FailedAttempts, number)
+			} else {
+				s.store.Store[number] = remaining
 				s.store.FailedAttempts[number] = 0
-				return true
 			}
+			return true
 		}
 	}
 
 	s.store.FailedAttempts[number]++
 	if s.store.FailedAttempts[number] >= DefaultMaxAttempts {
 		// Too many failures: invalidate all outstanding codes for this number.
+		// The counter is dropped with them, keeping the invariant that a failure
+		// count only exists while there is a code to protect. Further attempts
+		// are rejected by the no-outstanding-code check above without being
+		// counted, and the next SaveCode starts a fresh budget.
 		delete(s.store.Store, number)
+		delete(s.store.FailedAttempts, number)
 	}
 	return false
 }
 
-// CleanExpired removes all expired verification codes from storage across all numbers.
-// This method should be called periodically to prevent memory leaks from accumulated expired codes.
+// CleanExpired removes all expired verification codes from storage across all numbers,
+// and drops the rate-limit and failure bookkeeping for numbers that have gone idle.
+// This method should be called periodically to prevent memory leaks from accumulated
+// expired codes; captcha.Manager does so once a minute.
 func (s *VerificationSystem) CleanExpired() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
+
+	numbers := make([]string, 0, len(s.store.Store))
 	for number := range s.store.Store {
+		numbers = append(numbers, number)
+	}
+	for _, number := range numbers {
 		s.store.cleanExpired(number, now)
+	}
+
+	// Numbers whose codes are already gone still hold counters, so sweep the
+	// rate-limit maps too rather than only the ones that had codes this round.
+	numbers = numbers[:0]
+	for number := range s.store.DailyTimestamps {
+		numbers = append(numbers, number)
+	}
+	for _, number := range numbers {
+		s.store.forgetIdle(number, now)
 	}
 }
 

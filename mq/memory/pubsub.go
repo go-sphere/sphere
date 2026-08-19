@@ -47,29 +47,26 @@ func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 	if !exists || len(subscribers) == 0 {
 		return nil
 	}
+	// Copy the slice: p.topics may be mutated by Subscribe/UnsubscribeAll once the
+	// read lock is released.
 	subscribers = append([]*Subscription[T](nil), subscribers...)
 
-	var wg sync.WaitGroup
+	// Delivery is a non-blocking send, so this loop runs inline. Fanning it out
+	// across a goroutine per subscriber would add scheduling cost per message
+	// without ever overlapping a wait.
 	for _, sub := range subscribers {
-		wg.Add(1)
-		go func(s *Subscription[T]) {
-			defer wg.Done()
-			// The default branch provides back pressure protection: when a
-			// subscriber's buffered channel is full (slow or stalled consumer)
-			// the message is dropped and logged instead of blocking the whole
-			// Broadcast, which would otherwise hang forever under a background
-			// context.
-			select {
-			case s.ch <- data:
-			case <-ctx.Done():
-			case <-s.done:
-			default:
-				log.Warn("pubsub broadcast dropped message: subscriber queue full", log.String("topic", topic))
-			}
-		}(sub)
+		// The default branch provides back pressure protection: when a
+		// subscriber's buffered channel is full (slow or stalled consumer) the
+		// message is dropped and logged instead of blocking the whole Broadcast,
+		// which would otherwise hang forever under a background context.
+		select {
+		case sub.ch <- data:
+		case <-ctx.Done():
+		case <-sub.done:
+		default:
+			log.Warn("pubsub broadcast dropped message: subscriber queue full", log.String("topic", topic))
+		}
 	}
-
-	wg.Wait()
 	return nil
 }
 

@@ -34,6 +34,10 @@ func WithManagerCleanupTimeout(timeout time.Duration) ManagerOption {
 }
 
 type managedTask struct {
+	// id uniquely identifies this run of name. Tombstones record it instead of
+	// the *managedTask so a finished task's result can be refreshed by a late
+	// writer without keeping the user's Task (and whatever it references) alive.
+	id     uint64
 	name   string
 	task   Task
 	cancel context.CancelFunc
@@ -47,8 +51,9 @@ type managedTask struct {
 	stopErr  error
 }
 
-func newManagedTask(name string, task Task, cancel context.CancelFunc) *managedTask {
+func newManagedTask(id uint64, name string, task Task, cancel context.CancelFunc) *managedTask {
 	return &managedTask{
+		id:         id,
 		name:       name,
 		task:       task,
 		cancel:     cancel,
@@ -87,20 +92,38 @@ func (t *managedTask) getStopErr() error {
 type Manager struct {
 	opts managerOptions
 
-	opsMu sync.Mutex
-	runMu sync.Mutex
-	mu    sync.RWMutex
-	tasks map[string]*managedTask
+	opsMu  sync.Mutex
+	runMu  sync.Mutex
+	mu     sync.RWMutex
+	nextID uint64
+	tasks  map[string]*managedTask
 	// tombstones retains the final result of removed tasks so that a StopTask /
 	// GetTaskResult call after a task has already exited surfaces its cached
 	// result instead of ErrTaskNotFound. Entries are cleared when the same name
-	// is re-registered via StartTask, bounding growth to the set of distinct
-	// task names seen since the last re-registration.
-	tombstones map[string]error
+	// is re-registered via StartTask.
+	//
+	// Callers that start tasks under ever-changing names (a per-job UUID, say)
+	// would otherwise grow this map without bound, so it is capped at
+	// maxTombstones entries with the oldest evicted first; tombstoneOrder tracks
+	// that insertion order. An evicted name falls back to ErrTaskNotFound.
+	tombstones     map[string]taskResult
+	tombstoneOrder []string
 
 	runWG    sync.WaitGroup
 	startErr multierr.Error
 	stopErr  multierr.Error
+}
+
+// maxTombstones bounds how many finished-task results the manager retains. It is
+// far above the number of distinct names a typical manager sees, and only matters
+// for callers generating a fresh name per task.
+const maxTombstones = 1024
+
+// taskResult is a retained result together with the id of the run that produced
+// it, so a late writer can refresh its own entry but never overwrite a newer run's.
+type taskResult struct {
+	owner uint64
+	err   error
 }
 
 // NewManager creates a new task manager with no initial tasks.
@@ -116,7 +139,7 @@ func NewManager(options ...ManagerOption) *Manager {
 	return &Manager{
 		opts:       opts,
 		tasks:      make(map[string]*managedTask),
-		tombstones: make(map[string]error),
+		tombstones: make(map[string]taskResult),
 	}
 }
 
@@ -142,7 +165,6 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 	defer m.opsMu.Unlock()
 
 	runCtx, cancel := context.WithCancel(ctx)
-	entry := newManagedTask(name, task, cancel)
 
 	m.mu.Lock()
 	if existing, ok := m.tasks[name]; ok {
@@ -155,7 +177,9 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 			delete(m.tasks, name)
 		}
 	}
-	delete(m.tombstones, name)
+	m.nextID++
+	entry := newManagedTask(m.nextID, name, task, cancel)
+	m.dropTombstone(name)
 	m.tasks[name] = entry
 	m.runWG.Add(1)
 	m.mu.Unlock()
@@ -303,7 +327,7 @@ func (m *Manager) GetTaskResult(name string) (error, bool) {
 		return errors.Join(entry.getStartErr(), entry.getStopErr()), true
 	}
 	if result, ok := m.tombstones[name]; ok {
-		return result, true
+		return result.err, true
 	}
 	return nil, false
 }
@@ -345,13 +369,52 @@ func (m *Manager) snapshotTasks() map[string]*managedTask {
 	return copyTasks
 }
 
+// removeTaskIfSame retires expected and records its result. It is called both
+// when the task's Start returns and again from StopTask once Stop has settled;
+// the second call refreshes the tombstone so a stop error that arrived after
+// Start returned is not lost. A refresh only ever touches the entry belonging to
+// the same run, so a task restarted under the same name is never clobbered.
 func (m *Manager) removeTaskIfSame(name string, expected *managedTask) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if current, ok := m.tasks[name]; ok && current == expected {
-		m.tombstones[name] = errors.Join(expected.getStartErr(), expected.getStopErr())
 		delete(m.tasks, name)
+	} else if existing, ok := m.tombstones[name]; !ok || existing.owner != expected.id {
+		return
+	}
+	m.putTombstone(name, expected)
+}
+
+// putTombstone records expected's result, evicting the oldest entry when the
+// retention cap is reached. Callers must hold m.mu.
+func (m *Manager) putTombstone(name string, expected *managedTask) {
+	result := taskResult{
+		owner: expected.id,
+		err:   errors.Join(expected.getStartErr(), expected.getStopErr()),
+	}
+	if _, ok := m.tombstones[name]; !ok {
+		for len(m.tombstones) >= maxTombstones && len(m.tombstoneOrder) > 0 {
+			oldest := m.tombstoneOrder[0]
+			m.tombstoneOrder = m.tombstoneOrder[1:]
+			delete(m.tombstones, oldest)
+		}
+		m.tombstoneOrder = append(m.tombstoneOrder, name)
+	}
+	m.tombstones[name] = result
+}
+
+// dropTombstone forgets a retained result. Callers must hold m.mu.
+func (m *Manager) dropTombstone(name string) {
+	if _, ok := m.tombstones[name]; !ok {
+		return
+	}
+	delete(m.tombstones, name)
+	for i, candidate := range m.tombstoneOrder {
+		if candidate == name {
+			m.tombstoneOrder = append(m.tombstoneOrder[:i], m.tombstoneOrder[i+1:]...)
+			break
+		}
 	}
 }
 
@@ -359,7 +422,7 @@ func (m *Manager) getTombstone(name string) (error, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	result, ok := m.tombstones[name]
-	return result, ok
+	return result.err, ok
 }
 
 func (m *Manager) requestStop(entry *managedTask) {

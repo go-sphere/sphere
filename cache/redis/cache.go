@@ -32,6 +32,13 @@ func NewByteCache(client *redis.Client) *ByteCache {
 	return &ByteCache{client: client, owned: false}
 }
 
+// NewByteCacheWithOptions creates a new Redis byte cache from connection options,
+// building the client here. The client is owned by this cache, so Close closes it.
+// Use NewByteCache instead when the client is shared with other components.
+func NewByteCacheWithOptions(opts *redis.Options) *ByteCache {
+	return &ByteCache{client: redis.NewClient(opts), owned: true}
+}
+
 func (c *ByteCache) Set(ctx context.Context, key string, val []byte) error {
 	// expiration 0 issues SET without EX/PX, which clears any existing TTL so
 	// the key never expires (per the TTL contract in the cache package).

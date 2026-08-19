@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,9 +26,9 @@ type StdioBackend struct {
 	attrs     map[string]any
 	minLevel  Level
 	addCaller bool
-	// stackAt records the level at or above which stack traces should be
-	// attached. Stack output is not yet implemented for the stdio backend, so
-	// this currently has no visible effect; it no longer filters log entries.
+	// stackAt records the level at or above which a "stack" attribute carrying
+	// the current goroutine's stack trace is attached. It is not a level filter;
+	// MinLevel is the only thing that decides whether an entry is emitted.
 	stackAt *Level
 }
 
@@ -46,6 +47,9 @@ func (b *StdioBackend) Log(_ context.Context, level Level, msg string, attrs ...
 	var caller string
 	if b.addCaller {
 		caller = callerLocation(stdioCallerSkip)
+	}
+	if b.stackAt != nil && level >= *b.stackAt {
+		attrs = append(attrs[:len(attrs):len(attrs)], String("stack", string(debug.Stack())))
 	}
 	line := b.buildLine(level, msg, caller, attrs)
 	b.mu.Lock()
@@ -93,9 +97,8 @@ func (b *StdioBackend) apply(options ...Option) *StdioBackend {
 	default:
 		break
 	}
-	// AddStackAt controls stack trace attachment, not filtering. Stack output is
-	// not yet implemented here, but record it so semantics stay aligned with the
-	// zapx backend and future stack support.
+	// AddStackAt controls stack trace attachment, not filtering, matching the
+	// zapx backend's zap.AddStacktrace semantics.
 	if o.AddStackAt != nil {
 		l := *o.AddStackAt
 		b.stackAt = &l

@@ -3,6 +3,7 @@ package httpz
 import (
 	"errors"
 	"net/http"
+	"sync/atomic"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/log"
@@ -12,19 +13,41 @@ import (
 // It returns the error code, HTTP status code, and user-friendly message from an error.
 type ErrorParser func(error) (int32, int32, string)
 
-var defaultErrorParser ErrorParser = httpx.ParseError
+// Both globals are read by AbortWithJsonError on every request and may be written
+// from application setup code, so they are swapped atomically rather than left as
+// plain variables.
+var (
+	defaultErrorParser atomic.Pointer[ErrorParser]
+	debugMode          atomic.Bool
+)
 
-// DebugMode controls whether raw error details are exposed to clients.
-// When false (the default), the ErrorResponse.Error field is left empty so that
-// unclassified error strings and panic details are not leaked to callers; the
-// user-facing Message field (produced by the error parser) is always returned.
-// Enable it only in development to include err.Error() in responses.
-var DebugMode bool
+func init() {
+	var parser ErrorParser = httpx.ParseError
+	defaultErrorParser.Store(&parser)
+}
 
 // SetDefaultErrorParser sets the global error parser function for the package.
 // This parser will be used by AbortWithJsonError when no specific parser is provided.
+// A nil parser is ignored, leaving the current one in place.
 func SetDefaultErrorParser(parser ErrorParser) {
-	defaultErrorParser = parser
+	if parser == nil {
+		return
+	}
+	defaultErrorParser.Store(&parser)
+}
+
+// SetDebugMode controls whether raw error details are exposed to clients.
+// When disabled (the default), the ErrorResponse.Error field is left empty so
+// that unclassified error strings and panic details are not leaked to callers;
+// the user-facing Message field (produced by the error parser) is always
+// returned. Enable it only in development to include err.Error() in responses.
+func SetDebugMode(enabled bool) {
+	debugMode.Store(enabled)
+}
+
+// DebugMode reports whether raw error details are exposed to clients.
+func DebugMode() bool {
+	return debugMode.Load()
 }
 
 // AbortWithJsonError terminates the request with a JSON error response.
@@ -39,7 +62,7 @@ func AbortWithJsonError(ctx httpx.Context, err error) {
 		})
 		return
 	}
-	code, status, message := defaultErrorParser(err)
+	code, status, message := (*defaultErrorParser.Load())(err)
 	if status < 100 || status > 599 {
 		status = http.StatusInternalServerError
 	}
@@ -57,7 +80,7 @@ func AbortWithJsonError(ctx httpx.Context, err error) {
 		Code:    int(code),
 		Message: message,
 	}
-	if DebugMode {
+	if debugMode.Load() {
 		resp.Error = err.Error()
 	}
 	_ = ctx.JSON(int(status), resp)
