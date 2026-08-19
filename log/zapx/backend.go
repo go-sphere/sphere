@@ -2,6 +2,7 @@ package zapx
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -25,6 +26,12 @@ type Backend struct {
 	// backend was derived through With. Only the backend that opened the writer
 	// closes it, so a derived logger can never release its parent's handle.
 	file io.Closer
+	// name accumulates the logger names applied through NewBackend and With.
+	// zap keeps the name on the *zap.Logger rather than in its Core, and the
+	// slog bridge is built from the Core alone, so without tracking it here
+	// every record routed through SlogHandler would lose its origin. Persistent
+	// attrs do not need this: With pushes them down into the Core.
+	name string
 }
 
 // coreCallerOffset compensates for:
@@ -40,15 +47,28 @@ func NewBackend(conf Config, options ...corelog.Option) *Backend {
 	if len(resolved.Attrs) > 0 {
 		logger = logger.With(MapToZapFields(resolved.Attrs)...)
 	}
-	backend := newBackendWithLogger(logger)
+	backend := newBackendWithLogger(logger, resolved.Name)
 	backend.file = file
 	return backend
 }
 
-func newBackendWithLogger(zapLogger *zap.Logger) *Backend {
+func newBackendWithLogger(zapLogger *zap.Logger, name string) *Backend {
 	return &Backend{
 		zapLogger:  zapLogger,
 		coreLogger: zapLogger.WithOptions(zap.AddCallerSkip(coreCallerOffset)),
+		name:       name,
+	}
+}
+
+// joinName mirrors zap's own naming, which joins segments with a dot.
+func joinName(base, next string) string {
+	switch {
+	case next == "":
+		return base
+	case base == "":
+		return next
+	default:
+		return base + "." + next
 	}
 }
 
@@ -62,13 +82,32 @@ func (z *Backend) logEntryLogger() *zap.Logger {
 	return zap.NewNop()
 }
 
+// Log writes one entry, degrading to a diagnostic when an attribute panics.
+//
+// The recover has to wrap the write, not just field construction: zap.Any is
+// lazy, so a value's MarshalJSON or Stringer runs when the entry is encoded.
+// Attribute values are arbitrary caller data, and without this a panic in one of
+// them propagated out of Log and aborted the goroutine that logged — on a value
+// the stdio backend merely degraded on, so swapping backends changed whether an
+// application survived its own logging. Encoding fills a buffer before writing,
+// so a panic partway through leaves nothing on the output and the replacement
+// entry is the only one emitted.
 func (z *Backend) Log(ctx context.Context, level corelog.Level, msg string, attrs ...corelog.Attr) {
 	logger := z.logEntryLogger()
+	defer func() {
+		if r := recover(); r != nil {
+			z.write(logger, level, msg, []zap.Field{zap.String("attr_error", fmt.Sprint(r))})
+		}
+	}()
+
 	fields := make([]zap.Field, 0, len(attrs))
 	for _, a := range attrs {
 		fields = append(fields, AttrToZapField(a))
 	}
+	z.write(logger, level, msg, fields)
+}
 
+func (z *Backend) write(logger *zap.Logger, level corelog.Level, msg string, fields []zap.Field) {
 	switch level {
 	case corelog.LevelDebug:
 		logger.Debug(msg, fields...)
@@ -93,7 +132,7 @@ func (z *Backend) With(options ...corelog.Option) corelog.Backend {
 	if len(resolved.Attrs) > 0 {
 		logger = logger.With(MapToZapFields(resolved.Attrs)...)
 	}
-	return newBackendWithLogger(logger)
+	return newBackendWithLogger(logger, joinName(z.name, resolved.Name))
 }
 
 func (z *Backend) Sync() error {
@@ -117,6 +156,11 @@ func (z *Backend) Close() error {
 
 func (z *Backend) SlogHandler(options ...corelog.Option) slog.Handler {
 	resolved := corelog.NewOptions(options...)
+	// Carry this backend's own name into the bridge. The handler is built from
+	// the Core, which does not hold the name, so records would otherwise arrive
+	// unattributed — including on the boot.WithLoggerBackend path, which calls
+	// SlogLogger with no options at all.
+	resolved.Name = joinName(z.name, resolved.Name)
 	var h slog.Handler = zapslog.NewHandler(z.zapLogger.Core(), zapSlogOptions(resolved)...)
 	if len(resolved.Attrs) > 0 {
 		h = h.WithAttrs(mapToSlogAttrs(resolved.Attrs))
@@ -130,6 +174,24 @@ func (z *Backend) SlogLogger(options ...corelog.Option) *slog.Logger {
 
 func (z *Backend) ZapLogger() *zap.Logger {
 	return z.zapLogger
+}
+
+// consoleSyncer drops the error from syncing the console sink.
+//
+// Sync on os.Stdout issues a real fsync, which the kernel rejects for a pipe or
+// character device with EINVAL/ENOTTY/EBADF. Under a container, systemd or CI,
+// stdout is essentially always a pipe, so the error is constant and carries no
+// information: there is nothing buffered on this side to flush. Propagating it
+// made Sync unusable as a success signal, because any configuration including a
+// console sink failed every time — masking a genuine flush failure from a file
+// sink, which errors.Join reports through the same value.
+type consoleSyncer struct {
+	zapcore.WriteSyncer
+}
+
+func (c consoleSyncer) Sync() error {
+	_ = c.WriteSyncer.Sync()
+	return nil
 }
 
 // newCore builds the zap core for conf and returns the rotating file writer it
@@ -151,7 +213,7 @@ func newCore(conf Config) (zapcore.Core, io.Closer) {
 		developmentCfg := zap.NewDevelopmentEncoderConfig()
 		developmentCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
 		consoleEncoder := zapcore.NewConsoleEncoder(developmentCfg)
-		pc := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level)
+		pc := zapcore.NewCore(consoleEncoder, consoleSyncer{zapcore.AddSync(os.Stdout)}, level)
 		nodes = append(nodes, pc)
 	}
 

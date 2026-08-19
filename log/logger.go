@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync/atomic"
 )
 
@@ -123,7 +124,29 @@ func init() {
 // To release resources on a hot swap, close the old backend yourself once no
 // goroutine can still be logging through it. Backends holding an OS handle expose
 // Close for exactly this — see MultiBackend.Close and zapx.Backend.Close.
+//
+// Calling it with no usable backend — an empty list, or only nil values — leaves
+// the current logger in place and reports the problem on stderr. Installing a
+// silent logger there would turn a configuration mistake (a builder returning
+// nil on one branch) into a process with no logs at all, which is both
+// undetectable from the call site, since this function returns nothing, and
+// worst felt exactly when something is already wrong. Pass NewNopBackend()
+// to discard logs deliberately.
 func InitWithBackends(backends ...Backend) {
+	// Counted on the input rather than checked on the result: NewMultiBackend
+	// collapses "nothing usable" to the same nopBackend an explicit
+	// NewNopBackend() produces, and refusing that would break the documented way
+	// to silence logging on purpose.
+	usable := 0
+	for _, b := range backends {
+		if b != nil {
+			usable++
+		}
+	}
+	if usable == 0 {
+		fmt.Fprintln(os.Stderr, "log: InitWithBackends called with no usable backend; keeping the current one. Pass NewNopBackend() to discard logs deliberately.")
+		return
+	}
 	std.Store(&coreLogger{backend: NewMultiBackend(backends...)})
 }
 

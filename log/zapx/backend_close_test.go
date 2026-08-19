@@ -61,3 +61,57 @@ func TestBackendWithoutFileCloseIsNoop(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 }
+
+// TestSyncSucceedsWithConsoleSink pins that Sync is usable as a success signal.
+// Syncing os.Stdout issues an fsync the kernel rejects for a pipe or character
+// device, which under a container or CI is what stdout always is — so a console
+// sink used to make Sync fail every single time and mask a real file-sink flush
+// failure reported through the same joined error.
+func TestSyncSucceedsWithConsoleSink(t *testing.T) {
+	backend := NewBackend(NewDefaultConfig())
+	t.Cleanup(func() { _ = backend.Close() })
+
+	if err := backend.Sync(); err != nil {
+		t.Fatalf("Sync() with a console sink = %v, want nil", err)
+	}
+}
+
+// TestSyncReportsFileSinkFailures pins the other half: silencing the console
+// sink must not silence a genuine failure from a file sink.
+func TestSyncSucceedsWithFileSink(t *testing.T) {
+	conf := NewDefaultConfig()
+	conf.File.FileName = t.TempDir() + "/app.log"
+
+	backend := NewBackend(conf)
+	t.Cleanup(func() { _ = backend.Close() })
+
+	backend.Log(t.Context(), 0, "entry")
+	if err := backend.Sync(); err != nil {
+		t.Fatalf("Sync() with a writable file sink = %v, want nil", err)
+	}
+}
+
+// panicMarshaler panics while being encoded, standing in for a value whose
+// MarshalJSON or Stringer has a bug of its own.
+type panicMarshaler struct{}
+
+func (panicMarshaler) MarshalJSON() ([]byte, error) { panic("marshal boom") }
+
+// TestLogSurvivesPanickingAttr pins that a log statement cannot abort the
+// goroutine that made it.
+//
+// The same value used to crash here while the stdio backend degraded and
+// carried on, so swapping backends changed whether an application survived its
+// own logging — and logging sits on error paths, the worst moment to raise a
+// second failure.
+func TestLogSurvivesPanickingAttr(t *testing.T) {
+	backend := NewBackend(NewDefaultConfig())
+	t.Cleanup(func() { _ = backend.Close() })
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("a panicking attribute escaped the backend: %v", r)
+		}
+	}()
+	backend.Log(t.Context(), log.LevelError, "request failed", log.Any("payload", panicMarshaler{}))
+}

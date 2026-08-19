@@ -91,3 +91,15 @@ func (b *contextMergeBackend) With(options ...Option) Backend {
 		extractor: b.extractor,
 	}
 }
+
+// Close forwards to the wrapped backend when it owns a handle, mirroring
+// MultiBackend.Close. Without this the documented release pattern
+// — type-asserting the installed backend to io.Closer — silently skips a
+// wrapped backend, and the file handle it holds is never released. Wrapping is
+// the recommended way to inject context fields, so this is the common shape.
+func (b *contextMergeBackend) Close() error {
+	if closer, ok := b.next.(interface{ Close() error }); ok {
+		return closer.Close()
+	}
+	return nil
+}

@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 )
 
@@ -56,4 +57,85 @@ func TestInitWithBackendsDoesNotCloseOldBackend(t *testing.T) {
 	}
 	// Still usable by whoever kept the reference.
 	old.Log(context.Background(), LevelInfo, "still alive")
+}
+
+// TestInitWithBackendsKeepsCurrentOnEmpty pins that a configuration mistake
+// cannot silence the process. InitWithBackends returns nothing, so a caller
+// whose backend builder returned nil on one branch had no way to notice that
+// every later log line was being discarded — and that branch is exactly the one
+// taken when the configuration is already wrong.
+func TestInitWithBackendsKeepsCurrentOnEmpty(t *testing.T) {
+	restore := &captureBackend{}
+	InitWithBackends(restore)
+
+	for _, tc := range []struct {
+		name     string
+		backends []Backend
+	}{
+		{name: "no arguments"},
+		{name: "single nil", backends: []Backend{nil}},
+		{name: "all nil", backends: []Backend{nil, nil}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			InitWithBackends(tc.backends...)
+
+			before := len(restore.entries)
+			Error("still logging")
+			if len(restore.entries) != before+1 {
+				t.Fatal("the installed backend was replaced by a silent one")
+			}
+		})
+	}
+}
+
+// TestInitWithBackendsAcceptsExplicitNop pins the escape hatch: discarding logs
+// on purpose must still work, and must not be mistaken for the empty case.
+func TestInitWithBackendsAcceptsExplicitNop(t *testing.T) {
+	seen := &captureBackend{}
+	InitWithBackends(seen)
+	InitWithBackends(NewNopBackend())
+
+	before := len(seen.entries)
+	Error("discarded")
+	if len(seen.entries) != before {
+		t.Fatal("NewNopBackend() must replace the current backend")
+	}
+}
+
+// TestContextMergeBackendForwardsClose pins that the recommended wrapper does
+// not swallow Close. The documented release pattern type-asserts the installed
+// backend to io.Closer; a wrapper that does not implement it silently skips the
+// release and leaks the file handle underneath.
+func TestContextMergeBackendForwardsClose(t *testing.T) {
+	inner := &captureBackend{}
+	wrapped := WrapBackendWithContextMerge(inner, func(context.Context) []Attr { return nil })
+
+	closer, ok := wrapped.(io.Closer)
+	if !ok {
+		t.Fatal("context merge backend must implement io.Closer so wrapped handles can be released")
+	}
+	if err := closer.Close(); err != nil {
+		t.Fatalf("Close() = %v", err)
+	}
+	if !inner.closed {
+		t.Fatal("Close() must reach the wrapped backend")
+	}
+}
+
+type captureBackend struct {
+	entries []string
+	closed  bool
+}
+
+func (c *captureBackend) Log(_ context.Context, _ Level, msg string, _ ...Attr) {
+	c.entries = append(c.entries, msg)
+}
+
+func (c *captureBackend) Sync() error { return nil }
+
+func (c *captureBackend) With(...Option) Backend { return c }
+
+func (c *captureBackend) Close() error {
+	c.closed = true
+	return nil
 }
