@@ -2,6 +2,7 @@ package zapx
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"os"
 
@@ -20,6 +21,10 @@ type Backend struct {
 	// coreLogger is used by Backend.Log and pre-applies caller skip so core log APIs
 	// report the user's call site instead of wrapper frames.
 	coreLogger *zap.Logger
+	// file is the rotating log writer opened by NewBackend, or nil when this
+	// backend was derived through With. Only the backend that opened the writer
+	// closes it, so a derived logger can never release its parent's handle.
+	file io.Closer
 }
 
 // coreCallerOffset compensates for:
@@ -30,12 +35,14 @@ const coreCallerOffset = 2
 // NewBackend creates a zap-based backend.
 func NewBackend(conf Config, options ...corelog.Option) *Backend {
 	resolved := corelog.NewOptions(options...)
-	core := newCore(conf)
+	core, file := newCore(conf)
 	logger := zap.New(core).Named(resolved.Name).WithOptions(zapOptions(resolved)...)
 	if len(resolved.Attrs) > 0 {
 		logger = logger.With(MapToZapFields(resolved.Attrs)...)
 	}
-	return newBackendWithLogger(logger)
+	backend := newBackendWithLogger(logger)
+	backend.file = file
+	return backend
 }
 
 func newBackendWithLogger(zapLogger *zap.Logger) *Backend {
@@ -93,6 +100,21 @@ func (z *Backend) Sync() error {
 	return z.zapLogger.Sync()
 }
 
+// Close releases the rotating log file opened by NewBackend. It is a no-op for
+// backends derived through With, which share the writer but do not own it, and
+// for backends configured without Config.File.FileName.
+//
+// Close does not flush: call Sync first if buffered entries must reach disk.
+// Logging through a closed backend is not an error — lumberjack reopens the file
+// on the next write — so Close is about releasing the handle, not sealing the
+// backend.
+func (z *Backend) Close() error {
+	if z.file == nil {
+		return nil
+	}
+	return z.file.Close()
+}
+
 func (z *Backend) SlogHandler(options ...corelog.Option) slog.Handler {
 	resolved := corelog.NewOptions(options...)
 	var h slog.Handler = zapslog.NewHandler(z.zapLogger.Core(), zapSlogOptions(resolved)...)
@@ -110,7 +132,9 @@ func (z *Backend) ZapLogger() *zap.Logger {
 	return z.zapLogger
 }
 
-func newCore(conf Config) zapcore.Core {
+// newCore builds the zap core for conf and returns the rotating file writer it
+// opened, or nil when conf declares no file sink. The caller owns the writer.
+func newCore(conf Config) (zapcore.Core, io.Closer) {
 	if conf.Level == "" {
 		conf.Level = defaultLevel
 	}
@@ -121,6 +145,7 @@ func newCore(conf Config) zapcore.Core {
 	level := zap.NewAtomicLevelAt(levelRaw)
 
 	var nodes []zapcore.Core
+	var file io.Closer
 
 	if !conf.Console.Disable {
 		developmentCfg := zap.NewDevelopmentEncoderConfig()
@@ -135,18 +160,19 @@ func newCore(conf Config) zapcore.Core {
 		productionCfg.TimeKey = "timestamp"
 		productionCfg.EncodeTime = zapcore.ISO8601TimeEncoder
 		fileEncoder := zapcore.NewJSONEncoder(productionCfg)
-		file := zapcore.AddSync(&lumberjack.Logger{
+		rotator := &lumberjack.Logger{
 			Filename:   conf.File.FileName,
 			MaxSize:    conf.File.MaxSize,
 			MaxBackups: conf.File.MaxBackups,
 			MaxAge:     conf.File.MaxAge,
-		})
-		pc := zapcore.NewCore(fileEncoder, file, level)
+		}
+		file = rotator
+		pc := zapcore.NewCore(fileEncoder, zapcore.AddSync(rotator), level)
 		nodes = append(nodes, pc)
 	}
 
 	if len(nodes) == 0 {
-		return zapcore.NewNopCore()
+		return zapcore.NewNopCore(), file
 	}
-	return zapcore.NewTee(nodes...)
+	return zapcore.NewTee(nodes...), file
 }

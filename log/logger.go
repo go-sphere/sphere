@@ -113,17 +113,18 @@ func init() {
 }
 
 // InitWithBackends initializes global logger with custom backend(s).
-// The previously installed backend is closed if it implements the optional
-// `Close() error` method, so resources held by the old backend (for example a
-// lumberjack file handle) are released on hot-swap. Backends that do not
-// implement Close are left untouched, preserving backward compatibility.
+//
+// Backends are owned by the caller, not by this package: swapping does not close
+// the previously installed backend, because InitWithBackends never created it and
+// cannot know whether the caller still holds a reference. It also cannot know
+// whether another goroutine is mid-Log through the old backend, which a close
+// here would race with.
+//
+// To release resources on a hot swap, close the old backend yourself once no
+// goroutine can still be logging through it. Backends holding an OS handle expose
+// Close for exactly this — see MultiBackend.Close and zapx.Backend.Close.
 func InitWithBackends(backends ...Backend) {
-	next := &coreLogger{backend: NewMultiBackend(backends...)}
-	if old := std.Swap(next); old != nil {
-		if closer, ok := old.backend.(interface{ Close() error }); ok {
-			_ = closer.Close()
-		}
-	}
+	std.Store(&coreLogger{backend: NewMultiBackend(backends...)})
 }
 
 func logger() *coreLogger {

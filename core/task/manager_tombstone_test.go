@@ -48,12 +48,49 @@ func TestTombstoneCapturesLateStopError(t *testing.T) {
 
 	// The task is gone from the live map; the retained result must still carry
 	// the stop error for a later query.
-	result, ok := m.GetTaskResult("late")
+	ok, result := m.GetTaskResult("late")
 	if !ok {
 		t.Fatal("GetTaskResult should resolve a finished task from its tombstone")
 	}
 	if !errors.Is(result, wantErr) {
 		t.Errorf("tombstone result = %v, want it to wrap %v", result, wantErr)
+	}
+}
+
+// TestTombstoneCapturesStopErrorAfterCallerTimeout covers the gap the StopTask
+// refresh cannot reach: when the caller's ctx expires first, StopTask returns
+// ctx.Err() and never refreshes the retained result. The entry is unreachable by
+// then, so unless the stop goroutine folds its own error in, that failure is lost
+// for good and GetTaskResult under-reports forever.
+func TestTombstoneCapturesStopErrorAfterCallerTimeout(t *testing.T) {
+	m := NewManager()
+	wantErr := errors.New("stop failed after the caller gave up")
+	task := &stopErrTask{identifier: "abandoned", stopDelay: 200 * time.Millisecond, stopErr: wantErr}
+
+	if err := m.StartTask(context.Background(), "abandoned", task); err != nil {
+		t.Fatalf("StartTask: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := m.StopTask(ctx, "abandoned"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("StopTask error = %v, want DeadlineExceeded", err)
+	}
+
+	// Stop is still running in the background with nobody waiting on it.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		ok, result := m.GetTaskResult("abandoned")
+		if !ok {
+			t.Fatal("the finished task should still be resolvable")
+		}
+		if errors.Is(result, wantErr) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("stop error never reached the tombstone, last result = %v", result)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -87,7 +124,7 @@ func TestTombstonesAreBounded(t *testing.T) {
 		t.Errorf("tombstoneOrder (%d) drifted from tombstones (%d)", order, size)
 	}
 	// The most recent task must still be resolvable.
-	if _, ok := m.GetTaskResult(fmt.Sprintf("job-%d", maxTombstones+99)); !ok {
+	if ok, _ := m.GetTaskResult(fmt.Sprintf("job-%d", maxTombstones+99)); !ok {
 		t.Error("the newest finished task should still be retained")
 	}
 }
@@ -109,7 +146,7 @@ func TestRestartUnderSameNameClearsTombstone(t *testing.T) {
 	if err := m.StartTask(ctx, "recycled", &stopErrTask{identifier: "recycled"}); err != nil {
 		t.Fatalf("restart: %v", err)
 	}
-	result, ok := m.GetTaskResult("recycled")
+	ok, result := m.GetTaskResult("recycled")
 	if !ok {
 		t.Fatal("restarted task should be resolvable")
 	}

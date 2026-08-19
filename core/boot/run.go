@@ -100,6 +100,12 @@ func run(ctx context.Context, t task.Task, options *options) error {
 // It handles the complete application lifecycle including startup, signal handling, and graceful shutdown.
 // The builder function receives the configuration and should return a properly initialized Application.
 // Returns an error if the application fails to build, start, or encounters issues during execution.
+//
+// A clean signal-triggered shutdown returns nil. It returns non-nil when a hook,
+// a task's Stop, or a task's Start reports a failure — including failures that
+// occur while the application is already shutting down, which earlier releases
+// dropped. Programs that exit non-zero on a non-nil result should be prepared for
+// shutdown-time task errors to become visible as failed exits.
 func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Option) error {
 	// Create application
 	app, err := builder(conf)

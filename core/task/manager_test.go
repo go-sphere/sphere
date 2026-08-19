@@ -330,7 +330,7 @@ func TestManagerStopTaskReturnsTombstoneResult(t *testing.T) {
 	}
 
 	// GetTaskResult must expose the same cached result.
-	result, ok := manager.GetTaskResult("failing")
+	ok, result := manager.GetTaskResult("failing")
 	if !ok {
 		t.Fatal("expected tombstone result to be reported")
 	}
@@ -345,7 +345,7 @@ func TestManagerStopTaskReturnsTombstoneResult(t *testing.T) {
 func TestManagerTombstoneClearedOnRestart(t *testing.T) {
 	manager := NewManager()
 
-	if _, ok := manager.GetTaskResult("svc"); ok {
+	if ok, _ := manager.GetTaskResult("svc"); ok {
 		t.Fatal("expected unknown name to be absent")
 	}
 
@@ -359,7 +359,7 @@ func TestManagerTombstoneClearedOnRestart(t *testing.T) {
 	if err := manager.Wait(); !errors.Is(err, expectedErr) {
 		t.Fatalf("expected wait to include %v, got %v", expectedErr, err)
 	}
-	if result, ok := manager.GetTaskResult("svc"); !ok || !errors.Is(result, expectedErr) {
+	if ok, result := manager.GetTaskResult("svc"); !ok || !errors.Is(result, expectedErr) {
 		t.Fatalf("expected tombstone result, got result=%v ok=%v", result, ok)
 	}
 
@@ -370,7 +370,7 @@ func TestManagerTombstoneClearedOnRestart(t *testing.T) {
 	}
 	waitSignalManager(t, worker.Started(), "worker started")
 
-	result, ok := manager.GetTaskResult("svc")
+	ok, result := manager.GetTaskResult("svc")
 	if !ok {
 		t.Fatal("expected running task to be reported")
 	}
@@ -389,5 +389,51 @@ func waitSignalManager(t *testing.T, ch <-chan struct{}, desc string) {
 	case <-ch:
 	case <-time.After(2 * time.Second):
 		t.Fatalf("timeout waiting for %s", desc)
+	}
+}
+
+// ctxCaptureTask hands its start context to the test and then returns on its
+// own, so nobody ever calls Stop on it.
+type ctxCaptureTask struct {
+	identifier string
+	ctxCh      chan context.Context
+}
+
+func (t *ctxCaptureTask) Identifier() string { return t.identifier }
+
+func (t *ctxCaptureTask) Start(ctx context.Context) error {
+	t.ctxCh <- ctx
+	return nil
+}
+
+func (t *ctxCaptureTask) Stop(context.Context) error { return nil }
+
+// TestSelfExitedTaskReleasesRunContext pins that a task exiting on its own gets
+// its run context cancelled. That context is a child of the caller's ctx, and
+// requestStop — the only other place the cancel func is invoked — is never
+// reached on this path, so leaving it uncancelled pins the child to a long-lived
+// parent for the rest of the process.
+func TestSelfExitedTaskReleasesRunContext(t *testing.T) {
+	manager := NewManager()
+	parent, cancelParent := context.WithCancel(context.Background())
+	defer cancelParent()
+
+	task := &ctxCaptureTask{identifier: "selfexit", ctxCh: make(chan context.Context, 1)}
+	if err := manager.StartTask(parent, "selfexit", task); err != nil {
+		t.Fatalf("StartTask: %v", err)
+	}
+
+	// Wait blocks until the run goroutine has fully unwound, deferred cancel
+	// included.
+	if err := manager.Wait(); err != nil {
+		t.Fatalf("Wait: %v", err)
+	}
+
+	runCtx := <-task.ctxCh
+	if runCtx.Err() == nil {
+		t.Error("run context was never cancelled; it stays registered on the parent ctx")
+	}
+	if parent.Err() != nil {
+		t.Error("the caller's context must not have been cancelled")
 	}
 }

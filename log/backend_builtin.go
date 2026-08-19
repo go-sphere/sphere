@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"errors"
+	"io"
 )
 
 type nopBackend struct{}
@@ -64,6 +65,25 @@ func (m *MultiBackend) Sync() error {
 	errs := make([]error, 0, len(m.backends))
 	for _, b := range m.backends {
 		if err := b.Sync(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// Close closes every child backend that implements io.Closer and joins their
+// errors. Children without a Close are skipped. Without this, wrapping backends
+// in a MultiBackend would silently drop the capability for the whole set.
+// Close does not flush; call Sync first if buffered entries must reach their
+// destination.
+func (m *MultiBackend) Close() error {
+	errs := make([]error, 0, len(m.backends))
+	for _, b := range m.backends {
+		closer, ok := b.(io.Closer)
+		if !ok {
+			continue
+		}
+		if err := closer.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}

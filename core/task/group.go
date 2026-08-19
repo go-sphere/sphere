@@ -50,6 +50,10 @@ type groupOptions struct {
 // manual stop). It does NOT bound Group.Stop(ctx) — callers should pass their
 // own context for hard caller-side timeouts. A non-positive duration disables
 // the timeout and uses context.Background().
+//
+// This replaces WithAutoStopTimeout, which was removed without an alias. The
+// behaviour is unchanged — the old name never bounded Group.Stop either — so the
+// migration is a rename and nothing more.
 func WithCleanupTimeout(timeout time.Duration) GroupOption {
 	return func(o *groupOptions) {
 		o.cleanupTimeout = timeout
@@ -265,6 +269,14 @@ func (g *Group) Start(ctx context.Context) error {
 	case shutdownTaskFailure:
 		finalErr = errors.Join(startErrs.Unwrap(), stopErrs.Unwrap())
 	case shutdownManualStop, shutdownParentCancel:
+		// Start errors are joined here, not only stop errors. A task that failed
+		// for its own reasons while the group was already tearing down used to be
+		// discarded on these two paths, so a graceful shutdown reported success
+		// even when a task died badly on the way out. Reporting it means an
+		// ordinary signal-triggered shutdown can now return non-nil, which callers
+		// typically map to a non-zero exit code. This is not an error injected by
+		// the teardown itself: startErrs only ever holds results that survived the
+		// context.Canceled filter above, so cancellation-driven exits stay nil.
 		finalErr = errors.Join(startErrs.Unwrap(), stopErrs.Unwrap())
 	default:
 		finalErr = startErrs.Unwrap()
