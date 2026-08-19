@@ -415,8 +415,7 @@ func (t *ctxCaptureTask) Stop(context.Context) error { return nil }
 // parent for the rest of the process.
 func TestSelfExitedTaskReleasesRunContext(t *testing.T) {
 	manager := NewManager()
-	parent, cancelParent := context.WithCancel(context.Background())
-	defer cancelParent()
+	parent := t.Context()
 
 	task := &ctxCaptureTask{identifier: "selfexit", ctxCh: make(chan context.Context, 1)}
 	if err := manager.StartTask(parent, "selfexit", task); err != nil {

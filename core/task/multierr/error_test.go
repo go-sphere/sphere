@@ -39,6 +39,9 @@ func TestLimitDropsOldestAndReportsLoss(t *testing.T) {
 	}
 
 	joined := e.Unwrap()
+	if joined == nil {
+		t.Fatal("Unwrap returned nil despite retained errors")
+	}
 	if errors.Is(joined, first) {
 		t.Error("the oldest error should have been dropped")
 	}

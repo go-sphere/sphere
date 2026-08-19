@@ -13,6 +13,23 @@ import (
 	"github.com/google/uuid"
 )
 
+// ResolveUploadTTL picks the validity window for a generated upload
+// authorization. configTTL (or defaultTTL when configTTL is unset) acts as a
+// ceiling rather than a mere fallback: a request may ask for a shorter-lived
+// credential but can never extend one. UploadAuthRequest.TTL is therefore safe
+// to populate from client-supplied input, which cannot widen the window a
+// deployment configured.
+func ResolveUploadTTL(reqTTL, configTTL, defaultTTL time.Duration) time.Duration {
+	ceiling := configTTL
+	if ceiling <= 0 {
+		ceiling = defaultTTL
+	}
+	if reqTTL > 0 && reqTTL < ceiling {
+		return reqTTL
+	}
+	return ceiling
+}
+
 // DefaultKeyBuilder creates a key builder function that generates unique file keys.
 // It combines timestamp, MD5 hash of the filename, and preserves the file extension.
 // The prefix is prepended to the generated key if provided.

@@ -3,7 +3,41 @@ package storage
 import (
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestResolveUploadTTL(t *testing.T) {
+	t.Parallel()
+
+	const (
+		configTTL  = 10 * time.Minute
+		defaultTTL = time.Hour
+	)
+	tests := []struct {
+		name      string
+		reqTTL    time.Duration
+		configTTL time.Duration
+		want      time.Duration
+	}{
+		{name: "unset request uses config", reqTTL: 0, configTTL: configTTL, want: configTTL},
+		{name: "unset request and config use default", reqTTL: 0, configTTL: 0, want: defaultTTL},
+		{name: "shorter request is honored", reqTTL: time.Minute, configTTL: configTTL, want: time.Minute},
+		// The ceiling is what keeps a client-supplied TTL from widening the window.
+		{name: "longer request is clamped to config", reqTTL: 24 * time.Hour, configTTL: configTTL, want: configTTL},
+		{name: "longer request is clamped to default", reqTTL: 24 * time.Hour, configTTL: 0, want: defaultTTL},
+		{name: "negative request uses ceiling", reqTTL: -time.Minute, configTTL: configTTL, want: configTTL},
+		{name: "request equal to ceiling stays", reqTTL: configTTL, configTTL: configTTL, want: configTTL},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := ResolveUploadTTL(tt.reqTTL, tt.configTTL, defaultTTL); got != tt.want {
+				t.Fatalf("ResolveUploadTTL(%v, %v, %v) = %v, want %v", tt.reqTTL, tt.configTTL, defaultTTL, got, tt.want)
+			}
+		})
+	}
+}
 
 func TestBuildUploadFileName(t *testing.T) {
 	t.Run("default strategy is random ext", func(t *testing.T) {

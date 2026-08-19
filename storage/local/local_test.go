@@ -89,6 +89,133 @@ func TestClient_UploadFileFailureLeavesNoResidual(t *testing.T) {
 	}
 }
 
+// TestClient_UploadFileFailurePreservesExisting covers the atomic-write
+// guarantee: a failed overwrite must leave the previous contents readable
+// rather than truncating or removing the key.
+func TestClient_UploadFileFailurePreservesExisting(t *testing.T) {
+	ctx := context.Background()
+	client, err := NewClient(Config{RootDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	const key = "images/keep.bin"
+	if _, e := client.UploadFile(ctx, strings.NewReader("original"), key); e != nil {
+		t.Fatalf("seed upload: %v", e)
+	}
+
+	wantErr := errors.New("boom")
+	if _, e := client.UploadFile(ctx, &failingReader{data: []byte("partial"), err: wantErr}, key); !errors.Is(e, wantErr) {
+		t.Fatalf("UploadFile() error = %v, want %v", e, wantErr)
+	}
+
+	result, err := client.DownloadFile(ctx, key)
+	if err != nil {
+		t.Fatalf("DownloadFile() error = %v", err)
+	}
+	defer func() { _ = result.Reader.Close() }()
+	data, err := io.ReadAll(result.Reader)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	if string(data) != "original" {
+		t.Fatalf("content = %q, want %q (failed overwrite destroyed the key)", data, "original")
+	}
+}
+
+func TestClient_AtomicWriteLeavesNoTempFiles(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	client, err := NewClient(Config{RootDir: root})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	// One successful write and one failed write, both into the same directory.
+	if _, e := client.UploadFile(ctx, strings.NewReader("ok"), "d/good.bin"); e != nil {
+		t.Fatalf("upload: %v", e)
+	}
+	if _, e := client.UploadFile(ctx, &failingReader{err: errors.New("boom")}, "d/bad.bin"); e == nil {
+		t.Fatal("UploadFile() error = nil, want failure")
+	}
+
+	entries, err := os.ReadDir(filepath.Join(root, "d"))
+	if err != nil {
+		t.Fatalf("ReadDir() error = %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "good.bin" {
+		names := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		t.Fatalf("directory contents = %v, want only [good.bin]", names)
+	}
+}
+
+// TestClient_ListFilesHidesTempFiles ensures an orphaned temporary file, such as
+// one left by a process killed mid-write, is never reported as a stored key.
+func TestClient_ListFilesHidesTempFiles(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	client, err := NewClient(Config{RootDir: root})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	if _, e := client.UploadFile(ctx, strings.NewReader("ok"), "real.bin"); e != nil {
+		t.Fatalf("upload: %v", e)
+	}
+	orphan := filepath.Join(root, tmpFilePrefix+"123456")
+	if e := os.WriteFile(orphan, []byte("junk"), 0o600); e != nil {
+		t.Fatalf("write orphan: %v", e)
+	}
+
+	keys, _, err := client.ListFiles(ctx, "", "", 10)
+	if err != nil {
+		t.Fatalf("ListFiles() error = %v", err)
+	}
+	if len(keys) != 1 || keys[0] != "real.bin" {
+		t.Fatalf("keys = %v, want [real.bin]", keys)
+	}
+}
+
+// TestClient_UploadFilePermissions pins the resulting file mode, since writing
+// through os.CreateTemp would otherwise silently produce 0o600 files.
+func TestClient_UploadFilePermissions(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	client, err := NewClient(Config{RootDir: root})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	if _, e := client.UploadFile(ctx, strings.NewReader("a"), "new.bin"); e != nil {
+		t.Fatalf("upload: %v", e)
+	}
+	stat, err := os.Stat(filepath.Join(root, "new.bin"))
+	if err != nil {
+		t.Fatalf("Stat() error = %v", err)
+	}
+	if stat.Mode().Perm() != defaultFileMode {
+		t.Fatalf("new file mode = %v, want %v", stat.Mode().Perm(), defaultFileMode)
+	}
+
+	// An overwrite must not reset permissions the operator chose.
+	if e := os.Chmod(filepath.Join(root, "new.bin"), 0o600); e != nil {
+		t.Fatalf("Chmod() error = %v", e)
+	}
+	if _, e := client.UploadFile(ctx, strings.NewReader("b"), "new.bin"); e != nil {
+		t.Fatalf("overwrite: %v", e)
+	}
+	stat, err = os.Stat(filepath.Join(root, "new.bin"))
+	if err != nil {
+		t.Fatalf("Stat() error = %v", err)
+	}
+	if stat.Mode().Perm() != 0o600 {
+		t.Fatalf("overwritten file mode = %v, want %v", stat.Mode().Perm(), os.FileMode(0o600))
+	}
+}
+
 func TestClient_EmptyKeyRejected(t *testing.T) {
 	ctx := context.Background()
 	client, err := NewClient(Config{RootDir: t.TempDir()})
@@ -140,8 +267,10 @@ func TestClient_DirectoryKeyTreatedAsNotFound(t *testing.T) {
 	if _, e = client.DownloadFile(ctx, "images"); !errors.Is(e, storageerr.ErrorNotFound) {
 		t.Fatalf("DownloadFile(dir) error = %v, want %v", e, storageerr.ErrorNotFound)
 	}
-	if e = client.DeleteFile(ctx, "images"); !errors.Is(e, storageerr.ErrorNotFound) {
-		t.Fatalf("DeleteFile(dir) error = %v, want %v", e, storageerr.ErrorNotFound)
+	// Deletion is idempotent, so a key holding a directory reports success; the
+	// directory itself must still be left alone (asserted at the end).
+	if e = client.DeleteFile(ctx, "images"); e != nil {
+		t.Fatalf("DeleteFile(dir) error = %v, want nil", e)
 	}
 	if e = client.MoveFile(ctx, "images", "moved", true); !errors.Is(e, storageerr.ErrorNotFound) {
 		t.Fatalf("MoveFile(dir) error = %v, want %v", e, storageerr.ErrorNotFound)

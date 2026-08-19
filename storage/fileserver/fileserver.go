@@ -19,12 +19,18 @@ import (
 
 // Config holds the configuration for S3 adapter operations.
 type Config struct {
-	PutBase      string                       `json:"put_base" yaml:"put_base"`
-	GetBase      string                       `json:"get_base" yaml:"get_base"`
+	PutBase string `json:"put_base" yaml:"put_base"`
+	GetBase string `json:"get_base" yaml:"get_base"`
+	// KeyTTL is how long a one-time upload token stays valid, and also the
+	// ceiling for UploadAuthRequest.TTL. A zero value falls back to defaultKeyTTL.
 	KeyTTL       time.Duration                `json:"key_ttl" yaml:"key_ttl"`
 	Dir          string                       `json:"dir" yaml:"dir"`
 	UploadNaming storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"`
 }
+
+// defaultKeyTTL is the one-time upload token validity used when Config.KeyTTL
+// is unset.
+const defaultKeyTTL = 5 * time.Minute
 
 // FileServer provides a caching layer and upload token generation for S3-compatible storage.
 // It extends a base storage implementation with temporary upload URL generation capabilities.
@@ -51,7 +57,7 @@ func NewCDNAdapter(conf Config, cache cache.ByteCache, store storage.Storage, op
 		return nil, errors.New("get_base is required")
 	}
 	if conf.KeyTTL == 0 {
-		conf.KeyTTL = time.Minute * 5
+		conf.KeyTTL = defaultKeyTTL
 	}
 	handler, err := urlhandler.NewHandler(conf.GetBase)
 	if err != nil {
@@ -121,11 +127,8 @@ func (a *FileServer) GenerateUploadAuth(ctx context.Context, req storage.UploadA
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
-	// Prefer the per-request TTL, falling back to the configured token TTL.
-	ttl := req.TTL
-	if ttl <= 0 {
-		ttl = a.config.KeyTTL
-	}
+	// The configured token TTL is the ceiling; req.TTL may only shorten it.
+	ttl := storage.ResolveUploadTTL(req.TTL, a.config.KeyTTL, defaultKeyTTL)
 	newToken, err := a.opts.createFileKey(ctx, a, key, ttl)
 	if err != nil {
 		return storage.UploadAuthResult{}, err

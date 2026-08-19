@@ -71,8 +71,10 @@ const (
 type UploadAuthRequest struct {
 	FileName string `json:"file_name" yaml:"file_name"`
 	Dir      string `json:"dir,omitempty" yaml:"dir,omitempty"`
-	// TTL optionally overrides how long the generated authorization stays valid.
-	// A zero value falls back to the driver's configured default TTL.
+	// TTL optionally shortens how long the generated authorization stays valid.
+	// A zero value uses the driver's configured default TTL, which also caps this
+	// field: a longer TTL is clamped down rather than honored, so populating it
+	// from client input cannot extend a credential's lifetime.
 	TTL time.Duration `json:"ttl,omitempty" yaml:"ttl,omitempty"`
 }
 
@@ -139,12 +141,21 @@ type FileLister interface {
 	// (pass an empty cursor for the first page). The returned next cursor is
 	// non-empty when more keys may remain; feed it back on the following call.
 	// An empty next cursor signals the end of the listing.
+	//
+	// Iterate until the next cursor is empty, not until a page comes back empty:
+	// a backend may return a page with no keys while more remain. Treat the
+	// cursor as opaque; some drivers return the last key of the page but others
+	// return a backend-specific marker, so never construct one. limit is an
+	// upper bound a driver may lower to its own maximum (Qiniu caps at 1000),
+	// so a short page does not mean the listing is finished either.
 	ListFiles(ctx context.Context, prefix, cursor string, limit int) (keys []string, next string, err error)
 }
 
 // FileDeleter provides file deletion capabilities.
 type FileDeleter interface {
-	// DeleteFile removes a file from the storage backend.
+	// DeleteFile removes a file from the storage backend. Deletion is idempotent:
+	// deleting a key that does not exist reports success rather than
+	// storageerr.ErrorNotFound.
 	DeleteFile(ctx context.Context, key string) error
 }
 

@@ -26,16 +26,33 @@ type Config struct {
 	Dir          string                       `json:"dir" yaml:"dir"`                     // Default directory prefix for uploads
 	UploadNaming storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"` // Upload file naming strategy
 
-	// UploadTTL is the default validity window for generated upload tokens.
-	// A zero value lets the Qiniu SDK apply its own default (one hour).
+	// UploadTTL is the default validity window for generated upload tokens, and
+	// also the ceiling for UploadAuthRequest.TTL. A zero value falls back to
+	// defaultUploadTTL.
 	UploadTTL time.Duration `json:"upload_ttl" yaml:"upload_ttl"`
 	// MimeLimit restricts the accepted content types for token uploads using
-	// Qiniu's mimeLimit syntax (e.g. "image/*;video/*"). An empty value imposes
-	// no restriction, matching the S3 driver's default.
+	// Qiniu's mimeLimit syntax (e.g. "image/*;video/*"). An empty value applies
+	// DefaultMimeLimit; set it to AnyMimeLimit to accept every content type.
 	MimeLimit string `json:"mime_limit" yaml:"mime_limit"`
 
 	PublicBase string `json:"public_base" yaml:"public_base"` // Public base URL for file access
 }
+
+const (
+	// DefaultMimeLimit is applied when Config.MimeLimit is empty. Uploads land in
+	// a CDN-fronted public bucket under a client-influenced key, so restricting
+	// the declared content type is the safer default; opt out with AnyMimeLimit.
+	DefaultMimeLimit = "image/*;video/*"
+	// AnyMimeLimit disables MIME restrictions for token uploads. Note that Qiniu
+	// only validates the Content-Type the client declares, never the bytes it
+	// sends, so neither value is a substitute for validating uploads server side.
+	AnyMimeLimit = "*/*"
+)
+
+// defaultUploadTTL is the upload token validity used when Config.UploadTTL is
+// unset. It matches the default the Qiniu SDK would otherwise apply, but is
+// stated here so the ceiling for UploadAuthRequest.TTL does not depend on it.
+const defaultUploadTTL = time.Hour
 
 // Client provides Qiniu Cloud Object Storage operations with URL handling capabilities.
 // It implements storage interfaces for file uploads and URL generation.
@@ -52,6 +69,16 @@ func NewClient(conf Config) (*Client, error) {
 	handler, err := urlhandler.NewHandler(conf.PublicBase)
 	if err != nil {
 		return nil, err
+	}
+	// Normalize the MIME policy once so GenerateUploadAuth can use it verbatim:
+	// empty means "unset" and takes the restrictive default, while AnyMimeLimit
+	// is the explicit opt out and maps to the empty PutPolicy field Qiniu reads
+	// as "no restriction".
+	switch conf.MimeLimit {
+	case "":
+		conf.MimeLimit = DefaultMimeLimit
+	case AnyMimeLimit:
+		conf.MimeLimit = ""
 	}
 	mac := qbox.NewMac(conf.AccessKey, conf.SecretKey)
 	return &Client{
@@ -80,9 +107,9 @@ func (n *Client) keyPreprocess(key string) string {
 
 // GenerateUploadAuth creates a secure upload token for direct client uploads to Qiniu.
 // It generates the storage key using configured naming strategy and returns token, key, and public URL.
-// Token validity is resolved from req.TTL, falling back to Config.UploadTTL and
-// then the Qiniu SDK default. Accepted content types follow Config.MimeLimit
-// (empty means unrestricted).
+// Token validity defaults to Config.UploadTTL (else defaultUploadTTL); req.TTL
+// may shorten it but never extend it. Accepted content types follow
+// Config.MimeLimit, which NewClient normalizes to DefaultMimeLimit when empty.
 func (n *Client) GenerateUploadAuth(_ context.Context, req storage.UploadAuthRequest) (storage.UploadAuthResult, error) {
 	fileName, err := storage.BuildUploadFileName(req.FileName, n.config.UploadNaming)
 	if err != nil {
@@ -98,11 +125,16 @@ func (n *Client) GenerateUploadAuth(_ context.Context, req storage.UploadAuthReq
 		InsertOnly: 1,
 		MimeLimit:  n.config.MimeLimit,
 	}
-	// PutPolicy.Expires is a deadline expressed in seconds; leaving it zero lets
-	// the SDK fall back to its own default (one hour).
-	if ttl := n.resolveUploadTTL(req.TTL); ttl > 0 {
-		put.Expires = uint64(ttl.Seconds())
+	// Despite the "deadline" JSON name, PutPolicy.Expires is a *relative* number
+	// of seconds: the SDK adds time.Now() to it while signing. Leaving it zero
+	// would let the SDK apply its own default, so round sub-second TTLs up to one
+	// second rather than truncating them to zero and silently widening the token
+	// to an hour.
+	seconds := uint64(storage.ResolveUploadTTL(req.TTL, n.config.UploadTTL, defaultUploadTTL).Seconds())
+	if seconds == 0 {
+		seconds = 1
 	}
+	put.Expires = seconds
 	return storage.UploadAuthResult{
 		Authorization: storage.UploadAuthorization{
 			Type:   storage.UploadAuthorizationTypeToken,
@@ -148,15 +180,6 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 		return "", err
 	}
 	return ret.Key, nil
-}
-
-// resolveUploadTTL selects the upload token validity, preferring the per request
-// TTL, then the configured default. A zero result defers to the SDK default.
-func (n *Client) resolveUploadTTL(reqTTL time.Duration) time.Duration {
-	if reqTTL > 0 {
-		return reqTTL
-	}
-	return n.config.UploadTTL
 }
 
 // StatFile returns lightweight metadata for a file without downloading its body.
@@ -242,13 +265,16 @@ func (n *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 }
 
 // DeleteFile removes a file from the Qiniu Cloud Object Storage bucket.
+// Deletion is idempotent: a key that does not exist reports success.
 func (n *Client) DeleteFile(ctx context.Context, key string) error {
 	key = n.keyPreprocess(key)
 	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
 	err := manager.Delete(n.config.Bucket, key)
 	if err != nil {
+		// Qiniu reports a missing key as 612; the delete contract is idempotent,
+		// so treat "already gone" as success.
 		if isNotFoundError(err) {
-			return storageerr.ErrorNotFound
+			return nil
 		}
 		return err
 	}

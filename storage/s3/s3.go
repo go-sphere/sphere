@@ -25,8 +25,9 @@ type Config struct {
 	PublicBase      string                       `json:"public_base"`
 	Dir             string                       `json:"dir" yaml:"dir"`
 	UploadNaming    storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"`
-	// UploadTTL is the default validity window for presigned upload URLs.
-	// A zero value falls back to defaultUploadTTL.
+	// UploadTTL is the default validity window for presigned upload URLs, and
+	// also the ceiling for UploadAuthRequest.TTL. A zero value falls back to
+	// defaultUploadTTL.
 	UploadTTL time.Duration `json:"upload_ttl" yaml:"upload_ttl"`
 }
 
@@ -79,8 +80,8 @@ func (s *Client) keyPreprocess(key string) string {
 // GenerateUploadAuth creates a presigned PUT URL for direct client uploads to S3.
 // It generates the storage key using configured naming strategy and returns
 // the presigned URL, storage key, and public access URL. The presigned URL
-// validity is resolved from req.TTL, falling back to Config.UploadTTL and then
-// defaultUploadTTL.
+// validity defaults to Config.UploadTTL (else defaultUploadTTL); req.TTL may
+// shorten it but never extend it.
 func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthRequest) (storage.UploadAuthResult, error) {
 	fileName, err := storage.BuildUploadFileName(req.FileName, s.config.UploadNaming)
 	if err != nil {
@@ -95,7 +96,7 @@ func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthR
 	preSignedURL, err := s.client.PresignedPutObject(ctx,
 		s.config.Bucket,
 		key,
-		s.resolveUploadTTL(req.TTL))
+		storage.ResolveUploadTTL(req.TTL, s.config.UploadTTL, defaultUploadTTL))
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
@@ -130,18 +131,6 @@ func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 		return "", err
 	}
 	return info.Key, nil
-}
-
-// resolveUploadTTL selects the presigned URL validity, preferring the per
-// request TTL, then the configured default, then the package default.
-func (s *Client) resolveUploadTTL(reqTTL time.Duration) time.Duration {
-	if reqTTL > 0 {
-		return reqTTL
-	}
-	if s.config.UploadTTL > 0 {
-		return s.config.UploadTTL
-	}
-	return defaultUploadTTL
 }
 
 // StatFile returns lightweight metadata for a file without downloading its body.

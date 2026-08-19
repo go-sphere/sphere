@@ -16,7 +16,63 @@ import (
 
 // Config holds the configuration for local file storage operations.
 type Config struct {
+	// RootDir is the directory every key resolves under. Keys are confined to it
+	// lexically, which stops traversal through "..", but symlinks already present
+	// inside the directory are followed and are not checked for escaping it: the
+	// contents of RootDir are assumed to be trusted and managed by this process.
 	RootDir string `json:"root_dir" yaml:"root_dir"`
+}
+
+const (
+	// defaultFileMode is applied to newly created files. Writes go through
+	// os.CreateTemp, which opens at 0o600, so the mode is set explicitly to stay
+	// consistent with the os.Create-based writes this replaced. Overwrites keep
+	// the existing file's permissions instead.
+	defaultFileMode os.FileMode = 0o644
+	// tmpFilePrefix marks the in-progress temporary files written by
+	// writeFileAtomic. ListFiles hides them so a crash mid-write cannot leave
+	// behind something that looks like a stored key.
+	tmpFilePrefix = ".sphere-tmp-"
+)
+
+// writeFileAtomic streams src into destPath through a temporary file in the
+// same directory followed by a rename, so a failure partway through can never
+// leave the destination missing or half written; an existing destination is
+// replaced only once the new contents are durable. Any overwrite policy is the
+// caller's responsibility, as the rename replaces whatever is already there.
+func writeFileAtomic(destPath string, src io.Reader) error {
+	mode := defaultFileMode
+	if stat, err := os.Stat(destPath); err == nil {
+		// Preserve the permissions of the file being replaced.
+		mode = stat.Mode().Perm()
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	// Creating the temporary file in destPath's directory keeps the rename below
+	// on one filesystem, where it is atomic and cannot fail with EXDEV.
+	tmp, err := os.CreateTemp(filepath.Dir(destPath), tmpFilePrefix+"*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	_, err = io.Copy(tmp, src)
+	if err == nil {
+		err = tmp.Sync()
+	}
+	if err == nil {
+		err = tmp.Chmod(mode)
+	}
+	if closeErr := tmp.Close(); closeErr != nil && err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		err = os.Rename(tmpPath, destPath)
+	}
+	if err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
 
 // Client provides local filesystem storage operations.
@@ -68,6 +124,8 @@ func (c *Client) fixFilePath(key string) (string, error) {
 
 // UploadFile uploads data from a reader to the local filesystem with the specified key.
 // It creates the necessary directory structure and writes the file content.
+// The write is atomic: a failure leaves any previous content at the key intact
+// and never publishes a partially written file.
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
@@ -79,22 +137,11 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	}
 	// Bail out early if the caller has already cancelled. The streaming copy
 	// below is not itself interruptible via ctx, so cancellation issued mid
-	// copy is not enforced; the cleanup path still runs on any copy failure.
+	// copy is not enforced; the write is atomic either way.
 	if err = ctx.Err(); err != nil {
 		return "", err
 	}
-	out, err := os.Create(filePath)
-	if err != nil {
-		return "", err
-	}
-	_, err = io.Copy(out, file)
-	if closeErr := out.Close(); closeErr != nil && err == nil {
-		err = closeErr
-	}
-	if err != nil {
-		// Remove the partially written file so a broken "exists but corrupt"
-		// key is not left behind for later reads.
-		_ = os.Remove(filePath)
+	if err = writeFileAtomic(filePath, file); err != nil {
 		return "", err
 	}
 	return key, nil
@@ -161,6 +208,13 @@ func (c *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 // It implements storage.FileLister by walking the root directory; keys use
 // forward slashes and are returned in lexical order. The cursor is exclusive:
 // pass the previous next value to resume after the last returned key.
+//
+// Every call walks and sorts the whole root directory before applying the
+// cursor, so paging a large tree costs O(total files) per page. That is
+// acceptable for the local driver's development and small-deployment use, but
+// it does not scale the way the object-store drivers' native listings do.
+// Symlinks are skipped: the walk only reports regular files, even though a
+// symlink to one inside the root remains readable through DownloadFile.
 func (c *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int) ([]string, string, error) {
 	if limit <= 0 {
 		limit = 1000
@@ -182,6 +236,10 @@ func (c *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 			return e
 		}
 		if d.IsDir() || !d.Type().IsRegular() {
+			return nil
+		}
+		// An in-progress (or orphaned) atomic write is not a stored key.
+		if strings.HasPrefix(d.Name(), tmpFilePrefix) {
 			return nil
 		}
 		rel, relErr := filepath.Rel(rootDir, path)
@@ -249,6 +307,7 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 }
 
 // DeleteFile removes a file from the local filesystem storage.
+// Deletion is idempotent: a key that holds no regular file reports success.
 func (c *Client) DeleteFile(ctx context.Context, key string) error {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
@@ -257,28 +316,33 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 	stat, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return storageerr.ErrorNotFound
+			return nil
 		}
 		return err
 	}
-	// Only regular files are valid storage keys; refuse to remove directories
-	// or other special files that may be shared subtrees.
+	// Only regular files are valid storage keys. A directory or special file is
+	// not addressable as a key (IsFileExists reports it absent), so deleting it
+	// is a no-op rather than a recursive removal of a possibly shared subtree.
 	if !stat.Mode().IsRegular() {
-		return storageerr.ErrorNotFound
+		return nil
 	}
 	err = os.Remove(filePath)
 	if err != nil {
+		// Lost a race with a concurrent deleter; the postcondition still holds.
 		if os.IsNotExist(err) {
-			return storageerr.ErrorNotFound
+			return nil
 		}
 		return err
 	}
 	return nil
 }
 
-// removeBeforeOverwrite handles file overwrite logic for move and copy operations.
-// It checks if the destination exists and removes it if overwrite is enabled.
-func (c *Client) removeBeforeOverwrite(path string, overwrite bool) error {
+// checkOverwrite enforces the overwrite policy for move and copy operations,
+// reporting ErrorDistExisted when the destination exists and overwrite is off.
+// It deliberately does not remove the destination: both callers finish with a
+// rename, which replaces it atomically, so nothing is destroyed before the
+// replacement is ready.
+func (c *Client) checkOverwrite(path string, overwrite bool) error {
 	_, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -288,10 +352,6 @@ func (c *Client) removeBeforeOverwrite(path string, overwrite bool) error {
 	}
 	if !overwrite {
 		return storageerr.ErrorDistExisted
-	}
-	err = os.Remove(path)
-	if err != nil {
-		return err
 	}
 	return nil
 }
@@ -319,7 +379,7 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 		// Never relocate a whole directory (or special file) under a key.
 		return storageerr.ErrorNotFound
 	}
-	if e := c.removeBeforeOverwrite(destinationPath, overwrite); e != nil {
+	if e := c.checkOverwrite(destinationPath, overwrite); e != nil {
 		return e
 	}
 	if e := os.Rename(sourcePath, destinationPath); e != nil {
@@ -330,6 +390,8 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 
 // CopyFile duplicates a file from source to destination key within local filesystem storage.
 // Creates necessary directory structure and handles overwrite logic.
+// The copy is atomic: the destination is replaced only once the full contents
+// are written, so a failure at any point leaves it untouched.
 func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourcePath, err := c.fixFilePath(sourceKey)
 	if err != nil {
@@ -360,23 +422,8 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if !srcStat.Mode().IsRegular() {
 		return storageerr.ErrorNotFound
 	}
-	if e := c.removeBeforeOverwrite(destinationPath, overwrite); e != nil {
+	if e := c.checkOverwrite(destinationPath, overwrite); e != nil {
 		return e
 	}
-	dstFile, err := os.Create(destinationPath)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = dstFile.Close()
-	}()
-	_, err = io.Copy(dstFile, srcFile)
-	if err != nil {
-		return err
-	}
-	err = dstFile.Sync()
-	if err != nil {
-		return err
-	}
-	return nil
+	return writeFileAtomic(destinationPath, srcFile)
 }

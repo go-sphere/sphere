@@ -100,6 +100,33 @@ func TestStorageCoreContract(t *testing.T) {
 	}
 }
 
+// TestStorageDeleteIsIdempotent locks in the FileDeleter contract: removing a
+// key that is not there succeeds instead of reporting ErrorNotFound, matching
+// the object-store drivers whose native delete is already idempotent.
+func TestStorageDeleteIsIdempotent(t *testing.T) {
+	for _, factory := range storageFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			ctx := context.Background()
+			store := factory.new(t)
+
+			if err := store.DeleteFile(ctx, "never/written.txt"); err != nil {
+				t.Fatalf("DeleteFile(missing) error = %v, want nil", err)
+			}
+
+			if _, err := store.UploadFile(ctx, bytes.NewBufferString("body"), "gone/soon.txt"); err != nil {
+				t.Fatalf("seed: %v", err)
+			}
+			if err := store.DeleteFile(ctx, "gone/soon.txt"); err != nil {
+				t.Fatalf("DeleteFile: %v", err)
+			}
+			// The second delete of the same key must behave like the first.
+			if err := store.DeleteFile(ctx, "gone/soon.txt"); err != nil {
+				t.Fatalf("DeleteFile(twice) error = %v, want nil", err)
+			}
+		})
+	}
+}
+
 func TestStorageCopyFailurePreservesDestination(t *testing.T) {
 	for _, factory := range storageFactories() {
 		t.Run(factory.name, func(t *testing.T) {
