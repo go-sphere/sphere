@@ -227,3 +227,60 @@ func waitFor(tb testing.TB, timeout time.Duration, ok func() bool) {
 	}
 	tb.Fatalf("condition not met within %s", timeout)
 }
+
+// TestUnregisteredKindIsNotPrefixRouted pins that routing is by exact kind.
+//
+// asynq's ServeMux falls back to longest-prefix matching when no pattern matches
+// exactly. Resolving the handler from the matched pattern therefore delivered an
+// unregistered kind to whichever registered kind happened to be a prefix of it,
+// handing that handler a payload it was never meant to decode. Hierarchical
+// names are the documented style, so versioning or subdividing a kind walked
+// straight into it.
+func TestUnregisteredKindIsNotPrefixRouted(t *testing.T) {
+	s := newTestScheduler(t)
+	delivered := make(chan []byte, 1)
+	if err := s.Handle("user.email", func(_ context.Context, payload []byte) error {
+		delivered <- payload
+		return nil
+	}); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	startTestScheduler(t, s)
+
+	if _, err := s.Enqueue(context.Background(), "user.email.welcome.v2", []byte("v2 payload")); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+
+	select {
+	case payload := <-delivered:
+		t.Fatalf("unregistered kind was routed to the \"user.email\" handler with payload %q", payload)
+	case <-time.After(1500 * time.Millisecond):
+		// The task must not reach the prefix handler.
+	}
+
+	// The exact kind still routes normally.
+	if _, err := s.Enqueue(context.Background(), "user.email", []byte("exact")); err != nil {
+		t.Fatalf("enqueue exact: %v", err)
+	}
+	select {
+	case payload := <-delivered:
+		if string(payload) != "exact" {
+			t.Fatalf("payload = %q, want exact", payload)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatalf("the exactly matching kind was not handled")
+	}
+}
+
+// TestHandleRejectsEmptyKind pins that a kind read from configuration cannot
+// take the process down. asynq's ServeMux panics on a blank pattern, and Handle
+// runs inside the application builder, so the panic surfaced as a startup crash
+// instead of the error the nil-handler check already returns.
+func TestHandleRejectsEmptyKind(t *testing.T) {
+	for _, kind := range []string{"", "   ", "\t"} {
+		s := newTestScheduler(t)
+		if err := s.Handle(kind, func(context.Context, []byte) error { return nil }); err == nil {
+			t.Fatalf("Handle(%q) = nil, want an error", kind)
+		}
+	}
+}

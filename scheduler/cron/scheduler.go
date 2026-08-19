@@ -144,7 +144,16 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Unlock()
 
 	<-runCtx.Done()
-	return runCtx.Err()
+	// Tear the runtime down before returning. Returning on the bare context
+	// cancellation left the cron running: scheduled jobs kept firing after Start
+	// had already reported that it was finished, and nothing could stop them
+	// because Start is what the caller was waiting on. Stop is idempotent, so a
+	// Stop that triggered this cancellation simply joins the drain in flight.
+	stopErr := s.Stop(context.WithoutCancel(ctx))
+	if err := runCtx.Err(); err != nil {
+		return err
+	}
+	return stopErr
 }
 
 func (s *Scheduler) Stop(ctx context.Context) error {
@@ -186,9 +195,12 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 		s.state.Store(stateClosed)
 		return nil
 	case <-ctx.Done():
-		// The caller gave up waiting, so signal the stragglers to abort. A later
-		// Stop call waits on the same channel and completes the transition.
-		s.cancelRun()
+		// This caller gave up waiting. The run context is deliberately left
+		// alone: it is shared by every in-flight handler, so cancelling it here
+		// would abort work that another Stop — one with a longer budget, or the
+		// staged shutdown the group is running — is still legitimately waiting
+		// to drain. One caller's deadline is not everyone's. The drain continues
+		// in the background and whichever Stop observes it finish releases Start.
 		return ctx.Err()
 	}
 }
@@ -205,13 +217,23 @@ func (s *Scheduler) cancelRun() {
 }
 
 func (s *Scheduler) Close() error {
+	// The state is read and written under the same mutex Start uses for its own
+	// transition. Reading it unlocked let a Close that observed stateInit race a
+	// concurrent Start and then unconditionally overwrite stateRunning with
+	// stateClosed. Every later Stop short-circuited on that state and returned
+	// nil immediately, so the cron kept ticking with nothing able to stop it and
+	// Start stayed blocked forever.
+	s.mu.Lock()
 	switch s.state.Load() {
 	case stateClosed:
+		s.mu.Unlock()
 		return scheduler.ErrClosed
 	case stateInit:
 		s.state.Store(stateClosed)
+		s.mu.Unlock()
 		return nil
 	default:
+		s.mu.Unlock()
 		return s.Stop(context.Background())
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -196,6 +197,13 @@ func (s *Scheduler) Handle(kind string, handler scheduler.PayloadHandlerFunc) er
 	if handler == nil {
 		return fmt.Errorf("scheduler/asynq: nil handler")
 	}
+	// asynq's ServeMux panics on an empty or blank pattern. A kind read from
+	// configuration can easily be empty, and this runs inside the application
+	// builder, so the panic takes the process down at startup instead of
+	// reporting a configuration error the way the nil-handler check does.
+	if strings.TrimSpace(kind) == "" {
+		return fmt.Errorf("scheduler/asynq: empty task kind")
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -230,14 +238,23 @@ func (s *Scheduler) mount(kind string) {
 	}
 	s.mounted[kind] = struct{}{}
 	s.mux.HandleFunc(kind, func(ctx context.Context, task *sasynq.Task) error {
-		return s.dispatch(ctx, kind, task)
+		return s.dispatch(ctx, task)
 	})
 }
 
-// dispatch runs the handler currently bound to kind. A task that was still
-// queued when its handler was unregistered is dropped rather than failed: the
-// registration is intentionally gone, so retrying it would never succeed.
-func (s *Scheduler) dispatch(ctx context.Context, kind string, task *sasynq.Task) error {
+// dispatch runs the handler bound to the task's own kind.
+//
+// It resolves the handler from task.Type() rather than from the pattern the mux
+// matched, because asynq's ServeMux falls back to longest-prefix matching when
+// no pattern matches exactly. Keying on the pattern therefore sent an
+// unregistered kind to whichever registered kind happened to be a prefix of it
+// — "user.email.welcome.v2" landing in the handler for "user.email", with that
+// handler's payload decoding applied to a task it was never meant to see. The
+// Consumer contract routes by kind and defines no hierarchy, and hierarchical
+// names are exactly what the documentation's own examples use.
+func (s *Scheduler) dispatch(ctx context.Context, task *sasynq.Task) error {
+	kind := task.Type()
+
 	s.mu.Lock()
 	cronHandler := s.cronFuncs[kind]
 	payloadHandler := s.handlers[kind]
@@ -249,8 +266,12 @@ func (s *Scheduler) dispatch(ctx context.Context, kind string, task *sasynq.Task
 	case payloadHandler != nil:
 		return payloadHandler(ctx, task.Payload())
 	default:
-		log.Warn("scheduler/asynq: no handler registered, dropping task", log.String("kind", kind))
-		return nil
+		// Nothing is bound to this kind: either it was unregistered while the
+		// task sat in the queue, or the mux prefix-matched a kind that was never
+		// registered at all. Report it so asynq applies its normal failure
+		// handling (retry, then archive) instead of acknowledging a task no one
+		// processed, which erased it with no trace beyond a log line.
+		return fmt.Errorf("scheduler/asynq: no handler registered for kind %q", kind)
 	}
 }
 
@@ -341,7 +362,19 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Unlock()
 
 	<-runCtx.Done()
-	return runCtx.Err()
+	// Tear the runtime down before returning. Returning on the bare context
+	// cancellation left the asynq server and scheduler running: periodic jobs
+	// kept firing and enqueued tasks kept being consumed after Start had already
+	// reported that it was finished. It also broke this type's own contract that
+	// the injected Redis client stays in use until Stop or Close returns — a
+	// caller acting on the Start return would close it under a live server and
+	// panic inside asynq. Stop is idempotent, so a Stop that triggered this
+	// cancellation simply joins the shutdown already in flight.
+	stopErr := s.Stop(context.WithoutCancel(ctx))
+	if err := runCtx.Err(); err != nil {
+		return err
+	}
+	return stopErr
 }
 
 // Stop shuts the scheduler down and waits for the asynq server to drain.
@@ -405,13 +438,23 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 // left open for its owner to close; asynq refuses to close a shared connection
 // anyway.
 func (s *Scheduler) Close() error {
+	// The state is read and written under the same mutex Start uses for its own
+	// transition. Reading it unlocked let a Close that observed stateInit race a
+	// concurrent Start: the CAS then failed silently, Close still reported
+	// success, and the caller — told by this type's own contract that it may
+	// release the injected Redis client once Close returns — pulled the client
+	// out from under a server asynq had just brought up.
+	s.mu.Lock()
 	switch s.state.Load() {
 	case stateClosed:
+		s.mu.Unlock()
 		return scheduler.ErrClosed
 	case stateInit:
-		s.state.CompareAndSwap(stateInit, stateClosed)
+		s.state.Store(stateClosed)
+		s.mu.Unlock()
 		return nil
 	default:
+		s.mu.Unlock()
 		return s.Stop(context.Background())
 	}
 }
