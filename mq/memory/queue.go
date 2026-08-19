@@ -81,26 +81,32 @@ func (q *Queue[T]) Consume(ctx context.Context, topic string) (T, error) {
 }
 
 func (q *Queue[T]) TryConsume(ctx context.Context, topic string) (T, bool, error) {
-	queue, closed, err := q.consumeQueue(topic)
 	var zero T
-	if err != nil {
-		return zero, false, err
-	}
 	select {
 	case <-ctx.Done():
 		return zero, false, ctx.Err()
 	default:
 	}
 
-	select {
-	case data := <-queue:
-		return data, true, nil
-	default:
-		if closed {
-			return zero, false, ErrQueueClosed
+	// Resolved read-only rather than through consumeQueue: TryConsume never
+	// blocks, so it has no need for a channel to wait on, and polling an unknown
+	// topic must not allocate a queue that nothing will ever publish to.
+	q.mu.RLock()
+	queue, exists := q.queues[topic]
+	closed := q.closed
+	q.mu.RUnlock()
+
+	if exists {
+		select {
+		case data := <-queue:
+			return data, true, nil
+		default:
 		}
-		return zero, false, nil
 	}
+	if closed {
+		return zero, false, ErrQueueClosed
+	}
+	return zero, false, nil
 }
 
 // drain returns a message that is already buffered, or ErrQueueClosed when the
@@ -152,7 +158,11 @@ func (q *Queue[T]) PurgeQueue(ctx context.Context, topic string) error {
 // blocked on the old channel will not observe messages published after the
 // entry is recreated by a subsequent Publish. A subsequent Publish/Consume for
 // the same topic transparently recreates the queue.
-func (q *Queue[T]) DeleteQueue(topic string) error {
+func (q *Queue[T]) DeleteQueue(ctx context.Context, topic string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -191,7 +201,7 @@ func (q *Queue[T]) getOrCreateQueue(topic string) (chan T, error) {
 	return queue, nil
 }
 
-// consumeQueue resolves the channel for topic for reading. Unlike
+// consumeQueue resolves the channel a blocked Consume waits on. Unlike
 // getOrCreateQueue it still resolves after Close (reporting closed=true) so a
 // consumer can drain messages accepted before the shutdown; it never creates a
 // queue for an unseen topic once closed.

@@ -31,7 +31,11 @@ type Queue[T any] interface {
 // Messages are broadcast to all active subscribers of a topic.
 type PubSub[T any] interface {
 	// Broadcast sends a message to all subscribers of the specified topic.
-	// All active subscribers will receive a copy of the message.
+	//
+	// Delivery is best-effort: implementations must not block on a subscriber
+	// that cannot keep up, so a slow or stalled subscriber may miss messages.
+	// A nil error means the message was handed to the transport, not that every
+	// subscriber observed it. Use Queue when messages must not be dropped.
 	Broadcast(ctx context.Context, topic string, data T) error
 
 	// Subscribe registers a handler function to receive messages from the specified topic.

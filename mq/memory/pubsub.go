@@ -47,6 +47,12 @@ func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 	if !exists || len(subscribers) == 0 {
 		return nil
 	}
+	// Checked once up front rather than inside the send select below: with a
+	// default branch the select never blocks, so a ctx case there would only
+	// compete at random with a send that could have succeeded.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	// Copy the slice: p.topics may be mutated by Subscribe/UnsubscribeAll once the
 	// read lock is released.
 	subscribers = append([]*Subscription[T](nil), subscribers...)
@@ -61,8 +67,6 @@ func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 		// which would otherwise hang forever under a background context.
 		select {
 		case sub.ch <- data:
-		case <-ctx.Done():
-		case <-sub.done:
 		default:
 			log.Warn("pubsub broadcast dropped message: subscriber queue full", log.String("topic", topic))
 		}
