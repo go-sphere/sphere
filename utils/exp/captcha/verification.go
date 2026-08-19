@@ -1,8 +1,9 @@
 package captcha
 
 import (
+	"crypto/rand"
 	"errors"
-	"math/rand/v2"
+	"math/big"
 	"sync"
 	"time"
 )
@@ -185,12 +186,20 @@ func (s *VerificationSystem) GetCaptchaCount(number string) int {
 }
 
 // RandomCode generates a random numeric verification code of the specified length.
-// Each digit is randomly selected from 0-9. Returns an empty string if length is 0.
+// Each digit is drawn from crypto/rand so the issued code is not predictable from
+// previously observed codes; a verification code is a security token and must not
+// come from a non-cryptographic generator. Returns an empty string if length is 0.
+// It panics if the system entropy source fails, since that is an unrecoverable
+// condition and returning a guessable code instead would be worse.
 func RandomCode(length int) string {
 	code := make([]byte, length)
+	digits := big.NewInt(10)
 	for i := range code {
-		n := rand.IntN(10)
-		code[i] = byte('0' + n)
+		n, err := rand.Int(rand.Reader, digits)
+		if err != nil {
+			panic("captcha: crypto/rand failed: " + err.Error())
+		}
+		code[i] = byte('0' + n.Int64())
 	}
 	return string(code)
 }

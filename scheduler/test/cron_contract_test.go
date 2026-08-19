@@ -42,6 +42,39 @@ func TestCronContractDuplicateName(t *testing.T) {
 	}
 }
 
+// TestCronContractReRegisterAfterUnregister covers reusing a name after it was
+// unregistered. The asynq driver mounts handlers on a ServeMux that panics on a
+// duplicate pattern and cannot detach an entry, so re-registering must reuse the
+// existing mux entry and rebind the handler rather than mounting it twice.
+func TestCronContractReRegisterAfterUnregister(t *testing.T) {
+	for _, factory := range cronFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			s := factory.new(t)
+
+			if err := s.Register("recycled", "@every 1s", func(context.Context) error {
+				return nil
+			}); err != nil {
+				t.Fatalf("register: %v", err)
+			}
+			if err := s.Unregister("recycled"); err != nil {
+				t.Fatalf("unregister: %v", err)
+			}
+
+			var count atomic.Int32
+			if err := s.Register("recycled", "@every 1s", func(context.Context) error {
+				count.Add(1)
+				return nil
+			}); err != nil {
+				t.Fatalf("re-register after unregister: %v", err)
+			}
+
+			// The rebound handler must actually receive triggers, not just register.
+			startCronRuntime(t, s)
+			waitFor(t, 5*time.Second, func() bool { return count.Load() >= 1 })
+		})
+	}
+}
+
 func TestCronContractUnregisterStopsTriggers(t *testing.T) {
 	for _, factory := range cronFactories() {
 		t.Run(factory.name, func(t *testing.T) {

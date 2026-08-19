@@ -228,7 +228,11 @@ func ServeCacheReverseProxy(cache Cache, proxy *httputil.ReverseProxy, opts ...S
 				// then strip the internal header from the client response.
 				status := http.StatusOK
 				if s := header.Get(cacheStatusHeader); s != "" {
-					if code, pErr := strconv.Atoi(s); pErr == nil {
+					// Validate the range before replaying: net/http panics on a
+					// status outside 100-999, so a corrupted or poisoned cache
+					// entry would otherwise take down the request goroutine.
+					// Fall back to 200 for anything unparseable or out of range.
+					if code, pErr := strconv.Atoi(s); pErr == nil && code >= 100 && code <= 599 {
 						status = code
 					}
 					header.Del(cacheStatusHeader)

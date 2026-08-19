@@ -41,6 +41,33 @@ func TestEnqueueHandleEndToEnd(t *testing.T) {
 	}
 }
 
+// TestCronKindCollidesWithHandle checks that a cron name and an async kind that
+// map to the same mux pattern are rejected as duplicates instead of panicking
+// inside asynq's ServeMux.
+func TestCronKindCollidesWithHandle(t *testing.T) {
+	t.Run("HandleThenRegister", func(t *testing.T) {
+		s := newTestScheduler(t)
+		if err := s.Handle(cronKind("report"), func(context.Context, []byte) error { return nil }); err != nil {
+			t.Fatalf("handle: %v", err)
+		}
+		err := s.Register("report", "@every 1s", func(context.Context) error { return nil })
+		if !errors.Is(err, scheduler.ErrDuplicateName) {
+			t.Fatalf("register colliding name error = %v, want %v", err, scheduler.ErrDuplicateName)
+		}
+	})
+
+	t.Run("RegisterThenHandle", func(t *testing.T) {
+		s := newTestScheduler(t)
+		if err := s.Register("report", "@every 1s", func(context.Context) error { return nil }); err != nil {
+			t.Fatalf("register: %v", err)
+		}
+		err := s.Handle(cronKind("report"), func(context.Context, []byte) error { return nil })
+		if !errors.Is(err, scheduler.ErrDuplicateName) {
+			t.Fatalf("handle colliding kind error = %v, want %v", err, scheduler.ErrDuplicateName)
+		}
+	})
+}
+
 func TestEnqueueWithDelay(t *testing.T) {
 	s := newTestScheduler(t)
 	got := make(chan time.Time, 1)

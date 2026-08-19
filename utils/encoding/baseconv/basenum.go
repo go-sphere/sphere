@@ -3,7 +3,7 @@ package baseconv
 const (
 	// AlphabetBase32 defines the character set for base32 encoding using Crockford's variant.
 	// It excludes ambiguous characters (I, L, O, U) to prevent confusion in human-readable contexts.
-	AlphabetBase32 = "0123456789ABCDEFGHJKLMNPQRSTVWXYZ"
+	AlphabetBase32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 	// AlphabetBase62 defines the character set for base62 encoding.
 	// It includes digits, uppercase letters, and lowercase letters for maximum character density.

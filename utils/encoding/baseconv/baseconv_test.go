@@ -2,7 +2,9 @@ package baseconv
 
 import (
 	"bytes"
+	"encoding/base32"
 	"encoding/base64"
+	"strings"
 	"testing"
 )
 
@@ -17,6 +19,68 @@ func TestBaseEncoding_Encode(t *testing.T) {
 		t.Errorf("Expected %s, got %s", demo2, demo)
 	} else {
 		t.Logf("Base64 encoding of 'Hello, World!' is %s", demo)
+	}
+}
+
+func TestAlphabetBase32IsCrockford(t *testing.T) {
+	t.Parallel()
+
+	if len(AlphabetBase32) != 32 {
+		t.Fatalf("AlphabetBase32 must have 32 characters, got %d (%q)", len(AlphabetBase32), AlphabetBase32)
+	}
+	for _, ambiguous := range []string{"I", "L", "O", "U"} {
+		if strings.Contains(AlphabetBase32, ambiguous) {
+			t.Errorf("AlphabetBase32 must exclude ambiguous character %q", ambiguous)
+		}
+	}
+}
+
+// A 32-character alphabet must take the bitwise path, which makes the output
+// interoperable with encoding/base32 using the same alphabet.
+func TestStd32EncodingMatchesStdlib(t *testing.T) {
+	t.Parallel()
+
+	ref := base32.NewEncoding(AlphabetBase32)
+	inputs := [][]byte{
+		[]byte("f"),
+		[]byte("fo"),
+		[]byte("foo"),
+		[]byte("foob"),
+		[]byte("fooba"),
+		[]byte("foobar"),
+		{0x00, 0xff, 0x10, 0x80},
+	}
+	for _, input := range inputs {
+		if got, want := StdRaw32Encoding.EncodeToString(input), ref.EncodeToString(input); got != want {
+			t.Errorf("StdRaw32Encoding.EncodeToString(%q) = %q, want %q", input, got, want)
+		}
+		if got, want := Std32Encoding.EncodeToString(input), ref.WithPadding(base32.NoPadding).EncodeToString(input); got != want {
+			t.Errorf("Std32Encoding.EncodeToString(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestStd32EncodingRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	for _, encoding := range map[string]*BaseEncoding{
+		"Std32Encoding":    Std32Encoding,
+		"StdRaw32Encoding": StdRaw32Encoding,
+	} {
+		for _, want := range [][]byte{
+			[]byte("f"),
+			[]byte("foobar"),
+			{0x00, 0x00, 0x01},
+		} {
+			encoded := encoding.EncodeToString(want)
+			got, err := encoding.DecodeString(encoded)
+			if err != nil {
+				t.Fatalf("DecodeString(%q): %v", encoded, err)
+			}
+			if !bytes.Equal(got, want) {
+				t.Errorf("round trip mismatch: input=%v encoded=%q got=%v", want, encoded, got)
+			}
+		}
 	}
 }
 

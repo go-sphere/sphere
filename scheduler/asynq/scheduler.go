@@ -43,6 +43,13 @@ type Scheduler struct {
 
 	mu       sync.Mutex
 	handlers map[string]scheduler.PayloadHandlerFunc
+	// cronFuncs holds the periodic handlers keyed by their generated task kind,
+	// mirroring cronIDs (which is keyed by the user-facing name).
+	cronFuncs map[string]scheduler.HandlerFunc
+	// mounted records the kinds already attached to the ServeMux. asynq's mux
+	// panics on a duplicate pattern and cannot detach a handler, so each kind is
+	// mounted at most once for the lifetime of the scheduler.
+	mounted  map[string]struct{}
 	cronIDs  map[string]string
 	state    atomic.Int32
 	cancel   context.CancelFunc
@@ -71,14 +78,16 @@ func NewScheduler(conf Config, opts ...Option) (*Scheduler, error) {
 	}
 
 	return &Scheduler{
-		conf:     conf,
-		client:   client,
-		server:   server,
-		mux:      sasynq.NewServeMux(),
-		cron:     cron,
-		options:  applied,
-		handlers: make(map[string]scheduler.PayloadHandlerFunc),
-		cronIDs:  make(map[string]string),
+		conf:      conf,
+		client:    client,
+		server:    server,
+		mux:       sasynq.NewServeMux(),
+		cron:      cron,
+		options:   applied,
+		handlers:  make(map[string]scheduler.PayloadHandlerFunc),
+		cronFuncs: make(map[string]scheduler.HandlerFunc),
+		mounted:   make(map[string]struct{}),
+		cronIDs:   make(map[string]string),
 	}, nil
 }
 
@@ -145,16 +154,19 @@ func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) e
 	}
 
 	kind := cronKind(name)
+	// A cron name and an async kind share one mux pattern, so a collision between
+	// the two must be rejected rather than silently shadowing one of them.
+	if _, ok := s.handlers[kind]; ok {
+		return scheduler.ErrDuplicateName
+	}
+
 	entryID, err := s.cron.Register(spec, sasynq.NewTask(kind, nil), sasynq.MaxRetry(0))
 	if err != nil {
 		return err
 	}
-	wrapped := scheduler.RecoverHandler(handler)
-	s.mux.HandleFunc(kind, func(ctx context.Context, task *sasynq.Task) error {
-		_ = task
-		return wrapped(ctx)
-	})
+	s.cronFuncs[kind] = scheduler.RecoverHandler(handler)
 	s.cronIDs[name] = entryID
+	s.mount(kind)
 	return nil
 }
 
@@ -173,6 +185,10 @@ func (s *Scheduler) Unregister(name string) error {
 		return err
 	}
 	delete(s.cronIDs, name)
+	// The mux entry for this kind intentionally stays mounted (asynq cannot
+	// detach it); dropping the handler is what makes the kind inert, and it
+	// allows the same name to be registered again later.
+	delete(s.cronFuncs, cronKind(name))
 	return nil
 }
 
@@ -194,13 +210,48 @@ func (s *Scheduler) Handle(kind string, handler scheduler.PayloadHandlerFunc) er
 	if _, ok := s.handlers[kind]; ok {
 		return scheduler.ErrDuplicateName
 	}
+	if _, ok := s.cronFuncs[kind]; ok {
+		return scheduler.ErrDuplicateName
+	}
 
-	wrapped := scheduler.RecoverPayloadHandler(handler)
-	s.handlers[kind] = wrapped
-	s.mux.HandleFunc(kind, func(ctx context.Context, task *sasynq.Task) error {
-		return wrapped(ctx, task.Payload())
-	})
+	s.handlers[kind] = scheduler.RecoverPayloadHandler(handler)
+	s.mount(kind)
 	return nil
+}
+
+// mount attaches a dispatcher for kind to the ServeMux exactly once. asynq's
+// ServeMux panics on a duplicate pattern and provides no way to detach a
+// handler, so the mux entry must outlive individual Register/Unregister calls
+// and the dispatcher resolves the currently bound handler at delivery time.
+// Callers must hold s.mu.
+func (s *Scheduler) mount(kind string) {
+	if _, ok := s.mounted[kind]; ok {
+		return
+	}
+	s.mounted[kind] = struct{}{}
+	s.mux.HandleFunc(kind, func(ctx context.Context, task *sasynq.Task) error {
+		return s.dispatch(ctx, kind, task)
+	})
+}
+
+// dispatch runs the handler currently bound to kind. A task that was still
+// queued when its handler was unregistered is dropped rather than failed: the
+// registration is intentionally gone, so retrying it would never succeed.
+func (s *Scheduler) dispatch(ctx context.Context, kind string, task *sasynq.Task) error {
+	s.mu.Lock()
+	cronHandler := s.cronFuncs[kind]
+	payloadHandler := s.handlers[kind]
+	s.mu.Unlock()
+
+	switch {
+	case cronHandler != nil:
+		return cronHandler(ctx)
+	case payloadHandler != nil:
+		return payloadHandler(ctx, task.Payload())
+	default:
+		log.Warn("scheduler/asynq: no handler registered, dropping task", log.String("kind", kind))
+		return nil
+	}
 }
 
 func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, opts ...scheduler.EnqueueOption) (string, error) {

@@ -496,6 +496,46 @@ func TestServeCacheReverseProxy_CacheHitPreservesStatus(t *testing.T) {
 	}
 }
 
+// TestServeCacheReverseProxy_CacheHitRejectsInvalidStatus verifies that a
+// corrupted or poisoned cache entry cannot crash the handler: net/http panics on
+// a status outside 100-999, so out-of-range and unparseable values must fall
+// back to 200 instead of reaching WriteHeader.
+func TestServeCacheReverseProxy_CacheHitRejectsInvalidStatus(t *testing.T) {
+	for _, poisoned := range []string{"0", "-1", "99", "600", "1000", "99999", "not-a-number"} {
+		t.Run(poisoned, func(t *testing.T) {
+			cache := setupTestCache(t)
+			ctx := (&http.Request{}).Context()
+
+			header := http.Header{
+				"Content-Type":    []string{"text/plain"},
+				cacheStatusHeader: []string{poisoned},
+			}
+			if err := cache.Save(ctx, "/poisoned", header, strings.NewReader("cached body")); err != nil {
+				t.Fatalf("Failed to save cache: %v", err)
+			}
+
+			backendURL, _ := url.Parse("http://example.com")
+			proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL))
+			if err != nil {
+				t.Fatalf("Failed to create proxy: %v", err)
+			}
+			handler := ServeCacheReverseProxy(cache, proxy)
+
+			req := httptest.NewRequest(http.MethodGet, "/poisoned", nil)
+			rec := httptest.NewRecorder()
+			// Must not panic.
+			handler(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Errorf("Expected fallback status 200 for poisoned value %q, got %d", poisoned, rec.Code)
+			}
+			if got := rec.Header().Get(cacheStatusHeader); got != "" {
+				t.Errorf("Internal cache-status header leaked to client: %q", got)
+			}
+		})
+	}
+}
+
 // TestServeCacheReverseProxy_Integration is a manual integration test
 // Set TEST_REVERSE_PROXY=true to enable
 func TestServeCacheReverseProxy_Integration(t *testing.T) {
