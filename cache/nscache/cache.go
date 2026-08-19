@@ -2,6 +2,7 @@ package nscache
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/go-sphere/sphere/cache"
@@ -10,10 +11,15 @@ import (
 // NSCache is a namespaced cache wrapper that prefixes every key with
 // "<namespace>:" before delegating to an underlying cache.Cache.
 //
-// DelAll deletes only keys belonging to this namespace, so multiple NSCache
-// instances can safely share a single backend. It requires the wrapped cache
-// to implement cache.KeyLister (currently mcache, badgerdb, redis);
-// otherwise DelAll returns cache.ErrNotSupported.
+// DelAll deletes only keys belonging to this namespace, and Close leaves the
+// backend open, so multiple NSCache instances can safely share a single
+// backend. DelAll requires the wrapped cache to implement cache.KeyLister
+// (currently mcache, badgerdb, redis); otherwise it returns
+// cache.ErrNotSupported.
+//
+// Namespaces must be flat and must not contain ":". Isolation is by key
+// prefix, so with namespaces "a" and "a:b" the keys of "a:b" also carry the
+// "a:" prefix, and DelAll or Keys on "a" would reach into "a:b".
 type NSCache[S any] struct {
 	namespace string
 	cache     cache.Cache[S]
@@ -98,26 +104,50 @@ func (n *NSCache[S]) MultiSetWithTTL(ctx context.Context, valMap map[string]S, e
 	return n.cache.MultiSetWithTTL(ctx, prefixedValMap, expiration)
 }
 
-// DelAll removes every key in this namespace. It asks the underlying cache
-// for the keys matching the namespace prefix and deletes them with MultiDel.
-// The wrapped cache must implement cache.KeyLister; otherwise DelAll returns
-// cache.ErrNotSupported so it can never accidentally wipe keys belonging to
-// a sibling namespace sharing the same backend.
+// DelAll removes every key in this namespace by listing them with Keys and
+// deleting them with MultiDel, both of which stay inside the namespace. It
+// therefore inherits the Keys requirement: the wrapped cache must implement
+// cache.KeyLister, otherwise DelAll returns cache.ErrNotSupported rather than
+// risk wiping keys belonging to a sibling namespace on the same backend.
+//
+// The listing and the deletion are not atomic: keys written in between
+// survive.
 func (n *NSCache[S]) DelAll(ctx context.Context) error {
-	lister, ok := n.cache.(cache.KeyLister)
-	if !ok {
-		return cache.ErrNotSupported
-	}
-	keys, err := lister.Keys(ctx, n.namespace+":")
+	keys, err := n.Keys(ctx, "")
 	if err != nil {
 		return err
 	}
 	if len(keys) == 0 {
 		return nil
 	}
-	return n.cache.MultiDel(ctx, keys)
+	return n.MultiDel(ctx, keys)
 }
 
+// Keys lists the keys in this namespace whose unprefixed name starts with
+// prefix. The namespace prefix is stripped from the result, so the returned
+// keys can be passed straight back to this cache's own methods and an NSCache
+// can itself be wrapped by another NSCache. The wrapped cache must implement
+// cache.KeyLister; otherwise Keys returns cache.ErrNotSupported.
+func (n *NSCache[S]) Keys(ctx context.Context, prefix string) ([]string, error) {
+	lister, ok := n.cache.(cache.KeyLister)
+	if !ok {
+		return nil, cache.ErrNotSupported
+	}
+	keys, err := lister.Keys(ctx, n.keygen(prefix))
+	if err != nil {
+		return nil, err
+	}
+	trimmed := make([]string, 0, len(keys))
+	for _, k := range keys {
+		trimmed = append(trimmed, strings.TrimPrefix(k, n.namespace+":"))
+	}
+	return trimmed, nil
+}
+
+// Close is a no-op. The wrapped cache is injected, not created here, so this
+// wrapper never owns it: closing one namespace must not take down the sibling
+// namespaces sharing the same backend. The caller keeps ownership and closes
+// the backend itself, the same rule the driver constructors follow.
 func (n *NSCache[S]) Close() error {
-	return n.cache.Close()
+	return nil
 }

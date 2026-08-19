@@ -165,6 +165,39 @@ func TestSetObjectDynamicTTLUsesOriginalValue(t *testing.T) {
 	}
 }
 
+// TestDynamicTTLTypeMismatch covers a WithDynamicTTL instantiated for the
+// wrong type. SetObject hands the calculator the pre-encoding value, so a
+// calculator written against []byte no longer matches. That must surface as
+// ErrTTLCalculatorType and store nothing, rather than panicking on the type
+// assertion or silently degrading to a Set with no expiration.
+func TestDynamicTTLTypeMismatch(t *testing.T) {
+	t.Parallel()
+
+	type payload struct {
+		N int `json:"n"`
+	}
+
+	ctx := context.Background()
+	c := &spyExpirableCache[[]byte]{}
+
+	err := cache.SetObject[payload, codec.EncoderFunc](
+		ctx,
+		c,
+		json.Marshal,
+		"mismatch",
+		payload{N: 1},
+		cache.WithDynamicTTL(func(raw []byte) (bool, time.Duration) {
+			return true, time.Duration(len(raw)) * time.Second
+		}),
+	)
+	if !errors.Is(err, cache.ErrTTLCalculatorType) {
+		t.Fatalf("SetObject type mismatch: got err=%v want ErrTTLCalculatorType", err)
+	}
+	if c.setCalls != 0 || c.setWithTTLCalls != 0 {
+		t.Fatalf("nothing should be stored: set=%d setWithTTL=%d", c.setCalls, c.setWithTTLCalls)
+	}
+}
+
 func TestSetJsonAndGetJson(t *testing.T) {
 	t.Parallel()
 

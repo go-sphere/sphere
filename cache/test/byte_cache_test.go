@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -170,10 +171,13 @@ func TestByteCacheTTLZeroNeverExpires(t *testing.T) {
 	}
 }
 
+// Rejecting a negative TTL is about argument validation, not about storing
+// anything, so nocache is included here even though it opts out of the
+// persistence contracts above.
 func TestByteCacheNegativeTTLRejected(t *testing.T) {
 	t.Parallel()
 
-	for _, factory := range statefulByteCacheFactories() {
+	for _, factory := range append(statefulByteCacheFactories(), noCacheFactory()) {
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -329,6 +333,62 @@ func TestByteCacheConcurrentAccess(t *testing.T) {
 					if !found || string(val) != want {
 						t.Fatalf("Get %s mismatch: found=%v value=%q want=%q", key, found, string(val), want)
 					}
+				}
+			}
+		})
+	}
+}
+
+func TestByteCacheGetDelAtMostOnce(t *testing.T) {
+	for _, factory := range statefulByteCacheFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			if testing.Short() {
+				t.Skip("skip concurrent test in short mode")
+			}
+
+			ctx := context.Background()
+			c := factory.new(t)
+
+			const keys = 200
+			const consumers = 4
+
+			for i := range keys {
+				if err := c.Set(ctx, fmt.Sprintf("once_%d", i), []byte("token")); err != nil {
+					t.Fatalf("Set: %v", err)
+				}
+			}
+
+			hits := make([]atomic.Int64, keys)
+			errCh := make(chan error, keys*consumers)
+
+			var wg sync.WaitGroup
+			for i := range keys {
+				for range consumers {
+					wg.Go(func() {
+						_, found, err := c.GetDel(ctx, fmt.Sprintf("once_%d", i))
+						if err != nil {
+							errCh <- err
+							return
+						}
+						if found {
+							hits[i].Add(1)
+						}
+					})
+				}
+			}
+
+			wg.Wait()
+			close(errCh)
+			for err := range errCh {
+				t.Fatalf("concurrent GetDel: %v", err)
+			}
+
+			// Returning not-found is allowed (the memory driver may drop a
+			// write under pressure), but an entry must never be handed to two
+			// callers: GetDel backs one-shot tokens.
+			for i := range keys {
+				if got := hits[i].Load(); got > 1 {
+					t.Fatalf("key once_%d consumed %d times, want at most 1", i, got)
 				}
 			}
 		})

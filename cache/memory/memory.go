@@ -2,6 +2,8 @@ package memory
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dgraph-io/ristretto/v2"
@@ -18,8 +20,10 @@ const (
 // with configurable cost calculation and asynchronous write options.
 type Cache[T any] struct {
 	calculateCost    bool
-	allowAsyncWrites bool
+	allowAsyncWrites atomic.Bool
 	cache            *ristretto.Cache[string, T]
+	// getDel serializes GetDel so an entry is handed to at most one caller.
+	getDel sync.Mutex
 	// owned reports whether this Cache created the underlying ristretto cache
 	// and is therefore responsible for closing it. Injected instances are not
 	// owned.
@@ -62,12 +66,13 @@ func NewMemoryCacheWithCost[T any](cost func(T) int64) *Cache[T] {
 // The ristretto cache is injected, not owned: Close does not close it, so the
 // caller keeps ownership and must close the *ristretto.Cache itself.
 func NewMemoryCacheWithRistretto[T any](cache *ristretto.Cache[string, T], calculateCost, allowAsyncWrites bool) *Cache[T] {
-	return &Cache[T]{
-		calculateCost:    calculateCost,
-		allowAsyncWrites: allowAsyncWrites,
-		cache:            cache,
-		owned:            false,
+	c := &Cache[T]{
+		calculateCost: calculateCost,
+		cache:         cache,
+		owned:         false,
 	}
+	c.allowAsyncWrites.Store(allowAsyncWrites)
+	return c
 }
 
 // UpdateMaxCost updates the maximum cost allowed for the cache.
@@ -86,8 +91,9 @@ func (m *Cache[T]) UpdateMaxCost(maxItem int64) {
 // In memory.Cache asynchronous writes are disabled by default.
 // If asynchronous writes are enabled, the cache will not block the Set method
 // but it will not guarantee that the value is written to the cache immediately.
+// It is safe to call concurrently with Set/MultiSet.
 func (m *Cache[T]) SetAllowAsyncWrites(allow bool) {
-	m.allowAsyncWrites = allow
+	m.allowAsyncWrites.Store(allow)
 }
 
 // A false return from ristretto's Set/SetWithTTL does not signal a hard
@@ -103,7 +109,7 @@ func (m *Cache[T]) Set(ctx context.Context, key string, val T) error {
 		cost = 0
 	}
 	m.cache.Set(key, val, cost)
-	if !m.allowAsyncWrites {
+	if !m.allowAsyncWrites.Load() {
 		m.cache.Wait()
 	}
 	return nil
@@ -118,7 +124,7 @@ func (m *Cache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration
 		cost = 0
 	}
 	m.cache.SetWithTTL(key, val, cost, expiration)
-	if !m.allowAsyncWrites {
+	if !m.allowAsyncWrites.Load() {
 		m.cache.Wait()
 	}
 	return nil
@@ -132,7 +138,7 @@ func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
 		}
 		m.cache.Set(k, v, cost)
 	}
-	if !m.allowAsyncWrites {
+	if !m.allowAsyncWrites.Load() {
 		m.cache.Wait()
 	}
 	return nil
@@ -149,7 +155,7 @@ func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, exp
 		}
 		m.cache.SetWithTTL(k, v, cost, expiration)
 	}
-	if !m.allowAsyncWrites {
+	if !m.allowAsyncWrites.Load() {
 		m.cache.Wait()
 	}
 	return nil
@@ -160,7 +166,16 @@ func (m *Cache[T]) Get(ctx context.Context, key string) (T, bool, error) {
 	return val, found, nil
 }
 
+// GetDel holds getDel across the read and the delete so an entry is returned
+// as found to at most one caller, matching the atomic GETDEL (redis) and
+// single-transaction (badgerdb, mcache) behaviour of the other drivers.
+// ristretto has no atomic get-and-delete, but its Del removes the entry from
+// the store before returning, so the pair is enough. Only GetDel takes this
+// lock; Get/Set stay lock-free.
 func (m *Cache[T]) GetDel(ctx context.Context, key string) (T, bool, error) {
+	m.getDel.Lock()
+	defer m.getDel.Unlock()
+
 	val, found := m.cache.Get(key)
 	if found {
 		m.cache.Del(key)

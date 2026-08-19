@@ -23,6 +23,11 @@ var ErrInvalidTTL = errors.New("cache: negative TTL is invalid")
 // their keyspace cheaply (mcache, badgerdb, redis) implement this; others
 // (such as the ristretto-backed memory driver) intentionally do not.
 //
+// The wrappers (CodecCache and nscache.NSCache) implement it too, forwarding
+// to the cache they wrap and returning ErrNotSupported when that cache has no
+// KeyLister. That is what keeps NSCache.DelAll working through a layer of
+// wrapping instead of degrading to ErrNotSupported.
+//
 // Implementations may load the full key set into the returned slice and
 // must honour ctx cancellation.
 type KeyLister interface {

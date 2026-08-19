@@ -3,6 +3,8 @@ package nocache
 import (
 	"context"
 	"time"
+
+	"github.com/go-sphere/sphere/cache"
 )
 
 // NoCache is a no-operation cache implementation that does not store any data.
@@ -18,7 +20,15 @@ func (n *NoCache[T]) Set(ctx context.Context, key string, val T) error {
 	return nil
 }
 
+// SetWithTTL still rejects a negative expiration even though nothing is
+// stored. NoCache is a drop-in switch for turning caching off, so swapping it
+// in must change what is persisted, not which arguments are legal — otherwise
+// it silently accepts a TTL every other driver rejects and hides the caller's
+// bug until the switch is flipped back.
 func (n *NoCache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration time.Duration) error {
+	if expiration < 0 {
+		return cache.ErrInvalidTTL
+	}
 	return nil
 }
 
@@ -27,6 +37,9 @@ func (n *NoCache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
 }
 
 func (n *NoCache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, expiration time.Duration) error {
+	if expiration < 0 {
+		return cache.ErrInvalidTTL
+	}
 	return nil
 }
 

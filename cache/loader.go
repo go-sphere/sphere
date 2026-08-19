@@ -3,12 +3,21 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"time"
 
 	"github.com/go-sphere/confstore/codec"
 	"golang.org/x/sync/singleflight"
 )
+
+// ErrTTLCalculatorType is returned when a WithDynamicTTL calculator receives a
+// value of a different type than its type parameter. SetObject hands the
+// calculator the original value rather than the encoded bytes, so a mismatch
+// means the calculator was instantiated for the wrong type. The write is
+// rejected instead of falling back to a plain Set, which would silently store
+// an entry that never expires.
+var ErrTTLCalculatorType = errors.New("cache: dynamic TTL calculator value type mismatch")
 
 // IsZero checks whether a value is the zero value of its type using deep comparison.
 func IsZero[T any](t T) bool {
@@ -21,7 +30,7 @@ type options struct {
 	hasTTL        bool
 	expiration    time.Duration
 	singleflight  *singleflight.Group
-	ttlCalculator func(value any) (bool, time.Duration)
+	ttlCalculator func(value any) (bool, time.Duration, error)
 }
 
 func newOptions(opts ...Option) *options {
@@ -66,10 +75,19 @@ func WithSingleflight(single *singleflight.Group) Option {
 // WithDynamicTTL allows setting a dynamic TTL based on the value type T.
 // The calculator function should return a boolean indicating whether the TTL is set
 // and the duration for which the value should be cached.
+//
+// T must match the type being stored. When it does not, the write fails with
+// ErrTTLCalculatorType rather than panicking on the type assertion, so a
+// miswired option cannot take down a caller's request path.
 func WithDynamicTTL[T any](calculator func(value T) (bool, time.Duration)) Option {
 	return func(o *options) {
-		o.ttlCalculator = func(value any) (bool, time.Duration) {
-			return calculator(value.(T))
+		o.ttlCalculator = func(value any) (bool, time.Duration, error) {
+			typed, ok := value.(T)
+			if !ok {
+				return false, 0, ErrTTLCalculatorType
+			}
+			hasTTL, expiration := calculator(typed)
+			return hasTTL, expiration, nil
 		}
 	}
 }
@@ -83,7 +101,11 @@ func Set[T any](ctx context.Context, c ExpirableCache[T], key string, value T, o
 func setValue[S, T any](ctx context.Context, c ExpirableCache[S], key string, storedValue S, ttlSource T, options ...Option) error {
 	opts := newOptions(options...)
 	if opts.ttlCalculator != nil {
-		opts.hasTTL, opts.expiration = opts.ttlCalculator(ttlSource)
+		hasTTL, expiration, err := opts.ttlCalculator(ttlSource)
+		if err != nil {
+			return err
+		}
+		opts.hasTTL, opts.expiration = hasTTL, expiration
 	}
 	if opts.hasTTL {
 		return c.SetWithTTL(ctx, key, storedValue, opts.expiration)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/go-sphere/sphere/cache"
 	"github.com/go-sphere/sphere/cache/badgerdb"
@@ -217,6 +218,179 @@ func TestNSCacheDelAllThroughCodecCache(t *testing.T) {
 				if !found || v != "v2" {
 					t.Fatalf("ns2.%s mismatch: found=%v val=%q", key, found, v)
 				}
+			}
+		})
+	}
+}
+
+// TestNSCacheKeysStripsNamespace pins the key space Keys reports in: callers
+// get the same unprefixed keys they passed to Set, so a result can be fed
+// straight back into Get/MultiDel without knowing the namespace.
+func TestNSCacheKeysStripsNamespace(t *testing.T) {
+	for _, factory := range backendFactories() {
+		if !factory.supportsListing {
+			continue
+		}
+		t.Run(factory.name, func(t *testing.T) {
+			ctx := context.Background()
+			backend := factory.new(t)
+
+			ns := nscache.NewNSCache[[]byte]("ns", backend)
+			other := nscache.NewNSCache[[]byte]("other", backend)
+
+			if err := ns.MultiSet(ctx, map[string][]byte{
+				"user:1":  []byte("a"),
+				"user:2":  []byte("b"),
+				"order:1": []byte("c"),
+			}); err != nil {
+				t.Fatalf("MultiSet: %v", err)
+			}
+			if err := other.Set(ctx, "user:3", []byte("d")); err != nil {
+				t.Fatalf("other.Set: %v", err)
+			}
+
+			keys, err := ns.Keys(ctx, "user:")
+			if err != nil {
+				t.Fatalf("Keys: %v", err)
+			}
+			got := make(map[string]bool, len(keys))
+			for _, k := range keys {
+				got[k] = true
+			}
+			if len(got) != 2 || !got["user:1"] || !got["user:2"] {
+				t.Fatalf("Keys mismatch: %v", keys)
+			}
+
+			// The returned keys must be usable as-is against the same cache.
+			if err := ns.MultiDel(ctx, keys); err != nil {
+				t.Fatalf("MultiDel with returned keys: %v", err)
+			}
+			for _, k := range []string{"user:1", "user:2"} {
+				if found, err := ns.Exists(ctx, k); err != nil {
+					t.Fatalf("Exists %s: %v", k, err)
+				} else if found {
+					t.Fatalf("%s should be deleted", k)
+				}
+			}
+			if found, err := ns.Exists(ctx, "order:1"); err != nil {
+				t.Fatalf("Exists order:1: %v", err)
+			} else if !found {
+				t.Fatalf("order:1 must not match the user: prefix")
+			}
+			if found, err := other.Exists(ctx, "user:3"); err != nil {
+				t.Fatalf("other.Exists: %v", err)
+			} else if !found {
+				t.Fatalf("sibling namespace must be untouched")
+			}
+		})
+	}
+}
+
+// TestNSCacheNestedDelAll covers NSCache(NSCache(backend)). Before NSCache
+// implemented cache.KeyLister the outer DelAll degraded to ErrNotSupported,
+// because the cache it wraps is itself a wrapper.
+func TestNSCacheNestedDelAll(t *testing.T) {
+	for _, factory := range backendFactories() {
+		if !factory.supportsListing {
+			continue
+		}
+		t.Run(factory.name, func(t *testing.T) {
+			ctx := context.Background()
+			backend := factory.new(t)
+
+			outer := nscache.NewNSCache[[]byte]("outer", backend)
+			inner := nscache.NewNSCache[[]byte]("inner", outer)
+			sibling := nscache.NewNSCache[[]byte]("sibling", outer)
+
+			if err := inner.Set(ctx, "k", []byte("v")); err != nil {
+				t.Fatalf("inner.Set: %v", err)
+			}
+			if err := sibling.Set(ctx, "k", []byte("v")); err != nil {
+				t.Fatalf("sibling.Set: %v", err)
+			}
+
+			if err := inner.DelAll(ctx); err != nil {
+				t.Fatalf("inner.DelAll: %v", err)
+			}
+
+			if found, err := inner.Exists(ctx, "k"); err != nil {
+				t.Fatalf("inner.Exists: %v", err)
+			} else if found {
+				t.Fatalf("inner key should be deleted")
+			}
+			if found, err := sibling.Exists(ctx, "k"); err != nil {
+				t.Fatalf("sibling.Exists: %v", err)
+			} else if !found {
+				t.Fatalf("sibling key should survive inner.DelAll")
+			}
+		})
+	}
+}
+
+// TestNSCacheKeyMapping covers every method that rewrites keys. The backend is
+// inspected directly so the test pins the stored key layout rather than only
+// the wrapper's self-consistency.
+func TestNSCacheKeyMapping(t *testing.T) {
+	for _, factory := range backendFactories() {
+		if !factory.supportsListing {
+			continue
+		}
+		t.Run(factory.name, func(t *testing.T) {
+			ctx := context.Background()
+			backend := factory.new(t)
+			ns := nscache.NewNSCache[[]byte]("ns", backend)
+
+			if err := ns.MultiSet(ctx, map[string][]byte{"a": []byte("1"), "b": []byte("2")}); err != nil {
+				t.Fatalf("MultiSet: %v", err)
+			}
+			if _, found, err := backend.Get(ctx, "ns:a"); err != nil {
+				t.Fatalf("backend.Get: %v", err)
+			} else if !found {
+				t.Fatalf("MultiSet must store under the namespace prefix")
+			}
+
+			got, err := ns.MultiGet(ctx, []string{"a", "b", "absent"})
+			if err != nil {
+				t.Fatalf("MultiGet: %v", err)
+			}
+			if len(got) != 2 || string(got["a"]) != "1" || string(got["b"]) != "2" {
+				t.Fatalf("MultiGet must return unprefixed keys: %v", got)
+			}
+
+			if err := ns.SetWithTTL(ctx, "ttl", []byte("v"), time.Minute); err != nil {
+				t.Fatalf("SetWithTTL: %v", err)
+			}
+			if err := ns.MultiSetWithTTL(ctx, map[string][]byte{"ttl2": []byte("v")}, time.Minute); err != nil {
+				t.Fatalf("MultiSetWithTTL: %v", err)
+			}
+			for _, key := range []string{"ns:ttl", "ns:ttl2"} {
+				if _, found, err := backend.Get(ctx, key); err != nil {
+					t.Fatalf("backend.Get %s: %v", key, err)
+				} else if !found {
+					t.Fatalf("%s must be stored under the namespace prefix", key)
+				}
+			}
+
+			val, found, err := ns.GetDel(ctx, "a")
+			if err != nil {
+				t.Fatalf("GetDel: %v", err)
+			}
+			if !found || string(val) != "1" {
+				t.Fatalf("GetDel mismatch: found=%v val=%q", found, string(val))
+			}
+			if found, err := ns.Exists(ctx, "a"); err != nil {
+				t.Fatalf("Exists after GetDel: %v", err)
+			} else if found {
+				t.Fatalf("GetDel must remove the key")
+			}
+
+			if err := ns.Del(ctx, "b"); err != nil {
+				t.Fatalf("Del: %v", err)
+			}
+			if _, found, err := backend.Get(ctx, "ns:b"); err != nil {
+				t.Fatalf("backend.Get after Del: %v", err)
+			} else if found {
+				t.Fatalf("Del must remove the prefixed key")
 			}
 		})
 	}

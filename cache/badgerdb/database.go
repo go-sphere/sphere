@@ -136,26 +136,41 @@ func (d *Database) Get(ctx context.Context, key string) ([]byte, bool, error) {
 	return val, true, nil
 }
 
+// GetDel reads and deletes the key in one transaction, so an entry is returned
+// as found to at most one caller. BadgerDB runs Update transactions under
+// optimistic concurrency control, and GetDel is the only method here whose
+// read set overlaps its write set: concurrent callers on the same key make all
+// but one fail with ErrConflict. That is a retryable outcome rather than a
+// caller-visible failure, so retry until it clears — the losing transaction
+// committed nothing, and once the winner's delete lands the retry simply
+// reports the key as missing.
 func (d *Database) GetDel(ctx context.Context, key string) ([]byte, bool, error) {
-	var val []byte
-	err := d.db.Update(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key))
-		if err != nil {
-			return err
-		}
-		val, err = item.ValueCopy(nil)
-		if err != nil {
-			return err
-		}
-		return txn.Delete([]byte(key))
-	})
-	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
+	for {
+		var val []byte
+		err := d.db.Update(func(txn *badger.Txn) error {
+			item, err := txn.Get([]byte(key))
+			if err != nil {
+				return err
+			}
+			val, err = item.ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+			return txn.Delete([]byte(key))
+		})
+		switch {
+		case err == nil:
+			return val, true, nil
+		case errors.Is(err, badger.ErrKeyNotFound):
 			return nil, false, nil
+		case errors.Is(err, badger.ErrConflict):
+			if cerr := ctx.Err(); cerr != nil {
+				return nil, false, cerr
+			}
+		default:
+			return nil, false, err
 		}
-		return nil, false, err
 	}
-	return val, true, nil
 }
 
 func (d *Database) MultiGet(ctx context.Context, keys []string) (map[string][]byte, error) {

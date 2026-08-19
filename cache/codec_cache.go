@@ -160,6 +160,11 @@ func (m *CodecCache[T]) Exists(ctx context.Context, key string) (bool, error) {
 	return m.cache.Exists(ctx, key)
 }
 
+// Close is a no-op. The byte cache is injected, not created here, so this
+// adapter never owns it and closing the adapter must not take the backend
+// down with it — that is what lets one byte cache serve several typed
+// adapters. The caller keeps ownership and closes the backend itself, the
+// same rule the driver constructors follow.
 func (m *CodecCache[T]) Close() error {
-	return m.cache.Close()
+	return nil
 }
