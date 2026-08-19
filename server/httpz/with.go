@@ -33,6 +33,15 @@ func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Ha
 	return func(ctx httpx.Context) error {
 		defer func() {
 			if err := recover(); err != nil {
+				// http.ErrAbortHandler is net/http's documented way for a
+				// handler to abandon a request on purpose — most often because
+				// the client went away mid-response. The server silently drops
+				// the connection when it propagates. Swallowing it instead
+				// turned every disconnect into a full stack trace at ERROR and
+				// a 500 written to a connection that no longer exists.
+				if err == http.ErrAbortHandler {
+					panic(err)
+				}
 				log.Error(
 					message,
 					log.Any("error", err),

@@ -2,7 +2,9 @@ package httpz
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -44,17 +46,69 @@ func TestAbortWithJsonError_NilDoesNotPanic(t *testing.T) {
 	}
 }
 
+// TestAbortWithJsonError_UnclassifiedDoesNotLeak covers BOTH outbound fields.
+// Asserting only on Error left the real leak uncovered: httpx.ParseError falls
+// back to err.Error() for anything without a MessageError, so the raw text used
+// to reach the client through Message while Error was correctly blank.
 func TestAbortWithJsonError_UnclassifiedDoesNotLeak(t *testing.T) {
 	prev := DebugMode()
 	SetDebugMode(false)
 	defer SetDebugMode(prev)
 
+	const raw = "pq: password authentication failed for user \"admin\" (host 10.0.3.14:5432)"
+
 	ctx := &fakeContext{}
-	AbortWithJsonError(ctx, errors.New("sensitive internal detail"))
+	AbortWithJsonError(ctx, errors.New(raw))
 
 	resp := ctx.body.(ErrorResponse)
 	if resp.Error != "" {
-		t.Fatalf("raw error leaked to client: %q", resp.Error)
+		t.Fatalf("raw error leaked through Error: %q", resp.Error)
+	}
+	if resp.Message == raw {
+		t.Fatalf("raw error leaked through Message: %q", resp.Message)
+	}
+	if resp.Message != http.StatusText(http.StatusInternalServerError) {
+		t.Fatalf("expected generic status text, got %q", resp.Message)
+	}
+}
+
+// TestAbortWithJsonError_WrappedUnclassifiedDoesNotLeak pins the same rule for a
+// wrapped error, which is the shape service code actually produces.
+func TestAbortWithJsonError_WrappedUnclassifiedDoesNotLeak(t *testing.T) {
+	prev := DebugMode()
+	SetDebugMode(false)
+	defer SetDebugMode(prev)
+
+	ctx := &fakeContext{}
+	inner := errors.New("ent: constraint failed: UNIQUE constraint failed: users.email")
+	AbortWithJsonError(ctx, fmt.Errorf("create user: %w", inner))
+
+	resp := ctx.body.(ErrorResponse)
+	if strings.Contains(resp.Message, "constraint") || strings.Contains(resp.Error, "constraint") {
+		t.Fatalf("wrapped error leaked: message=%q error=%q", resp.Message, resp.Error)
+	}
+}
+
+// TestAbortWithJsonError_EmptyMessageFallsBackToStatusText pins that a
+// classified error carrying no user-facing text still produces a usable
+// message rather than an empty string.
+func TestAbortWithJsonError_EmptyMessageFallsBackToStatusText(t *testing.T) {
+	prev := DebugMode()
+	SetDebugMode(false)
+	defer SetDebugMode(prev)
+
+	ctx := &fakeContext{}
+	AbortWithJsonError(ctx, httpx.UnauthorizedError(errors.New("token is expired")))
+
+	resp := ctx.body.(ErrorResponse)
+	if ctx.status != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, ctx.status)
+	}
+	if resp.Message != http.StatusText(http.StatusUnauthorized) {
+		t.Fatalf("expected generic status text, got %q", resp.Message)
+	}
+	if resp.Error != "" {
+		t.Fatalf("raw error leaked: %q", resp.Error)
 	}
 }
 

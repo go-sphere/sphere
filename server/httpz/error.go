@@ -37,10 +37,11 @@ func SetDefaultErrorParser(parser ErrorParser) {
 }
 
 // SetDebugMode controls whether raw error details are exposed to clients.
-// When disabled (the default), the ErrorResponse.Error field is left empty so
-// that unclassified error strings and panic details are not leaked to callers;
-// the user-facing Message field (produced by the error parser) is always
-// returned. Enable it only in development to include err.Error() in responses.
+// When disabled (the default), the ErrorResponse.Error field is left empty and
+// ErrorResponse.Message is replaced by the generic status text unless the error
+// carries an explicit user-facing message, so that unclassified error strings
+// and panic details are not leaked to callers. Enable it only in development to
+// include err.Error() in responses.
 func SetDebugMode(enabled bool) {
 	debugMode.Store(enabled)
 }
@@ -75,6 +76,16 @@ func AbortWithJsonError(ctx httpx.Context, err error) {
 	var ce httpx.CodeError
 	if !errors.As(err, &ce) {
 		code = 0
+	}
+	// Message is user-facing and always returned, so it must not become a second
+	// channel for raw error text. httpx.ParseError falls back to err.Error() for
+	// anything that does not implement httpx.MessageError, which puts driver and
+	// database strings (credentials, hostnames, SQL) on the wire. Only an
+	// explicit, non-empty message survives; everything else degrades to the
+	// generic status text.
+	var me httpx.MessageError
+	if !errors.As(err, &me) || message == "" {
+		message = http.StatusText(int(status))
 	}
 	resp := ErrorResponse{
 		Code:    int(code),

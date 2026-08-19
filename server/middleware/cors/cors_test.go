@@ -1,6 +1,7 @@
 package cors
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -50,17 +51,38 @@ func TestResolveOriginWildcard(t *testing.T) {
 	}
 }
 
-func TestResolveOriginWildcardCredentials(t *testing.T) {
+// TestResolveOriginWildcardNeverReflects pins that a bare "*" resolves to the
+// literal wildcard and never to the caller's own origin. Reflecting it back
+// while Allow-Credentials is set would let any site read authenticated
+// responses with the victim's cookies.
+func TestResolveOriginWildcardNeverReflects(t *testing.T) {
 	t.Parallel()
 	cfg := &config{allowOrigins: []string{"*"}}
 
-	cfg.allowCredentials = false
-	if got := cfg.resolveOrigin("https://example.com"); got != "*" {
-		t.Fatalf("resolveOrigin with credentials disabled = %q, want %q", got, "*")
+	for _, credentials := range []bool{false, true} {
+		cfg.allowCredentials = credentials
+		if got := cfg.resolveOrigin("https://evil.example"); got != "*" {
+			t.Fatalf("resolveOrigin(credentials=%v) = %q, want %q", credentials, got, "*")
+		}
+	}
+}
+
+// TestNewCORSRejectsWildcardWithCredentials pins that the forbidden combination
+// fails at construction instead of degrading into an allow-any-origin policy.
+func TestNewCORSRejectsWildcardWithCredentials(t *testing.T) {
+	t.Parallel()
+
+	if _, err := NewCORS(WithAllowOrigins("*"), WithAllowCredentials(true)); !errors.Is(err, ErrWildcardWithCredentials) {
+		t.Fatalf("expected ErrWildcardWithCredentials, got %v", err)
 	}
 
-	cfg.allowCredentials = true
-	if got := cfg.resolveOrigin("https://example.com"); got != "https://example.com" {
-		t.Fatalf("resolveOrigin with credentials enabled = %q, want %q", got, "https://example.com")
+	// A per-origin wildcard stays valid: it resolves to a single matched origin.
+	if _, err := NewCORS(WithAllowOrigins("https://*.example.com"), WithAllowCredentials(true)); err != nil {
+		t.Fatalf("per-origin wildcard with credentials must be allowed, got %v", err)
+	}
+
+	// "*" without credentials is the ordinary public-API configuration.
+	if _, err := NewCORS(WithAllowOrigins("*")); err != nil {
+		t.Fatalf("wildcard without credentials must be allowed, got %v", err)
 	}
 }

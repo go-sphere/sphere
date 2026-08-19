@@ -87,6 +87,20 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 	}
 }
 
+// NewNewRateLimiterByClientIP rate limits per client IP, keyed on
+// httpx.Context.ClientIP.
+//
+// The key is only as trustworthy as the engine's proxy configuration.
+// ClientIP is documented as best-effort and typically derives from
+// X-Forwarded-For, which the client sets: with the engine trusting all proxies —
+// gin's default — every request can claim a fresh IP and receive its own full
+// burst, so the limit stops applying at all. Worse, each fabricated address
+// takes a slot in the limiter cache, so the header becomes a way to grow it.
+//
+// Configure the engine's trusted proxies before relying on this (gin
+// SetTrustedProxies, echo IPExtractor, fiber EnableTrustedProxyCheck), or pass
+// NewRateLimiter a key drawn from something the caller cannot forge, such as an
+// authenticated user ID.
 func NewNewRateLimiterByClientIP(limit time.Duration, burst int, expire time.Duration, options ...Option) httpx.Middleware {
 	return NewRateLimiter(
 		func(ctx httpx.Context) string {

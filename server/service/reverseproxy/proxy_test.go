@@ -1,7 +1,9 @@
 package reverseproxy
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -637,3 +639,241 @@ func TestCreateCacheReverseProxy_SaveContextOutlivesRequest(t *testing.T) {
 		t.Fatal("cache save did not finish")
 	}
 }
+
+// TestDefaultResponseCacheCheck pins which responses may enter a cache that is
+// keyed on the request URI alone and therefore replayable by any later caller.
+func TestDefaultResponseCacheCheck(t *testing.T) {
+	newResp := func(mutate func(req *http.Request, resp *http.Response)) *http.Response {
+		req := httptest.NewRequest(http.MethodGet, "/resource", nil)
+		resp := &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{},
+			Request:    req,
+		}
+		if mutate != nil {
+			mutate(req, resp)
+		}
+		return resp
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(req *http.Request, resp *http.Response)
+		want   bool
+	}{
+		{name: "plain public GET", want: true},
+		{name: "vary on accept-encoding only", want: true, mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Vary", "Accept-Encoding")
+		}},
+		{name: "non-200", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.StatusCode = http.StatusFound
+		}},
+		{name: "non-GET", mutate: func(req *http.Request, _ *http.Response) {
+			req.Method = http.MethodPost
+		}},
+		{name: "request carries authorization", mutate: func(req *http.Request, _ *http.Response) {
+			req.Header.Set("Authorization", "Bearer alice-token")
+		}},
+		{name: "request carries cookie", mutate: func(req *http.Request, _ *http.Response) {
+			req.Header.Set("Cookie", "session=alice")
+		}},
+		{name: "response sets a cookie", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Add("Set-Cookie", "session=alice; HttpOnly")
+		}},
+		{name: "no-store", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Cache-Control", "no-store")
+		}},
+		{name: "private among directives", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Cache-Control", "max-age=60, private")
+		}},
+		{name: "vary on a header not in the key", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Vary", "Accept-Language")
+		}},
+		{name: "vary star", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Vary", "*")
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := defaultResponseCacheCheck(newResp(tt.mutate)); got != tt.want {
+				t.Fatalf("defaultResponseCacheCheck() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestServeCacheReverseProxy_CredentialedResponseNotReplayed is the end-to-end
+// form of the same rule: a response fetched with a bearer token must not be
+// handed to an anonymous caller, and its Set-Cookie must never be replayed.
+func TestServeCacheReverseProxy_CredentialedResponseNotReplayed(t *testing.T) {
+	cache := setupTestCache(t)
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Set-Cookie", "session=alice-secret; Path=/; HttpOnly")
+		w.Header().Set("Cache-Control", "no-store, private")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"email":"alice@corp.example"}`))
+	}))
+	defer backend.Close()
+
+	backendURL, _ := url.Parse(backend.URL)
+	proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL))
+	if err != nil {
+		t.Fatalf("Failed to create proxy: %v", err)
+	}
+	handler := ServeCacheReverseProxy(cache, proxy)
+
+	authed := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+	authed.Header.Set("Authorization", "Bearer alice-token")
+	authedRec := httptest.NewRecorder()
+	handler(authedRec, authed)
+	if authedRec.Code != http.StatusOK {
+		t.Fatalf("authenticated request failed with status %d", authedRec.Code)
+	}
+
+	// Give the cache-save goroutine a chance to run, so a regression that stores
+	// the response is actually observed rather than raced past.
+	time.Sleep(100 * time.Millisecond)
+
+	anon := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+	anonRec := httptest.NewRecorder()
+	handler(anonRec, anon)
+
+	if body := anonRec.Body.String(); strings.Contains(body, "alice@corp.example") {
+		t.Fatalf("anonymous caller received the authenticated response: %s", body)
+	}
+	if cookie := anonRec.Header().Get("Set-Cookie"); cookie != "" {
+		t.Fatalf("anonymous caller received a replayed Set-Cookie: %q", cookie)
+	}
+	if anonRec.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous request status = %d, want %d", anonRec.Code, http.StatusUnauthorized)
+	}
+}
+
+// failingSaveCache rejects every Save without reading the body, the way a
+// storage backend does when the disk is full, a credential has expired, or the
+// key is invalid. Everything else is delegated so cache lookups still work.
+type failingSaveCache struct {
+	Cache
+	saveErr error
+}
+
+func (f *failingSaveCache) Save(context.Context, string, http.Header, io.Reader) error {
+	return f.saveErr
+}
+
+// TestCacheSaveFailureDoesNotTruncateResponse pins the promise that a cache
+// failure does not affect the client.
+//
+// Both sinks used to be written through a single io.MultiWriter, which fails as
+// a whole the moment either side errors: a rejected cache write aborted the copy
+// to the client mid-body, and because the status line was already on the wire
+// the client kept a 200 with a truncated payload — the hardest kind of corruption
+// to notice.
+func TestCacheSaveFailureDoesNotTruncateResponse(t *testing.T) {
+	payload := bytes.Repeat([]byte("abcdefgh"), 64*1024) // 512 KiB
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(payload)
+	}))
+	defer backend.Close()
+
+	saveErr := errors.New("storage is full")
+	brokenCache := &failingSaveCache{Cache: setupTestCache(t), saveErr: saveErr}
+
+	reported := make(chan error, 1)
+	backendURL, _ := url.Parse(backend.URL)
+	proxy, err := CreateCacheReverseProxy(brokenCache,
+		WithTargetURL(backendURL),
+		WithErrorHandler(func(err error) {
+			select {
+			case reported <- err:
+			default:
+			}
+		}),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create proxy: %v", err)
+	}
+
+	handler := ServeCacheReverseProxy(brokenCache, proxy)
+	frontend := httptest.NewServer(http.HandlerFunc(handler))
+	defer frontend.Close()
+
+	resp, err := frontend.Client().Get(frontend.URL + "/big")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("reading the body failed even though only the cache write should have: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if len(body) != len(payload) {
+		t.Fatalf("client received %d of %d bytes", len(body), len(payload))
+	}
+	if !bytes.Equal(body, payload) {
+		t.Fatal("client received a corrupted body")
+	}
+
+	// The failure is still surfaced to the caller who asked for it.
+	select {
+	case got := <-reported:
+		if !errors.Is(got, saveErr) {
+			t.Fatalf("error handler got %v, want %v", got, saveErr)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the cache failure was never reported to the error handler")
+	}
+}
+
+// TestServeCacheHitCopyErrorDoesNotPanic pins that a client disconnecting
+// mid-download is an ordinary event. The serve-side error handler had no
+// default, so an entirely optional option was the only thing standing between
+// this and a nil call in the request goroutine.
+func TestServeCacheHitCopyErrorDoesNotPanic(t *testing.T) {
+	cache := setupTestCache(t)
+	key := "/cached-body"
+	if err := cache.Save(context.Background(), key, http.Header{}, strings.NewReader("cached payload")); err != nil {
+		t.Fatalf("seeding the cache failed: %v", err)
+	}
+
+	backendURL, _ := url.Parse("http://unused.invalid")
+	proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL))
+	if err != nil {
+		t.Fatalf("Failed to create proxy: %v", err)
+	}
+	// No WithServeErrorHandler: the default must absorb the write failure.
+	handler := ServeCacheReverseProxy(cache, proxy)
+
+	req := httptest.NewRequest(http.MethodGet, key, nil)
+	handler(&failingResponseWriter{header: http.Header{}}, req)
+}
+
+// failingResponseWriter fails every write, standing in for a client that
+// disconnected while the cached body was being copied to it.
+type failingResponseWriter struct {
+	header http.Header
+}
+
+func (f *failingResponseWriter) Header() http.Header { return f.header }
+
+func (f *failingResponseWriter) Write([]byte) (int, error) {
+	return 0, errors.New("connection reset by peer")
+}
+
+func (f *failingResponseWriter) WriteHeader(int) {}

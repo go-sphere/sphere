@@ -27,7 +27,18 @@ func NewRBACClaims[T authorizer.UID](uid T, subject string, roles []string, expi
 	}
 }
 
+// GetUID returns the token's identity, rejecting a zero UID.
+//
+// The uid claim is emitted with omitempty, so a token minted for another purpose
+// with the same signing key simply has no uid and unmarshals to the zero value.
+// Returning it with a nil error would authenticate that token as user 0 and pass
+// every downstream ownership check, which is why the Claims contract requires an
+// error here instead.
 func (r RBACClaims[T]) GetUID() (T, error) {
+	var zero T
+	if r.UID == zero {
+		return zero, authorizer.MissingUIDError
+	}
 	return r.UID, nil
 }
 

@@ -1,6 +1,7 @@
 package cors
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -57,10 +58,24 @@ func WithMaxAge(ttl time.Duration) Option {
 	}
 }
 
+// ErrWildcardWithCredentials rejects the "*" + AllowCredentials combination.
+// The Fetch standard forbids it: a browser refuses a wildcard Allow-Origin on a
+// credentialed request. Reflecting the request origin back would "work", but it
+// turns the configuration into an allow-any-origin-with-cookies policy, which is
+// exactly what "*" is meant to prevent. List the origins explicitly instead —
+// per-origin wildcards such as "https://*.example.com" remain valid.
+var ErrWildcardWithCredentials = errors.New("cors: \"*\" cannot be combined with AllowCredentials; list explicit origins")
+
 // NewCORS creates an httpx middleware that applies configurable CORS headers.
 // By default it allows all origins, standard HTTP verbs, and reflects requested headers.
-func NewCORS(options ...Option) httpx.Middleware {
+// It returns ErrWildcardWithCredentials when the configuration pairs a bare "*"
+// origin with credentials, so the misconfiguration surfaces at startup rather
+// than becoming a runtime hole.
+func NewCORS(options ...Option) (httpx.Middleware, error) {
 	cfg := newConfig(options...)
+	if cfg.allowCredentials && cfg.hasWildcardOrigin() {
+		return nil, ErrWildcardWithCredentials
+	}
 	return func(ctx httpx.Context) error {
 		preflight := cfg.apply(
 			ctx.Method(),
@@ -73,7 +88,7 @@ func NewCORS(options ...Option) httpx.Middleware {
 			return ctx.NoContent(http.StatusNoContent)
 		}
 		return ctx.Next()
-	}
+	}, nil
 }
 
 type config struct {
@@ -166,15 +181,27 @@ func (c *config) apply(method, origin, reqHeaders string, setHeader func(string,
 	return method == http.MethodOptions
 }
 
+// hasWildcardOrigin reports whether a bare "*" is configured. Per-origin
+// wildcard patterns ("https://*.example.com") are not affected: those resolve to
+// the matched request origin, which is a valid credentialed response.
+func (c *config) hasWildcardOrigin() bool {
+	for _, allowed := range c.allowOrigins {
+		if allowed == "*" {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *config) resolveOrigin(requestOrigin string) string {
 	if len(c.allowOrigins) == 0 {
 		return ""
 	}
 	for _, allowed := range c.allowOrigins {
 		if allowed == "*" {
-			if c.allowCredentials && requestOrigin != "" {
-				return requestOrigin
-			}
+			// Always the literal wildcard: NewCORS rejects "*" together with
+			// credentials, so there is no case left where reflecting the request
+			// origin would be correct.
 			return "*"
 		}
 		if originMatches(requestOrigin, allowed) {
