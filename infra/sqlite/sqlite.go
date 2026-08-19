@@ -8,25 +8,51 @@ import (
 	"modernc.org/sqlite"
 )
 
-// Driver wraps the modernc.org/sqlite.Driver to provide additional functionality.
+// Driver wraps the modernc.org/sqlite driver to provide additional functionality.
 // It automatically enables foreign key constraints on connection establishment.
+//
+// It delegates to the driver instance modernc.org/sqlite registers under the
+// name "sqlite" rather than embedding a fresh sqlite.Driver value. That package
+// keeps every registration — scalar and aggregate functions, collations,
+// connection hooks, virtual table modules — on that one instance, so a zero
+// value carries none of them: anything registered through
+// sqlite.RegisterScalarFunction and friends was silently absent here. Queries
+// then failed with "no such function" on this driver while working on "sqlite"
+// in the same process, and a missing custom collation was worse still, quietly
+// falling back to byte order and changing how rows sort and compare.
 type Driver struct {
-	sqlite.Driver
+	base driver.Driver
 }
 
 // NewDriver creates a new SQLite driver instance with enhanced functionality.
 // The returned driver automatically enables foreign key constraints for all connections.
 func NewDriver() Driver {
-	return Driver{
-		Driver: sqlite.Driver{},
+	return Driver{base: baseDriver()}
+}
+
+// baseDriver returns the driver modernc.org/sqlite registered with database/sql,
+// which is the instance its package-level registration functions mutate.
+func baseDriver() driver.Driver {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		// Only reachable if modernc.org/sqlite is not registered, which cannot
+		// happen while it is imported.
+		return &sqlite.Driver{}
 	}
+	base := db.Driver()
+	_ = db.Close()
+	return base
 }
 
 // Open establishes a connection to the SQLite database and enables foreign key constraints.
 // It wraps the underlying driver's Open method and executes "PRAGMA foreign_keys = on;"
 // to ensure referential integrity is enforced. Returns an error if connection fails.
 func (d Driver) Open(name string) (driver.Conn, error) {
-	conn, err := d.Driver.Open(name)
+	base := d.base
+	if base == nil {
+		base = baseDriver()
+	}
+	conn, err := base.Open(name)
 	if err != nil {
 		return conn, err
 	}
