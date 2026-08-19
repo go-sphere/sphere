@@ -100,9 +100,11 @@ func (n *Client) GenerateImageURL(key string, width int) string {
 	return res.String()
 }
 
-// keyPreprocess removes leading slash from storage keys to ensure compatibility with Qiniu API.
-func (n *Client) keyPreprocess(key string) string {
-	return strings.TrimPrefix(key, "/")
+// keyPreprocess normalizes a caller-supplied key into its canonical form.
+// See storage.NormalizeKey for the rules; applying them here is what keeps a
+// key addressed on one backend addressing the same object on another.
+func (n *Client) keyPreprocess(key string) (string, error) {
+	return storage.NormalizeKey(key)
 }
 
 // GenerateUploadAuth creates a secure upload token for direct client uploads to Qiniu.
@@ -119,7 +121,10 @@ func (n *Client) GenerateUploadAuth(_ context.Context, req storage.UploadAuthReq
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
-	key = n.keyPreprocess(key)
+	key, err = n.keyPreprocess(key)
+	if err != nil {
+		return storage.UploadAuthResult{}, err
+	}
 	put := &qiniuStorage.PutPolicy{
 		Scope:      n.config.Bucket + ":" + key,
 		InsertOnly: 1,
@@ -150,7 +155,10 @@ func (n *Client) GenerateUploadAuth(_ context.Context, req storage.UploadAuthReq
 
 // UploadFile uploads data from a reader to Qiniu Cloud Object Storage with the specified key.
 func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
-	key = n.keyPreprocess(key)
+	key, err := n.keyPreprocess(key)
+	if err != nil {
+		return "", err
+	}
 	put := &qiniuStorage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -158,7 +166,7 @@ func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	cfg := qiniuStorage.Config{}
 	ret := qiniuStorage.PutRet{}
 	formUploader := qiniuStorage.NewFormUploader(&cfg)
-	err := formUploader.Put(ctx, &ret, upToken, key, file, -1, nil)
+	err = formUploader.Put(ctx, &ret, upToken, key, file, -1, nil)
 	if err != nil {
 		return "", err
 	}
@@ -167,7 +175,10 @@ func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 
 // UploadLocalFile uploads an existing local file to Qiniu Cloud Object Storage with the specified key.
 func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
-	key = n.keyPreprocess(key)
+	key, err := n.keyPreprocess(key)
+	if err != nil {
+		return "", err
+	}
 	put := &qiniuStorage.PutPolicy{
 		Scope: n.config.Bucket,
 	}
@@ -175,7 +186,7 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	cfg := qiniuStorage.Config{}
 	ret := qiniuStorage.PutRet{}
 	formUploader := qiniuStorage.NewFormUploader(&cfg)
-	err := formUploader.PutFile(ctx, &ret, upToken, key, file, nil)
+	err = formUploader.PutFile(ctx, &ret, upToken, key, file, nil)
 	if err != nil {
 		return "", err
 	}
@@ -185,7 +196,10 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 // StatFile returns lightweight metadata for a file without downloading its body.
 // It implements storage.FileStater by reusing the Qiniu stat call.
 func (n *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, error) {
-	key = n.keyPreprocess(key)
+	key, err := n.keyPreprocess(key)
+	if err != nil {
+		return storage.FileInfo{}, err
+	}
 	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
 	info, err := manager.Stat(n.config.Bucket, key)
 	if err != nil {
@@ -210,7 +224,9 @@ func (n *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 	}
 	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
 	ret, hasNext, err := manager.ListFilesWithContext(ctx, n.config.Bucket,
-		qiniuStorage.ListInputOptionsPrefix(n.keyPreprocess(prefix)),
+		// A prefix is not a key: an empty prefix means "list everything", so it
+		// is only stripped of a leading separator rather than normalized.
+		qiniuStorage.ListInputOptionsPrefix(strings.TrimPrefix(prefix, "/")),
 		qiniuStorage.ListInputOptionsMarker(cursor),
 		qiniuStorage.ListInputOptionsLimit(limit),
 	)
@@ -233,9 +249,12 @@ func (n *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 
 // IsFileExists checks whether a file exists in the Qiniu Cloud Object Storage bucket.
 func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
-	key = n.keyPreprocess(key)
+	key, err := n.keyPreprocess(key)
+	if err != nil {
+		return false, err
+	}
 	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
-	_, err := manager.Stat(n.config.Bucket, key)
+	_, err = manager.Stat(n.config.Bucket, key)
 	if err != nil {
 		if isNotFoundError(err) {
 			return false, nil
@@ -248,28 +267,55 @@ func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 // DownloadFile retrieves a file from Qiniu Cloud Object Storage.
 // Returns the file reader, content type, and content length.
 func (n *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
-	key = n.keyPreprocess(key)
+	key, err := n.keyPreprocess(key)
+	if err != nil {
+		return storage.DownloadResult{}, err
+	}
 	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
 	object, err := manager.Get(n.config.Bucket, key, &qiniuStorage.GetObjectInput{Context: ctx})
 	if err != nil {
-		if isNotFoundError(err) {
+		if isDownloadNotFoundError(err) {
 			return storage.DownloadResult{}, storageerr.ErrorNotFound
 		}
 		return storage.DownloadResult{}, err
 	}
+	// The SDK fills GetObjectOutput.ContentLength only after the download
+	// goroutine has finished writing the body, while Get returns as soon as the
+	// response headers arrive — so the field read here is always zero, and
+	// reading it at all races that goroutine. Size is contractually the number
+	// of readable bytes and drives Content-Length on the HTTP path, where a zero
+	// makes the server send an empty body, so it is resolved with a stat instead.
+	// This mirrors the s3 driver, which stats the object for the same reason.
+	info, err := manager.Stat(n.config.Bucket, key)
+	if err != nil {
+		if object.Body != nil {
+			_ = object.Body.Close()
+		}
+		if isDownloadNotFoundError(err) {
+			return storage.DownloadResult{}, storageerr.ErrorNotFound
+		}
+		return storage.DownloadResult{}, err
+	}
+	mime := object.ContentType
+	if mime == "" {
+		mime = info.MimeType
+	}
 	return storage.DownloadResult{
 		Reader: object.Body,
-		MIME:   object.ContentType,
-		Size:   object.ContentLength,
+		MIME:   mime,
+		Size:   info.Fsize,
 	}, nil
 }
 
 // DeleteFile removes a file from the Qiniu Cloud Object Storage bucket.
 // Deletion is idempotent: a key that does not exist reports success.
 func (n *Client) DeleteFile(ctx context.Context, key string) error {
-	key = n.keyPreprocess(key)
+	key, err := n.keyPreprocess(key)
+	if err != nil {
+		return err
+	}
 	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
-	err := manager.Delete(n.config.Bucket, key)
+	err = manager.Delete(n.config.Bucket, key)
 	if err != nil {
 		// Qiniu reports a missing key as 612; the delete contract is idempotent,
 		// so treat "already gone" as success.
@@ -283,10 +329,16 @@ func (n *Client) DeleteFile(ctx context.Context, key string) error {
 
 // MoveFile relocates a file from source to destination key within the Qiniu bucket.
 func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourceKey = n.keyPreprocess(sourceKey)
-	destinationKey = n.keyPreprocess(destinationKey)
+	sourceKey, err := n.keyPreprocess(sourceKey)
+	if err != nil {
+		return err
+	}
+	destinationKey, err = n.keyPreprocess(destinationKey)
+	if err != nil {
+		return err
+	}
 	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
-	err := manager.Move(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
+	err = manager.Move(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {
 		if isNotFoundError(err) {
 			return storageerr.ErrorNotFound
@@ -301,10 +353,16 @@ func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 
 // CopyFile duplicates a file from source to destination key within the Qiniu bucket.
 func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourceKey = n.keyPreprocess(sourceKey)
-	destinationKey = n.keyPreprocess(destinationKey)
+	sourceKey, err := n.keyPreprocess(sourceKey)
+	if err != nil {
+		return err
+	}
+	destinationKey, err = n.keyPreprocess(destinationKey)
+	if err != nil {
+		return err
+	}
 	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
-	err := manager.Copy(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
+	err = manager.Copy(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {
 		if isNotFoundError(err) {
 			return storageerr.ErrorNotFound
@@ -317,6 +375,8 @@ func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	return nil
 }
 
+// isNotFoundError reports a missing key on the bucket-management (rs) API, which
+// answers with Qiniu's own 612 status rather than an HTTP 404.
 func isNotFoundError(err error) bool {
 	if errors.Is(err, qiniuStorage.ErrNoSuchFile) {
 		return true
@@ -326,6 +386,24 @@ func isNotFoundError(err error) bool {
 		return false
 	}
 	return respErr != nil && respErr.Code == 612
+}
+
+// isDownloadNotFoundError reports a missing key on the download path. Downloads
+// go through the object source rather than the rs API, so a missing key comes
+// back as a plain HTTP 404 that the 612 check above does not recognise; without
+// this the caller cannot tell "no such object" from a transport failure, and an
+// HTTP handler answers 500 where it should answer 404. The 612 case is still
+// accepted because the same helper guards the stat performed alongside the
+// download.
+func isDownloadNotFoundError(err error) bool {
+	if isNotFoundError(err) {
+		return true
+	}
+	var respErr *qiniuStorage.ErrorInfo
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	return respErr != nil && respErr.Code == http.StatusNotFound
 }
 
 func isDestinationExistsError(err error) bool {

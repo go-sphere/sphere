@@ -7,7 +7,6 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/go-sphere/sphere/cache"
@@ -36,14 +35,19 @@ func NewClient(conf Config, cache cache.ByteCache) (*Client, error) {
 	}, nil
 }
 
-// keyPreprocess removes leading slash from storage keys to ensure cache key consistency.
-func (c *Client) keyPreprocess(key string) string {
-	return strings.TrimPrefix(key, "/")
+// keyPreprocess normalizes a caller-supplied key into its canonical form.
+// See storage.NormalizeKey for the rules; applying them here is what keeps a
+// key addressed on one backend addressing the same object on another.
+func (c *Client) keyPreprocess(key string) (string, error) {
+	return storage.NormalizeKey(key)
 }
 
 // UploadFile stores file data in the cache with the specified key and expiration time.
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
-	key = c.keyPreprocess(key)
+	key, err := c.keyPreprocess(key)
+	if err != nil {
+		return "", err
+	}
 	all, err := io.ReadAll(file)
 	if err != nil {
 		return "", err
@@ -73,7 +77,10 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 
 // IsFileExists checks whether a file exists in the cache storage.
 func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
-	key = c.keyPreprocess(key)
+	key, err := c.keyPreprocess(key)
+	if err != nil {
+		return false, err
+	}
 	_, found, err := c.cache.Get(ctx, key)
 	return found, err
 }
@@ -81,7 +88,10 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 // DownloadFile retrieves file data from the cache storage.
 // Returns the file content reader, MIME type based on file extension, and content size.
 func (c *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
-	key = c.keyPreprocess(key)
+	key, err := c.keyPreprocess(key)
+	if err != nil {
+		return storage.DownloadResult{}, err
+	}
 	data, found, err := c.cache.Get(ctx, key)
 	if err != nil {
 		return storage.DownloadResult{}, err
@@ -98,8 +108,11 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 
 // DeleteFile removes a file from the cache storage.
 func (c *Client) DeleteFile(ctx context.Context, key string) error {
-	key = c.keyPreprocess(key)
-	err := c.cache.Del(ctx, key)
+	key, err := c.keyPreprocess(key)
+	if err != nil {
+		return err
+	}
+	err = c.cache.Del(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -109,9 +122,28 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 // MoveFile relocates a file from source to destination key within cache storage.
 // This operation copies the file content and then deletes the source.
 func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourceKey = c.keyPreprocess(sourceKey)
-	destinationKey = c.keyPreprocess(destinationKey)
-	err := c.CopyFile(ctx, sourceKey, destinationKey, overwrite)
+	sourceKey, err := c.keyPreprocess(sourceKey)
+	if err != nil {
+		return err
+	}
+	destinationKey, err = c.keyPreprocess(destinationKey)
+	if err != nil {
+		return err
+	}
+	// A move onto itself is a no-op, and must not run copy-then-delete: the
+	// delete would remove the very entry the copy just wrote, reporting success
+	// while destroying the object.
+	if sourceKey == destinationKey {
+		exists, err := c.IsFileExists(ctx, sourceKey)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return storageerr.ErrorNotFound
+		}
+		return nil
+	}
+	err = c.CopyFile(ctx, sourceKey, destinationKey, overwrite)
 	if err != nil {
 		return err
 	}
@@ -125,8 +157,14 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 // CopyFile duplicates a file from source to destination key within cache storage.
 // Validates overwrite permissions and handles cache expiration settings.
 func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourceKey = c.keyPreprocess(sourceKey)
-	destinationKey = c.keyPreprocess(destinationKey)
+	sourceKey, err := c.keyPreprocess(sourceKey)
+	if err != nil {
+		return err
+	}
+	destinationKey, err = c.keyPreprocess(destinationKey)
+	if err != nil {
+		return err
+	}
 	if !overwrite {
 		_, found, err := c.cache.Get(ctx, destinationKey)
 		if err != nil {

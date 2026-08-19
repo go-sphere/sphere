@@ -19,6 +19,7 @@ type options struct {
 	uploadSuccessWithData func(ctx httpx.Context, key, url string) error
 	createFileKey         func(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error)
 	downloadCacheControl  string
+	inlineDownload        bool
 }
 
 // Option configures file server behavior.
@@ -41,6 +42,21 @@ func WithCreateFileKey(fn func(ctx context.Context, server *FileServer, filename
 func WithCacheControl(maxAge uint64) Option {
 	return func(o *options) {
 		o.downloadCacheControl = "max-age=" + strconv.FormatUint(maxAge, 10)
+	}
+}
+
+// WithInlineDownload serves downloads inline instead of as attachments.
+//
+// The download endpoint serves whatever a client uploaded, and the content type
+// is derived from the key's extension, so an uploaded .html or .svg is returned
+// as text/html or image/svg+xml and its script runs on the origin serving
+// GetBase. Attachment disposition is therefore the default. Enable inline only
+// when GetBase is an origin that carries no session — a dedicated asset domain
+// or CDN host — or when the upload path is restricted to types that cannot
+// carry script.
+func WithInlineDownload() Option {
+	return func(o *options) {
+		o.inlineDownload = true
 	}
 }
 

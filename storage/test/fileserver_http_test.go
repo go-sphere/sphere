@@ -100,6 +100,110 @@ func TestFileServerUploadAndDownloadOverHTTP(t *testing.T) {
 	}
 }
 
+// TestFileServerDownloadIsNotRenderable pins the response headers that keep an
+// uploaded document from executing as script on the origin serving GetBase.
+// The content type is derived from the key's extension, so a .html or .svg
+// upload comes back as text/html or image/svg+xml; without nosniff and an
+// attachment disposition the browser renders it and any embedded script runs
+// with the origin's cookies. The repo's own file service wires PutBase and
+// GetBase to the same base URL, so that origin is routinely the application's.
+func TestFileServerDownloadIsNotRenderable(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		key     string
+		payload string
+	}{
+		{name: "html", key: "payload.html", payload: "<script>alert(document.domain)</script>"},
+		{name: "svg", key: "payload.svg", payload: `<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			router := newMiniRouter()
+			server := httptest.NewServer(router)
+			defer server.Close()
+
+			tokenCache := memory.NewByteCache()
+			t.Cleanup(func() { _ = tokenCache.Close() })
+
+			fileServer, err := fileserver.NewCDNAdapter(
+				fileserver.Config{
+					PutBase:      server.URL + "/upload",
+					GetBase:      server.URL + "/files",
+					UploadNaming: storage.UploadNamingStrategyOriginal,
+				},
+				tokenCache,
+				newInMemoryStorage(t),
+			)
+			if err != nil {
+				t.Fatalf("NewCDNAdapter() error = %v", err)
+			}
+			fileServer.RegisterFileDownloader(router.Group("/files"))
+
+			if _, err = fileServer.UploadFile(context.Background(), strings.NewReader(tc.payload), tc.key); err != nil {
+				t.Fatalf("UploadFile() error = %v", err)
+			}
+
+			resp, err := server.Client().Get(server.URL + "/files/" + tc.key)
+			if err != nil {
+				t.Fatalf("GET download request failed: %v", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if got := resp.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+				t.Errorf("X-Content-Type-Options = %q, want %q", got, "nosniff")
+			}
+			disposition := resp.Header.Get("Content-Disposition")
+			if !strings.HasPrefix(disposition, "attachment") {
+				t.Errorf("Content-Disposition = %q, want an attachment disposition", disposition)
+			}
+		})
+	}
+}
+
+// TestFileServerInlineDownloadOptOut pins that the attachment default is
+// escapable for deployments that serve GetBase from a session-free origin.
+func TestFileServerInlineDownloadOptOut(t *testing.T) {
+	router := newMiniRouter()
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	tokenCache := memory.NewByteCache()
+	t.Cleanup(func() { _ = tokenCache.Close() })
+
+	fileServer, err := fileserver.NewCDNAdapter(
+		fileserver.Config{
+			PutBase:      server.URL + "/upload",
+			GetBase:      server.URL + "/files",
+			UploadNaming: storage.UploadNamingStrategyOriginal,
+		},
+		tokenCache,
+		newInMemoryStorage(t),
+		fileserver.WithInlineDownload(),
+	)
+	if err != nil {
+		t.Fatalf("NewCDNAdapter() error = %v", err)
+	}
+	fileServer.RegisterFileDownloader(router.Group("/files"))
+
+	if _, err = fileServer.UploadFile(context.Background(), strings.NewReader("body"), "photo.png"); err != nil {
+		t.Fatalf("UploadFile() error = %v", err)
+	}
+
+	resp, err := server.Client().Get(server.URL + "/files/photo.png")
+	if err != nil {
+		t.Fatalf("GET download request failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if got := resp.Header.Get("Content-Disposition"); got != "" {
+		t.Errorf("Content-Disposition = %q, want none when inline is enabled", got)
+	}
+	// nosniff is not part of the opt-out: it never prevents a legitimate
+	// content type from rendering, it only blocks type upgrades.
+	if got := resp.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q, want %q", got, "nosniff")
+	}
+}
+
 type miniRoute struct {
 	method  string
 	pattern string

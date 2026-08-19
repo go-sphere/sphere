@@ -5,8 +5,10 @@ import (
 	"errors"
 	"io"
 	"maps"
+	"mime"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -155,6 +157,13 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 	if a.opts.downloadCacheControl != "" {
 		sharedHeaders["Cache-Control"] = a.opts.downloadCacheControl
 	}
+	// This endpoint serves user-uploaded bytes under a content type derived from
+	// the key's extension, so .html and .svg come back as text/html and
+	// image/svg+xml and execute on the origin serving GetBase. nosniff stops the
+	// browser from upgrading an unknown or absent type into something
+	// executable, and attachment disposition stops the declared type from
+	// rendering at all. See WithInlineDownload for opting out.
+	sharedHeaders["X-Content-Type-Options"] = "nosniff"
 	path, param := httpx.FixWildcardPathIfNeed(route, "/*filename")
 	route.Handle(http.MethodGet, path, func(ctx httpx.Context) error {
 		filename := normalizeWildcardParam(ctx.Param(param))
@@ -169,6 +178,9 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 			return httpx.InternalServerError(err)
 		}
 		headers := maps.Clone(sharedHeaders)
+		if !a.opts.inlineDownload {
+			headers["Content-Disposition"] = contentDisposition(filename)
+		}
 		for k, v := range headers {
 			ctx.SetHeader(k, v)
 		}
@@ -177,22 +189,37 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 	})
 }
 
+// contentDisposition builds an attachment disposition for key. The filename
+// parameter is produced by mime.FormatMediaType, which quotes and encodes it;
+// when that fails (an un-encodable name) the bare "attachment" is returned,
+// since forcing the download matters and the name does not. Formatting it by
+// hand would risk injecting a header value from a client-controlled key.
+func contentDisposition(key string) string {
+	name := path.Base(key)
+	if name == "." || name == "/" {
+		return "attachment"
+	}
+	if formatted := mime.FormatMediaType("attachment", map[string]string{"filename": name}); formatted != "" {
+		return formatted
+	}
+	return "attachment"
+}
+
 func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 	route.Handle(http.MethodPut, "/:key", func(ctx httpx.Context) error {
 		key := ctx.Param("key")
 		if key == "" {
 			return httpx.NewBadRequestError("key is required")
 		}
-		filename, found, err := a.cache.Get(ctx.Context(), key)
+		// GetDel consumes the token atomically. Reading and then deleting left a
+		// window in which two concurrent requests both saw the token as valid,
+		// so a single-use upload URL could be redeemed more than once.
+		filename, found, err := a.cache.GetDel(ctx.Context(), key)
 		if err != nil {
 			return httpx.InternalServerError(err)
 		}
 		if !found {
 			return httpx.NewBadRequestError("key expires or not found")
-		}
-		err = a.cache.Del(ctx.Context(), key)
-		if err != nil {
-			return httpx.InternalServerError(err)
 		}
 		data := ctx.BodyReader()
 		if data == nil {
