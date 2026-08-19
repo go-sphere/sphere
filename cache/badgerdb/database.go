@@ -216,8 +216,27 @@ func (d *Database) MultiDel(ctx context.Context, keys []string) error {
 	})
 }
 
+// DelAll removes every entry by enumerating the keyspace and deleting in
+// batches, mirroring nscache.NSCache.DelAll.
+//
+// It deliberately avoids badger's DropAll, which is documented as safe against
+// concurrent writes but not against concurrent reads — the caller is expected to
+// guarantee no reads are in flight, or badger may panic. That guarantee cannot
+// be offered here: DelAll reaches callers through Evictor, a required member of
+// the Cache interface, so anyone holding a cache.ByteCache can invoke it without
+// knowing which driver is underneath, let alone quiescing readers first.
+//
+// Like the nscache equivalent, this is not atomic: a key written between the
+// scan and the delete survives.
 func (d *Database) DelAll(ctx context.Context) error {
-	return d.db.DropAll()
+	keys, err := d.Keys(ctx, "")
+	if err != nil {
+		return err
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	return d.MultiDel(ctx, keys)
 }
 
 // Keys returns every key whose name starts with prefix. It uses a read-only
