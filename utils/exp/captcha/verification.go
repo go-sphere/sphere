@@ -16,8 +16,11 @@ const (
 	// DefaultStoreSize defines the default initial capacity for the verification storage maps.
 	DefaultStoreSize = 100
 	// DefaultMaxAttempts defines the maximum number of failed verification attempts allowed
-	// for a number before its outstanding codes are invalidated to prevent brute forcing.
+	// for a number before further attempts are frozen to prevent brute forcing.
 	DefaultMaxAttempts = 5
+	// DefaultLockoutWindow is how long a number stops accepting verification
+	// attempts once DefaultMaxAttempts failures accumulate.
+	DefaultLockoutWindow = 15 * time.Minute
 )
 
 // VerificationConfig holds the rate limiting configuration for verification code generation.
@@ -38,10 +41,20 @@ type VerificationStorage struct {
 	MinuteCounts map[string]int `json:"minute_counts"`
 	DailyCounts  map[string]int `json:"daily_counts"`
 
+	// MinuteTimestamps and DailyTimestamps record the start of each number's
+	// current rate-limit window, not the time of its last send. Anchoring them to
+	// the last send would stop the window from ever rolling for a number that
+	// keeps using it.
 	MinuteTimestamps map[string]time.Time `json:"minute_timestamps"`
 	DailyTimestamps  map[string]time.Time `json:"daily_timestamps"`
 
 	FailedAttempts map[string]int `json:"failed_attempts"`
+
+	// LockedUntil freezes verification attempts for a number after too many
+	// failures. Freezing replaces invalidating the outstanding codes, which let
+	// anyone who knew a phone number destroy the credential its owner had just
+	// been sent.
+	LockedUntil map[string]time.Time `json:"locked_until"`
 }
 
 func (s *VerificationStorage) cleanExpired(number string, now time.Time) {
@@ -59,11 +72,11 @@ func (s *VerificationStorage) cleanExpired(number string, now time.Time) {
 		// Drop the key entirely instead of leaving an empty slice behind, so the
 		// map does not retain one entry per number ever seen.
 		delete(s.Store, number)
-		// The failure counter exists to protect outstanding codes from brute
-		// forcing. With no code left there is nothing to guess, so keeping the
-		// counter would only leak memory and could lock the number out for good
-		// when the send limit prevents SaveCode from resetting it.
+		// The failure counter and freeze exist to protect outstanding codes from
+		// brute forcing. With no code left there is nothing to guess, so keeping
+		// them would only leak memory.
 		delete(s.FailedAttempts, number)
+		delete(s.LockedUntil, number)
 		return
 	}
 	s.Store[number] = validCaptcha
@@ -77,9 +90,11 @@ func (s *VerificationStorage) forgetIdle(number string, now time.Time) {
 	if _, ok := s.Store[number]; ok {
 		return
 	}
-	// A failure count without a code to protect is meaningless. Verify maintains
-	// that invariant, but storage restored from JSON may not, so enforce it here.
+	// A failure count or freeze without a code to protect is meaningless. Verify
+	// maintains that invariant, but storage restored from JSON may not, so
+	// enforce it here.
 	delete(s.FailedAttempts, number)
+	delete(s.LockedUntil, number)
 	if last, ok := s.DailyTimestamps[number]; ok && now.Sub(last) < 24*time.Hour {
 		return
 	}
@@ -88,6 +103,21 @@ func (s *VerificationStorage) forgetIdle(number string, now time.Time) {
 	delete(s.MinuteTimestamps, number)
 	delete(s.DailyTimestamps, number)
 	delete(s.FailedAttempts, number)
+}
+
+// rollWindow resets a rate-limit counter whose window has elapsed and anchors a
+// new window at now. It runs before the limit is checked, so the window rolls on
+// its own schedule. Previously a counter was only reset once it had already hit
+// its limit, which made both windows cumulative rather than rolling: a number
+// used a couple of times a day kept accumulating across days until it was
+// refused for exceeding a "daily" limit it never reached on any single day, and
+// could only recover by going completely silent for 24 hours.
+func (s *VerificationStorage) rollWindow(number string, now time.Time, window time.Duration, counts map[string]int, starts map[string]time.Time) {
+	start, ok := starts[number]
+	if !ok || now.Sub(start) >= window {
+		counts[number] = 0
+		starts[number] = now
+	}
 }
 
 // VerificationSystem provides thread-safe verification code management with rate limiting.
@@ -116,6 +146,7 @@ func NewVerificationSystem(conf VerificationConfig) *VerificationSystem {
 			MinuteTimestamps: make(map[string]time.Time, DefaultStoreSize),
 			DailyTimestamps:  make(map[string]time.Time, DefaultStoreSize),
 			FailedAttempts:   make(map[string]int, DefaultStoreSize),
+			LockedUntil:      make(map[string]time.Time, DefaultStoreSize),
 		},
 	}
 }
@@ -124,37 +155,29 @@ func NewVerificationSystem(conf VerificationConfig) *VerificationSystem {
 // It checks both minute and daily limits before saving the code and returns an error
 // if the limits are exceeded. The code will expire after the specified duration.
 func (s *VerificationSystem) SaveCode(number string, code string, expiresIn time.Duration) error {
+	// An empty code would be matched by an empty submission, turning verification
+	// into a no-op for this number. Refuse to store one so a misconfigured
+	// generator fails loudly instead of silently disabling the check.
+	if code == "" {
+		return errors.New("captcha: refusing to store an empty code")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
 	s.store.cleanExpired(number, now)
 
-	if count, ok := s.store.MinuteCounts[number]; ok {
-		if count >= s.config.MinuteLimit {
-			lastSent := s.store.MinuteTimestamps[number]
-			if now.Sub(lastSent) < time.Minute {
-				return errors.New("minute limit exceeded")
-			} else {
-				s.store.MinuteCounts[number] = 0
-			}
-		}
-	}
+	s.store.rollWindow(number, now, time.Minute, s.store.MinuteCounts, s.store.MinuteTimestamps)
+	s.store.rollWindow(number, now, 24*time.Hour, s.store.DailyCounts, s.store.DailyTimestamps)
 
-	if count, ok := s.store.DailyCounts[number]; ok {
-		if count >= s.config.DailyLimit {
-			lastSent := s.store.DailyTimestamps[number]
-			if now.Sub(lastSent) < 24*time.Hour {
-				return errors.New("daily limit exceeded")
-			} else {
-				s.store.DailyCounts[number] = 0
-			}
-		}
+	if s.store.MinuteCounts[number] >= s.config.MinuteLimit {
+		return errors.New("minute limit exceeded")
+	}
+	if s.store.DailyCounts[number] >= s.config.DailyLimit {
+		return errors.New("daily limit exceeded")
 	}
 
 	s.store.MinuteCounts[number]++
 	s.store.DailyCounts[number]++
-	s.store.MinuteTimestamps[number] = now
-	s.store.DailyTimestamps[number] = now
 	s.store.FailedAttempts[number] = 0
 
 	newCaptcha := VerificationCode{
@@ -178,10 +201,25 @@ func (s *VerificationSystem) SaveCode(number string, code string, expiresIn time
 // counted: there is nothing to brute force, and counting them would let any caller
 // grow the failure map with arbitrary numbers.
 func (s *VerificationSystem) Verify(number, code string) bool {
+	// Never let an empty submission match. SaveCode already refuses to store an
+	// empty code; this is the second half of the same guarantee, so no storage
+	// path can make an empty string a valid credential.
+	if code == "" {
+		return false
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
 	s.store.cleanExpired(number, now)
+
+	if until, ok := s.store.LockedUntil[number]; ok {
+		if now.Before(until) {
+			// Frozen: reject without comparing, and without touching the codes.
+			return false
+		}
+		delete(s.store.LockedUntil, number)
+		delete(s.store.FailedAttempts, number)
+	}
 
 	caps, ok := s.store.Store[number]
 	if !ok || len(caps) == 0 {
@@ -205,13 +243,15 @@ func (s *VerificationSystem) Verify(number, code string) bool {
 
 	s.store.FailedAttempts[number]++
 	if s.store.FailedAttempts[number] >= DefaultMaxAttempts {
-		// Too many failures: invalidate all outstanding codes for this number.
-		// The counter is dropped with them, keeping the invariant that a failure
-		// count only exists while there is a code to protect. Further attempts
-		// are rejected by the no-outstanding-code check above without being
-		// counted, and the next SaveCode starts a fresh budget.
-		delete(s.store.Store, number)
-		delete(s.store.FailedAttempts, number)
+		// Too many failures: freeze attempts for this number, but keep its
+		// outstanding codes. Invalidating them instead spent the attacker's
+		// guesses on destroying the victim's credential — anyone who knew a phone
+		// number could wipe the code its owner had just received, and with the
+		// send limit blocking an immediate resend, keep them locked out
+		// indefinitely for free. Freezing bounds the damage to the lockout window
+		// and leaves the legitimate code usable once it elapses.
+		s.store.LockedUntil[number] = now.Add(DefaultLockoutWindow)
+		s.store.FailedAttempts[number] = 0
 	}
 	return false
 }
@@ -257,6 +297,11 @@ func (s *VerificationSystem) GetCaptchaCount(number string) int {
 // It panics if the system entropy source fails, since that is an unrecoverable
 // condition and returning a guessable code instead would be worse.
 func RandomCode(length int) string {
+	// A negative length would panic in make; report it as "no code" and let the
+	// empty-code guards in SaveCode/Verify reject it.
+	if length <= 0 {
+		return ""
+	}
 	code := make([]byte, length)
 	digits := big.NewInt(10)
 	for i := range code {

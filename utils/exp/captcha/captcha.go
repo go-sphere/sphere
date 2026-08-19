@@ -22,6 +22,17 @@ type Config struct {
 	RateLimit     VerificationConfig `json:"rate_limit"`      // Rate limiting configuration
 }
 
+// Defaults applied by NewManager to a Config field left at its zero value.
+// Without them a partially filled Config produces a system that looks healthy
+// but cannot work: a zero CodeLength yields an empty code, which Verify then
+// accepts from anyone, and a zero CodeExpiresIn expires every code at the
+// instant it is stored, so the SMS is sent and the quota spent while no
+// verification can ever succeed.
+const (
+	DefaultCodeLength    = 6
+	DefaultCodeExpiresIn = 300 // seconds
+)
+
 // Manager provides verification code generation, sending, and validation capabilities.
 // It combines code generation, delivery, and rate limiting in a single component.
 type Manager struct {
@@ -34,7 +45,19 @@ type Manager struct {
 
 // NewManager creates a new verification code manager with the provided configuration and sender.
 // It initializes the verification system with rate limiting capabilities.
+//
+// Non-positive CodeLength and CodeExpiresIn values fall back to their defaults,
+// matching how NewVerificationSystem treats its own limits. They are normalized
+// here rather than at use time because both failure modes are silent: an empty
+// code is accepted by Verify from any caller, and an already-expired code makes
+// every verification fail while still sending the message.
 func NewManager(conf Config, sender Sender) *Manager {
+	if conf.CodeLength <= 0 {
+		conf.CodeLength = DefaultCodeLength
+	}
+	if conf.CodeExpiresIn <= 0 {
+		conf.CodeExpiresIn = DefaultCodeExpiresIn
+	}
 	return &Manager{
 		done:         make(chan struct{}),
 		config:       conf,
