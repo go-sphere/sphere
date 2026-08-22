@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"math/rand/v2"
+	"strings"
 	"testing"
 
 	"github.com/go-sphere/sphere/utils/encoding/baseconv"
@@ -123,5 +124,57 @@ func TestRoundTripAcrossInt64Domain(t *testing.T) {
 		if err != nil || got62 != v {
 			t.Errorf("base62 round-trip of %d: got=%d err=%v", v, got62, err)
 		}
+	}
+}
+
+// TestRandomGenerators pin the documented contract of the two random-string
+// helpers: exact length, characters drawn only from the advertised alphabet,
+// empty output for non-positive lengths, and no repeats in practice — these
+// functions exist to mint identifiers, where a duplicate is a broken token.
+func TestRandomGenerators(t *testing.T) {
+	tests := []struct {
+		name     string
+		generate func(int) string
+		alphabet string
+	}{
+		{name: "base32", generate: RandomBase32, alphabet: baseconv.AlphabetBase32},
+		{name: "base62", generate: RandomBase62, alphabet: baseconv.AlphabetBase62},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Run("length and alphabet", func(t *testing.T) {
+				for _, length := range []int{1, 16, 64} {
+					got := tt.generate(length)
+					if len(got) != length {
+						t.Fatalf("generate(%d) has length %d", length, len(got))
+					}
+					for _, r := range got {
+						if !strings.ContainsRune(tt.alphabet, r) {
+							t.Fatalf("generate(%d) contains %q, not in the alphabet", length, r)
+						}
+					}
+				}
+			})
+
+			t.Run("non-positive length yields empty", func(t *testing.T) {
+				for _, length := range []int{0, -1} {
+					if got := tt.generate(length); got != "" {
+						t.Fatalf("generate(%d) = %q, want empty", length, got)
+					}
+				}
+			})
+
+			t.Run("distinct draws", func(t *testing.T) {
+				seen := make(map[string]struct{})
+				for range 50 {
+					got := tt.generate(24)
+					if _, dup := seen[got]; dup {
+						t.Fatalf("generator produced a duplicate: %q", got)
+					}
+					seen[got] = struct{}{}
+				}
+			})
+		})
 	}
 }
