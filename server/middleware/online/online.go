@@ -2,6 +2,7 @@ package online
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -11,6 +12,11 @@ import (
 
 // defaultTrimInterval is how often Start reclaims expired entries.
 const defaultTrimInterval = time.Minute
+
+// ErrNotInitialized is returned by Start for a zero-value Online. The zero
+// value has no backing cache and a zero trim interval, which would otherwise
+// panic in time.NewTicker, so it fails the startup instead.
+var ErrNotInitialized = errors.New("online: uninitialized Online: use NewOnline")
 
 // Online tracks active users/sessions using a TTL-based cache.
 // It maintains a count of online entities based on configurable key generation.
@@ -25,6 +31,9 @@ const defaultTrimInterval = time.Minute
 //
 //	tracker := online.NewOnline()
 //	return []task.Task{tracker, httpServer}, nil
+//
+// Online must be constructed with NewOnline; the zero value is unsupported and
+// Start fails with ErrNotInitialized instead of panicking.
 type Online struct {
 	cache        *mcache.Map[string, struct{}]
 	trimInterval time.Duration
@@ -89,6 +98,9 @@ func (l *Online) Identifier() string {
 // timer rather than inside the middleware keeps the sweep — which scans every
 // key under the cache's write lock — off the request path.
 func (l *Online) Start(ctx context.Context) error {
+	if l.trimInterval <= 0 {
+		return ErrNotInitialized
+	}
 	ticker := time.NewTicker(l.trimInterval)
 	defer ticker.Stop()
 	for {

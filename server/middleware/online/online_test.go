@@ -2,6 +2,7 @@ package online
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -57,6 +58,16 @@ func TestSweepReclaimsExpiredEntries(t *testing.T) {
 			t.Fatalf("expired entries were still counted: %d", o.OnlineCount())
 		case <-time.After(10 * time.Millisecond):
 		}
+	}
+}
+
+// TestZeroValueStartErrors covers an Online built via its zero value rather
+// than NewOnline. Start must fail with ErrNotInitialized instead of panicking
+// in time.NewTicker on the zero trim interval.
+func TestZeroValueStartErrors(t *testing.T) {
+	var o Online
+	if err := o.Start(context.Background()); !errors.Is(err, ErrNotInitialized) {
+		t.Fatalf("Start on zero-value Online: got %v, want ErrNotInitialized", err)
 	}
 }
 
