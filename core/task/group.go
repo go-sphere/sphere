@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +18,9 @@ var (
 	ErrGroupAlreadyStarted = errors.New("task group already started")
 	// ErrGroupAlreadyStopped indicates the group has already completed its lifecycle.
 	ErrGroupAlreadyStopped = errors.New("task group already stopped")
+	// ErrStartTimeout indicates a non-final stage did not finish Start within
+	// the budget set by WithStartTimeout.
+	ErrStartTimeout = errors.New("task group start timed out")
 )
 
 type groupState uint8
@@ -34,6 +39,10 @@ const (
 	shutdownTaskFailure
 	shutdownManualStop
 	shutdownParentCancel
+	// shutdownNaturalComplete is used when every launched Start returned on
+	// its own. Stop still runs: it is the cleanup half of the lifecycle, not
+	// only an interrupt for tasks that were still blocking in Start.
+	shutdownNaturalComplete
 )
 
 // GroupOption customizes group runtime behavior.
@@ -44,6 +53,7 @@ type groupOptions struct {
 	// cleanupTimeoutSet distinguishes "left at the default" from an explicit
 	// non-positive value, which is how a caller asks for an unbounded cleanup.
 	cleanupTimeoutSet bool
+	startTimeout      time.Duration
 }
 
 // defaultCleanupTimeout bounds the ctx handed to each task's Stop when the
@@ -76,16 +86,35 @@ func WithCleanupTimeout(timeout time.Duration) GroupOption {
 	}
 }
 
+// WithStartTimeout bounds how long a non-final staged group stage may spend
+// in Start before the group aborts that stage and tears down everything
+// already launched. The last stage is exempt: a long-running server's Start
+// is expected not to return until shutdown, so a deadline there would kill
+// the process after it was already serving. NewGroup is a single stage, so
+// this option has no effect on it.
+//
+// A non-positive duration disables the bound (the default). The error
+// returned on timeout wraps ErrStartTimeout and names the tasks still inside
+// Start.
+func WithStartTimeout(timeout time.Duration) GroupOption {
+	return func(o *groupOptions) {
+		o.startTimeout = timeout
+	}
+}
+
 // Group manages the lifecycle of multiple tasks as a coordinated unit.
-// It ensures all tasks start together and provides graceful shutdown capabilities.
-// The group implements the Task interface, allowing it to be nested within other groups.
+// Tasks in one stage start together; staged groups start stages in order and
+// stop them in reverse. The group implements the Task interface, allowing it
+// to be nested within other groups.
 type Group struct {
 	tasks []Task
-	// stopWaves defines ordered shutdown stages. When nil, all tasks stop
-	// concurrently. When set, waves stop in reverse order (last wave first),
-	// each wave draining fully before the previous begins.
-	stopWaves [][]Task
-	opts      groupOptions
+	// waves defines the staged lifecycle order. When nil, all tasks form one
+	// stage that starts and stops concurrently. When set, stages start in order
+	// (each stage fully started before the next begins) and stop in reverse
+	// order (last stage first), each stage draining fully before the previous
+	// begins.
+	waves [][]Task
+	opts  groupOptions
 
 	mu        sync.Mutex
 	state     groupState
@@ -122,22 +151,29 @@ func NewGroupWithOptions(tasks []Task, options ...GroupOption) *Group {
 	}
 }
 
-// NewStagedGroup creates a task group whose members start concurrently but shut
-// down in ordered stages. Each wave stops concurrently within itself, and waves
-// stop in reverse order: the last wave drains fully before the previous wave
-// begins stopping. This lets dependents (for example an HTTP server) drain
-// before their dependencies (for example a database or cache cleaner) are torn
-// down.
+// NewStagedGroup creates a task group whose members are organized into ordered
+// lifecycle stages. Stages start in order: every task in a stage must finish
+// Start successfully before the next stage begins, so a stage can rely on the
+// resources its predecessors advertise. Stages stop in reverse order: the last
+// stage drains fully before the previous one begins stopping, and tasks within
+// a stage stop concurrently. This lets dependents (for example an HTTP server)
+// drain before their dependencies (for example a database or cache cleaner) are
+// torn down.
 //
-// Start semantics match NewGroup: every task across all waves starts
-// concurrently, and a failure in any task tears the whole group down. Passing a
-// single wave is equivalent to NewGroup.
+// Start semantics within a stage match NewGroup: tasks in the same stage start
+// concurrently, and a failure in any task tears down every started stage in
+// reverse order. Stages whose start never began receive neither Start nor Stop.
+// Every task whose Start was invoked is stopped, including one-shot tasks
+// whose Start returned on its own. A task that only returns from Start when
+// the whole group is stopping (a long-running server, for example) must sit
+// in the last stage, or every stage after it is unreachable. Passing a single
+// stage is equivalent to NewGroup.
 func NewStagedGroup(waves ...[]Task) *Group {
 	return NewStagedGroupWithOptions(waves)
 }
 
 // NewStagedGroupWithOptions creates a staged task group with explicit options.
-// See NewStagedGroup for the staged shutdown semantics.
+// See NewStagedGroup for the staged lifecycle semantics.
 func NewStagedGroupWithOptions(waves [][]Task, options ...GroupOption) *Group {
 	opts := groupOptions{}
 	for _, option := range options {
@@ -156,10 +192,10 @@ func NewStagedGroupWithOptions(waves [][]Task, options ...GroupOption) *Group {
 	}
 
 	return &Group{
-		tasks:     flat,
-		stopWaves: copiedWaves,
-		opts:      opts,
-		state:     groupStateInit,
+		tasks: flat,
+		waves: copiedWaves,
+		opts:  opts,
+		state: groupStateInit,
 	}
 }
 
@@ -168,8 +204,16 @@ func (g *Group) Identifier() string {
 	return "group"
 }
 
-// Start begins all tasks in the group concurrently.
-// If any task fails to start, all other tasks will be stopped.
+// Start begins the group's tasks in staged order. Tasks within one stage start
+// concurrently; the next stage only begins once every task in the current
+// stage has finished Start successfully, so a stage can rely on the resources
+// its predecessors advertise. If any task fails to start, every stage that
+// began is stopped in reverse order. A group without stages (NewGroup) starts
+// all tasks concurrently.
+//
+// Stop is always invoked for every task whose Start was called, including
+// when every Start returns on its own (one-shot tasks). Group.Start does not
+// return until that cleanup has settled.
 // Returns an error if the group is already started/stopped or if any task fails.
 func (g *Group) Start(ctx context.Context) error {
 	if ctx == nil {
@@ -213,18 +257,12 @@ func (g *Group) Start(ctx context.Context) error {
 	defer runCancel()
 
 	type startResult struct {
+		idx int
 		err error
 	}
-	startResults := make(chan startResult, len(tasks))
-	for _, t := range tasks {
-		task := t
-		go func() {
-			err := execute(runCtx, task.Identifier(), task, func(taskCtx context.Context, current Task) error {
-				log.Infof("<task> %s starting", task.Identifier())
-				return current.Start(taskCtx)
-			})
-			startResults <- startResult{err: err}
-		}()
+	stages := g.waves
+	if stages == nil {
+		stages = [][]Task{tasks}
 	}
 
 	var (
@@ -235,7 +273,7 @@ func (g *Group) Start(ctx context.Context) error {
 		reason         shutdownReason
 		stopInProgress bool
 	)
-	beginStop := func(stopReason shutdownReason) {
+	beginStop := func(stopReason shutdownReason, stopUpTo int) {
 		stopOnce.Do(func() {
 			stopInProgress = true
 			reason = stopReason
@@ -249,52 +287,115 @@ func (g *Group) Start(ctx context.Context) error {
 			go func() {
 				stopCtx, stopCancel := g.newCleanupContext()
 				defer stopCancel()
-				g.stopTasks(stopCtx, &stopErrs)
+				g.stopTasks(stopCtx, &stopErrs, stopUpTo)
 				close(stopDone)
 			}()
 		})
 	}
 
-	remaining := len(tasks)
 	// Capture ctx.Done() locally so it can be disabled once handled. A cancelled
 	// ctx keeps its Done channel readable forever; nil-ing the case prevents the
 	// select from busy-spinning while remaining tasks drain.
 	ctxDone := ctx.Done()
-	for remaining > 0 {
-		select {
-		case reqReason := <-stopReqCh:
-			beginStop(reqReason)
-		case <-ctxDone:
-			ctxDone = nil
-			beginStop(shutdownParentCancel)
-		case result := <-startResults:
-			remaining--
-			if result.err == nil {
-				continue
+	for stageIdx, stage := range stages {
+		// A stop request or parent cancellation that arrived while the previous
+		// stage was starting must be honoured before this stage begins, so its
+		// tasks are never launched only to be torn down. The first stage is
+		// exempt: a pending request there still observes the historical
+		// start-then-stop sequence the stopReqCh race handling relies on.
+		if stageIdx > 0 {
+			select {
+			case reqReason := <-stopReqCh:
+				beginStop(reqReason, stageIdx-1)
+			case <-ctxDone:
+				ctxDone = nil
+				beginStop(shutdownParentCancel, stageIdx-1)
+			default:
 			}
-			// A context.Canceled result is only expected when the group itself
-			// is tearing down: either an internal beginStop cancelled runCtx, or
-			// a parent ctx cancellation propagated into runCtx. When runCtx is
-			// still live the task failed on its own — even if it wraps
-			// context.Canceled — so it must count as a failure and stop the rest
-			// rather than being silently swallowed.
-			if errors.Is(result.err, context.Canceled) && runCtx.Err() != nil {
-				continue
+		}
+		if stopInProgress {
+			break
+		}
+
+		startResults := make(chan startResult, len(stage))
+		startedIDs := make([]string, len(stage))
+		finished := make([]bool, len(stage))
+		for i, t := range stage {
+			task := t
+			idx := i
+			id := task.Identifier()
+			startedIDs[idx] = id
+			go func() {
+				err := execute(runCtx, id, task, func(taskCtx context.Context, current Task) error {
+					log.Infof("<task> %s starting", current.Identifier())
+					return current.Start(taskCtx)
+				})
+				startResults <- startResult{idx: idx, err: err}
+			}()
+		}
+
+		var startDeadline <-chan time.Time
+		var startTimer *time.Timer
+		if stageIdx < len(stages)-1 && g.opts.startTimeout > 0 {
+			startTimer = time.NewTimer(g.opts.startTimeout)
+			startDeadline = startTimer.C
+		}
+
+		remaining := len(stage)
+		for remaining > 0 {
+			select {
+			case reqReason := <-stopReqCh:
+				beginStop(reqReason, stageIdx)
+			case <-ctxDone:
+				ctxDone = nil
+				beginStop(shutdownParentCancel, stageIdx)
+			case <-startDeadline:
+				startDeadline = nil
+				var stuck []string
+				for i, id := range startedIDs {
+					if !finished[i] {
+						stuck = append(stuck, id)
+					}
+				}
+				sort.Strings(stuck)
+				startErrs.Add(fmt.Errorf("%w: stage %d still starting: %s", ErrStartTimeout, stageIdx, strings.Join(stuck, ", ")))
+				beginStop(shutdownTaskFailure, stageIdx)
+			case result := <-startResults:
+				remaining--
+				if result.idx >= 0 && result.idx < len(finished) {
+					finished[result.idx] = true
+				}
+				if result.err == nil {
+					continue
+				}
+				// A context.Canceled result is only expected when the group itself
+				// is tearing down: either an internal beginStop cancelled runCtx, or
+				// a parent ctx cancellation propagated into runCtx. When runCtx is
+				// still live the task failed on its own — even if it wraps
+				// context.Canceled — so it must count as a failure and stop the rest
+				// rather than being silently swallowed.
+				if errors.Is(result.err, context.Canceled) && runCtx.Err() != nil {
+					continue
+				}
+				startErrs.Add(result.err)
+				beginStop(shutdownTaskFailure, stageIdx)
 			}
-			startErrs.Add(result.err)
-			beginStop(shutdownTaskFailure)
+		}
+		if startTimer != nil {
+			startTimer.Stop()
 		}
 	}
 
+	if !stopInProgress && len(stages) > 0 {
+		beginStop(shutdownNaturalComplete, len(stages)-1)
+	}
 	if stopInProgress {
 		<-stopDone
 	}
 
 	var finalErr error
 	switch reason {
-	case shutdownTaskFailure:
-		finalErr = errors.Join(startErrs.Unwrap(), stopErrs.Unwrap())
-	case shutdownManualStop, shutdownParentCancel:
+	case shutdownTaskFailure, shutdownManualStop, shutdownParentCancel, shutdownNaturalComplete:
 		// Start errors are joined here, not only stop errors. A task that failed
 		// for its own reasons while the group was already tearing down used to be
 		// discarded on these two paths, so a graceful shutdown reported success
@@ -392,23 +493,65 @@ func (g *Group) waitForDone(ctx context.Context, done <-chan struct{}) error {
 	}
 }
 
-// stopTasks stops the group's tasks, honoring staged shutdown order when
-// configured. When stopWaves is nil all tasks stop concurrently; otherwise waves
-// stop in reverse order (last wave first), each wave draining fully before the
-// previous begins, while tasks within a wave stop concurrently. The provided ctx
-// (the cleanup context) is the shared shutdown budget across every stage.
-func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error) {
-	waves := g.stopWaves
+// stopTasks stops the group's stages up to and including stage index upToWave,
+// honouring staged shutdown order. When waves is nil all tasks form one stage
+// that stops concurrently; otherwise stages stop in reverse order (last stage
+// first), each stage draining fully before the previous begins, while tasks
+// within a stage stop concurrently. Stages beyond upToWave were never started
+// and receive no Stop call. The provided ctx (the cleanup context) is the
+// shared shutdown budget across every stage.
+func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error, upToWave int) {
+	waves := g.waves
 	if waves == nil {
 		waves = [][]Task{g.tasks}
 	}
+
+	var inMu sync.Mutex
+	inFlight := make(map[string]int)
+	mark := func(id string, delta int) {
+		inMu.Lock()
+		inFlight[id] += delta
+		if inFlight[id] <= 0 {
+			delete(inFlight, id)
+		}
+		inMu.Unlock()
+	}
+
+	finished := make(chan struct{})
+	defer close(finished)
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		go func() {
+			select {
+			case <-ctx.Done():
+				if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+					return
+				}
+				inMu.Lock()
+				var names []string
+				for id := range inFlight {
+					names = append(names, id)
+				}
+				inMu.Unlock()
+				if len(names) == 0 {
+					return
+				}
+				sort.Strings(names)
+				stopErrs.Add(fmt.Errorf("cleanup timed out, still stopping: %s", strings.Join(names, ", ")))
+			case <-finished:
+			}
+		}()
+	}
+
 	stopWave := func(wave []Task) {
 		var stopWG sync.WaitGroup
 		for _, t := range wave {
 			task := t
 			stopWG.Go(func() {
-				err := execute(ctx, task.Identifier(), task, func(taskCtx context.Context, current Task) error {
-					log.Infof("<task> %s stopping", task.Identifier())
+				id := task.Identifier()
+				mark(id, 1)
+				defer mark(id, -1)
+				err := execute(ctx, id, task, func(taskCtx context.Context, current Task) error {
+					log.Infof("<task> %s stopping", current.Identifier())
 					return current.Stop(taskCtx)
 				})
 				if err != nil {
@@ -418,7 +561,10 @@ func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error) {
 		}
 		stopWG.Wait()
 	}
-	for i := len(waves) - 1; i >= 0; i-- {
+	if upToWave >= len(waves) {
+		upToWave = len(waves) - 1
+	}
+	for i := upToWave; i >= 0; i-- {
 		stopWave(waves[i])
 	}
 }

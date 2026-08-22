@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -101,6 +102,9 @@ func TestGroupCleanupTimeoutOption(t *testing.T) {
 	}
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected auto stop timeout in result, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "blocking-stop") {
+		t.Fatalf("cleanup timeout should name the stuck task, got %v", err)
 	}
 }
 
@@ -413,10 +417,6 @@ func TestGroupWrappedCanceledCountsAsFailure(t *testing.T) {
 // last wave first and only begin the previous wave once it has fully drained.
 func TestStagedGroupStopsInReverseWaveOrder(t *testing.T) {
 	httpDrained := make(chan struct{})
-	httpSrv := scripttask.NewScriptTask("http", nil, func(context.Context) error {
-		close(httpDrained)
-		return nil
-	})
 
 	var mu sync.Mutex
 	var stopOrder []string
@@ -434,11 +434,21 @@ func TestStagedGroupStopsInReverseWaveOrder(t *testing.T) {
 			return nil
 		}
 	}
-	db := scripttask.NewScriptTask("db", nil, infraStop("db"))
-	cache := scripttask.NewScriptTask("cache", nil, infraStop("cache"))
+	// The infra stage must leave Start for the http stage to begin; a nil
+	// onStart blocks until cancellation and would never let stage 1 start.
+	db := scripttask.NewScriptTask("db", func(context.Context) error { return nil }, infraStop("db"))
+	cache := scripttask.NewScriptTask("cache", func(context.Context) error { return nil }, infraStop("cache"))
+	httpSrv := scripttask.NewScriptTask("http", func(ctx context.Context) error {
+		// Block until the group is tearing down, like a real server.
+		<-ctx.Done()
+		return ctx.Err()
+	}, func(context.Context) error {
+		close(httpDrained)
+		return nil
+	})
 
-	// wave 0: infra (db, cache); wave 1: http server. Stop order must be http
-	// first (last wave), then db and cache.
+	// wave 0: infra (db, cache); wave 1: http server. Start order is wave 0 then
+	// wave 1; stop order must be http first (last wave), then db and cache.
 	group := NewStagedGroup(
 		[]Task{db, cache},
 		[]Task{httpSrv},
@@ -466,6 +476,283 @@ func TestStagedGroupStopsInReverseWaveOrder(t *testing.T) {
 	defer mu.Unlock()
 	if len(stopOrder) != 2 {
 		t.Fatalf("expected both infra tasks to stop, got %v", stopOrder)
+	}
+}
+
+// TestStagedGroupStartsWavesInOrder pins that a later stage only starts after
+// the previous stage has fully finished Start: a stage that depends on its
+// predecessor's resources must never race ahead of them.
+func TestStagedGroupStartsWavesInOrder(t *testing.T) {
+	enterStageA := make(chan struct{})
+	releaseStageA := make(chan struct{})
+	stageA := scripttask.NewScriptTask("stage-a", func(context.Context) error {
+		close(enterStageA)
+		<-releaseStageA
+		return nil
+	}, nil)
+	stageBStarted := make(chan struct{}, 1)
+	stageB := scripttask.NewScriptTask("stage-b", func(context.Context) error {
+		stageBStarted <- struct{}{}
+		return nil
+	}, nil)
+
+	group := NewStagedGroup([]Task{stageA}, []Task{stageB})
+
+	startErrCh := make(chan error, 1)
+	go func() {
+		startErrCh <- group.Start(context.Background())
+	}()
+
+	waitSignal(t, enterStageA, "stage-a start entered")
+
+	// stageA is still starting; stageB must not have begun.
+	select {
+	case <-stageBStarted:
+		t.Fatal("stage-b started before stage-a fully started")
+	case <-time.After(80 * time.Millisecond):
+	}
+
+	close(releaseStageA)
+
+	select {
+	case <-stageBStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for stage-b start")
+	}
+
+	if err := group.Stop(context.Background()); err != nil {
+		t.Fatalf("stop failed: %v", err)
+	}
+	if err := waitError(t, startErrCh, "staged group result"); err != nil {
+		t.Fatalf("expected nil start result, got %v", err)
+	}
+}
+
+// TestStagedGroupAbortBetweenStagesDoesNotStartLaterStage pins the pre-stage
+// abort: a Stop or parent cancel that is already pending when a later stage
+// would begin must not launch that stage, and a stage that never started must
+// not receive Stop. An empty first stage is required so the previous stage has
+// no remaining-loop select to consume the request itself; that path is the
+// working one and would hide a break-from-select that never leaves the stage
+// loop. TestGroupStopBeforeStart stays the single-stage contract.
+func TestStagedGroupAbortBetweenStagesDoesNotStartLaterStage(t *testing.T) {
+	cases := []struct {
+		name string
+		ctx  func(t *testing.T, group *Group) context.Context
+	}{
+		{
+			name: "pending stop",
+			ctx: func(t *testing.T, group *Group) context.Context {
+				t.Helper()
+				if err := group.Stop(context.Background()); err != nil {
+					t.Fatalf("stop before start: %v", err)
+				}
+				return context.Background()
+			},
+		},
+		{
+			name: "cancelled parent",
+			ctx: func(t *testing.T, _ *Group) context.Context {
+				t.Helper()
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			http := scripttask.NewScriptTask("http", nil, nil)
+			group := NewStagedGroup([]Task{}, []Task{http})
+			ctx := tc.ctx(t, group)
+
+			startErrCh := make(chan error, 1)
+			go func() {
+				startErrCh <- group.Start(ctx)
+			}()
+			if err := waitError(t, startErrCh, "group start result"); err != nil {
+				t.Fatalf("expected nil start result after abort, got %v", err)
+			}
+
+			if http.IsStarted() {
+				t.Fatal("stage 1 must not start after a pending abort")
+			}
+			if http.IsStopped() {
+				t.Fatal("stage 1 must not be stopped when it never started")
+			}
+			if !group.IsStopped() {
+				t.Fatal("expected group to be stopped after honouring the abort")
+			}
+		})
+	}
+}
+
+// TestStagedGroupPendingStopStartsFirstStageOnly is the non-empty counterpart
+// of the empty-first-stage abort: the first stage still start-then-stops, and
+// the next stage must not start. Stop is already pending before Start, so
+// once stage 0's Start has returned the later stage must stay unlaunched.
+func TestStagedGroupPendingStopStartsFirstStageOnly(t *testing.T) {
+	infra := scripttask.NewScriptTask("infra", func(context.Context) error {
+		return nil
+	}, nil)
+	http := scripttask.NewScriptTask("http", nil, nil)
+	group := NewStagedGroup([]Task{infra}, []Task{http})
+
+	if err := group.Stop(context.Background()); err != nil {
+		t.Fatalf("stop before start: %v", err)
+	}
+
+	startErrCh := make(chan error, 1)
+	go func() {
+		startErrCh <- group.Start(context.Background())
+	}()
+	if err := waitError(t, startErrCh, "group start result"); err != nil {
+		t.Fatalf("expected nil start result after pending stop, got %v", err)
+	}
+
+	waitSignal(t, infra.Stopped(), "infra stopped")
+	if !infra.IsStarted() {
+		t.Fatal("first stage must still start-then-stop for a pending stop")
+	}
+	if http.IsStarted() {
+		t.Fatal("stage 1 must not start after a pending stop")
+	}
+	if http.IsStopped() {
+		t.Fatal("stage 1 must not be stopped when it never started")
+	}
+}
+
+// TestStagedGroupStartFailureStopsStartedStages pins that a stage failing to
+// start stops every already-started stage in reverse order, and that stages
+// after the failure never start and never stop.
+func TestStagedGroupStartFailureStopsStartedStages(t *testing.T) {
+	expectedErr := errors.New("stage-b failed")
+	failing := scripttask.NewScriptTask("stage-b-failing", func(context.Context) error {
+		return expectedErr
+	}, nil)
+	infra := scripttask.NewScriptTask("stage-a-infra", func(context.Context) error {
+		return nil
+	}, func(context.Context) error {
+		// The failing stage must fully drain before the stage it depends on
+		// starts stopping.
+		select {
+		case <-failing.Stopped():
+		default:
+			t.Error("stage-a stopped before stage-b drained")
+		}
+		return nil
+	})
+	never := scripttask.NewScriptTask("stage-c-never", func(context.Context) error {
+		return nil
+	}, nil)
+
+	group := NewStagedGroup([]Task{infra}, []Task{failing}, []Task{never})
+
+	err := group.Start(context.Background())
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected start error %v, got %v", expectedErr, err)
+	}
+
+	waitSignal(t, infra.Stopped(), "stage-a stopped")
+	waitSignal(t, failing.Stopped(), "stage-b stopped")
+	if never.IsStarted() {
+		t.Fatal("stage-c must not start after stage-b failed")
+	}
+	if never.IsStopped() {
+		t.Fatal("stage-c must not stop when never started")
+	}
+}
+
+// stagingDB is a database task whose Stop closes it; writes after the close are
+// refused, modelling the use-after-close the cascade reproduction observed.
+type stagingDB struct {
+	closed   atomic.Bool
+	writeCnt atomic.Int64
+}
+
+func (d *stagingDB) Identifier() string { return "stage-db" }
+
+func (d *stagingDB) Start(context.Context) error { return nil }
+
+func (d *stagingDB) Stop(context.Context) error {
+	d.closed.Store(true)
+	return nil
+}
+
+func (d *stagingDB) write() error {
+	if d.closed.Load() {
+		return errors.New("db write after close")
+	}
+	d.writeCnt.Add(1)
+	return nil
+}
+
+// stagingConsumer models an MQ consumer: Start returns immediately, a handler
+// goroutine writes to the database, and Stop drains that handler before
+// returning, exactly like the real mq PubSub closer.
+type stagingConsumer struct {
+	db          *stagingDB
+	started     chan struct{}
+	trigger     chan struct{}
+	handlerDone chan error
+}
+
+func (c *stagingConsumer) Identifier() string { return "stage-mq" }
+
+func (c *stagingConsumer) Start(ctx context.Context) error {
+	close(c.started)
+	go func() {
+		<-c.trigger
+		c.handlerDone <- c.db.write()
+	}()
+	// A running task's lifetime is its Start call: like the real consumer it
+	// stays in Start until the group tears down, which is what keeps the
+	// group's own Start alive.
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (c *stagingConsumer) Stop(context.Context) error {
+	close(c.trigger)
+	// Drain: the handler must finish before this stop returns, otherwise the
+	// preceding stage could close the database underneath it.
+	return <-c.handlerDone
+}
+
+// TestStagedGroupDrainsConsumersBeforeClosingDependencies pins the cascade
+// guarantee: on staged shutdown the handler wave (last stage) fully drains
+// before the dependency wave (first stage) is torn down, so a handler
+// executing during shutdown never writes a closed database.
+func TestStagedGroupDrainsConsumersBeforeClosingDependencies(t *testing.T) {
+	dbTask := &stagingDB{}
+	mqTask := &stagingConsumer{
+		db:          dbTask,
+		started:     make(chan struct{}),
+		trigger:     make(chan struct{}),
+		handlerDone: make(chan error, 1),
+	}
+
+	group := NewStagedGroup([]Task{dbTask}, []Task{mqTask})
+
+	startErrCh := make(chan error, 1)
+	go func() {
+		startErrCh <- group.Start(context.Background())
+	}()
+
+	waitSignal(t, mqTask.started, "consumer started")
+
+	if err := group.Stop(context.Background()); err != nil {
+		t.Fatalf("staged stop failed: %v", err)
+	}
+	if err := waitError(t, startErrCh, "staged group result"); err != nil {
+		t.Fatalf("expected nil start result, got %v", err)
+	}
+
+	if writes := dbTask.writeCnt.Load(); writes != 1 {
+		t.Fatalf("handler writes = %d, want 1", writes)
+	}
+	if err := dbTask.write(); err == nil {
+		t.Fatal("db must be closed after stop")
 	}
 }
 

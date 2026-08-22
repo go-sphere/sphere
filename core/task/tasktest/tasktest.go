@@ -1,6 +1,6 @@
-// Package tasktest provides reusable test helpers for verifying that a
-// task.Task implementation honors the lifecycle contract documented on the
-// task.Task interface.
+// Package tasktest provides reusable test helpers for task.Task: a Fake test
+// double and AssertLifecycleContract for the lifecycle guarantees documented
+// on the interface.
 package tasktest
 
 import (

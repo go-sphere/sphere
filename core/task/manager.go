@@ -362,6 +362,11 @@ func (m *Manager) StopAll(ctx context.Context) error {
 // is stopped before its entry is retired, this also waits for each task's Stop to
 // settle — a Stop that ignores its context can therefore block Wait, which is why
 // NewManager applies defaultManagerCleanupTimeout.
+//
+// Wait holds the registration lock for its entire duration, so a StartTask
+// that races with Wait blocks until Wait returns. A long-running task therefore
+// makes Wait a freeze on new registrations; do not Wait from a supervisor that
+// still needs to StartTask.
 // It returns task run errors and stop errors accumulated over the manager's lifetime.
 func (m *Manager) Wait() error {
 	m.runMu.Lock()

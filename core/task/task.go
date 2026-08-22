@@ -4,16 +4,19 @@ import (
 	"context"
 )
 
-// Task defines the interface for lifecycle-managed components in the application.
-// Tasks can be started and stopped with context support for graceful shutdown.
-// This interface is commonly used for services, servers, workers, and other background operations.
+// Task is a lifecycle-managed component: a server, worker, or other
+// background operation. Group and Manager always call Stop for a task whose
+// Start was invoked, including when Start returned on its own.
 type Task interface {
 	// Identifier returns a unique identifier for this task.
 	// This is used for logging and debugging purposes.
 	Identifier() string
 
-	// Start begins the task's operation with the given context.
-	// The task should monitor the context for cancellation and stop gracefully when cancelled.
+	// Start begins the task's operation. It may block until the task is
+	// shutting down (an HTTP listener, a ticker loop). The context is a
+	// best-effort cancellation signal: honour it when possible, but HTTP-style
+	// listeners typically ignore it and only return after Stop has closed the
+	// listener. Stop is therefore the signal that must be able to unblock Start.
 	// Returns an error if the task fails to start.
 	Start(ctx context.Context) error
 
