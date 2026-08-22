@@ -198,6 +198,24 @@ func TestDynamicTTLTypeMismatch(t *testing.T) {
 	}
 }
 
+// TestDynamicTTLNilCalculator covers a WithDynamicTTL passed a nil
+// calculator. A nil calculator must surface as ErrTTLCalculatorType and
+// store nothing, rather than panicking on the nil call.
+func TestDynamicTTLNilCalculator(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	c := &spyExpirableCache[int]{}
+
+	err := cache.Set(ctx, c, "nil-calculator", 1, cache.WithDynamicTTL[int](nil))
+	if !errors.Is(err, cache.ErrTTLCalculatorType) {
+		t.Fatalf("Set nil calculator: got err=%v want ErrTTLCalculatorType", err)
+	}
+	if c.setCalls != 0 || c.setWithTTLCalls != 0 {
+		t.Fatalf("nothing should be stored: set=%d setWithTTL=%d", c.setCalls, c.setWithTTLCalls)
+	}
+}
+
 func TestSetJsonAndGetJson(t *testing.T) {
 	t.Parallel()
 

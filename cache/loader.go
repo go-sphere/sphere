@@ -12,11 +12,11 @@ import (
 )
 
 // ErrTTLCalculatorType is returned when a WithDynamicTTL calculator receives a
-// value of a different type than its type parameter. SetObject hands the
-// calculator the original value rather than the encoded bytes, so a mismatch
-// means the calculator was instantiated for the wrong type. The write is
-// rejected instead of falling back to a plain Set, which would silently store
-// an entry that never expires.
+// value of a different type than its type parameter, or is nil. SetObject hands
+// the calculator the original value rather than the encoded bytes, so a
+// mismatch means the calculator was instantiated for the wrong type. The write
+// is rejected instead of falling back to a plain Set, which would silently store
+// an entry that never expires, and instead of panicking on a nil calculator.
 var ErrTTLCalculatorType = errors.New("cache: dynamic TTL calculator value type mismatch")
 
 // IsZero checks whether a value is the zero value of its type using deep comparison.
@@ -76,12 +76,16 @@ func WithSingleflight(single *singleflight.Group) Option {
 // The calculator function should return a boolean indicating whether the TTL is set
 // and the duration for which the value should be cached.
 //
-// T must match the type being stored. When it does not, the write fails with
-// ErrTTLCalculatorType rather than panicking on the type assertion, so a
-// miswired option cannot take down a caller's request path.
+// T must match the type being stored, and calculator must not be nil. When the
+// type does not match or the calculator is nil, the write fails with
+// ErrTTLCalculatorType rather than panicking, so a miswired option cannot take
+// down a caller's request path.
 func WithDynamicTTL[T any](calculator func(value T) (bool, time.Duration)) Option {
 	return func(o *options) {
 		o.ttlCalculator = func(value any) (bool, time.Duration, error) {
+			if calculator == nil {
+				return false, 0, ErrTTLCalculatorType
+			}
 			typed, ok := value.(T)
 			if !ok {
 				return false, 0, ErrTTLCalculatorType
