@@ -15,6 +15,7 @@ const (
 	defaultMaxCost     = 1 << 30 // 1GB
 	defaultNumCounters = 1e7
 	defaultBufferItems = 64
+	numGetDelShards    = 128
 )
 
 // Cache is an in-memory cache implementation backed by ristretto that provides high-performance caching
@@ -23,8 +24,10 @@ type Cache[T any] struct {
 	calculateCost    bool
 	allowAsyncWrites atomic.Bool
 	cache            *ristretto.Cache[string, T]
-	// getDel serializes GetDel so an entry is handed to at most one caller.
-	getDel sync.Mutex
+	// getDelShards stripes GetDel so concurrent operations on different keys
+	// proceed in parallel, while operations on the same key stay serialized
+	// so an entry is handed to at most one caller.
+	getDelShards [numGetDelShards]sync.Mutex
 	// closeMu guards every call into ristretto against a concurrent Close.
 	// ristretto's own Close sets its internal closed flag last, after it has
 	// already closed setBuf and the stop channel, so its per-method guards do
@@ -210,8 +213,8 @@ func (m *Cache[T]) Get(ctx context.Context, key string) (T, bool, error) {
 	return cloneValue(val), found, nil
 }
 
-// GetDel holds getDel across the read and the delete so an entry is returned
-// as found to at most one caller, matching the atomic GETDEL (redis) and
+// GetDel holds a striped per-shard lock across the read and the delete so an entry is
+// returned as found to at most one caller, matching the atomic GETDEL (redis) and
 // single-transaction (badgerdb, mcache) behaviour of the other drivers.
 // ristretto has no atomic get-and-delete, but its Del removes the entry from
 // the store before returning, so the pair is enough. Only GetDel takes this
@@ -224,14 +227,24 @@ func (m *Cache[T]) GetDel(ctx context.Context, key string) (T, bool, error) {
 		return zero, false, cache.ErrClosed
 	}
 
-	m.getDel.Lock()
-	defer m.getDel.Unlock()
+	shard := fnv32(key) % numGetDelShards
+	m.getDelShards[shard].Lock()
+	defer m.getDelShards[shard].Unlock()
 
 	val, found := m.cache.Get(key)
 	if found {
 		m.cache.Del(key)
 	}
 	return cloneValue(val), found, nil
+}
+
+func fnv32(key string) uint32 {
+	var h uint32 = 2166136261
+	for i := 0; i < len(key); i++ {
+		h ^= uint32(key[i])
+		h *= 16777619
+	}
+	return h
 }
 
 func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, error) {

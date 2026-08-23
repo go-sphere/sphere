@@ -77,8 +77,9 @@ func (n *NSCache[S]) MultiGet(ctx context.Context, keys []string) (map[string]S,
 		return nil, err
 	}
 	unprefixedRes := make(map[string]S, len(res))
+	prefix := n.namespace + ":"
 	for k, v := range res {
-		unprefixedKey := k[len(n.namespace)+1:]
+		unprefixedKey := strings.TrimPrefix(k, prefix)
 		unprefixedRes[unprefixedKey] = v
 	}
 	return unprefixedRes, nil

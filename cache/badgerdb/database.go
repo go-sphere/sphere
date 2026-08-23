@@ -3,6 +3,7 @@ package badgerdb
 import (
 	"context"
 	"errors"
+	"runtime"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -167,6 +168,7 @@ func (d *Database) GetDel(ctx context.Context, key string) ([]byte, bool, error)
 			if cerr := ctx.Err(); cerr != nil {
 				return nil, false, cerr
 			}
+			runtime.Gosched()
 		default:
 			return nil, false, err
 		}

@@ -240,7 +240,11 @@ func load[T any](
 			val, err, _ := opts.singleflight.Do(key, func() (any, error) {
 				return originBuild()
 			})
-			return val.(T), err
+			if err != nil {
+				var zero T
+				return zero, err
+			}
+			return val.(T), nil
 		}
 	}
 	newObj, err := build()

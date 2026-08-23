@@ -339,6 +339,29 @@ func TestGetExSingleflight(t *testing.T) {
 	}
 }
 
+func TestGetExSingleflightError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	c := mcache.NewMapCache[int]()
+	g := &singleflight.Group{}
+	expectedErr := errors.New("builder failure")
+
+	val, found, err := cache.GetEx(ctx, c, "err-key", func() (int, error) {
+		return 0, expectedErr
+	}, cache.WithSingleflight(g))
+
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("GetEx error mismatch: got %v, want %v", err, expectedErr)
+	}
+	if found {
+		t.Fatalf("GetEx expected found=false on error")
+	}
+	if val != 0 {
+		t.Fatalf("GetEx expected zero value on error, got %d", val)
+	}
+}
+
 func TestGetObjectExAndGetJsonEx(t *testing.T) {
 	t.Parallel()
 
