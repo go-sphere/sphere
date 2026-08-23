@@ -24,6 +24,8 @@ type Hook = func(context.Context) error
 
 type options struct {
 	shutdownTimeout time.Duration
+	beforeBuild     []Hook
+	afterBuildFail  []Hook
 	beforeStart     []Hook
 	beforeStop      []Hook
 	afterStop       []Hook
@@ -114,23 +116,26 @@ type slogBackend interface {
 }
 
 // WithLoggerBackend configures automatic logger initialization with the provided backend.
-// It installs the backend as the global logger before start and syncs it after stop.
+// It installs the backend as the global logger before the application builder
+// runs and syncs it after stop (or after a build failure).
 // The caller constructs the backend (for example zapx.NewBackend(conf)), so the
 // lifecycle implementation works with any logging driver. When the backend also
 // implements SlogLogger, it is registered as the default slog handler.
 func WithLoggerBackend(backend log.Backend) Option {
 	return func(o *options) {
-		o.beforeStart = append(o.beforeStart, func(context.Context) error {
+		o.beforeBuild = append(o.beforeBuild, func(context.Context) error {
 			log.InitWithBackends(backend)
 			if sb, ok := backend.(slogBackend); ok {
 				slog.SetDefault(sb.SlogLogger())
 			}
 			return nil
 		})
-		o.afterStop = append(o.afterStop, func(context.Context) error {
+		syncHook := func(context.Context) error {
 			_ = log.Sync()
 			return nil
-		})
+		}
+		o.afterBuildFail = append(o.afterBuildFail, syncHook)
+		o.afterStop = append(o.afterStop, syncHook)
 	}
 }
 

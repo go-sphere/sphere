@@ -113,9 +113,9 @@ func run(ctx context.Context, t task.Task, options *options) error {
 	return errors.Join(errs...)
 }
 
-// Run builds an Application from conf and drives its lifecycle: before-start
-// hooks, Start, wait for a shutdown signal or task exit, before-stop hooks,
-// Stop, after-stop hooks.
+// Run configures build-time facilities such as logging, builds an Application
+// from conf, and drives its lifecycle: before-start hooks, Start, wait for a
+// shutdown signal or task exit, before-stop hooks, Stop, after-stop hooks.
 //
 // The exported Run always uses context.Background(); it stops on SIGTERM,
 // SIGQUIT, or SIGINT (override with WithShutdownSignals) or when Start
@@ -131,14 +131,25 @@ func run(ctx context.Context, t task.Task, options *options) error {
 // If the task is a Group that has already finished, Stop returns the same result
 // Start did; that error is reported once, not joined a second time as a start error.
 func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Option) error {
-	// Create application
+	opts := newOptions(options...)
+	ctx := context.Background()
+	if err := runHooks(ctx, opts.beforeBuild, "beforeBuild"); err != nil {
+		buildErr := fmt.Errorf("before build hooks failed: %w", err)
+		if cleanupErr := runHooks(ctx, opts.afterBuildFail, "afterBuildFail"); cleanupErr != nil {
+			return errors.Join(buildErr, fmt.Errorf("after build failure hooks: %w", cleanupErr))
+		}
+		return buildErr
+	}
+
 	app, err := builder(conf)
 	if err != nil {
-		return fmt.Errorf("failed to build application: %w", err)
+		buildErr := fmt.Errorf("failed to build application: %w", err)
+		if cleanupErr := runHooks(ctx, opts.afterBuildFail, "afterBuildFail"); cleanupErr != nil {
+			return errors.Join(buildErr, fmt.Errorf("after build failure hooks: %w", cleanupErr))
+		}
+		return buildErr
 	}
-	opts := newOptions(options...)
-	// Run application
-	return run(context.Background(), app, opts)
+	return run(ctx, app, opts)
 }
 
 // newShutdownContext builds the context bounding graceful shutdown. A

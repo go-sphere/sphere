@@ -3,13 +3,30 @@ package boot
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/log/zapx"
 )
+
+type syncTrackingBackend struct {
+	synced atomic.Bool
+}
+
+func (*syncTrackingBackend) Log(context.Context, log.Level, string, ...log.Attr) {}
+
+func (b *syncTrackingBackend) Sync() error {
+	b.synced.Store(true)
+	return nil
+}
+
+func (b *syncTrackingBackend) With(...log.Option) log.Backend {
+	return b
+}
 
 func TestWithLoggerInitAddsVersionAttribute(t *testing.T) {
 	logFile := filepath.Join(t.TempDir(), "app.log")
@@ -18,8 +35,8 @@ func TestWithLoggerInitAddsVersionAttribute(t *testing.T) {
 	conf.File.FileName = logFile
 
 	opts := newOptions(WithLoggerInit("v1.2.3", conf))
-	if err := runHooks(context.Background(), opts.beforeStart, "beforeStart"); err != nil {
-		t.Fatalf("run before-start hooks: %v", err)
+	if err := runHooks(context.Background(), opts.beforeBuild, "beforeBuild"); err != nil {
+		t.Fatalf("run before-build hooks: %v", err)
 	}
 	t.Cleanup(func() {
 		_ = runHooks(context.Background(), opts.afterStop, "afterStop")
@@ -41,5 +58,42 @@ func TestWithLoggerInitAddsVersionAttribute(t *testing.T) {
 	}
 	if got := entry["version"]; got != "v1.2.3" {
 		t.Fatalf("version attribute = %v, want v1.2.3", got)
+	}
+}
+
+func TestWithLoggerBackendIsInstalledBeforeBuilder(t *testing.T) {
+	backend := log.NewNopBackend()
+	t.Cleanup(func() {
+		log.InitWithBackends(log.NewStdioBackend())
+	})
+
+	seenByBuilder := false
+	err := Run(new(struct{}), func(*struct{}) (*Application, error) {
+		seenByBuilder = log.With().Backend() == backend
+		return NewApplication(), nil
+	}, WithLoggerBackend(backend), WithShutdownSignals())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !seenByBuilder {
+		t.Fatal("builder did not see the configured logger backend")
+	}
+}
+
+func TestWithLoggerBackendSyncsAfterBuildFailure(t *testing.T) {
+	backend := &syncTrackingBackend{}
+	t.Cleanup(func() {
+		log.InitWithBackends(log.NewStdioBackend())
+	})
+
+	buildErr := errors.New("build failed")
+	err := Run(new(struct{}), func(*struct{}) (*Application, error) {
+		return nil, buildErr
+	}, WithLoggerBackend(backend))
+	if !errors.Is(err, buildErr) {
+		t.Fatalf("Run error = %v, want %v", err, buildErr)
+	}
+	if !backend.synced.Load() {
+		t.Fatal("logger backend was not synced after build failure")
 	}
 }
