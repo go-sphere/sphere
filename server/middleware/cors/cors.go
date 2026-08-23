@@ -67,7 +67,8 @@ func WithMaxAge(ttl time.Duration) Option {
 var ErrWildcardWithCredentials = errors.New("cors: \"*\" cannot be combined with AllowCredentials; list explicit origins")
 
 // NewCORS creates an httpx middleware that applies configurable CORS headers.
-// By default it allows all origins, standard HTTP verbs, and reflects requested headers.
+// By default it allows standard HTTP verbs and reflects requested headers.
+// Allowed origins should be explicitly configured via WithAllowOrigins (or "*" for public APIs).
 // It returns ErrWildcardWithCredentials when the configuration pairs a bare "*"
 // origin with credentials, so the misconfiguration surfaces at startup rather
 // than becoming a runtime hole.

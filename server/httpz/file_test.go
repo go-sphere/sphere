@@ -168,6 +168,17 @@ func TestWithFormFileBytesPinsBytePath(t *testing.T) {
 		}
 	})
 
+	t.Run("extension check works without leading dot", func(t *testing.T) {
+		ctx := &formFakeContext{file: multipartFileHeader(t, "photo.png", []byte("x"))}
+		handler := WithFormFileBytes(func(httpx.Context, []byte, string) (int, error) {
+			return 1, nil
+		}, WithFormAllowExtensions("png", "jpg"))
+
+		if err := handler(ctx); err != nil {
+			t.Fatalf("handler: %v", err)
+		}
+	})
+
 	t.Run("empty extension list allows everything", func(t *testing.T) {
 		ctx := &formFakeContext{file: multipartFileHeader(t, "weird.bin", []byte("x"))}
 		handler := WithFormFileBytes(func(httpx.Context, []byte, string) (int, error) {

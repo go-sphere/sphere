@@ -56,7 +56,14 @@ func WithFormAllowExtensions(extensions ...string) WithFormOption {
 			options.allowExtensions = make(map[string]struct{}, len(extensions))
 		}
 		for _, ext := range extensions {
-			options.allowExtensions[strings.ToLower(ext)] = struct{}{}
+			ext = strings.ToLower(strings.TrimSpace(ext))
+			if ext == "" {
+				continue
+			}
+			if !strings.HasPrefix(ext, ".") {
+				ext = "." + ext
+			}
+			options.allowExtensions[ext] = struct{}{}
 		}
 		if len(options.allowExtensions) == 0 {
 			options.allowExtensions = nil

@@ -119,6 +119,8 @@ func registerTarget(mux *http.ServeMux, spec *swag.Spec, target string) error {
 		if r.URL.Path == "" {
 			r.URL.Path = "/"
 		}
+		r.URL.RawPath = ""
+		r.Host = targetURL.Host
 		proxy.ServeHTTP(rw, r)
 	})
 	mux.Handle(proxyPath, proxyHandler)
@@ -146,13 +148,12 @@ func newIndexHandler(body []byte) http.Handler {
 	})
 }
 
+// withCORS wraps the documentation handler with relaxed CORS headers for development/debugging.
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		// The Fetch spec forbids combining "Access-Control-Allow-Origin: *"
-		// with "Access-Control-Allow-Credentials: true". Mirror the behavior of
-		// middleware/cors.resolveOrigin: when the request carries an Origin,
-		// echo that concrete origin (and Vary on it) so credentials stay valid;
-		// otherwise fall back to "*" without advertising credentials.
+		// For local development and quick debugging of Swagger docs:
+		// when the request carries an Origin, echo that origin with credentials;
+		// otherwise fall back to "*" without credentials.
 		if origin := r.Header.Get("Origin"); origin != "" {
 			rw.Header().Set("Access-Control-Allow-Origin", origin)
 			rw.Header().Set("Vary", "Origin")

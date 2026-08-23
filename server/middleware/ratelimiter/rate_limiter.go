@@ -14,14 +14,14 @@ import (
 )
 
 type options struct {
-	cache  cache.Cache[*rate.Limiter]
-	setTTL time.Duration
+	cache      cache.Cache[*rate.Limiter]
+	setTimeout time.Duration
 }
 
 func newOptions(opts ...Option) *options {
 	defaults := &options{
-		cache:  memory.NewMemoryCache[*rate.Limiter](),
-		setTTL: 5 * time.Minute,
+		cache:      memory.NewMemoryCache[*rate.Limiter](),
+		setTimeout: 5 * time.Second,
 	}
 	for _, opt := range opts {
 		opt(defaults)
@@ -40,11 +40,13 @@ func WithCache(cache cache.Cache[*rate.Limiter]) Option {
 	}
 }
 
-// WithSetTTL sets the timeout for cache set operations.
+// WithSetTimeout sets the timeout for cache set operations.
 // This prevents hanging when the cache backend is unresponsive.
-func WithSetTTL(ttl time.Duration) Option {
+func WithSetTimeout(timeout time.Duration) Option {
 	return func(opts *options) {
-		opts.setTTL = ttl
+		if timeout > 0 {
+			opts.setTimeout = timeout
+		}
 	}
 }
 
@@ -62,7 +64,7 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 		if !exist || limiter == nil {
 			value, nErr, _ := sf.Do(k, func() (any, error) {
 				newLimiter, expire := createLimiter(ctx)
-				setCtx, cancel := context.WithTimeout(ctx.Context(), opts.setTTL)
+				setCtx, cancel := context.WithTimeout(ctx.Context(), opts.setTimeout)
 				defer cancel()
 				err := opts.cache.SetWithTTL(setCtx, k, newLimiter, expire)
 				if err != nil {
@@ -87,7 +89,7 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 	}
 }
 
-// NewNewRateLimiterByClientIP rate limits per client IP, keyed on
+// NewRateLimiterByClientIP rate limits per client IP, keyed on
 // httpx.Context.ClientIP.
 //
 // The key is only as trustworthy as the engine's proxy configuration.
@@ -101,7 +103,7 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 // SetTrustedProxies, echo IPExtractor, fiber EnableTrustedProxyCheck), or pass
 // NewRateLimiter a key drawn from something the caller cannot forge, such as an
 // authenticated user ID.
-func NewNewRateLimiterByClientIP(limit time.Duration, burst int, expire time.Duration, options ...Option) httpx.Middleware {
+func NewRateLimiterByClientIP(limit time.Duration, burst int, expire time.Duration, options ...Option) httpx.Middleware {
 	return NewRateLimiter(
 		func(ctx httpx.Context) string {
 			return ctx.ClientIP()

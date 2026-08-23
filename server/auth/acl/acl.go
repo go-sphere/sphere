@@ -2,6 +2,10 @@ package acl
 
 // ACL represents an Access Control List that manages permissions between subjects and resources.
 // It uses a simple allow-based model where permissions must be explicitly granted.
+//
+// Note: ACL is designed for static configuration during startup (write-once, read-only
+// at runtime). If dynamic permission updates are required concurrently at runtime,
+// external synchronization or specialized permission management libraries should be used.
 type ACL struct {
 	permissions map[string]map[string]bool
 }
