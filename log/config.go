@@ -73,9 +73,9 @@ func WithStackAt(level Level) Option {
 }
 
 // WithMinLevel sets the minimum level for log entries to be emitted.
-// Entries below the specified level are discarded before they reach output.
-// This is the level filter; WithStackAt is not, despite the StdioBackend having
-// once treated it as one.
+// StdioBackend honors it; zapx does not — set zapx.Config.Level instead.
+// WithStackAt is not a level filter, despite StdioBackend having once
+// treated it as one.
 func WithMinLevel(level Level) Option {
 	return func(o *Options) {
 		l := level

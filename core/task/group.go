@@ -64,26 +64,21 @@ type groupOptions struct {
 // reason on the same lifecycle.
 const defaultCleanupTimeout = 30 * time.Second
 
-// WithCleanupTimeout configures the timeout applied to the ctx passed to each
-// task's Stop() during internal auto-cleanup (task failure / parent cancel /
-// manual stop). It does NOT bound Group.Stop(ctx) — callers should pass their
-// own context for hard caller-side timeouts. A non-positive duration disables
-// the timeout and uses context.Background().
+// WithCleanupTimeout bounds the context each member Stop receives.
 //
-// Disabling it is a deliberate choice, not a safe default: Group.Start waits on
-// the cleanup to finish and has no context of its own, so an unbounded budget
-// lets one task that never returns from Stop keep the group in its stopping
-// state permanently. Every later Stop then just times out. That is why the
-// default is defaultCleanupTimeout, matching WithManagerCleanupTimeout.
+// It does not bound how long Group.Stop waits: that wait uses the caller's ctx.
+// An external Stop(ctx) with a deadline also bounds member Stop, as
+// min(ctx deadline, this timeout). When the group tears itself down (task
+// failure, parent cancel, natural complete) this timeout applies alone.
+//
+// A non-positive duration disables the bound. Group.Start waits on cleanup
+// with no context of its own, so an unbounded budget lets one task that never
+// returns from Stop keep the group stopping permanently. That is why the
+// default is defaultCleanupTimeout (30s), matching WithManagerCleanupTimeout.
 //
 // This replaces WithAutoStopTimeout, which was removed without an alias. The
-// behaviour is unchanged — the old name never bounded Group.Stop either — so the
-// migration is a rename and nothing more.
-//
-// An external Stop(ctx) whose ctx has a deadline also bounds member Stop:
-// the members see min(ctx deadline, this timeout). This timeout alone applies
-// when the group tears itself down (task failure, parent cancel, natural
-// complete).
+// behaviour is unchanged — the old name never bounded Group.Stop's wait
+// either — so the migration is a rename and nothing more.
 func WithCleanupTimeout(timeout time.Duration) GroupOption {
 	return func(o *groupOptions) {
 		o.cleanupTimeout = timeout
@@ -94,8 +89,8 @@ func WithCleanupTimeout(timeout time.Duration) GroupOption {
 // WithStartTimeout bounds how long a non-final staged group stage may spend
 // in Start before the group aborts that stage and tears down everything
 // already launched. The last stage is exempt: a long-running server's Start
-// is expected not to return until shutdown, so a deadline there would kill
-// the process after it was already serving. NewGroup is a single stage, so
+// is expected not to return until shutdown, so a deadline there would stop
+// the group after it was already serving. NewGroup is a single stage, so
 // this option has no effect on it.
 //
 // A non-positive duration disables the bound (the default). The error
@@ -211,7 +206,7 @@ func NewStagedGroupWithOptions(waves [][]Task, options ...GroupOption) *Group {
 	}
 }
 
-// Identifier returns the group's identifier for logging and debugging purposes.
+// Identifier returns the fixed string "group".
 func (g *Group) Identifier() string {
 	return "group"
 }
@@ -264,8 +259,9 @@ func (g *Group) Stop(ctx context.Context) error {
 	}
 }
 
-// IsStarted reports whether the group has entered its lifecycle.
-// It remains true once Start has been invoked successfully.
+// IsStarted reports whether Start has entered the lifecycle. It stays true
+// after the group has fully stopped. A Start that fails validation never
+// leaves init, so IsStarted is then false.
 func (g *Group) IsStarted() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()

@@ -1,3 +1,29 @@
+// Package httpz is the HTTP convention layer on top of github.com/go-sphere/httpx.
+// Handlers return (T, error) or (string, error); wrappers recover panics, map
+// errors to a JSON envelope, and wrap success in DataResponse[T].
+//
+// # Envelopes
+//
+// WithJson writes {"success": true, "data": T} at HTTP 200, or a status the
+// handler set via ctx.Status when httpx.ResponseInfo is available (201, 204,
+// …). Errors go through AbortWithJsonError: {"code": int, "message": string}
+// at the parser's HTTP status. code is 0 unless the error implements
+// httpx.CodeError. message is the generic status text unless the error
+// implements httpx.MessageError with a non-empty message. ErrorResponse.Error
+// is err.Error() only when SetDebugMode(true).
+//
+// The default parser is httpx.ParseError. SetDefaultErrorParser swaps it
+// atomically; a nil parser is ignored.
+//
+// # Wrappers
+//
+// WithRecover, WithJson, WithText, WithFormFileReader, and WithFormFileBytes
+// take and return httpx.Handler / httpx.Context, not Gin types. Panics become
+// a 500 except http.ErrAbortHandler, which is re-panicked so net/http can
+// drop the connection.
+//
+// EndpointsToMatches / MatchOperation turn generated [operation, method, path]
+// routes into a matcher for middleware/selector.
 package httpz
 
 import (
@@ -13,8 +39,8 @@ var (
 	errInternalServerPanic = errors.New("ServerError:PANIC")
 )
 
-// Value retrieves a typed value from the Gin context.
-// It returns the value and a boolean indicating whether the key exists and the type matches.
+// Value retrieves a typed value from the httpx context.
+// It returns the value and whether the key exists and the type matches.
 func Value[T any](ctx httpx.Context, key string) (T, bool) {
 	v, exists := ctx.Get(key)
 	var zero T
@@ -27,8 +53,9 @@ func Value[T any](ctx httpx.Context, key string) (T, bool) {
 	return zero, false
 }
 
-// WithRecover wraps a Gin handler with panic recovery.
-// If a panic occurs, it logs the error and returns a standardized internal server error response.
+// WithRecover wraps an httpx handler with panic recovery.
+// A panic is logged and turned into a JSON 500 except http.ErrAbortHandler,
+// which is re-panicked so net/http can drop the connection.
 func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Handler {
 	return func(ctx httpx.Context) error {
 		defer func() {
@@ -63,9 +90,8 @@ func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Ha
 	}
 }
 
-// WithJson creates a Gin handler that returns JSON responses for typed data.
-// It automatically handles errors by calling AbortWithJsonError and wraps successful
-// responses in a standardized DataResponse structure.
+// WithJson wraps a (T, error) handler as an httpx handler that writes
+// DataResponse[T] on success and AbortWithJsonError on failure.
 func WithJson[T any](handler func(ctx httpx.Context) (T, error)) httpx.Handler {
 	return WithRecover("WithJson panic", func(ctx httpx.Context) error {
 		data, err := handler(ctx)
@@ -89,9 +115,8 @@ func WithJson[T any](handler func(ctx httpx.Context) (T, error)) httpx.Handler {
 	})
 }
 
-// WithText creates a Gin handler that returns plain text responses.
-// It handles errors by calling AbortWithJsonError and returns successful
-// string responses with HTTP 200 status.
+// WithText wraps a (string, error) handler as an httpx handler that writes
+// the string as text/plain on success and AbortWithJsonError on failure.
 func WithText(handler func(ctx httpx.Context) (string, error)) httpx.Handler {
 	return WithRecover("WithText panic", func(ctx httpx.Context) error {
 		data, err := handler(ctx)

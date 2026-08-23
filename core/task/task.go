@@ -37,8 +37,7 @@ import (
 // background operation. Group and Manager always call Stop for a task whose
 // Start was invoked, including when Start returned on its own.
 type Task interface {
-	// Identifier returns a unique identifier for this task.
-	// This is used for logging and debugging purposes.
+	// Identifier returns a unique identifier for this task, used in logs.
 	Identifier() string
 
 	// Start begins the task's operation. It may block until the task is

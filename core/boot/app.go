@@ -37,7 +37,7 @@ func NewStagedApplication(waves ...[]task.Task) *Application {
 	return NewApplicationFromGroup(task.NewStagedGroup(waves...))
 }
 
-// Identifier returns the application's identifier for logging and debugging.
+// Identifier returns the fixed string "application".
 func (a *Application) Identifier() string {
 	return "application"
 }

@@ -6,10 +6,8 @@ import (
 	"os"
 )
 
-// Fs create a fs.FS from either a local directory or an embedded filesystem.
-// Priority:
-//  1. local directory (if it exists)
-//  2. embedded filesystem + emPath
+// Fs returns a fs.FS from a local directory if it exists, otherwise from
+// fs.Sub(files, emPath). It errors when neither source is usable.
 func Fs(local string, files fs.FS, emPath string) (fs.FS, error) {
 	// 1. Try the local directory first
 	if local != "" {

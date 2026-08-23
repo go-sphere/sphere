@@ -1,3 +1,15 @@
+// Package reverseproxy is a cached reverse proxy: response headers in
+// cache.ByteCache, bodies in storage.Storage.
+//
+// CreateCacheReverseProxy tees the upstream body to the client and the
+// cache. ServeCacheReverseProxy serves a cache hit then falls through.
+// Defaults follow RFC 9111 for a shared cache: no credentialed/private/
+// Set-Cookie responses; Vary only Accept-Encoding. Default cache key is
+// GET RequestURI(); non-GET is not cached.
+//
+// Cache save runs on a context detached from the request (default 30s).
+// Save failure does not affect the client stream. Load errors other than
+// miss are logged and the request goes upstream.
 package reverseproxy
 
 import (
@@ -22,7 +34,9 @@ import (
 const cacheStatusHeader = "X-Sphere-Cache-Status"
 
 type (
-	RequestCacheKeyFunc    func(*http.Request) string
+	// RequestCacheKeyFunc derives a cache key from a request. An empty key means do not cache.
+	RequestCacheKeyFunc func(*http.Request) string
+	// ResponseCacheCheckFunc reports whether a response may be stored.
 	ResponseCacheCheckFunc func(*http.Response) bool
 )
 
@@ -31,6 +45,7 @@ type (
 // would ever stop it.
 const defaultSaveTimeout = 30 * time.Second
 
+// Options holds CreateCacheReverseProxy configuration filled by Option values.
 type Options struct {
 	target       *url.URL
 	director     func(*http.Request)
@@ -40,6 +55,7 @@ type Options struct {
 	saveTimeout  time.Duration
 }
 
+// Option configures CreateCacheReverseProxy.
 type Option = func(*Options)
 
 func defaultCacheKey(request *http.Request) string {
@@ -88,7 +104,7 @@ func defaultResponseCacheCheck(resp *http.Response) bool {
 // "private" counts: this cache is shared by definition.
 func hasNoStoreDirective(values []string) bool {
 	for _, value := range values {
-		for _, directive := range strings.Split(value, ",") {
+		for directive := range strings.SplitSeq(value, ",") {
 			switch strings.ToLower(strings.TrimSpace(directive)) {
 			case "no-store", "private":
 				return true
@@ -105,7 +121,7 @@ func hasNoStoreDirective(values []string) bool {
 // entry could be served to a request that should have received a different one.
 func varyIsCacheable(values []string) bool {
 	for _, value := range values {
-		for _, field := range strings.Split(value, ",") {
+		for field := range strings.SplitSeq(value, ",") {
 			if field = strings.TrimSpace(field); field == "" {
 				continue
 			}
@@ -143,6 +159,8 @@ func WithSaveTimeout(timeout time.Duration) Option {
 	}
 }
 
+// WithTargetURL sets the upstream URL and installs a default director when none is set.
+// The default director rewrites scheme and host and strips Origin, Referer, and Accept-Encoding.
 func WithTargetURL(target *url.URL) Option {
 	return func(config *Options) {
 		config.target = target
@@ -165,6 +183,7 @@ func WithTargetURL(target *url.URL) Option {
 	}
 }
 
+// WithDirector sets the request director, replacing any default installed by WithTargetURL if applied after it.
 func WithDirector(director func(*http.Request)) Option {
 	return func(config *Options) {
 		config.director = director
@@ -184,12 +203,14 @@ func WithErrorHandler(handler func(error)) Option {
 	}
 }
 
+// WithCacheKeyFunc sets how cache keys are derived. An empty key skips caching.
 func WithCacheKeyFunc(cacheKeyFunc RequestCacheKeyFunc) Option {
 	return func(config *Options) {
 		config.keygen = cacheKeyFunc
 	}
 }
 
+// WithResponseCacheCheck sets whether an upstream response may be stored.
 func WithResponseCacheCheck(checker ResponseCacheCheckFunc) Option {
 	return func(config *Options) {
 		config.checker = checker
@@ -200,6 +221,8 @@ func ignoreCloseError(closer func() error) {
 	_ = closer()
 }
 
+// CreateCacheReverseProxy returns a ReverseProxy that tees an eligible upstream body to the client and the cache.
+// WithTargetURL is required: a nil target panics. The error return is always nil.
 func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProxy, error) {
 	conf := newOptions(opts...)
 	proxy := httputil.NewSingleHostReverseProxy(conf.target)
@@ -311,11 +334,13 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 	return proxy, nil
 }
 
+// ServeOptions holds ServeCacheReverseProxy configuration filled by ServeOption values.
 type ServeOptions struct {
 	keygen       RequestCacheKeyFunc
 	errorHandler func(http.ResponseWriter, *http.Request, error)
 }
 
+// ServeOption configures ServeCacheReverseProxy.
 type ServeOption = func(*ServeOptions)
 
 func newServeOptions(opts ...ServeOption) *ServeOptions {
@@ -348,12 +373,15 @@ func WithServeErrorHandler(handler func(http.ResponseWriter, *http.Request, erro
 	}
 }
 
+// WithServeCacheKeyFunc sets how lookup keys are derived. An empty key skips the cache and goes upstream.
 func WithServeCacheKeyFunc(keygen RequestCacheKeyFunc) ServeOption {
 	return func(opts *ServeOptions) {
 		opts.keygen = keygen
 	}
 }
 
+// ServeCacheReverseProxy serves a cache hit and otherwise forwards to proxy.
+// Load errors other than ErrCacheNotFound are logged and the request goes upstream.
 func ServeCacheReverseProxy(cache Cache, proxy *httputil.ReverseProxy, opts ...ServeOption) func(http.ResponseWriter, *http.Request) {
 	conf := newServeOptions(opts...)
 	return func(w http.ResponseWriter, r *http.Request) {

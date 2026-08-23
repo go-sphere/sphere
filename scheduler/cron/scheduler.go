@@ -1,3 +1,12 @@
+// Package cron is a scheduler.Cron on robfig/cron/v3. It is not a full
+// scheduler.Scheduler: there is no Enqueue/Handle.
+//
+// Implements task.Task. Start blocks until cancel; Stop drains jobs without
+// cancelling in-flight handler ctx until drain completes. Cancelling Start's
+// ctx without Stop leaves the runtime live. Optional seconds field and
+// timezone. Chain: SkipIfStillRunning + Recover. Duplicate Register returns
+// scheduler.ErrDuplicateName; Register after Start returns ErrAfterStart;
+// unknown Unregister is a no-op.
 package cron
 
 import (
@@ -19,11 +28,15 @@ const (
 	stateClosed
 )
 
+// Config selects an optional seconds field in cron specs and a timezone
+// location. Empty Timezone uses the process local zone.
 type Config struct {
 	Seconds  bool   `json:"seconds" yaml:"seconds"`
 	Timezone string `json:"timezone" yaml:"timezone"`
 }
 
+// Scheduler is a scheduler.Cron on robfig/cron/v3. It is not a
+// scheduler.Scheduler: there is no Enqueue or Handle. It implements task.Task.
 type Scheduler struct {
 	cron    *rcron.Cron
 	entries map[string]rcron.EntryID
@@ -35,6 +48,8 @@ type Scheduler struct {
 	stopDone <-chan struct{}
 }
 
+// NewScheduler builds a Cron scheduler. Jobs run with SkipIfStillRunning and
+// Recover. conf.Seconds enables a seconds field in cron specs.
 func NewScheduler(conf Config, opts ...Option) (*Scheduler, error) {
 	applied := options{logger: cronLogger{}}
 	for _, opt := range opts {
@@ -66,10 +81,14 @@ func NewScheduler(conf Config, opts ...Option) (*Scheduler, error) {
 	}, nil
 }
 
+// Identifier returns "scheduler/cron".
 func (s *Scheduler) Identifier() string {
 	return "scheduler/cron"
 }
 
+// Register adds a periodic job named name with cron spec. Duplicate names
+// return scheduler.ErrDuplicateName. Register after Start returns
+// ErrAfterStart. A nil handler is rejected.
 func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) error {
 	if handler == nil {
 		return fmt.Errorf("scheduler/cron: nil handler")
@@ -103,6 +122,7 @@ func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) e
 	return nil
 }
 
+// Unregister removes the job named name. An unknown name is a no-op.
 func (s *Scheduler) Unregister(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

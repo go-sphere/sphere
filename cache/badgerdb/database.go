@@ -1,3 +1,10 @@
+// Package badgerdb is a persistent cache.ByteCache driver on BadgerDB.
+//
+// []byte only. DelAll enumerates keys and MultiDel; it does not call DropAll
+// (unsafe against concurrent reads). The scan+delete is not atomic. GetDel
+// retries ErrConflict until success, miss, or ctx.Err(). Keys honours ctx
+// per key; most other methods ignore ctx. NewDatabase and
+// NewDatabaseWithOptions own the DB; NewDatabaseWithBadger does not.
 package badgerdb
 
 import (
@@ -218,8 +225,8 @@ func (d *Database) MultiDel(ctx context.Context, keys []string) error {
 	})
 }
 
-// DelAll removes every entry by enumerating the keyspace and deleting in
-// batches, mirroring nscache.NSCache.DelAll.
+// DelAll removes every entry by enumerating the keyspace and a single
+// MultiDel, mirroring nscache.NSCache.DelAll.
 //
 // It deliberately avoids badger's DropAll, which is documented as safe against
 // concurrent writes but not against concurrent reads — the caller is expected to
@@ -292,6 +299,7 @@ func (d *Database) Close() error {
 	return nil
 }
 
+// Sync flushes in-memory writes to disk.
 func (d *Database) Sync() error {
 	return d.db.Sync()
 }

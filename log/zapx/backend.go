@@ -1,3 +1,12 @@
+// Package zapx is a log.Backend on uber-go/zap: colored console on stdout
+// and optional lumberjack JSON file rotation.
+//
+// NewBackend owns the file handle; derived With loggers do not. Close
+// releases the file; lumberjack reopens on the next write, so Close is not
+// "seal the backend". Sync before Close if buffered entries must land.
+// log.WithMinLevel is ignored; set Config.Level (zap level string, default
+// "info"). Invalid Level falls back to Info. FileConfig.MaxSize is MB,
+// MaxAge is days, MaxBackups is count.
 package zapx
 
 import (
@@ -122,6 +131,9 @@ func (z *Backend) write(logger *zap.Logger, level corelog.Level, msg string, fie
 	}
 }
 
+// With returns a derived backend that shares the parent's sinks. The derived
+// backend does not own the file handle, so Close on it is a no-op.
+// log.WithMinLevel is ignored; the zap level is fixed by Config.Level.
 func (z *Backend) With(options ...corelog.Option) corelog.Backend {
 	resolved := corelog.NewOptions(options...)
 	logger := z.zapLogger
@@ -135,6 +147,8 @@ func (z *Backend) With(options ...corelog.Option) corelog.Backend {
 	return newBackendWithLogger(logger, joinName(z.name, resolved.Name))
 }
 
+// Sync flushes buffered zap entries. Call Sync before Close if file entries
+// must reach disk. Console (stdout) sync errors are discarded.
 func (z *Backend) Sync() error {
 	return z.zapLogger.Sync()
 }
@@ -154,6 +168,8 @@ func (z *Backend) Close() error {
 	return z.file.Close()
 }
 
+// SlogHandler returns a slog.Handler on this backend's zap core. The logger
+// name is applied here because the core does not store it.
 func (z *Backend) SlogHandler(options ...corelog.Option) slog.Handler {
 	resolved := corelog.NewOptions(options...)
 	// Carry this backend's own name into the bridge. The handler is built from
@@ -168,10 +184,13 @@ func (z *Backend) SlogHandler(options ...corelog.Option) slog.Handler {
 	return h
 }
 
+// SlogLogger returns a *slog.Logger whose handler is SlogHandler.
 func (z *Backend) SlogLogger(options ...corelog.Option) *slog.Logger {
 	return slog.New(z.SlogHandler(options...))
 }
 
+// ZapLogger returns the raw *zap.Logger without the extra caller skip used
+// by Backend.Log.
 func (z *Backend) ZapLogger() *zap.Logger {
 	return z.zapLogger
 }

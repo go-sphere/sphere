@@ -1,3 +1,10 @@
+// Package qiniu is a Kodo storage.CDNStorage: token upload auth, public
+// URLHandler, and server-side upload/download/delete/move/copy.
+//
+// Upload tokens use InsertOnly: 1. MimeLimit applies to the token path
+// (declared Content-Type), not byte sniffing, and not server-side
+// UploadFile. PutPolicy.Expires is relative seconds (sub-second rounded up
+// to 1). Delete of miss is idempotent. Download Size comes from Stat.
 package qiniu
 
 import (
@@ -54,8 +61,8 @@ const (
 // stated here so the ceiling for UploadAuthRequest.TTL does not depend on it.
 const defaultUploadTTL = time.Hour
 
-// Client provides Qiniu Cloud Object Storage operations with URL handling capabilities.
-// It implements storage interfaces for file uploads and URL generation.
+// Client is a Kodo storage.CDNStorage: token upload auth, public URLs, and
+// server-side upload/download/delete/move/copy.
 type Client struct {
 	urlhandler.Handler           // Embedded URL handler for public file access
 	config             Config    // Qiniu configuration

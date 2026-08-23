@@ -1,3 +1,10 @@
+// Package test is the cross-driver contract suite for cache.Cache.
+//
+// Every ByteCache driver (memory, mcache, redis, badgerdb, nocache) is
+// registered here and run against the same cases: CRUD, TTL (including
+// zero/negative), batches, GetDel, Close, and KeyLister where supported.
+// Add a new driver by returning it from statefulByteCacheFactories rather
+// than writing a parallel suite.
 package test
 
 import (

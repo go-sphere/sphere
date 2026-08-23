@@ -7,14 +7,17 @@ import (
 )
 
 var (
+	// TokenNotFoundError is 401 when the request carries no usable token.
 	TokenNotFoundError = httpx.UnauthorizedError(
 		errors.New("AuthorizerError:TOKEN_NOT_FOUND"),
 		"没有提供有效的认证信息",
 	)
+	// NeedLoginError is 401 when ContextUtils finds no Data[I] on the context.
 	NeedLoginError = httpx.UnauthorizedError(
 		errors.New("AuthorizerError:NEED_LOGIN"),
 		"需要登录才能访问",
 	)
+	// PermissionError is 403 when CheckAuthID sees a UID mismatch.
 	PermissionError = httpx.ForbiddenError(
 		errors.New("AuthorizerError:PERMISSION_DENIED"),
 		"没有权限访问该资源",

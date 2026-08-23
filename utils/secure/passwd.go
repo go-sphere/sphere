@@ -1,6 +1,11 @@
-// Package secure provides security-related utilities including password hashing,
-// string censoring, and random string generation for tokens and passwords.
-// It uses industry-standard algorithms like bcrypt for secure password storage.
+// Package secure is bcrypt password hashing, a display mask, and
+// crypto/rand alphanumeric strings.
+//
+// CryptPassword / IsPasswordMatch use bcrypt default cost. Hashing never
+// returns the plaintext on error. bcrypt's 72-byte input limit applies.
+// CensorString keeps the first and last rune and fills the middle with '*'
+// to outLength; outLength < 2 or empty src yields all stars. RandString
+// panics on entropy failure and on negative length.
 package secure
 
 import (
@@ -20,9 +25,8 @@ func CryptPassword(pwd string) (string, error) {
 	return string(cyPwd), nil
 }
 
-// IsPasswordMatch verifies if a plain text password matches the provided bcrypt hash.
-// It returns true if the password matches the hash, false otherwise.
-// This function is safe against timing attacks due to bcrypt's constant-time comparison.
+// IsPasswordMatch reports whether pwd matches the bcrypt hash cyPwd.
+// Comparison is constant-time (bcrypt).
 func IsPasswordMatch(pwd, cyPwd string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(cyPwd), []byte(pwd))
 	return err == nil

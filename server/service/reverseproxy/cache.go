@@ -17,6 +17,8 @@ const cacheFileKeyForReverseProxyBody = "X-Cache-ReverseProxy-Body"
 // It marks an expected cache miss, distinguishing it from an actual cache-layer failure.
 var ErrCacheNotFound = errors.New("no cache found")
 
+// Cache persists reverse-proxy response headers and bodies.
+// Save stores both; Load returns headers and a body reader; Header returns headers only.
 type Cache interface {
 	Exists(ctx context.Context, key string) (bool, error)
 	Delete(ctx context.Context, key string) error
@@ -25,12 +27,14 @@ type Cache interface {
 	Header(ctx context.Context, key string) (http.Header, error)
 }
 
+// CommonCache stores response headers in a ByteCache and bodies in Storage.
 type CommonCache struct {
 	cache           cache.ByteCache
 	storage         storage.Storage
 	setCacheOptions []cache.Option
 }
 
+// NewByteCache returns a CommonCache. setCacheOptions apply when saving header blobs.
 func NewByteCache(cache cache.ByteCache, storage storage.Storage, setCacheOptions ...cache.Option) *CommonCache {
 	return &CommonCache{
 		cache:           cache,

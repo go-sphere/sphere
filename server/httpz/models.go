@@ -1,15 +1,15 @@
 package httpz
 
-// DataResponse represents a successful API response containing typed data.
-// It follows a standard structure for consistent API responses across the application.
+// DataResponse is the success envelope written by WithJson.
 type DataResponse[T any] struct {
 	Success bool `json:"success" default:"true"`
 	Code    int  `json:"code,omitempty" default:"0"`
 	Data    T    `json:"data"`
 }
 
-// ErrorResponse represents an API error response with error details.
-// It provides both error and message fields for different levels of error information.
+// ErrorResponse is the error envelope written by AbortWithJsonError.
+// Code is an application code (0 if unclassified). Message is user-facing.
+// Error is err.Error() only when DebugMode is on.
 type ErrorResponse struct {
 	Success bool `json:"success" default:"false"`
 	// Code is an application-specific error code and is 0 for unclassified

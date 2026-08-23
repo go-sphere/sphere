@@ -1,3 +1,9 @@
+// Package test is the cross-driver contract suite for storage.Storage.
+//
+// local, kvcache, s3, qiniu, and fileserver compile-assert the interfaces
+// they claim. Runtime cases cover upload/download/delete/move/copy, key
+// normalization, and idempotent delete. Cloud drivers are skipped unless
+// credentials are present. Add a new driver here rather than a parallel suite.
 package test
 
 import (

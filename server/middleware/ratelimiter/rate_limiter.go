@@ -1,3 +1,10 @@
+// Package ratelimiter is per-key golang.org/x/time/rate.Limiter middleware
+// stored in a cache.Cache, with singleflight on miss. Deny is HTTP 429.
+//
+// NewRateLimiterByClientIP keys on httpx.Context.ClientIP, which is only as
+// trustworthy as the engine's proxy configuration. Prefer an authenticated
+// user ID when possible. createLimiter's expire is the cache TTL of the
+// limiter object, not the rate window.
 package ratelimiter
 
 import (

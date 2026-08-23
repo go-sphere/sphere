@@ -3,3 +3,24 @@
 - ./storage/fileserver.WithCreateFileKey: changed from func(func(ctx context.Context, server *FileServer, filename string) (string, error)) Option to func(func(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error)) Option
 - ./utils/secure.CryptPassword: changed from func(string) string to func(string) (string, error)
 - ./utils/encoding/baseconv.AlphabetBase32: value changed from "0123456789ABCDEFGHJKLMNPQRSTVWXYZ" to "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+# Semantic note: a data-format change, not a rename. The v0.0.3 alphabet had 33 symbols (present:
+# L, absent: U, contradicting its own doc comment); the new one is 32-symbol Crockford base32
+# (I/L/O/U excluded). v0.0.3-encoded values no longer decode under this package: strings containing
+# L fail with "invalid character", and every other multi-character string decodes to different bytes
+# (M-Z shift one position, and the base changed 33->32). Persisted IDs, codes and cache keys must
+# be re-encoded or migrated with the old alphabet kept as a table. See "Base32 identifiers changed
+# alphabet" in compat/behavior-changes.md.
+- ./core/task.ErrGroupNotStarted: removed
+- ./server/middleware/cors.NewCORS: changed from func(...Option) github.com/go-sphere/httpx.Middleware to func(...Option) (github.com/go-sphere/httpx.Middleware, error)
+- ./infra/sqlite.Driver.Driver: removed
+- modernc.org/sqlite.(*Driver).RegisterConnectionHook, method set of *Driver: removed
+# Semantic note: the removal is the whole promoted surface, not just the exported field. v0.0.3
+# embedded a zero-value modernc *Driver, so RegisterConnectionHook / RegisterScalarFunction /
+# RegisterCollationUtf8 (and the rest of its method set) were callable on sphere's Driver — and
+# silently hollow, since they mutated the zero instance rather than the registered one. The new
+# Driver holds an unexported base instance, so nothing is promoted: call those functions through
+# their modernc package-level forms instead, which mutate the registered driver. See "infra/sqlite
+# delegates to modernc's registered driver instance" in compat/behavior-changes.md.
+- ./server/middleware/online.NewOnline: changed from func() *Online to func(...Option) *Online
+- ./server/middleware/ratelimiter.NewNewRateLimiterByClientIP: removed
+- ./server/middleware/ratelimiter.WithSetTTL: removed

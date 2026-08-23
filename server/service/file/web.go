@@ -1,3 +1,10 @@
+// Package file is a task.Task wrapping an httpx.Engine and
+// fileserver.FileServer. It is not an S3 API.
+//
+// PUT /:key uploads (one-time cache token). GET /*filename downloads.
+// NewLocalFileService builds a local-disk CDN adapter with an in-memory byte
+// cache and 3600s Cache-Control. Identifier is "file". Start does not
+// configure CORS — it only registers upload/download and engine.Start.
 package file
 
 import (
@@ -9,13 +16,13 @@ import (
 	"github.com/go-sphere/sphere/storage/local"
 )
 
-// Web provides a file upload and download web service with S3-compatible storage.
+// Web is a task.Task wrapping an httpx.Engine and a fileserver.FileServer.
 type Web struct {
 	engine  httpx.Engine
 	storage *fileserver.FileServer
 }
 
-// NewWebServer creates a new file web server with the given configuration and storage adapter.
+// NewWebServer wraps engine and storage as a task.Task.
 func NewWebServer(engine httpx.Engine, storage *fileserver.FileServer) *Web {
 	return &Web{
 		engine:  engine,
@@ -23,13 +30,14 @@ func NewWebServer(engine httpx.Engine, storage *fileserver.FileServer) *Web {
 	}
 }
 
+// LocalFileServiceConfig configures a local-disk fileserver adapter.
+// RootDir is the filesystem root; PublicBase is the public URL prefix for both upload and download.
 type LocalFileServiceConfig struct {
 	RootDir    string `json:"root_dir" yaml:"root_dir"`
 	PublicBase string `json:"public_base" yaml:"public_base"`
 }
 
-// NewLocalFileService creates a new CDN adapter configured for local file storage.
-// It sets up the local storage client and wraps it with caching and S3-compatible interface.
+// NewLocalFileService builds a local-disk CDN adapter with an in-memory byte cache and 3600s Cache-Control.
 func NewLocalFileService(conf LocalFileServiceConfig) (*fileserver.FileServer, error) {
 	client, err := local.NewClient(local.Config{
 		RootDir: conf.RootDir,
@@ -57,8 +65,7 @@ func (w *Web) Identifier() string {
 	return "file"
 }
 
-// Start begins serving the file web server with upload and download endpoints.
-// It configures CORS, registers file upload/download handlers, and starts the HTTP server.
+// Start registers upload and download handlers and starts the engine. It does not configure CORS.
 func (w *Web) Start(ctx context.Context) error {
 	w.storage.RegisterFileUploader(w.engine.Group("/"))
 	w.storage.RegisterFileDownloader(w.engine.Group("/"))

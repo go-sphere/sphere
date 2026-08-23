@@ -21,6 +21,9 @@ import (
 // such as MultiBackend add extra frames, the reported location is best-effort.
 const stdioCallerSkip = 3
 
+// StdioBackend writes logfmt lines with a UTC RFC3339 timestamp. Entries
+// below minLevel are dropped. LevelError and above go to stderr; other
+// levels go to stdout. It honors log.WithMinLevel.
 type StdioBackend struct {
 	mu        sync.Mutex
 	name      string
@@ -33,6 +36,8 @@ type StdioBackend struct {
 	stackAt *Level
 }
 
+// NewStdioBackend returns a StdioBackend with min level debug, then applies
+// options. WithMinLevel is honored.
 func NewStdioBackend(options ...Option) *StdioBackend {
 	b := &StdioBackend{
 		attrs:    make(map[string]any),

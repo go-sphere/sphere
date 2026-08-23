@@ -1,3 +1,8 @@
+// Package kvcache stores blobs in a cache.ByteCache as storage.Storage.
+//
+// Whole object is read into memory. MIME comes from the file extension, not
+// bytes. No FileStater, FileLister, URLHandler, or UploadAuthorizer.
+// Optional TTL on set; nil Expires means the entry never expires.
 package kvcache
 
 import (
@@ -14,13 +19,14 @@ import (
 	"github.com/go-sphere/sphere/storage/storageerr"
 )
 
-// Config holds the configuration for cache-based storage operations.
+// Config holds optional TTL applied on Set. A nil Expires means the entry
+// never expires.
 type Config struct {
 	Expires *time.Duration `json:"expires" yaml:"expires"`
 }
 
-// Client provides cache-based storage operations where files are stored in a byte cache.
-// This is useful for temporary storage or small files that benefit from fast cache access.
+// Client stores blobs in a cache.ByteCache as storage.Storage. MIME type
+// comes from the file extension, not from bytes.
 type Client struct {
 	config Config
 	cache  cache.ByteCache

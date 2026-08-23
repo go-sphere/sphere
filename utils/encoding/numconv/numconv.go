@@ -1,6 +1,11 @@
-// Package numconv provides utilities for converting 64-bit integers to/from base32 and base62 encodings.
-// It includes functions for generating random strings in these encodings,
-// making it useful for creating compact, URL-safe identifiers and tokens.
+// Package numconv encodes int64 values as 8-byte big-endian then base32 or
+// base62 (unpadded Std32 / Std62). Decode requires exactly 8 bytes or
+// returns ErrNonCanonical. A short string like "5" does not decode.
+// Base32 leftover bits fail with baseconv.ErrNonCanonical.
+//
+// RandomBase32 and RandomBase62 sample the alphabet with math/rand/v2.
+// They are not encodings of int64s and are not cryptographically secure
+// (use secure.RandString for secrets).
 package numconv
 
 import (

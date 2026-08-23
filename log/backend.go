@@ -6,13 +6,14 @@ import "context"
 type Level int8
 
 const (
-	LevelDebug Level = iota
-	LevelInfo
-	LevelWarn
-	LevelError
+	LevelDebug Level = iota // debug
+	LevelInfo               // info
+	LevelWarn               // warn
+	LevelError              // error
 )
 
-// Backend is the pluggable logging backend interface.
+// Backend is the pluggable logging backend. Close is not part of this
+// interface; type-assert io.Closer when the backend owns a handle.
 type Backend interface {
 	Log(ctx context.Context, level Level, msg string, attrs ...Attr)
 	Sync() error

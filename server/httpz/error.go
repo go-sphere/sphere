@@ -51,9 +51,9 @@ func DebugMode() bool {
 	return debugMode.Load()
 }
 
-// AbortWithJsonError terminates the request with a JSON error response.
-// It uses the configured error parser to extract error details and ensures
-// the HTTP status code is valid (200-599 range).
+// AbortWithJsonError writes an ErrorResponse and is the error path for
+// WithJson/WithText/WithRecover. Status is clamped to 100–599 (invalid values
+// become 500). A nil err logs a warning and writes a 500.
 func AbortWithJsonError(ctx httpx.Context, err error) {
 	if err == nil {
 		log.Warn("AbortWithJsonError called with nil error")

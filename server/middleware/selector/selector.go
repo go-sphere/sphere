@@ -1,3 +1,9 @@
+// Package selector applies httpx middleware only when Matcher.Match is true;
+// otherwise it calls ctx.Next(). Compose with httpz.MatchOperation to run
+// auth only on generated private routes.
+//
+// NewSelectorMiddleware returns one wrapper per input middleware, not a
+// single middleware. Empty AND matcher is true; empty OR matcher is false.
 package selector
 
 import (
@@ -19,8 +25,8 @@ func (m MatchFunc) Match(ctx httpx.Context) bool {
 	return m(ctx)
 }
 
-// NewContextMatcher creates a matcher that checks for a specific value in the Gin context.
-// It performs type-safe comparison of context values.
+// NewContextMatcher matches when the httpx context value for key equals value.
+// The stored value must have type T.
 func NewContextMatcher[T comparable](key string, value T) Matcher {
 	return MatchFunc(func(ctx httpx.Context) bool {
 		v, ok := ctx.Get(key)
@@ -42,8 +48,7 @@ func NewLogicalNotMatcher(matcher Matcher) Matcher {
 	})
 }
 
-// NewLogicalOrMatcher creates a matcher that returns true if any of the provided matchers match.
-// It implements logical OR operation across multiple matchers.
+// NewLogicalOrMatcher returns a matcher that is true if any matcher matches. An empty list is false.
 func NewLogicalOrMatcher(matchers ...Matcher) Matcher {
 	return MatchFunc(func(ctx httpx.Context) bool {
 		for _, m := range matchers {
@@ -55,8 +60,7 @@ func NewLogicalOrMatcher(matchers ...Matcher) Matcher {
 	})
 }
 
-// NewLogicalAndMatcher creates a matcher that returns true only if all provided matchers match.
-// It implements logical AND operation across multiple matchers.
+// NewLogicalAndMatcher returns a matcher that is true only if every matcher matches. An empty list is true.
 func NewLogicalAndMatcher(matchers ...Matcher) Matcher {
 	return MatchFunc(func(ctx httpx.Context) bool {
 		for _, m := range matchers {
@@ -68,8 +72,8 @@ func NewLogicalAndMatcher(matchers ...Matcher) Matcher {
 	})
 }
 
-// NewSelectorMiddleware creates a chain of middleware that only execute when the matcher condition is met.
-// This allows conditional application of middleware based on request characteristics.
+// NewSelectorMiddleware returns one wrapper per input middleware.
+// Each wrapper runs the inner middleware only when matcher.Match is true; otherwise it calls ctx.Next().
 func NewSelectorMiddleware(matcher Matcher, middlewares ...httpx.Middleware) []httpx.Middleware {
 	val := make([]httpx.Middleware, 0, len(middlewares))
 	for _, m := range middlewares {

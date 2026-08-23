@@ -1,3 +1,17 @@
+// Package authorizer is the identity contract used by HTTP auth middleware.
+// Token format is out of scope; jwtauth is the JWT implementation.
+//
+// UID is integer or string (database primary-key shapes). uuid.UUID and
+// similar types should be stored as their String() form.
+//
+// Parser parses a token into Claims. GetUID error rejects the request;
+// GetSubject and GetRoles errors are ignored by the middleware (zero
+// values). ContextUtils[I] reads Data[I] stored on context.Context via a
+// private key — use WithAuthData / GetAuthData, not context.Value.
+//
+// Sentinel errors carry HTTP status and a Chinese user-facing message:
+// TokenNotFoundError and NeedLoginError are 401, PermissionError is 403,
+// MissingUIDError is 401 (zero UID must never authenticate).
 package authorizer
 
 import (

@@ -24,6 +24,9 @@ func joinPaths(absolutePath, relativePath string) string {
 	return finalPath
 }
 
+// EndpointsToMatches indexes generated routes as method → fullPath → operation.
+// Each route is [3]string{operation, method, path}; path is joined onto base,
+// preserving a trailing slash.
 func EndpointsToMatches(base string, endpoints ...[][3]string) map[string]map[string]string {
 	matches := make(map[string]map[string]string)
 	for _, list := range endpoints {
@@ -40,6 +43,9 @@ func EndpointsToMatches(base string, endpoints ...[][3]string) map[string]map[st
 	return matches
 }
 
+// MatchOperation returns a predicate that is true when the request's method
+// and full path map to one of the named operations. Use it with
+// middleware/selector to apply auth only to generated private routes.
 func MatchOperation(base string, endpoints [][3]string, operations ...string) func(ctx httpx.Context) bool {
 	matches := EndpointsToMatches(base, endpoints)
 	opts := make(map[string]struct{}, len(operations))

@@ -1,3 +1,7 @@
+// Package storageerr is the shared sentinel errors for storage drivers,
+// wrapped with httpx status (NotFound / BadRequest).
+//
+// Use errors.Is. ErrorDistExisted is a deprecated alias of ErrDestExists.
 package storageerr
 
 import (

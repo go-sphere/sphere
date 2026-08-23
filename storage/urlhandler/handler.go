@@ -1,3 +1,7 @@
+// Package urlhandler joins object keys onto a public base URL and extracts
+// keys back. GenerateURL ignores params (the URLHandler interface accepts
+// them). Keys that already look like http:// or https:// are returned
+// unchanged. ExtractKeyFromURL is strict about host/path.
 package urlhandler
 
 import (
@@ -39,7 +43,7 @@ func NewHandler(public string) (*Handler, error) {
 }
 
 // GenerateURL creates a public URL for the given storage key.
-// If the key already contains a full URL, it returns the key unchanged.
+// Keys that already look like http:// or https:// are returned unchanged.
 // The default handler ignores params.
 func (n *Handler) GenerateURL(key string, params ...url.Values) string {
 	return n.generateURL(key)
@@ -69,9 +73,9 @@ func (n *Handler) generateURL(key string) string {
 	return result
 }
 
-// ExtractKeyFromURLWithMode extracts the storage key from a URL with optional host verification.
-// When strict is true, it validates that the URL belongs to the configured host.
-// Returns an error if strict mode validation fails.
+// ExtractKeyFromURLWithMode extracts the storage key from a URL.
+// When strict is true, the URL host must match the public base and the path
+// must be under that base; otherwise ErrHostVerificationFailed is returned.
 func (n *Handler) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
 	if uri == "" {
 		return "", nil

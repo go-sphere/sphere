@@ -1,6 +1,14 @@
-// Package captcha provides a complete verification code management system with rate limiting.
-// It supports configurable code generation, delivery through pluggable senders,
-// automatic expiration handling, and protection against abuse through minute/daily limits.
+// Package captcha issues one-time verification codes with per-number rate
+// limits and lockout. Storage is in-process maps; there is no persistence.
+//
+// Manager implements task.Task: Start runs a 1-minute CleanExpired loop so
+// maps do not grow without bound. Return it from a boot builder. Defaults:
+// length 6, expire 300s, 1/minute, 100/day, 5 failures then 15m freeze.
+// Verify consumes a matching code. After DefaultMaxAttempts failures,
+// LockedUntil freezes verification and outstanding codes are KEPT (not
+// invalidated). Empty codes are refused. RandomCode uses crypto/rand and
+// panics on entropy failure. SaveCode success then SendCode failure still
+// leaves the code stored and increments quota.
 package captcha
 
 import (

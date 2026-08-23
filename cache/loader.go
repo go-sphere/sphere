@@ -48,7 +48,8 @@ func newOptions(opts ...Option) *options {
 // Option defines a functional option for configuring cache behavior.
 type Option func(o *options)
 
-// WithExpiration sets a fixed expiration duration for cache entries.
+// WithExpiration stores via SetWithTTL. A negative duration is rejected by
+// the driver as ErrInvalidTTL.
 func WithExpiration(expiration time.Duration) Option {
 	return func(o *options) {
 		o.hasTTL = true
@@ -56,7 +57,7 @@ func WithExpiration(expiration time.Duration) Option {
 	}
 }
 
-// WithNeverExpire configures the cache to never expire entries automatically.
+// WithNeverExpire stores via Set, which never expires and clears any existing TTL.
 func WithNeverExpire() Option {
 	return func(o *options) {
 		o.hasTTL = false
@@ -96,8 +97,8 @@ func WithDynamicTTL[T any](calculator func(value T) (bool, time.Duration)) Optio
 	}
 }
 
-// Set stores a value in the cache with optional configuration such as TTL.
-// It applies the provided options to determine cache behavior like expiration and dynamic TTL calculation.
+// Set writes value through c, applying TTL options. WithDynamicTTL sees the
+// original value, not encoded bytes.
 func Set[T any](ctx context.Context, c ExpirableCache[T], key string, value T, options ...Option) error {
 	return setValue(ctx, c, key, value, value, options...)
 }
@@ -164,10 +165,10 @@ func GetJson[T any](ctx context.Context, c ExpirableByteCache, key string) (T, b
 // Then the cache will not be set.
 type FetchCached[T any] = func() (obj T, err error)
 
-// GetEx retrieves an object from the cache using the provided key.
-// And returns the object, a boolean indicating if it was found, and an error if any occurred.
-// If the object is not found, it uses the builder function to create the object.
-// When the builder returns an error, the cache will not be set. and found will be false.
+// GetEx returns a cached value, or calls builder on a miss and stores the
+// result. A builder error is returned with found=false and nothing is stored.
+// A failed cache write after a successful builder is ignored: GetEx still
+// returns (obj, true, nil). A nil builder on a miss returns (zero, false, nil).
 func GetEx[T any](ctx context.Context, c ExpirableCache[T], key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return load[T](
 		ctx,
@@ -181,9 +182,8 @@ func GetEx[T any](ctx context.Context, c ExpirableCache[T], key string, builder 
 	)
 }
 
-// GetObjectEx retrieves an object from the cache using the provided key.
-// Similar to GetEx, but for byte cache with encoding/decoding support.
-// If the object is not found in cache, it uses the builder function to create it and caches the result.
+// GetObjectEx is GetEx for a byte cache with an explicit decoder/encoder.
+// Setter errors after a successful builder are ignored, same as GetEx.
 func GetObjectEx[T any, D codec.Decoder, E codec.Encoder](ctx context.Context, c ExpirableByteCache, d D, e E, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return load[T](
 		ctx,
@@ -199,9 +199,7 @@ func GetObjectEx[T any, D codec.Decoder, E codec.Encoder](ctx context.Context, c
 	)
 }
 
-// GetJsonEx retrieves a JSON object from the cache using the provided key.
-// Similar to GetObjectEx, but specifically for JSON data with automatic encoding/decoding.
-// If the object is not found in cache, it uses the builder function to create it and caches the result as JSON.
+// GetJsonEx is GetObjectEx with encoding/json.
 func GetJsonEx[T any](ctx context.Context, c ExpirableByteCache, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return GetObjectEx[T, codec.DecoderFunc, codec.EncoderFunc](ctx, c, json.Unmarshal, json.Marshal, key, builder, options...)
 }

@@ -1,3 +1,9 @@
+// Package acl is a static in-memory allow-list: subject → resource → true.
+// Fail-closed: missing subject or resource is denied. There is no deny API.
+//
+// Write-once at startup; concurrent Allow+IsAllowed is racy. Matches
+// middleware/auth.AccessControl (IsAllowed(role, resource)). The ACL
+// subject is used as the role by permission middleware.
 package acl
 
 // ACL represents an Access Control List that manages permissions between subjects and resources.
@@ -26,8 +32,8 @@ func (a *ACL) Allow(subject, resource string) {
 	a.permissions[subject][resource] = true
 }
 
-// IsAllowed checks if a subject has permission to access a specific resource.
-// It returns false if either the subject or resource is not found in the ACL.
+// IsAllowed reports whether subject may access resource.
+// A missing subject or resource is denied.
 func (a *ACL) IsAllowed(subject, resource string) bool {
 	if subjectPerms, ok := a.permissions[subject]; ok {
 		return subjectPerms[resource] // return false if resource not found

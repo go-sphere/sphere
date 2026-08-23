@@ -15,9 +15,8 @@ type AccessControl interface {
 	IsAllowed(role, resource string) bool
 }
 
-// NewPermissionMiddleware creates a role-based access control middleware.
-// It checks if any of the user's roles have permission to access the specified resource
-// using the provided AccessControl implementation.
+// NewPermissionMiddleware checks whether any authenticated role is allowed for resource.
+// Missing auth data or no matching role is denied with httpx.NewForbiddenError, not authorizer.PermissionError.
 func NewPermissionMiddleware[I authorizer.UID](resource string, acl AccessControl) httpx.Middleware {
 	return func(ctx httpx.Context) error {
 		isAllowed := false

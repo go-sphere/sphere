@@ -5,8 +5,8 @@ import (
 	"sync"
 )
 
-// ChanPool is a bounded object pool based on channels, suitable for scenarios requiring resource limits.
-// Unlike SyncPool, ChanPool has an explicit capacity limit and objects are not subject to GC.
+// ChanPool is a bounded channel-backed pool. Objects stay reachable until Get
+// or Close; overflow Puts drop the object without calling Close.
 type ChanPool[T any] struct {
 	ch          chan T
 	newFn       func() T
@@ -18,7 +18,7 @@ type ChanPool[T any] struct {
 	closed      bool
 }
 
-// NewChanPool creates a bounded object pool based on channels.
+// NewChanPool creates a ChanPool of the given capacity. A size of 0 becomes 1.
 func NewChanPool[T any](size int, opts ...Option[T]) *ChanPool[T] {
 	if size <= 0 {
 		size = 1
@@ -34,7 +34,9 @@ func NewChanPool[T any](size int, opts ...Option[T]) *ChanPool[T] {
 	}
 }
 
-// Get retrieves an object from the pool without blocking.
+// Get takes an object if one is immediately available; otherwise it calls New
+// or returns the zero value. After Close, leftover items can still be received
+// when no Close callback was set to drain them.
 func (cp *ChanPool[T]) Get() T {
 	select {
 	case obj := <-cp.ch:
@@ -48,7 +50,8 @@ func (cp *ChanPool[T]) Get() T {
 	}
 }
 
-// Put attempts to return an object to the pool.
+// Put retains obj if Accept allows it, Reset has run, and the pool is neither
+// closed nor full. False means the object was not pooled and Close was not called.
 func (cp *ChanPool[T]) Put(obj T) bool {
 	if cp.accept != nil && !cp.accept(obj) {
 		return false
@@ -71,9 +74,10 @@ func (cp *ChanPool[T]) Put(obj T) bool {
 	}
 }
 
-// GetContext waits to retrieve an object until ctx is cancelled or times out.
-// If allowCreate is true and newFn is set, creates a new object when pool is empty.
-// If allowCreate is false, always waits for an object from the pool.
+// GetContext returns (zero, false) if the pool is already closed, closed while
+// waiting, or ctx is done. An immediately available item is taken without
+// creating. Otherwise, when AllowCreate and New are set, a new object is
+// created; if not, GetContext waits on the channel.
 func (cp *ChanPool[T]) GetContext(ctx context.Context) (T, bool) {
 	if cp.IsClosed() {
 		var zero T
@@ -120,8 +124,9 @@ func (cp *ChanPool[T]) Cap() int {
 	return cap(cp.ch)
 }
 
-// Close closes the pool and calls closeFn on all remaining objects.
-// After calling Close, Get and GetContext will return zero values.
+// Close is idempotent. GetContext afterwards returns (zero, false) even if
+// items remain. If a Close callback is set, remaining items are drained and
+// passed to it; otherwise they stay in the closed channel for a later Get.
 func (cp *ChanPool[T]) Close() {
 	cp.mu.Lock()
 	if cp.closed {

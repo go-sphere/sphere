@@ -1,3 +1,10 @@
+// Package nscache prefixes every key with "<namespace>:" so several logical
+// caches can share one cache.Cache.
+//
+// DelAll/Keys are namespace-scoped and need cache.KeyLister on the inner
+// cache (mcache, badgerdb, redis, nocache, CodecCache if the inner is a
+// lister). The ristretto memory driver is not a lister. Close is a no-op.
+// Namespaces must not contain ":": "a" and "a:b" overlap under prefix "a:".
 package nscache
 
 import (
@@ -14,8 +21,8 @@ import (
 // DelAll deletes only keys belonging to this namespace, and Close leaves the
 // backend open, so multiple NSCache instances can safely share a single
 // backend. DelAll requires the wrapped cache to implement cache.KeyLister
-// (currently mcache, badgerdb, redis); otherwise it returns
-// cache.ErrNotSupported.
+// (mcache, badgerdb, redis, nocache, CodecCache if the inner is a lister);
+// otherwise it returns cache.ErrNotSupported.
 //
 // Namespaces must be flat and must not contain ":". Isolation is by key
 // prefix, so with namespaces "a" and "a:b" the keys of "a:b" also carry the
@@ -25,7 +32,8 @@ type NSCache[S any] struct {
 	cache     cache.Cache[S]
 }
 
-// NewNSCache creates a new namespaced cache.
+// NewNSCache wraps cache with a key prefix of namespace + ":". It does not
+// reject a namespace that contains ":".
 func NewNSCache[S any](namespace string, cache cache.Cache[S]) *NSCache[S] {
 	return &NSCache[S]{
 		namespace: namespace,

@@ -1,3 +1,9 @@
+// Package test is the cross-driver contract suite for scheduler.Cron and
+// task.Task lifecycle of the cron and asynq drivers.
+//
+// Add a new driver by returning it from cronFactory rather than writing a
+// parallel suite. Periodic jobs are not coordinated across processes; these
+// tests run a single instance.
 package test
 
 import (

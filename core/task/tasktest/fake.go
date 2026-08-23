@@ -60,6 +60,7 @@ func NewFake(id string) *Fake {
 	}
 }
 
+// Identifier returns ID, or "fake" when ID is empty.
 func (f *Fake) Identifier() string {
 	if f.ID == "" {
 		return "fake"
@@ -67,6 +68,7 @@ func (f *Fake) Identifier() string {
 	return f.ID
 }
 
+// Start increments StartCount and follows Mode, StartFunc, and StartErr.
 func (f *Fake) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -96,6 +98,9 @@ func (f *Fake) Start(ctx context.Context) error {
 	}
 }
 
+// Stop is idempotent on the hook: StopFunc/StopErr run once, later calls
+// return the saved error. It always closes stopCh on first entry, unblocking
+// ModeRunLoop and ModeServer.
 func (f *Fake) Stop(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -126,24 +131,34 @@ func (f *Fake) Stop(ctx context.Context) error {
 	return f.savedStopErr
 }
 
-func (f *Fake) Started() <-chan struct{}  { return f.startedCh }
-func (f *Fake) Returned() <-chan struct{} { return f.returnedCh }
-func (f *Fake) Stopped() <-chan struct{}  { return f.stoppedCh }
+// Started is closed when Start is first entered.
+func (f *Fake) Started() <-chan struct{} { return f.startedCh }
 
+// Returned is closed when Start returns.
+func (f *Fake) Returned() <-chan struct{} { return f.returnedCh }
+
+// Stopped is closed when Stop is first entered, not when StopFunc returns.
+func (f *Fake) Stopped() <-chan struct{} { return f.stoppedCh }
+
+// StartCount is how many times Start has been entered.
 func (f *Fake) StartCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.startCount
 }
 
+// StopCount is how many times Stop has been entered.
 func (f *Fake) StopCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.stopCount
 }
 
+// IsStarted reports whether Start has been entered at least once.
 func (f *Fake) IsStarted() bool { return f.StartCount() > 0 }
 
+// IsStopped reports whether Stop has been entered (stoppedCh closed), even
+// if StopFunc is still running.
 func (f *Fake) IsStopped() bool {
 	select {
 	case <-f.stoppedCh:

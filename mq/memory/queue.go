@@ -7,7 +7,10 @@ import (
 )
 
 var (
-	ErrNoMessage   = errors.New("memory mq: no message available")
+	// ErrNoMessage is unused; TryConsume reports an empty queue as (zero, false, nil).
+	ErrNoMessage = errors.New("memory mq: no message available")
+	// ErrQueueClosed is returned after Close: Publish fails immediately;
+	// Consume and TryConsume return it once remaining messages are drained.
 	ErrQueueClosed = errors.New("memory mq: queue is closed")
 )
 
@@ -37,6 +40,9 @@ func NewQueue[T any](opt ...Option) *Queue[T] {
 	}
 }
 
+// Publish sends data to topic. It blocks when the per-topic buffer is full
+// until a consumer takes a message, ctx is done, or Close unblocks it with
+// ErrQueueClosed.
 func (q *Queue[T]) Publish(ctx context.Context, topic string, data T) error {
 	queue, err := q.getOrCreateQueue(topic)
 	if err != nil {
@@ -80,6 +86,10 @@ func (q *Queue[T]) Consume(ctx context.Context, topic string) (T, error) {
 	}
 }
 
+// TryConsume returns the next buffered message without blocking. ctx is
+// checked only at entry. An empty queue is (zero, false, nil). After Close,
+// remaining messages are still returned; an empty closed queue is
+// ErrQueueClosed. Check err first.
 func (q *Queue[T]) TryConsume(ctx context.Context, topic string) (T, bool, error) {
 	var zero T
 	select {
@@ -121,6 +131,9 @@ func drain[T any](queue chan T) (T, error) {
 	}
 }
 
+// PurgeQueue drains every buffered message for topic. A missing topic is a
+// no-op. After Close it returns ErrQueueClosed without draining. ctx can
+// cancel a drain in progress.
 func (q *Queue[T]) PurgeQueue(ctx context.Context, topic string) error {
 	q.mu.RLock()
 	queue, exists := q.queues[topic]
@@ -173,6 +186,9 @@ func (q *Queue[T]) DeleteQueue(ctx context.Context, topic string) error {
 	return nil
 }
 
+// Close stops the queue. Buffered messages remain until Consume or
+// TryConsume drain them; later Publish returns ErrQueueClosed. Close is
+// idempotent.
 func (q *Queue[T]) Close() error {
 	q.mu.Lock()
 	defer q.mu.Unlock()

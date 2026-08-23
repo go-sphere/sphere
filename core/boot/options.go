@@ -18,8 +18,8 @@ import (
 // budget, so after-stop hooks are not handed an already-expired context.
 const afterStopFallbackTimeout = 2 * time.Second
 
-// Hook defines a function that can be executed at various lifecycle stages of the application.
-// It receives a context and returns an error if the hook execution fails.
+// Hook is a lifecycle callback. All hooks in a phase run even if an earlier
+// one failed; Run joins the errors.
 type Hook = func(context.Context) error
 
 type options struct {
@@ -41,11 +41,13 @@ func newOptions(opts ...Option) *options {
 	return defaults
 }
 
-// Option defines a configuration function that modifies application runtime options.
+// Option configures Run.
 type Option func(*options)
 
-// WithShutdownTimeout configures the maximum duration to wait for graceful shutdown.
-// If the timeout is exceeded, the application will be forcefully terminated.
+// WithShutdownTimeout bounds the context passed to Task.Stop during graceful
+// shutdown. It does not kill the process or abort goroutines that ignore
+// context: when the deadline expires, Stop is asked to return, after-stop
+// hooks still run, and Run then returns.
 //
 // A non-positive duration means no limit, matching task.WithCleanupTimeout and
 // task.WithManagerCleanupTimeout. Passing it straight through instead produced a
@@ -63,9 +65,9 @@ func WithShutdownTimeout(d time.Duration) Option {
 
 // WithShutdownSignals replaces the default shutdown signals
 // (SIGTERM, SIGQUIT, SIGINT). Passing no signals disables boot's signal
-// handling: Run then stops only when the task returns or the parent context
-// is cancelled. The operating system's default handling of those signals
-// still applies (SIGINT typically terminates the process).
+// handling: the exported Run then stops only when the task returns. The
+// operating system's default handling of those signals still applies
+// (SIGINT typically terminates the process).
 //
 // An empty list does not subscribe to every signal. signal.Notify with no
 // arguments would, including SIGURG used by the Go runtime.
@@ -75,24 +77,29 @@ func WithShutdownSignals(sigs ...os.Signal) Option {
 	}
 }
 
-// AddBeforeStart adds a hook that will be executed before the application starts.
-// These hooks run sequentially and any failure will prevent the application from starting.
+// AddBeforeStart appends a hook that runs after the builder returns and before
+// Task.Start. Hooks run in registration order; a failure does not skip later
+// hooks. Run joins every error and returns before Start if any hook failed.
 func AddBeforeStart(f Hook) Option {
 	return func(o *options) {
 		o.beforeStart = append(o.beforeStart, f)
 	}
 }
 
-// AddBeforeStop adds a hook that will be executed before the application begins shutdown.
-// These hooks run after a shutdown signal is received but before stopping tasks.
+// AddBeforeStop appends a hook that runs after a shutdown is requested (signal
+// or task exit) and before Task.Stop. Hooks run in registration order; a
+// failure does not skip later hooks.
 func AddBeforeStop(f Hook) Option {
 	return func(o *options) {
 		o.beforeStop = append(o.beforeStop, f)
 	}
 }
 
-// AddAfterStop adds a hook that will be executed after the application has stopped.
-// These hooks run after all tasks have been stopped and are useful for cleanup operations.
+// AddAfterStop appends a hook that runs after Task.Stop returns. Use it to
+// close Wire-owned clients (sql.DB, Redis) that are not themselves Tasks.
+// Hooks run in registration order; a failure does not skip later hooks. When
+// Stop consumes the whole shutdown budget, these hooks receive a short fresh
+// context instead of an already-expired one.
 func AddAfterStop(f Hook) Option {
 	return func(o *options) {
 		o.afterStop = append(o.afterStop, f)

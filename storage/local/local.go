@@ -1,3 +1,11 @@
+// Package local is a filesystem storage.Storage under RootDir.
+//
+// Writes are temp+rename+syncDir. Keys are confined lexically; existing
+// symlinks are followed (not a symlink-safe jail). ListFiles walks and
+// sorts the whole prefix per page (not O(page) like S3) and skips
+// .sphere-tmp-* and non-regular files. New files 0o644, dirs 0o750. ctx is
+// not honored mid-copy. UploadLocalFile copies; it does not rename the
+// source. Delete of a missing key succeeds.
 package local
 
 import (
@@ -93,8 +101,8 @@ func syncDir(dir string) error {
 	return err
 }
 
-// Client provides local filesystem storage operations.
-// It implements the Storage interface for file operations on the local filesystem.
+// Client is a filesystem storage.Storage under Config.RootDir. It also
+// implements FileStater and FileLister.
 type Client struct {
 	config Config
 }
@@ -181,8 +189,8 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	return key, nil
 }
 
-// UploadLocalFile uploads an existing local file to the storage with the specified key.
-// This is useful for moving files within the local filesystem storage.
+// UploadLocalFile copies an existing local file into storage under key.
+// The source path is read, not renamed or removed.
 func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
 	raw, err := os.Open(file)
 	if err != nil {
@@ -384,7 +392,7 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 }
 
 // checkOverwrite enforces the overwrite policy for move and copy operations,
-// reporting ErrorDistExisted when the destination exists and overwrite is off.
+// reporting storageerr.ErrDestExists when the destination exists and overwrite is off.
 // It deliberately does not remove the destination: both callers finish with a
 // rename, which replaces it atomically, so nothing is destroyed before the
 // replacement is ready.

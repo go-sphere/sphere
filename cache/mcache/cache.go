@@ -1,3 +1,10 @@
+// Package mcache is a mutex-protected map cache.Cache driver with lazy TTL.
+//
+// No background janitor: expired entries are dropped on Get/GetDel/MultiGet/
+// Count. There is no capacity cap. Close is a no-op; later operations still
+// succeed. Implements cache.KeyLister. []byte values are cloned; other types
+// are stored as the caller's value. Get takes a write lock so it can delete
+// expired keys.
 package mcache
 
 import (
@@ -219,6 +226,7 @@ func keyToString[K comparable](k K) string {
 	return fmt.Sprint(k)
 }
 
+// Count drops expired entries and returns how many keys remain.
 func (t *Map[K, S]) Count() int {
 	t.rw.Lock()
 	defer t.rw.Unlock()
@@ -233,6 +241,7 @@ func (t *Map[K, S]) Count() int {
 	return len(t.store)
 }
 
+// Trim drops expired entries. It is Count without the returned length.
 func (t *Map[K, S]) Trim() {
 	_ = t.Count()
 }

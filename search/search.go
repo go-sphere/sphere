@@ -1,3 +1,11 @@
+// Package search is a small typed full-text search port: Index, Delete, and
+// Search with offset/limit pagination.
+//
+// The only driver is search/meilisearch. Params.Filter is passed through as
+// a backend DSL string (Meilisearch filter syntax). Result.Total is an
+// estimate, not an exact count — Meilisearch reports EstimatedTotalHits and
+// may clamp it to pagination.maxTotalHits (1000 by default). Do not paginate
+// solely on Total.
 package search
 
 import "context"

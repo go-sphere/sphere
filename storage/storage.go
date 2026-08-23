@@ -1,3 +1,24 @@
+// Package storage is the object-storage contract used by Sphere services:
+// upload, download, delete, move, and copy, plus optional stat/list and CDN
+// URL / upload-authorization capabilities.
+//
+// Drivers: local (filesystem), s3 (minio-go), qiniu (Kodo), kvcache (ByteCache
+// as a blob store). fileserver is an HTTP adapter that wraps any Storage with
+// one-time PUT tokens; it is not an S3 driver.
+//
+// Every driver normalizes keys via NormalizeKey before use, so a key stored
+// by one backend addresses the same object on another. UploadFile returns the
+// normalized key — persist that value, not the one passed in.
+//
+// Storage is FileDeleter + FileUploader + FileDownloader + FileMoverCopier.
+// FileStater and FileLister are optional; probe with a type assertion.
+// kvcache and fileserver do not implement them. CDNStorage adds URLHandler
+// and UploadAuthorizer for public URLs and direct-to-storage uploads.
+// UploadAuthRequest.TTL is a ceiling: a client cannot extend the driver's
+// configured credential lifetime.
+//
+// DeleteFile is idempotent: missing keys succeed. URLHandler.GenerateURL is
+// for public reads; private-bucket signed download URLs are out of scope.
 package storage
 
 import (
@@ -87,8 +108,8 @@ type UploadAuthorizer interface {
 
 // FileUploader provides file upload capabilities to the storage backend.
 type FileUploader interface {
-	// UploadFile uploads data from a reader to the storage backend with the specified key.
-	// Returns the storage key or an error if upload fails.
+	// UploadFile uploads data from a reader under key. The returned key is
+	// NormalizeKey(key) and may differ from the argument; persist that value.
 	UploadFile(ctx context.Context, file io.Reader, key string) (string, error)
 
 	// UploadLocalFile uploads a local file to the storage backend with the specified key.
@@ -102,11 +123,6 @@ type DownloadResult struct {
 	MIME   string
 	Size   int64
 }
-
-// Object keys are normalized by every driver before use, so a key stored by one
-// backend addresses the same object on another. See NormalizeKey for the rules.
-// UploadFile returns the normalized key: persist that value rather than the one
-// passed in, since they may differ.
 
 // FileDownloader provides file download and existence checking capabilities.
 type FileDownloader interface {

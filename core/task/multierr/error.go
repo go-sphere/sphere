@@ -1,3 +1,11 @@
+// Package multierr is a concurrent-safe error collector used by task.Group
+// and task.Manager.
+//
+// The zero value retains every error. Set Limit before the first Add on a
+// long-lived collector (Manager uses 1024). Errors returns the joined error
+// string, not a []error. Unwrap returns errors.Join of the retained batch
+// (plus a synthetic "N earlier errors dropped" when Limit discarded older
+// ones), so errors.Is still matches members.
 package multierr
 
 import (
@@ -23,6 +31,7 @@ type Error struct {
 	dropped int
 }
 
+// Add appends err. A nil err is ignored.
 func (e *Error) Add(err error) {
 	if err == nil {
 		return
@@ -40,6 +49,7 @@ func (e *Error) Add(err error) {
 	e.dropped += drop
 }
 
+// Errors returns Unwrap().Error(), or "" when nothing has been added.
 func (e *Error) Errors() string {
 	err := e.Unwrap()
 	if err == nil {
@@ -48,6 +58,8 @@ func (e *Error) Errors() string {
 	return err.Error()
 }
 
+// Unwrap returns errors.Join of the retained errors. When Limit dropped
+// earlier entries, the join starts with a synthetic "N earlier errors dropped".
 func (e *Error) Unwrap() error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()

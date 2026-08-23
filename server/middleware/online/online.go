@@ -1,3 +1,10 @@
+// Package online is a TTL presence tracker, httpx middleware, and task.Task
+// sweeper.
+//
+// The backing store is mcache (lazy TTL, no janitor). The middleware only
+// writes, so without Start the map grows without bound. Return it from the
+// boot builder alongside the HTTP server. Construct with NewOnline; the zero
+// value's Start returns ErrNotInitialized. Identifier is "online".
 package online
 
 import (

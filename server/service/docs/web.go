@@ -1,3 +1,10 @@
+// Package docs is a task.Task HTTP server that serves an HTML index of
+// Swagger targets, Swagger UI per spec, and reverse-proxies
+// /{instanceName}/api to each target.
+//
+// CORS here echoes the request Origin with credentials (dev-oriented). That
+// is the combination middleware/cors.NewCORS rejects. Identifier is "docs".
+// Start after Stop returns nil without listening.
 package docs
 
 import (
@@ -68,8 +75,8 @@ func (w *Web) Identifier() string {
 	return "docs"
 }
 
-// Start begins serving the documentation web server with Swagger UI for all configured targets.
-// It sets up proxying to target services and provides a unified documentation interface.
+// Start serves the documentation index, Swagger UI, and reverse-proxied APIs.
+// A Start after Stop returns nil without listening.
 func (w *Web) Start(ctx context.Context) error {
 	handler, err := w.newHandler()
 	if err != nil {

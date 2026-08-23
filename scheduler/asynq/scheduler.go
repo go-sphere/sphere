@@ -1,3 +1,12 @@
+// Package asynq is a scheduler.Scheduler on hibiken/asynq over an injected
+// *redis.Client (WithClient is required; Redis is never closed here).
+//
+// Periodic tasks require the "default" queue. Register stores cron jobs
+// under mux kind scheduler.cron:<name>. Handle routes by exact task.Type(),
+// not mux prefix: user.email does not receive user.email.welcome.
+// Unregistered kinds error so asynq retries/archives. Mux entries are not
+// unmounted. Implements task.Task. Stop returning ctx.Err() does not mean
+// asynq is idle — wait for Stop/Close to return nil before closing Redis.
 package asynq
 
 import (
@@ -26,6 +35,12 @@ const (
 	stateClosed
 )
 
+// Config configures the asynq worker and periodic scheduler.
+//
+// Queues must include "default"; periodic tasks are enqueued there. An empty
+// map becomes {"default": 1}. Concurrency defaults to runtime.NumCPU.
+// ShutdownTimeout defaults to 30s. Timezone is the cron location; empty uses
+// time.Local.
 type Config struct {
 	Concurrency     int            `json:"concurrency" yaml:"concurrency"`
 	Queues          map[string]int `json:"queues" yaml:"queues"`
@@ -34,6 +49,9 @@ type Config struct {
 	Timezone        string         `json:"timezone" yaml:"timezone"`
 }
 
+// Scheduler is a scheduler.Scheduler backed by hibiken/asynq. It also
+// implements task.Task. WithClient is required; the Redis client is never
+// closed here.
 type Scheduler struct {
 	conf    Config
 	client  *sasynq.Client
@@ -57,6 +75,8 @@ type Scheduler struct {
 	stopDone <-chan struct{}
 }
 
+// NewScheduler builds a Scheduler. WithClient is required. Queues must
+// include "default". The injected Redis client is not closed by Close.
 func NewScheduler(conf Config, opts ...Option) (*Scheduler, error) {
 	conf = applyDefaults(conf)
 	if _, ok := conf.Queues[defaultQueue]; !ok {
@@ -131,10 +151,15 @@ func newAsynqRuntime(cfg Config, applied options) (*sasynq.Client, *sasynq.Serve
 		nil
 }
 
+// Identifier returns "scheduler/asynq".
 func (s *Scheduler) Identifier() string {
 	return "scheduler/asynq"
 }
 
+// Register schedules a periodic job named name with cron spec. The job is
+// stored under mux kind scheduler.cron:<name>. Duplicate names, collisions
+// with Handle kinds, and Register after Start are errors. A nil handler is
+// rejected.
 func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) error {
 	if handler == nil {
 		return fmt.Errorf("scheduler/asynq: nil handler")
@@ -171,6 +196,8 @@ func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) e
 	return nil
 }
 
+// Unregister drops the periodic job named name. An unknown name is a no-op.
+// The ServeMux entry is left mounted; the kind is inert until registered again.
 func (s *Scheduler) Unregister(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -193,6 +220,10 @@ func (s *Scheduler) Unregister(name string) error {
 	return nil
 }
 
+// Handle binds handler to an exact task kind. asynq prefix matching is not
+// used: user.email does not receive user.email.welcome. Empty kind, duplicate
+// kind, and Handle after Start are errors. Unregistered kinds error at
+// dispatch so asynq retries or archives.
 func (s *Scheduler) Handle(kind string, handler scheduler.PayloadHandlerFunc) error {
 	if handler == nil {
 		return fmt.Errorf("scheduler/asynq: nil handler")
@@ -275,6 +306,8 @@ func (s *Scheduler) dispatch(ctx context.Context, task *sasynq.Task) error {
 	}
 }
 
+// Enqueue publishes a task of kind with payload and returns the asynq task
+// ID. Unique collisions are wrapped as scheduler.ErrDuplicateName.
 func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, opts ...scheduler.EnqueueOption) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -320,6 +353,9 @@ func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, op
 	return info.ID, nil
 }
 
+// Start starts the asynq server and cron scheduler, then blocks until ctx is
+// cancelled. The return is ctx.Err(); it does not mean asynq has drained.
+// Cancelling ctx without Stop leaves the runtime live — call Stop or Close.
 func (s *Scheduler) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()

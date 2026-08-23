@@ -11,8 +11,11 @@ import (
 )
 
 var (
+	// ErrTaskAlreadyExists is returned by Manager.StartTask when name is already running.
 	ErrTaskAlreadyExists = errors.New("task already exists")
-	ErrTaskNotFound      = errors.New("task not found")
+	// ErrTaskNotFound is returned by lookup helpers when name is not running.
+	// StopTask after a successful stop returns nil, not this error.
+	ErrTaskNotFound = errors.New("task not found")
 )
 
 // ManagerOption customizes manager runtime behavior.

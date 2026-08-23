@@ -6,8 +6,8 @@ import (
 	"github.com/go-sphere/sphere/log"
 )
 
-// ErrorHandler defines a function type for handling errors with contextual labels.
-// It takes a descriptive label and the error that occurred.
+// ErrorHandler handles an error reported by IfErrorPresent or IfErrorXPresent.
+// It takes only the error; there is no label argument.
 type ErrorHandler func(error)
 
 // defaultErrorHandler reports errors through the framework logger.
@@ -24,16 +24,16 @@ func init() {
 	errorHandler.Store(&h)
 }
 
-// InitErrorHandler sets a custom error handler for the safe package.
-// If handler is nil, the default error handler remains unchanged.
+// InitErrorHandler replaces the handler used by IfErrorPresent and
+// IfErrorXPresent. A nil handler is ignored. It does not affect Recover.
 func InitErrorHandler(handler ErrorHandler) {
 	if handler != nil {
 		errorHandler.Store(&handler)
 	}
 }
 
-// IfErrorPresent executes the given function and handles any error using the configured error handler.
-// This is useful for safely executing functions that may fail without disrupting the main flow.
+// IfErrorPresent calls fn and, if it returns a non-nil error, passes that
+// error to the handler set by InitErrorHandler.
 func IfErrorPresent(fn func() error) {
 	err := fn()
 	if err != nil {
@@ -41,8 +41,8 @@ func IfErrorPresent(fn func() error) {
 	}
 }
 
-// IfErrorXPresent executes the given function that returns a value and error, handling any error.
-// The returned value is discarded, making this useful for operations where you only care about side effects.
+// IfErrorXPresent calls fn and discards the value on both success and failure.
+// A non-nil error is passed to the handler set by InitErrorHandler.
 func IfErrorXPresent[T any](fn func() (T, error)) {
 	_, err := fn()
 	if err != nil {

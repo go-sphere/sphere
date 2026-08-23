@@ -1,9 +1,16 @@
+// Package memory is the process-local mq.MessageQueue: channels for Queue
+// and PubSub.
+//
+// Default buffer is 100; WithQueueSize below 1 is ignored. Queue Publish
+// blocks when the buffer is full; PubSub Broadcast drops and logs. Close
+// stops both halves (errors.Join). Queue Close drains remaining messages
+// then returns ErrQueueClosed. Subscribe ignores ctx. DeleteQueue is extra
+// API, not on mq.Queue.
 package memory
 
 import "errors"
 
-// MessageQueue combines both queue and publish-subscribe functionality in a single memory-based implementation.
-// It provides both point-to-point messaging and broadcast messaging capabilities.
+// MessageQueue embeds the memory Queue and PubSub. Close joins both halves.
 type MessageQueue[T any] struct {
 	*Queue[T]
 	*PubSub[T]
@@ -18,6 +25,7 @@ func NewMessageQueue[T any](opt ...Option) *MessageQueue[T] {
 	}
 }
 
+// Close closes the Queue and PubSub halves and joins their errors.
 func (p *MessageQueue[T]) Close() error {
 	return errors.Join(
 		p.Queue.Close(),

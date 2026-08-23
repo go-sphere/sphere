@@ -1,3 +1,10 @@
+// Package jwtauth is HMAC JWT parse/sign that satisfies authorizer.Parser
+// and authorizer.Generator when T is both jwt.Claims and authorizer.Claims.
+//
+// Default alg is HS256. RBACClaims[T] embeds jwt.RegisteredClaims and
+// implements authorizer.Claims: GetUID rejects a zero UID with
+// authorizer.MissingUIDError (the uid field is omitempty). GetSubject is
+// promoted from RegisteredClaims; GetRoles returns the Roles slice.
 package jwtauth
 
 import (

@@ -1,9 +1,17 @@
+// Package cors is configurable CORS middleware for httpx.
+//
+// OPTIONS is always treated as preflight (204). NewCORS rejects a bare "*"
+// origin together with credentials (ErrWildcardWithCredentials) at
+// construction. Default origins are empty and match nothing — configure
+// WithAllowOrigins. Per-origin globs like "https://*.example.com" are valid
+// with credentials. Default methods: GET POST PUT DELETE PATCH OPTIONS.
 package cors
 
 import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -186,12 +194,7 @@ func (c *config) apply(method, origin, reqHeaders string, setHeader func(string,
 // wildcard patterns ("https://*.example.com") are not affected: those resolve to
 // the matched request origin, which is a valid credentialed response.
 func (c *config) hasWildcardOrigin() bool {
-	for _, allowed := range c.allowOrigins {
-		if allowed == "*" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.allowOrigins, "*")
 }
 
 func (c *config) resolveOrigin(requestOrigin string) string {

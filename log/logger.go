@@ -1,3 +1,25 @@
+// Package log is a backend-agnostic structured logger with slog.Attr fields.
+//
+// The global logger starts as a zero StdioBackend (logfmt on stdout, Error+
+// on stderr). Call InitWithBackends early in main to swap it. Package-level
+// Debug/Info/Warn/Error (+ Context and f variants) go through that global.
+// Logger.With derives a child; Sync flushes.
+//
+// # Backends
+//
+// Backend is Log, Sync, and With. Close is not on the interface: type-assert
+// io.Closer (StdioBackend has nothing to close; zapx.Backend and
+// MultiBackend do). InitWithBackends does not close the previous backend and
+// does not Sync it. An empty or all-nil list keeps the current logger and
+// prints a warning on stderr; pass NewNopBackend to discard logs on purpose.
+//
+// StdioBackend honors WithMinLevel. zapx does not — set zapx.Config.Level
+// instead. WithStackAt attaches a stack at that level and above; it is not a
+// level filter.
+//
+// WrapBackendWithContextMerge injects attributes from context.Context.
+// FormatLogger methods use context.Background and Sprintf; they do not take
+// a caller context.
 package log
 
 import (
@@ -159,58 +181,72 @@ func logger() *coreLogger {
 	return fallback
 }
 
+// Debug logs at LevelDebug through the global logger.
 func Debug(msg string, attrs ...Attr) {
 	logger().backend.Log(context.Background(), LevelDebug, msg, attrs...)
 }
 
+// DebugContext logs at LevelDebug with ctx (for context-merge backends).
 func DebugContext(ctx context.Context, msg string, attrs ...Attr) {
 	logger().backend.Log(ctx, LevelDebug, msg, attrs...)
 }
 
+// Debugf logs at LevelDebug using fmt.Sprintf. It does not take a context.
 func Debugf(format string, args ...any) {
 	logger().backend.Log(context.Background(), LevelDebug, fmt.Sprintf(format, args...))
 }
 
+// Info logs at LevelInfo through the global logger.
 func Info(msg string, attrs ...Attr) {
 	logger().backend.Log(context.Background(), LevelInfo, msg, attrs...)
 }
 
+// InfoContext logs at LevelInfo with ctx (for context-merge backends).
 func InfoContext(ctx context.Context, msg string, attrs ...Attr) {
 	logger().backend.Log(ctx, LevelInfo, msg, attrs...)
 }
 
+// Infof logs at LevelInfo using fmt.Sprintf. It does not take a context.
 func Infof(format string, args ...any) {
 	logger().backend.Log(context.Background(), LevelInfo, fmt.Sprintf(format, args...))
 }
 
+// Warn logs at LevelWarn through the global logger.
 func Warn(msg string, attrs ...Attr) {
 	logger().backend.Log(context.Background(), LevelWarn, msg, attrs...)
 }
 
+// WarnContext logs at LevelWarn with ctx (for context-merge backends).
 func WarnContext(ctx context.Context, msg string, attrs ...Attr) {
 	logger().backend.Log(ctx, LevelWarn, msg, attrs...)
 }
 
+// Warnf logs at LevelWarn using fmt.Sprintf. It does not take a context.
 func Warnf(format string, args ...any) {
 	logger().backend.Log(context.Background(), LevelWarn, fmt.Sprintf(format, args...))
 }
 
+// Error logs at LevelError through the global logger.
 func Error(msg string, attrs ...Attr) {
 	logger().backend.Log(context.Background(), LevelError, msg, attrs...)
 }
 
+// ErrorContext logs at LevelError with ctx (for context-merge backends).
 func ErrorContext(ctx context.Context, msg string, attrs ...Attr) {
 	logger().backend.Log(ctx, LevelError, msg, attrs...)
 }
 
+// Errorf logs at LevelError using fmt.Sprintf. It does not take a context.
 func Errorf(format string, args ...any) {
 	logger().backend.Log(context.Background(), LevelError, fmt.Sprintf(format, args...))
 }
 
+// With returns a derived Logger from the global backend.
 func With(options ...Option) Logger {
 	return logger().With(options...)
 }
 
+// Sync flushes the global backend.
 func Sync() error {
 	return logger().Sync()
 }

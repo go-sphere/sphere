@@ -9,12 +9,15 @@ import (
 
 var _ authorizer.Claims[int64] = (*RBACClaims[int64])(nil)
 
+// RBACClaims is a JWT payload with a typed UID and optional Roles.
+// It embeds jwt.RegisteredClaims, so GetSubject is promoted from Subject.
 type RBACClaims[T authorizer.UID] struct {
 	jwt.RegisteredClaims
 	UID   T        `json:"uid,omitempty"`
 	Roles []string `json:"roles,omitempty"`
 }
 
+// NewRBACClaims returns claims with uid, subject, roles, ExpiresAt, and NotBefore set to now.
 func NewRBACClaims[T authorizer.UID](uid T, subject string, roles []string, expiresAt time.Time) RBACClaims[T] {
 	return RBACClaims[T]{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -42,6 +45,7 @@ func (r RBACClaims[T]) GetUID() (T, error) {
 	return r.UID, nil
 }
 
+// GetRoles returns the Roles slice. A nil or empty slice is not an error.
 func (r RBACClaims[T]) GetRoles() ([]string, error) {
 	return r.Roles, nil
 }

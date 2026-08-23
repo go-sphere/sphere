@@ -1,3 +1,7 @@
+// Package redistest starts a miniredis and returns a go-redis client for
+// tests. A background ticker fast-forwards 5ms every 5ms so Redis TTLs
+// fire without waiting on wall-clock. It is not a real Redis. Cleanup
+// closes the client.
 package redistest
 
 import (
@@ -9,6 +13,9 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// NewTestRedisClient starts a miniredis server and returns a go-redis client
+// pointed at it. A background ticker fast-forwards miniredis 5ms every 5ms so
+// Redis TTLs fire without waiting on wall-clock. t.Cleanup closes the client.
 func NewTestRedisClient(t *testing.T) *redis.Client {
 	t.Helper()
 

@@ -8,6 +8,8 @@ import (
 
 type nopBackend struct{}
 
+// NewNopBackend discards every log entry. Pass it to InitWithBackends to
+// silence logging on purpose.
 func NewNopBackend() Backend {
 	return nopBackend{}
 }

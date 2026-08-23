@@ -1,3 +1,16 @@
+// Package auth is httpx middleware that loads a token, parses it with
+// authorizer.Parser, and stores authorizer.Data on the request context.
+//
+// It is parser-agnostic; JWT is one implementation (jwtauth). Defaults:
+// load the Authorization header, no prefix strip, abortOnError=true.
+// AuthorizationPrefixBearer is not applied unless
+// WithPrefixTransform(AuthorizationPrefixBearer) is set — missing Bearer
+// does not fail, the raw string is parsed.
+//
+// NewPermissionMiddleware checks roles against AccessControl (acl.ACL
+// matches). No auth data or no matching role is denied via
+// httpx.NewForbiddenError (English), not authorizer.PermissionError.
+// Compose: cors, then selector+auth+permission, then httpz.WithJson handlers.
 package auth
 
 import (
@@ -75,20 +88,24 @@ func newOptions(opts ...Option) *options {
 	return defaults
 }
 
+// Option configures token loading, rewriting, and abort-on-error behavior for NewAuthMiddleware.
 type Option func(*options)
 
+// WithLoader replaces the default loader that reads the Authorization header.
 func WithLoader(f func(ctx httpx.Context) (string, error)) Option {
 	return func(opts *options) {
 		opts.loader = f
 	}
 }
 
+// WithHeaderLoader loads the token from the named request header.
 func WithHeaderLoader(header string) Option {
 	return WithLoader(func(ctx httpx.Context) (string, error) {
 		return ctx.Header(header), nil
 	})
 }
 
+// WithCookieLoader loads the token from the named cookie. A missing cookie is an error.
 func WithCookieLoader(cookieName string) Option {
 	return WithLoader(func(ctx httpx.Context) (string, error) {
 		cookie, err := ctx.Cookie(cookieName)
@@ -99,12 +116,15 @@ func WithCookieLoader(cookieName string) Option {
 	})
 }
 
+// WithTransform rewrites the loaded token before ParseToken.
 func WithTransform(f func(text string) (string, error)) Option {
 	return func(opts *options) {
 		opts.transform = f
 	}
 }
 
+// WithPrefixTransform strips prefix+" " when the token starts with it.
+// A missing prefix is not an error; the raw string is parsed.
 func WithPrefixTransform(prefix string) Option {
 	prefix = strings.TrimSpace(prefix)
 	if len(prefix) > 0 {
@@ -134,9 +154,7 @@ func unauthorizedError(err error) error {
 	return httpx.UnauthorizedError(err)
 }
 
-// NewAuthMiddleware creates middleware for JWT authentication.
-// It parses tokens using the provided parser and sets authentication context.
-// The middleware can be configured with various options for token loading and error handling.
+// NewAuthMiddleware parses a request token with parser and stores authorizer.Data on the context.
 func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authorizer.Parser[T, C], options ...Option) httpx.Middleware {
 	opts := newOptions(options...)
 	return func(ctx httpx.Context) error {

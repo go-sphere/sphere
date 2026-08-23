@@ -35,6 +35,8 @@ type VerificationCode struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+// VerificationStorage is the in-process store for codes, per-number rate-limit
+// counters, failure counts, and lockouts. Nothing is persisted.
 type VerificationStorage struct {
 	Store map[string][]VerificationCode `json:"store"`
 
@@ -194,8 +196,10 @@ func (s *VerificationSystem) SaveCode(number string, code string, expiresIn time
 //
 // A matched code is consumed immediately (one-time use), preventing replay after a
 // successful verification. Failed attempts are throttled: once DefaultMaxAttempts
-// failures accumulate for a number, all of its outstanding codes are invalidated to
-// prevent brute forcing. A newly issued code (via SaveCode) resets the failure counter.
+// failures accumulate for a number, verification is frozen for DefaultLockoutWindow
+// and outstanding codes are kept. Invalidating them would let anyone who knew the
+// number destroy the credential its owner had just been sent. A newly issued code
+// (via SaveCode) resets the failure counter.
 //
 // Attempts against a number with no outstanding code are rejected without being
 // counted: there is nothing to brute force, and counting them would let any caller
@@ -256,10 +260,8 @@ func (s *VerificationSystem) Verify(number, code string) bool {
 	return false
 }
 
-// CleanExpired removes all expired verification codes from storage across all numbers,
-// and drops the rate-limit and failure bookkeeping for numbers that have gone idle.
-// This method should be called periodically to prevent memory leaks from accumulated
-// expired codes; captcha.Manager does so once a minute.
+// CleanExpired drops expired codes and idle rate-limit/failure bookkeeping.
+// Manager.Start calls it once a minute so the maps stay bounded.
 func (s *VerificationSystem) CleanExpired() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -284,6 +286,8 @@ func (s *VerificationSystem) CleanExpired() {
 	}
 }
 
+// GetCaptchaCount returns how many codes are stored for number. It does not
+// expire entries first, so the count can include codes past ExpiresAt.
 func (s *VerificationSystem) GetCaptchaCount(number string) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

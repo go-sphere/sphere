@@ -11,6 +11,9 @@ import (
 var _ Cache[any] = (*CodecCache[any])(nil)
 
 // CodecCache adapts a ByteCache to a typed Cache[T] using the provided codec.
+// Close is a no-op; DelAll forwards to the inner ByteCache (redis FlushDB if
+// that is the backend). MultiGet drops undecodable keys; Get/GetDel return
+// the unmarshal error and leave the key in place.
 type CodecCache[T any] struct {
 	cache ByteCache
 	codec codec.Codec
@@ -127,12 +130,9 @@ func (m *CodecCache[T]) MultiGet(ctx context.Context, keys []string) (map[string
 			// Skip the entry instead of failing the batch. A single undecodable
 			// value — written under an older schema, or by a different type
 			// sharing the key space — used to discard every other result in the
-			// request. The underlying MultiGet already omits keys it cannot
-			// produce, and single-key Get only ever affects its own key, so
-			// omitting matches both. The stale entry is dropped so the next read
-			// misses cleanly and rebuilds it; without that, an entry stored with
-			// no TTL poisoned the same batch forever, since the loader only
-			// rebuilds on a miss and never sees one.
+			// request. The stale entry is deleted so the next read misses and
+			// can rebuild it. Single-key Get/GetDel do not delete: they return
+			// the unmarshal error and leave the key in place.
 			log.Warn("cache: dropping undecodable entry",
 				log.String("key", key),
 				log.Err(err),

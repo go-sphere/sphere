@@ -7,6 +7,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// Option configures a Scheduler. WithClient is required.
 type Option func(*options)
 
 type options struct {
@@ -25,6 +26,8 @@ func WithClient(client *redis.Client) Option {
 	}
 }
 
+// WithErrorHandler sets asynq's ErrorHandler for failed tasks. A nil handler
+// is ignored.
 func WithErrorHandler(h func(ctx context.Context, task *sasynq.Task, err error)) Option {
 	return func(o *options) {
 		if h != nil {
@@ -33,6 +36,7 @@ func WithErrorHandler(h func(ctx context.Context, task *sasynq.Task, err error))
 	}
 }
 
+// WithLogger replaces the default sphere log adapter. A nil logger is ignored.
 func WithLogger(logger sasynq.Logger) Option {
 	return func(o *options) {
 		if logger != nil {
@@ -41,12 +45,15 @@ func WithLogger(logger sasynq.Logger) Option {
 	}
 }
 
+// WithLogLevel sets asynq's log level. The default is InfoLevel.
 func WithLogLevel(level sasynq.LogLevel) Option {
 	return func(o *options) {
 		o.logLevel = level
 	}
 }
 
+// WithServerConfig appends a mutator for asynq.Config after defaults are
+// applied. Multiple mutators run in registration order. A nil fn is ignored.
 func WithServerConfig(fn func(*sasynq.Config)) Option {
 	return func(o *options) {
 		if fn != nil {

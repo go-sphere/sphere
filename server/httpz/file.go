@@ -71,9 +71,9 @@ func WithFormAllowExtensions(extensions ...string) WithFormOption {
 	}
 }
 
-// WithFormFileReader creates a Gin handler that processes uploaded files as io.ReadSeekCloser.
-// It validates file size, extension constraints, and passes the file content to the handler function.
-// The handler receives the file as an io.Reader along with the original filename.
+// WithFormFileReader wraps a multipart-upload handler as an httpx JSON handler.
+// The inner handler receives an io.ReadSeekCloser (closed after return) and
+// the original filename. Default max size is 10MiB; default form key is "file".
 func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekCloser, filename string) (T, error), options ...WithFormOption) httpx.Handler {
 	return WithJson(func(ctx httpx.Context) (T, error) {
 		var zero T
@@ -108,9 +108,8 @@ func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekC
 	})
 }
 
-// WithFormFileBytes creates a Gin handler that processes uploaded files as byte arrays.
-// It reads the entire file content into memory and passes it to the handler function.
-// This is convenient for smaller files but should be used carefully with large files.
+// WithFormFileBytes is WithFormFileReader that reads the whole file into memory
+// before calling the inner handler. Prefer WithFormFileReader for large files.
 func WithFormFileBytes[T any](handler func(ctx httpx.Context, file []byte, filename string) (T, error), options ...WithFormOption) httpx.Handler {
 	return WithFormFileReader(func(ctx httpx.Context, file io.ReadSeekCloser, filename string) (T, error) {
 		var zero T

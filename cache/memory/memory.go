@@ -1,3 +1,15 @@
+// Package memory is the ristretto-backed in-process cache.Cache driver.
+//
+// High throughput, no KeyLister (NSCache.DelAll returns ErrNotSupported
+// unless another lister is in the stack). Writes Wait() unless
+// SetAllowAsyncWrites(true). Ristretto may drop writes under load; that is
+// reported as success. GetDel uses 128 FNV-striped mutexes. After Close,
+// this is the only driver that returns cache.ErrClosed.
+//
+// NewMemoryCache and NewMemoryCacheWithCost own the ristretto instance and
+// Close it. NewMemoryCacheWithRistretto does not. NewByteCache uses
+// cost=len(bytes); NewMemoryCache[[]byte] uses cost=1 per item. ctx on CRUD
+// methods is unused. UpdateMaxCost on a closed cache is a silent no-op.
 package memory
 
 import (
@@ -18,8 +30,8 @@ const (
 	numGetDelShards    = 128
 )
 
-// Cache is an in-memory cache implementation backed by ristretto that provides high-performance caching
-// with configurable cost calculation and asynchronous write options.
+// Cache is the ristretto-backed cache.Cache. See the package comment for
+// ownership, dropped writes, GetDel sharding, and ErrClosed.
 type Cache[T any] struct {
 	calculateCost    bool
 	allowAsyncWrites atomic.Bool
@@ -324,6 +336,8 @@ func (m *Cache[T]) Close() error {
 	return nil
 }
 
+// Sync waits until buffered writes have been applied. After Close it returns
+// cache.ErrClosed.
 func (m *Cache[T]) Sync() error {
 	m.closeMu.RLock()
 	defer m.closeMu.RUnlock()
@@ -334,8 +348,11 @@ func (m *Cache[T]) Sync() error {
 	return nil
 }
 
+// ByteCache is Cache[[]byte]. NewByteCache costs by len(bytes);
+// NewMemoryCache[[]byte] costs 1 per item.
 type ByteCache = Cache[[]byte]
 
+// NewByteCache returns a ByteCache whose ristretto cost is len(bytes).
 func NewByteCache() *ByteCache {
 	return NewMemoryCacheWithCost[[]byte](func(bytes []byte) int64 {
 		return int64(len(bytes))

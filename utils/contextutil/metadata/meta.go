@@ -1,3 +1,9 @@
+// Package metadata attaches a map[string]any to context.Context.
+//
+// WithMeta stores a copy of the map. A nil or empty map still yields a
+// non-nil empty map from MetaFrom. MetaFrom returns nil only when WithMeta
+// was never called. The returned map is the one held by the context:
+// treat it as read-only.
 package metadata
 
 import (
@@ -20,11 +26,11 @@ func WithMeta(ctx context.Context, m map[string]any) context.Context {
 }
 
 // MetaFrom extracts metadata from the given context.
-// Returns nil if no metadata is found or if the stored value is not a valid metadata map.
+// It returns nil only when WithMeta was never called. A stored value that is
+// not a map also yields nil (not reachable through this package's API).
 //
-// The returned map is the one held by the context, not a copy: it must be treated as
-// read-only. Writing to it races with every other holder of the same context, and the
-// copy made by WithMeta only protects against mutations of the caller's original map.
+// The returned map is the one held by the context, not a copy: treat it as
+// read-only. Writing to it races with every other holder of the same context.
 func MetaFrom(ctx context.Context) map[string]any {
 	if v := ctx.Value(metaContextKey); v != nil {
 		if m, ok := v.(map[string]any); ok {

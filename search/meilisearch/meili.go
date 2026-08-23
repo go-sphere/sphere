@@ -1,3 +1,9 @@
+// Package meilisearch is the search.Searcher driver on meilisearch-go.
+//
+// Connection is lazy; construction does not health-check. Index/Delete wait
+// for the Meilisearch task (WaitForTaskWithContext, 1s poll) and are not
+// fire-and-forget. Search maps Result.Total from EstimatedTotalHits, not
+// TotalHits. Filter is a passthrough Meilisearch DSL string.
 package meilisearch
 
 import (
@@ -59,6 +65,8 @@ func PrimaryKey(value string) *string {
 	return &value
 }
 
+// Index adds or updates documents and waits for the Meilisearch task
+// (WaitForTaskWithContext, 1s poll). It is not fire-and-forget.
 func (s *Searcher[T]) Index(ctx context.Context, docs ...T) error {
 	task, err := s.index.AddDocumentsWithContext(ctx, docs, &meilisearch.DocumentOptions{
 		PrimaryKey: s.primaryKey,
@@ -73,6 +81,8 @@ func (s *Searcher[T]) Index(ctx context.Context, docs ...T) error {
 	return taskError(result)
 }
 
+// Delete removes documents by ID and waits for the Meilisearch task
+// (WaitForTaskWithContext, 1s poll). It is not fire-and-forget.
 func (s *Searcher[T]) Delete(ctx context.Context, ids ...string) error {
 	task, err := s.index.DeleteDocumentsWithContext(ctx, ids, &meilisearch.DocumentOptions{})
 	if err != nil {
@@ -98,6 +108,8 @@ func taskError(task *meilisearch.Task) error {
 	return fmt.Errorf("meilisearch: task %d %s", task.TaskUID, task.Status)
 }
 
+// Search runs a query against the index. Result.Total is EstimatedTotalHits,
+// not TotalHits. Filter is a passthrough Meilisearch DSL string.
 func (s *Searcher[T]) Search(ctx context.Context, params search.Params) (search.Result[T], error) {
 	resp, err := s.index.SearchWithContext(ctx, params.Query, &meilisearch.SearchRequest{
 		Offset: int64(params.Offset),

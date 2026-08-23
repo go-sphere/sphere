@@ -38,6 +38,9 @@ func NewPubSub[T any](opt ...Option) *PubSub[T] {
 	}
 }
 
+// Broadcast delivers data to every subscriber of topic without blocking. A
+// full subscriber buffer drops the message and logs a warning. After Close
+// it returns an error. ctx is checked once before delivery.
 func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 	p.mu.RLock()
 	subscribers, exists := p.topics[topic]
@@ -77,6 +80,9 @@ func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 	return nil
 }
 
+// Subscribe registers handler on topic and starts a consumer goroutine. ctx
+// is ignored; cancel after return does not stop delivery. Use UnsubscribeAll
+// or Close. After Close it returns an error.
 func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(data T) error) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()

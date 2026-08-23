@@ -1,3 +1,8 @@
+// Package redis builds a go-redis client from a URL.
+//
+// NewClient only parses the URL; go-redis connects lazily on first use, so
+// connectivity errors surface later, not at construction. It does not ping,
+// pool-tune, or wrap sphere cache/mq types — it returns *redis.Client.
 package redis
 
 import (

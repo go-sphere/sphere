@@ -1,3 +1,11 @@
+// Package s3 is a minio-go storage.CDNStorage: presigned PUT upload auth
+// and the core Storage operations.
+//
+// PublicBase is derived from endpoint+bucket when empty. ListFiles uses
+// StartAfter; the cursor is the last key. Copy overwrite=false is TOCTOU,
+// not atomic. Self-move is a no-op. Content-Type is the file extension.
+// NewClient constructs the minio client internally. There is no Close; the
+// HTTP transport lives with the process.
 package s3
 
 import (
@@ -37,17 +45,17 @@ type Config struct {
 // request nor the config specifies one.
 const defaultUploadTTL = time.Hour
 
-// Client provides S3-compatible object storage operations with URL handling capabilities.
-// It uses the MinIO client library to interact with S3 or S3-compatible services.
+// Client is a minio-go storage.CDNStorage: presigned PUT upload auth and
+// the core Storage operations.
 type Client struct {
 	urlhandler.Handler
 	config Config
 	client *minio.Client
 }
 
-// NewClient creates a new S3-compatible storage client with the provided configuration.
-// It automatically configures the public base URL if not provided and initializes
-// the URL handler for public file access.
+// NewClient creates a minio-backed storage client. An empty PublicBase is
+// derived from endpoint+bucket. The minio client is constructed here; this
+// type has no Close.
 func NewClient(conf Config) (*Client, error) {
 	client, err := minio.New(conf.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(conf.AccessKeyID, conf.SecretAccessKey, conf.Token),

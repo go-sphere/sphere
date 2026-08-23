@@ -78,6 +78,9 @@ func (q *Queue[T]) Publish(ctx context.Context, topic string, data T) error {
 	return q.client.RPush(ctx, topic, raw).Err()
 }
 
+// Consume blocks until a message is available or ctx is done. Cancellation
+// is observed within about 1s because BLPOP is polled with a 1s timeout.
+// A decode failure after pop returns a DecodeError holding the raw bytes.
 func (q *Queue[T]) Consume(ctx context.Context, topic string) (T, error) {
 	var zero T
 	for {
@@ -105,6 +108,8 @@ func (q *Queue[T]) Consume(ctx context.Context, topic string) (T, error) {
 	}
 }
 
+// TryConsume pops one element with LPOP. A decode failure still reports
+// found=true and returns a DecodeError with the raw bytes; check err first.
 func (q *Queue[T]) TryConsume(ctx context.Context, topic string) (T, bool, error) {
 	var zero T
 	raw, err := q.client.LPop(ctx, topic).Bytes()
@@ -128,6 +133,8 @@ func (q *Queue[T]) PurgeQueue(ctx context.Context, topic string) error {
 	return q.client.Del(ctx, topic).Err()
 }
 
+// Close is a no-op. The Redis client is injected via WithClient and is
+// never closed here.
 func (q *Queue[T]) Close() error {
 	return nil
 }

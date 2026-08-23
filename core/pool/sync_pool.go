@@ -2,14 +2,15 @@ package pool
 
 import "sync"
 
-// SyncPool is a generic object pool based on sync.Pool, suitable for frequent allocation of small objects.
+// SyncPool is an unbounded pool backed by sync.Pool. WithClose and
+// WithAllowCreate are ignored. Objects are GC-eligible when idle.
 type SyncPool[T any] struct {
 	p          sync.Pool
 	resetFunc  func(T) T
 	acceptFunc func(T) bool
 }
 
-// NewSyncPool creates an object pool based on sync.Pool.
+// NewSyncPool creates a SyncPool. Omit WithNew and Get may return the zero value of T.
 func NewSyncPool[T any](opts ...Option[T]) *SyncPool[T] {
 	options := newOptions(opts...)
 	sp := &SyncPool[T]{
@@ -25,7 +26,8 @@ func NewSyncPool[T any](opts ...Option[T]) *SyncPool[T] {
 	return sp
 }
 
-// Get returns an object from the pool or creates a new one via the New function.
+// Get returns a pooled object or the result of New. Without WithNew, an empty
+// pool yields the zero value of T.
 func (sp *SyncPool[T]) Get() T {
 	obj := sp.p.Get()
 	if obj != nil {
@@ -35,7 +37,7 @@ func (sp *SyncPool[T]) Get() T {
 	return zero
 }
 
-// Put returns an object to the pool.
+// Put retains obj if Accept allows it. False means it was discarded without Reset.
 func (sp *SyncPool[T]) Put(obj T) bool {
 	if sp.acceptFunc != nil && !sp.acceptFunc(obj) {
 		return false

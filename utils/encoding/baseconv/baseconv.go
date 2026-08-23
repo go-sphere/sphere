@@ -1,7 +1,14 @@
-// Package baseconv provides customizable base encoding/decoding functionality for arbitrary alphabets.
-// It supports both bitwise and mathematical encoding algorithms with optional padding,
-// making it suitable for creating URL-safe identifiers, compact data representations,
-// and custom encoding schemes.
+// Package baseconv encodes and decodes byte slices with a caller-chosen
+// alphabet.
+//
+// Power-of-two alphabets use a bitwise path (a 32-character set interops
+// with encoding/base32). Other lengths (base62) use a big-integer path.
+// Bitwise decode rejects non-canonical leftover bits (ErrNonCanonical);
+// the math path has no equivalent check.
+//
+// AlphabetBase32 is Crockford's set without I, L, O, or U (32 characters).
+// StdRaw32Encoding / StdRaw62Encoding use '=' padding. That is the opposite
+// of encoding/base32.Raw*, which means unpadded.
 package baseconv
 
 import (

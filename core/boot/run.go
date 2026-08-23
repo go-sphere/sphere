@@ -30,7 +30,7 @@ func run(ctx context.Context, t task.Task, options *options) error {
 	// Start a task in a goroutine
 	startErr := make(chan error, 1)
 	go func() {
-		defer close(startErr) // 确保 channel 被关闭
+		defer close(startErr)
 		defer func() {
 			if r := recover(); r != nil {
 				safe.LogRecovered(t.Identifier(), r)
@@ -113,10 +113,14 @@ func run(ctx context.Context, t task.Task, options *options) error {
 	return errors.Join(errs...)
 }
 
-// Run executes an application built from the provided configuration using the builder function.
-// It handles the complete application lifecycle including startup, signal handling, and graceful shutdown.
-// The builder function receives the configuration and should return a properly initialized Application.
-// Returns an error if the application fails to build, start, or encounters issues during execution.
+// Run builds an Application from conf and drives its lifecycle: before-start
+// hooks, Start, wait for a shutdown signal or task exit, before-stop hooks,
+// Stop, after-stop hooks.
+//
+// The exported Run always uses context.Background(); it stops on SIGTERM,
+// SIGQUIT, or SIGINT (override with WithShutdownSignals) or when Start
+// returns. Passing no signals to WithShutdownSignals disables boot's signal
+// handling rather than subscribing to every signal.
 //
 // A clean signal-triggered shutdown returns nil. It returns non-nil when a hook,
 // a task's Stop, or a task's Start reports a failure — including failures that

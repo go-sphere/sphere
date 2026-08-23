@@ -1,3 +1,29 @@
+// Package mq is the typed messaging contract: point-to-point Queue and
+// best-effort PubSub, plus MessageQueue that combines both.
+//
+// Drivers live in subpackages: memory (process-local channels, default buffer
+// 100) and redis (lists + Redis pub/sub, JSON by default).
+//
+// # Queue
+//
+// Publish delivers to exactly one consumer, FIFO. memory Publish blocks when
+// the per-topic buffer is full; redis RPUSH is unbounded. TryConsume: check
+// the error first — a non-nil error means the bool carries no meaning.
+//
+// Close is driver-split. memory Close stops the queue and drains remaining
+// messages, then Consume/TryConsume return ErrQueueClosed. redis Close is a
+// no-op: the caller owns the *redis.Client.
+//
+// # PubSub
+//
+// Broadcast is best-effort: a slow subscriber may miss messages. Subscribe's
+// ctx governs only setup, not lifetime — cancel after return does not stop
+// delivery; use UnsubscribeAll or Close. memory Subscribe ignores ctx.
+// After Close, memory Broadcast errors; redis Broadcast still PUBLISHes,
+// while Subscribe returns ErrPubSubClosed.
+//
+// Share a Redis client with cache only if you never call cache.DelAll
+// (FlushDB) on that database.
 package mq
 
 import (
@@ -5,8 +31,8 @@ import (
 	"io"
 )
 
-// Queue provides point-to-point messaging capabilities with typed message support.
-// Messages are delivered to exactly one consumer, following FIFO ordering.
+// Queue is point-to-point messaging: one consumer, FIFO. Close semantics are
+// driver-split — memory stops the queue; redis Close is a no-op.
 type Queue[T any] interface {
 	// Publish sends a message to the specified topic queue.
 	// The message will be delivered to one available consumer.
@@ -76,8 +102,7 @@ type PubSub[T any] interface {
 	io.Closer
 }
 
-// MessageQueue combines both queue and publish-subscribe messaging patterns.
-// This interface provides maximum flexibility for messaging architectures.
+// MessageQueue is Queue plus PubSub. Combined Close must wait for both halves.
 type MessageQueue[T any] interface {
 	Queue[T]
 	PubSub[T]

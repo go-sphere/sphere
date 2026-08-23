@@ -1,3 +1,8 @@
+// Package test is the cross-driver contract suite for mq.Queue and mq.PubSub.
+//
+// memory and redis are registered here and run against the same cases.
+// closeStopsQueue is false for redis (Close is a no-op). Add a new driver
+// by returning it from queueFactories / pubSubFactories.
 package test
 
 import (

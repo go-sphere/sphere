@@ -1,3 +1,6 @@
+// Package compatconsumer is a compile-time check that stable constructors
+// used by generated service templates still type-check against the public
+// interfaces. It is not a runtime test suite.
 package compatconsumer
 
 import (

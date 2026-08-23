@@ -1,3 +1,10 @@
+// Package safe is panic recovery and deferred-error reporting used by boot
+// and task. Library code should use Go or Run instead of a bare go func().
+//
+// Go and Run never re-panic: they log via LogRecovered then continue.
+// Recover is for defer. InitErrorHandler replaces the handler used by
+// IfErrorPresent / IfErrorXPresent (signature func(error), no label); it is
+// unrelated to Recover's onError callbacks.
 package safe
 
 import (
@@ -18,9 +25,9 @@ func LogRecovered(module string, r any) {
 	)
 }
 
-// Recover handles panics and logs them with optional custom error handlers.
-// It should be used in defer statements to catch and handle panics gracefully.
-// Optional onError functions are called with the panic value for custom handling.
+// Recover must be deferred. It logs the panic via LogRecovered, then calls
+// each onError with the panic value. It does not re-panic. onError is not
+// the ErrorHandler used by IfErrorPresent.
 func Recover(onError ...func(err any)) {
 	if r := recover(); r != nil {
 		LogRecovered("safe", r)
@@ -30,14 +37,12 @@ func Recover(onError ...func(err any)) {
 	}
 }
 
-// Go starts a new goroutine that runs the provided function with panic recovery.
-// Any panic in the function will be caught and logged without crashing the program.
+// Go runs fn in a new goroutine with Recover. A panic is logged, not re-raised.
 func Go(fn func()) {
 	go Run(fn)
 }
 
-// Run executes a function with panic recovery protection.
-// It can be used to wrap potentially panicking code with automatic recovery.
+// Run calls fn with Recover on the current goroutine.
 func Run(fn func()) {
 	defer Recover()
 	fn()

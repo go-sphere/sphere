@@ -1,3 +1,11 @@
+// Package fileserver is an HTTP adapter over any storage.Storage plus a
+// cache.ByteCache of one-time PUT tokens (UUID → key, GetDel). It is not
+// an S3 driver.
+//
+// PutBase and GetBase are required. KeyTTL of 0 becomes 5 minutes and is
+// also the ceiling for UploadAuthRequest.TTL. Downloads set nosniff and
+// Content-Disposition: attachment unless WithInlineDownload. Does not
+// implement FileStater or FileLister.
 package fileserver
 
 import (
@@ -19,7 +27,9 @@ import (
 	"github.com/go-sphere/sphere/storage/urlhandler"
 )
 
-// Config holds the configuration for S3 adapter operations.
+// Config holds HTTP adapter settings. PutBase and GetBase are required.
+// KeyTTL of 0 becomes 5 minutes and is also the ceiling for
+// UploadAuthRequest.TTL.
 type Config struct {
 	PutBase string `json:"put_base" yaml:"put_base"`
 	GetBase string `json:"get_base" yaml:"get_base"`
@@ -34,8 +44,8 @@ type Config struct {
 // is unset.
 const defaultKeyTTL = 5 * time.Minute
 
-// FileServer provides a caching layer and upload token generation for S3-compatible storage.
-// It extends a base storage implementation with temporary upload URL generation capabilities.
+// FileServer is an HTTP adapter over any storage.Storage plus a
+// cache.ByteCache of one-time PUT tokens. It is not an S3 driver.
 type FileServer struct {
 	opts    *options
 	config  Config
@@ -44,7 +54,9 @@ type FileServer struct {
 	handler storage.URLHandler
 }
 
-// NewCDNAdapter creates a new CDN adapter with URL and token generation capabilities.
+// NewCDNAdapter constructs a FileServer that wraps store with one-time PUT
+// tokens stored in cache. PutBase, GetBase, cache, and store are required.
+// It is not a CDN or S3 driver; the name is historical.
 func NewCDNAdapter(conf Config, cache cache.ByteCache, store storage.Storage, options ...Option) (*FileServer, error) {
 	if cache == nil {
 		return nil, errors.New("cache is required")

@@ -1,3 +1,11 @@
+// Package redis is the Redis-backed cache.ByteCache driver (go-redis).
+//
+// DelAll is FlushDB of the selected database, not FLUSHALL and not "this
+// wrapper's keys". Do not share that DB with mq keys if you call DelAll.
+// Keys uses SCAN with a glob-escaped MATCH prefix* of the selected DB.
+// NewByteCache(client) does not close the client; NewByteCacheWithOptions
+// does. Empty MultiGet/MultiDel short-circuit because Redis rejects 0-arg
+// MGET/DEL.
 package redis
 
 import (
@@ -13,6 +21,7 @@ import (
 
 const scanBatchSize = 256
 
+// ErrorType is returned by MultiGet when an MGET value is not a string.
 var ErrorType = fmt.Errorf("type error")
 
 // ByteCache is a Redis-backed cache implementation for storing raw byte data.
@@ -129,6 +138,8 @@ func (c *ByteCache) MultiDel(ctx context.Context, keys []string) error {
 	return c.client.Del(ctx, keys...).Err()
 }
 
+// DelAll runs FlushDB on the selected database. It is not FLUSHALL and does
+// not limit itself to keys written through this wrapper.
 func (c *ByteCache) DelAll(ctx context.Context) error {
 	return c.client.FlushDB(ctx).Err()
 }
@@ -141,7 +152,7 @@ func (c *ByteCache) Exists(ctx context.Context, key string) (bool, error) {
 	return exists > 0, nil
 }
 
-// Keys returns every key in the Redis instance whose name starts with prefix.
+// Keys returns every key in the selected database whose name starts with prefix.
 // It drains SCAN with a glob-escaped MATCH pattern so metacharacters in the
 // prefix (*, ?, [, ], \) are treated literally. If any SCAN batch fails the
 // partial result is discarded and the error is returned.

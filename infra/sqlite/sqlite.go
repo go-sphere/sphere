@@ -1,3 +1,9 @@
+// Package sqlite registers a database/sql driver around the already
+// registered modernc.org/sqlite driver instance (not a zero sqlite.Driver),
+// so RegisterScalarFunction and similar still work.
+//
+// Open runs PRAGMA foreign_keys = on. sql.Register panics on a duplicate
+// name — Register(name) is not idempotent.
 package sqlite
 
 import (

@@ -8,16 +8,21 @@ type authKey struct{}
 
 var authContextKey = authKey{}
 
+// Data is the identity stored on the request context by auth middleware.
 type Data[I UID] struct {
 	UID     I        `json:"uid"`
 	Subject string   `json:"subject"`
 	Roles   []string `json:"roles"`
 }
 
+// WithAuthData returns a child context holding data under the package's
+// unexported key.
 func WithAuthData[I UID](ctx context.Context, data Data[I]) context.Context {
 	return context.WithValue(ctx, authContextKey, data)
 }
 
+// GetAuthData returns the identity stored by WithAuthData. A missing value
+// or a Data stored under a different UID type yields (_, false).
 func GetAuthData[I UID](ctx context.Context) (Data[I], bool) {
 	raw := ctx.Value(authContextKey)
 	if raw == nil {
@@ -34,8 +39,8 @@ func GetAuthData[I UID](ctx context.Context) (Data[I], bool) {
 // It is parameterized by the user ID type for type safety.
 type ContextUtils[I UID] struct{}
 
-// GetCurrentID retrieves the current user ID from the context.
-// It returns NeedLoginError if the user is not authenticated or the ID type is incorrect.
+// GetCurrentID returns the UID stored on ctx, or NeedLoginError when no
+// Data[I] is present (including when the stored UID type does not match I).
 func (ContextUtils[I]) GetCurrentID(ctx context.Context) (I, error) {
 	data, ok := GetAuthData[I](ctx)
 	if !ok {
@@ -45,8 +50,7 @@ func (ContextUtils[I]) GetCurrentID(ctx context.Context) (I, error) {
 	return data.UID, nil
 }
 
-// CheckAuthStatus verifies that the user is authenticated.
-// It returns an error if authentication is required but not present.
+// CheckAuthStatus returns NeedLoginError when no Data[I] is present.
 func (c ContextUtils[I]) CheckAuthStatus(ctx context.Context) error {
 	_, err := c.GetCurrentID(ctx)
 	return err
@@ -65,8 +69,8 @@ func (c ContextUtils[I]) CheckAuthID(ctx context.Context, id I) error {
 	return nil
 }
 
-// GetCurrentSubject retrieves the current user's subject/username from the context.
-// It returns NeedLoginError if the user is not authenticated.
+// GetCurrentSubject returns Data.Subject, or NeedLoginError when no Data[I]
+// is present. An authenticated user with no subject yields "".
 func (c ContextUtils[I]) GetCurrentSubject(ctx context.Context) (string, error) {
 	data, ok := GetAuthData[I](ctx)
 	if !ok {
@@ -75,8 +79,8 @@ func (c ContextUtils[I]) GetCurrentSubject(ctx context.Context) (string, error) 
 	return data.Subject, nil
 }
 
-// GetCurrentRoles retrieves the current user's roles from the context.
-// It returns nil if no roles are set or if the user is not authenticated.
+// GetCurrentRoles returns Data.Roles, or nil when no Data[I] is present.
+// An authenticated user with no roles yields the stored slice, which may be empty.
 func (c ContextUtils[I]) GetCurrentRoles(ctx context.Context) []string {
 	data, ok := GetAuthData[I](ctx)
 	if !ok {

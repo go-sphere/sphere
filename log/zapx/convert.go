@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// MapToZapFields converts attrs into zap fields in sorted key order.
 func MapToZapFields(attrs map[string]any) []zap.Field {
 	keys := make([]string, 0, len(attrs))
 	for k := range attrs {
@@ -25,6 +26,8 @@ func MapToZapFields(attrs map[string]any) []zap.Field {
 	return fields
 }
 
+// AttrToZapField converts attr to a zap field. An error stored under the key
+// "error" becomes zap.Error.
 func AttrToZapField(attr corelog.Attr) zap.Field {
 	v := attr.Value.Resolve()
 	switch v.Kind() {

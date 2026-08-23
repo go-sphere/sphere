@@ -1,9 +1,13 @@
 // Package boot runs a task.Task as a process: OS signals, lifecycle hooks,
 // and a shutdown deadline.
 //
+// Importing this package sets time.Local and TZ to Asia/Shanghai in init.
+// Call InitTimezone again before Run to override.
+//
 // Lifecycle is split on purpose. task.Group starts and stops members; Run
-// decides when to ask the application to stop (signal, task exit, or parent
-// context) and runs hooks around that. Stop is idempotent: if the group has
+// decides when to ask the application to stop (signal or task exit) and runs
+// hooks around that. The exported Run always starts from context.Background();
+// it does not take a parent context. Stop is idempotent: if the group has
 // already stopped — a one-shot job that finished — Run's Stop is a no-op and
 // after-stop hooks still run.
 //
