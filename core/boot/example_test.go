@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/go-sphere/sphere/core/boot"
+	"github.com/go-sphere/sphere/core/task"
+	"github.com/go-sphere/sphere/core/task/scripttask"
 	"github.com/go-sphere/sphere/infra/redis"
 )
 
@@ -32,4 +34,59 @@ func ExampleAddBeforeStart_readinessProbe() {
 
 	// Pass the options through to boot.Run(conf, builder, options...).
 	_ = options
+}
+
+// One-shot recipe: the job runs, the group stops it, Run returns.
+func ExampleRun_oneShot() {
+	type conf struct{}
+	_ = boot.Run(&conf{}, func(*conf) (*boot.Application, error) {
+		job := scripttask.NewScriptTask("migrate", func(context.Context) error {
+			return nil
+		}, nil)
+		return boot.NewApplication(job), nil
+	})
+}
+
+// HTTP and companions start concurrently. Close Wire-owned clients after
+// every Task.Stop, not as a sibling Task of the server.
+func ExampleRun_httpAndInfra() {
+	httpSrv := scripttask.NewScriptTask("http", nil, nil)
+	consumer := scripttask.NewScriptTask("mq", nil, nil)
+	_ = boot.NewApplication(httpSrv, consumer)
+}
+
+// Wire injectors often return (*App, cleanup, error). Run's builder cannot
+// take the cleanup, so call it after Run returns — after every Task.Stop.
+func ExampleRun_wireCleanup() {
+	type conf struct{}
+	app, cleanup, err := initializeExampleApp()
+	if err != nil {
+		return
+	}
+	defer cleanup()
+	_ = boot.Run(&conf{}, func(*conf) (*boot.Application, error) {
+		return app, nil
+	})
+}
+
+// Ordered drain: last stage (HTTP) stops before the previous stage.
+func ExampleRun_staged() {
+	closer := scripttask.NewScriptTask("cache-trim", func(context.Context) error {
+		return nil
+	}, nil)
+	httpSrv := scripttask.NewScriptTask("http", nil, nil)
+
+	_ = boot.NewStagedApplication(
+		[]task.Task{closer},
+		[]task.Task{httpSrv},
+	)
+}
+
+func ExampleNewApplicationFromGroup() {
+	group := task.NewGroupWithOptions(nil, task.WithCleanupTimeout(5*time.Second))
+	_ = boot.NewApplicationFromGroup(group)
+}
+
+func initializeExampleApp() (*boot.Application, func(), error) {
+	return boot.NewApplication(), func() {}, nil
 }

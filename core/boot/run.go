@@ -14,19 +14,18 @@ import (
 )
 
 func run(ctx context.Context, t task.Task, options *options) error {
-	// Execute before start hooks
 	if err := runHooks(ctx, options.beforeStart, "beforeStart"); err != nil {
 		return fmt.Errorf("before start hooks failed: %w", err)
 	}
 
-	// Create cancellable context
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Setup signal handling
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, options.signals...)
-	defer signal.Stop(quit)
+	if len(options.signals) > 0 {
+		signal.Notify(quit, options.signals...)
+		defer signal.Stop(quit)
+	}
 
 	// Start a task in a goroutine
 	startErr := make(chan error, 1)
@@ -67,32 +66,47 @@ func run(ctx context.Context, t task.Task, options *options) error {
 
 	log.Infof("Initiating shutdown due to: %s", shutdownReason)
 
-	// Execute before stop hooks
 	var errs []error
 	if err := runHooks(ctx, options.beforeStop, "beforeStop"); err != nil {
 		errs = append(errs, fmt.Errorf("before stop hooks: %w", err))
 	}
 
-	// Cancel context to signal shutdown
-	cancel()
-
-	// Graceful shutdown with timeout. A non-positive timeout means unbounded,
-	// consistent with task.WithCleanupTimeout; handing it to WithTimeout would
-	// produce an already-expired context and skip the graceful phase outright.
+	// Stop before cancelling the run ctx so a Group can apply shutdownCtx to
+	// member Stop. cancel() afterwards unblocks a leaf Start that only waits
+	// on the parent ctx (Stop does not have to).
 	shutdownCtx, shutdownCancel := newShutdownContext(options.shutdownTimeout)
 	defer shutdownCancel()
 
-	if err := t.Stop(shutdownCtx); err != nil {
-		errs = append(errs, fmt.Errorf("task stop: %w", err))
+	stopErr := t.Stop(shutdownCtx)
+	if stopErr != nil {
+		errs = append(errs, fmt.Errorf("task stop: %w", stopErr))
+	}
+	cancel()
+
+	if startError == nil {
+		select {
+		case err, ok := <-startErr:
+			if ok && err != nil {
+				startError = err
+			}
+		case <-shutdownCtx.Done():
+		}
 	}
 
-	// Execute after stop hooks
-	if err := runHooks(shutdownCtx, options.afterStop, "afterStop"); err != nil {
+	afterCtx := shutdownCtx
+	afterCancel := func() {}
+	if shutdownCtx.Err() != nil {
+		afterCtx, afterCancel = context.WithTimeout(context.Background(), afterStopFallbackTimeout)
+	}
+	defer afterCancel()
+
+	if err := runHooks(afterCtx, options.afterStop, "afterStop"); err != nil {
 		errs = append(errs, fmt.Errorf("after stop hooks: %w", err))
 	}
 
-	// Include start error if any
-	if startError != nil {
+	// A Group whose Start already returned reports that same result from Stop.
+	// Joining it again as "task start" duplicated the tree in the process error.
+	if startError != nil && !errors.Is(stopErr, startError) {
 		errs = append(errs, fmt.Errorf("task start: %w", startError))
 	}
 
@@ -109,6 +123,9 @@ func run(ctx context.Context, t task.Task, options *options) error {
 // occur while the application is already shutting down, which earlier releases
 // dropped. Programs that exit non-zero on a non-nil result should be prepared for
 // shutdown-time task errors to become visible as failed exits.
+//
+// If the task is a Group that has already finished, Stop returns the same result
+// Start did; that error is reported once, not joined a second time as a start error.
 func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Option) error {
 	// Create application
 	app, err := builder(conf)

@@ -101,9 +101,10 @@ func (t *managedTask) getStopErr() error {
 	return t.stopErr
 }
 
-// Manager provides dynamic management of named tasks with concurrent execution.
-// It allows starting, stopping, and monitoring individual tasks by name,
-// offering more flexibility than the Group type for long-running applications.
+// Manager is a supervisor for named tasks started later at runtime.
+// It is not the process runner: HTTP servers and one-shot jobs belong in a
+// Group (typically under boot.Run). Wait holds the registration lock for its
+// entire duration, so a long-running task makes Wait a freeze on StartTask.
 //
 // Stop is treated as the cleanup half of the lifecycle rather than an interrupt
 // signal, matching Group: every task the manager starts is stopped exactly once,

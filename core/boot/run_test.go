@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -83,6 +84,66 @@ func TestRun_NormalStartAndStop(t *testing.T) {
 	}
 	if !task.stopCalled.Load() {
 		t.Error("Task Stop was not called")
+	}
+}
+
+func TestRun_GroupStartErrorNotDuplicated(t *testing.T) {
+	expectedErr := errors.New("start failed")
+	failing := &mockTask{
+		identifier: "failing",
+		startFunc: func(context.Context) error {
+			return expectedErr
+		},
+	}
+	err := run(context.Background(), NewApplication(failing), newOptions(WithShutdownTimeout(time.Second)))
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("error = %v, want %v", err, expectedErr)
+	}
+	if n := strings.Count(err.Error(), expectedErr.Error()); n != 1 {
+		t.Fatalf("error message duplicated %d times: %v", n, err)
+	}
+	if strings.Contains(err.Error(), "task start:") {
+		t.Fatalf("group result should not be joined again as task start: %v", err)
+	}
+}
+
+func TestRun_EmptyShutdownSignalsDoesNotShutdownOnSIGWINCH(t *testing.T) {
+	task := &mockTask{identifier: "test-task"}
+	opts := newOptions(
+		WithShutdownTimeout(time.Second),
+		WithShutdownSignals(),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- run(ctx, task, opts)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	proc, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		t.Fatalf("find process: %v", err)
+	}
+	if err := proc.Signal(syscall.SIGWINCH); err != nil {
+		t.Fatalf("signal: %v", err)
+	}
+
+	select {
+	case err := <-done:
+		t.Fatalf("empty WithShutdownSignals shut down on SIGWINCH: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("ctx cancel: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for ctx cancel")
 	}
 }
 
@@ -225,6 +286,31 @@ func TestRun_BeforeStopHookError(t *testing.T) {
 
 	if !task.stopCalled.Load() {
 		t.Error("Task Stop should still be called even if beforeStop hook fails")
+	}
+}
+
+func TestRun_BeforeStopHookPanicStillStopsTask(t *testing.T) {
+	task := &mockTask{
+		identifier: "test-task",
+		startFunc: func(context.Context) error {
+			return nil
+		},
+	}
+	opts := newOptions(
+		WithShutdownTimeout(time.Second),
+		AddBeforeStop(func(context.Context) error {
+			panic("beforeStop boom")
+		}),
+	)
+	err := run(context.Background(), task, opts)
+	if err == nil {
+		t.Fatal("expected panic-derived hook error")
+	}
+	if !strings.Contains(err.Error(), "panic") {
+		t.Fatalf("error = %v, want panic details", err)
+	}
+	if !task.stopCalled.Load() {
+		t.Fatal("Task Stop must run after a beforeStop panic")
 	}
 }
 
@@ -402,6 +488,71 @@ func TestRun_ShutdownTimeout(t *testing.T) {
 	// Should timeout around 100ms, not wait for 2 seconds
 	if duration > 500*time.Millisecond {
 		t.Errorf("Shutdown took too long: %v", duration)
+	}
+}
+
+func TestRun_ShutdownTimeoutBoundsGroupedTaskStop(t *testing.T) {
+	task := &mockTask{
+		identifier: "slow-stop",
+		startFunc: func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+		stopFunc: func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	}
+	opts := newOptions(WithShutdownTimeout(100 * time.Millisecond))
+
+	done := make(chan error, 1)
+	go func() {
+		done <- run(context.Background(), NewApplication(task), opts)
+	}()
+	time.Sleep(50 * time.Millisecond)
+	proc, _ := os.FindProcess(os.Getpid())
+	_ = proc.Signal(syscall.SIGINT)
+
+	start := time.Now()
+	err := <-done
+	if duration := time.Since(start); duration > 500*time.Millisecond {
+		t.Fatalf("grouped Stop should honour shutdown timeout, took %v", duration)
+	}
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want DeadlineExceeded", err)
+	}
+}
+
+func TestRun_AfterStopHookGetsLiveContextWhenStopTimesOut(t *testing.T) {
+	task := &mockTask{
+		identifier: "slow-stop",
+		startFunc: func(context.Context) error {
+			return nil
+		},
+		stopFunc: func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	}
+	var afterStopValid bool
+	opts := newOptions(
+		WithShutdownTimeout(50*time.Millisecond),
+		AddAfterStop(func(ctx context.Context) error {
+			select {
+			case <-ctx.Done():
+				afterStopValid = false
+			default:
+				afterStopValid = true
+			}
+			return nil
+		}),
+	)
+	err := run(context.Background(), task, opts)
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want DeadlineExceeded from stop", err)
+	}
+	if !afterStopValid {
+		t.Fatal("afterStop received an expired context after Stop used the whole budget")
 	}
 }
 

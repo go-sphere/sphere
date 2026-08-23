@@ -9,9 +9,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-sphere/sphere/core/safe"
 	"github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/log/zapx"
 )
+
+// afterStopFallbackTimeout is used when Stop consumed the whole shutdown
+// budget, so after-stop hooks are not handed an already-expired context.
+const afterStopFallbackTimeout = 2 * time.Second
 
 // Hook defines a function that can be executed at various lifecycle stages of the application.
 // It receives a context and returns an error if the hook execution fails.
@@ -47,14 +52,23 @@ type Option func(*options)
 // context that was already expired when shutdown began, so the graceful phase
 // was skipped entirely and even the after-stop hooks ran on a dead context —
 // the exact opposite of what "no timeout" reads like next to the other two.
+//
+// For an Application (a Group), this deadline is also applied to each member
+// Stop, capped by the group's WithCleanupTimeout (default 30s as well).
 func WithShutdownTimeout(d time.Duration) Option {
 	return func(o *options) {
 		o.shutdownTimeout = d
 	}
 }
 
-// WithShutdownSignals configures which OS signals will trigger application shutdown.
-// Replaces the default signals (SIGTERM, SIGQUIT, SIGINT) with the provided ones.
+// WithShutdownSignals replaces the default shutdown signals
+// (SIGTERM, SIGQUIT, SIGINT). Passing no signals disables boot's signal
+// handling: Run then stops only when the task returns or the parent context
+// is cancelled. The operating system's default handling of those signals
+// still applies (SIGINT typically terminates the process).
+//
+// An empty list does not subscribe to every signal. signal.Notify with no
+// arguments would, including SIGURG used by the Go runtime.
 func WithShutdownSignals(sigs ...os.Signal) Option {
 	return func(o *options) {
 		o.signals = sigs
@@ -127,7 +141,16 @@ func WithLoggerInit(version string, conf zapx.Config) Option {
 func runHooks(ctx context.Context, hooks []Hook, hookType string) error {
 	var errs []error
 	for i, f := range hooks {
-		if err := f(ctx); err != nil {
+		err := func() (err error) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					safe.LogRecovered(fmt.Sprintf("hook %s[%d]", hookType, i), rec)
+					err = fmt.Errorf("panic: %v", rec)
+				}
+			}()
+			return f(ctx)
+		}()
+		if err != nil {
 			log.Errorf("Hook %s[%d] failed: %v", hookType, i, err)
 			errs = append(errs, fmt.Errorf("%s hook[%d]: %w", hookType, i, err))
 		}

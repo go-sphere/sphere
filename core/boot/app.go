@@ -6,18 +6,35 @@ import (
 	"github.com/go-sphere/sphere/core/task"
 )
 
-// Application represents the main application container that manages a group of tasks.
-// It implements the Task interface, allowing it to be composed with other components.
+// Application is the process-level Task that Run drives. It is a thin wrapper
+// around task.Group: Start and Stop forward to the group.
 type Application struct {
 	group *task.Group
 }
 
-// NewApplication creates a new Application instance with the given tasks.
-// All provided tasks will be managed as a group with coordinated lifecycle management.
+// NewApplication groups the given tasks with task.NewGroup (concurrent start
+// and stop). For ordered drain use NewStagedApplication. Close Wire-owned
+// clients (sql.DB, Redis) in after-stop hooks or the injector cleanup after
+// Run returns — not as a sibling Task of the HTTP server.
 func NewApplication(tasks ...task.Task) *Application {
 	return &Application{
 		group: task.NewGroup(tasks...),
 	}
+}
+
+// NewApplicationFromGroup uses g as the application's group without wrapping
+// it in another NewGroup. Use this (or NewStagedApplication) when g already
+// has staged waves or Group options.
+func NewApplicationFromGroup(g *task.Group) *Application {
+	if g == nil {
+		g = task.NewGroup()
+	}
+	return &Application{group: g}
+}
+
+// NewStagedApplication is NewApplicationFromGroup(task.NewStagedGroup(waves...)).
+func NewStagedApplication(waves ...[]task.Task) *Application {
+	return NewApplicationFromGroup(task.NewStagedGroup(waves...))
 }
 
 // Identifier returns the application's identifier for logging and debugging.

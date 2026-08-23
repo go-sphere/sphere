@@ -362,19 +362,12 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Unlock()
 
 	<-runCtx.Done()
-	// Tear the runtime down before returning. Returning on the bare context
-	// cancellation left the asynq server and scheduler running: periodic jobs
-	// kept firing and enqueued tasks kept being consumed after Start had already
-	// reported that it was finished. It also broke this type's own contract that
-	// the injected Redis client stays in use until Stop or Close returns — a
-	// caller acting on the Start return would close it under a live server and
-	// panic inside asynq. Stop is idempotent, so a Stop that triggered this
-	// cancellation simply joins the shutdown already in flight.
-	stopErr := s.Stop(context.WithoutCancel(ctx))
-	if err := runCtx.Err(); err != nil {
-		return err
-	}
-	return stopErr
+	// Stop is the cleanup half of the Task contract. Returning here lets the
+	// runner (Group, boot.Run) apply its shutdown budget to Stop. A Start that
+	// called Stop with a detached context made that budget unreachable: the
+	// runner waited on Start, which waited on an unbounded drain. Cancelling
+	// the parent context without Stop leaves the runtime live — call Stop.
+	return runCtx.Err()
 }
 
 // Stop shuts the scheduler down and waits for the asynq server to drain.

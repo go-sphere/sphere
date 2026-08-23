@@ -24,7 +24,12 @@ lint:
 	go mod tidy
 	golangci-lint fmt --no-config --enable gofmt,goimports
 	golangci-lint run --no-config --fix
-	nilaway -include-pkgs="$(MODULE)" ./...
+	# -exclude-test-files: nilaway merges nil flows through a constructor's return
+	# summary across call sites, so a test that passes a literal nil to assert a
+	# guard (log/backend_merge_test.go:157) is reported at unrelated dereferences
+	# of the wrapper's result. Tests deliberately exercise nil inputs; keeping
+	# them analyzed produces only this noise. Non-test code is still analyzed.
+	nilaway -include-pkgs="$(MODULE)" -exclude-test-files ./...
 
 add-tags:
 	@if [ -z "$(TAG)" ]; then echo "TAG not set. Use TAG=v0.0.1 make tags-root"; exit 1; fi

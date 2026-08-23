@@ -16,7 +16,8 @@ import (
 // TestGroupStopBeforeStart pins the contract that a Stop arriving before Start
 // is recorded rather than dropped: Stop is the only way to shut a group down and
 // stopReqCh does not exist until Start creates it, so an ignored early Stop
-// would leave the group running with no way to stop it.
+// would leave the group running with no way to stop it. Members that never
+// started receive neither Start nor Stop.
 func TestGroupStopBeforeStart(t *testing.T) {
 	worker := scripttask.NewScriptTask("worker", nil, nil)
 	group := NewGroup(worker)
@@ -30,14 +31,29 @@ func TestGroupStopBeforeStart(t *testing.T) {
 		startErrCh <- group.Start(context.Background())
 	}()
 
-	// The pending stop must tear the group down without any further Stop call.
 	if err := waitError(t, startErrCh, "group start result"); err != nil {
 		t.Fatalf("expected nil start result after pending stop, got %v", err)
 	}
-	waitSignal(t, worker.Stopped(), "worker stopped")
-
+	if worker.IsStarted() {
+		t.Fatal("pending stop must not start members")
+	}
+	if worker.IsStopped() {
+		t.Fatal("pending stop must not stop members that never started")
+	}
 	if !group.IsStopped() {
 		t.Fatal("expected group to be stopped after honouring the pending stop")
+	}
+}
+
+func TestGroupStartOnCanceledContextDoesNotStartMembers(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	worker := scripttask.NewScriptTask("worker", nil, nil)
+	if err := NewGroup(worker).Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if worker.IsStarted() || worker.IsStopped() {
+		t.Fatal("canceled parent must not start members")
 	}
 }
 
@@ -347,8 +363,44 @@ func TestGroupStopContextTimeout(t *testing.T) {
 	}
 
 	startErr := waitError(t, startErrCh, "group result after timed stop")
-	if startErr != nil {
-		t.Fatalf("expected start result nil after background cleanup, got %v", startErr)
+	if startErr == nil {
+		t.Fatal("expected cleanup timeout once the Stop ctx also bounds member Stop")
+	}
+	if !strings.Contains(startErr.Error(), "still stopping") {
+		t.Fatalf("start result = %v, want cleanup timeout naming the worker", startErr)
+	}
+	waitSignal(t, worker.Stopped(), "worker stopped")
+}
+
+func TestGroupStopContextBoundsMemberStop(t *testing.T) {
+	worker := scripttask.NewScriptTask("worker", nil, func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	group := NewGroup(worker)
+
+	startErrCh := make(chan error, 1)
+	go func() {
+		startErrCh <- group.Start(context.Background())
+	}()
+	waitSignal(t, worker.Started(), "worker started")
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
+	defer cancel()
+	begin := time.Now()
+	err := group.Stop(stopCtx)
+	elapsed := time.Since(begin)
+	if elapsed > 200*time.Millisecond {
+		t.Fatalf("member Stop should honour caller deadline, elapsed=%s", elapsed)
+	}
+	if err == nil {
+		t.Fatal("expected a stop/start error from the cancelled cleanup ctx")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want DeadlineExceeded", err)
+	}
+	if err := waitError(t, startErrCh, "group start after bounded stop"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("start result = %v, want DeadlineExceeded", err)
 	}
 }
 
@@ -587,11 +639,10 @@ func TestStagedGroupAbortBetweenStagesDoesNotStartLaterStage(t *testing.T) {
 	}
 }
 
-// TestStagedGroupPendingStopStartsFirstStageOnly is the non-empty counterpart
-// of the empty-first-stage abort: the first stage still start-then-stops, and
-// the next stage must not start. Stop is already pending before Start, so
-// once stage 0's Start has returned the later stage must stay unlaunched.
-func TestStagedGroupPendingStopStartsFirstStageOnly(t *testing.T) {
+// TestStagedGroupPendingStopStartsNoStage is the non-empty counterpart of the
+// empty-first-stage abort: no stage is launched, matching "stages whose start
+// never began receive neither Start nor Stop".
+func TestStagedGroupPendingStopStartsNoStage(t *testing.T) {
 	infra := scripttask.NewScriptTask("infra", func(context.Context) error {
 		return nil
 	}, nil)
@@ -610,15 +661,11 @@ func TestStagedGroupPendingStopStartsFirstStageOnly(t *testing.T) {
 		t.Fatalf("expected nil start result after pending stop, got %v", err)
 	}
 
-	waitSignal(t, infra.Stopped(), "infra stopped")
-	if !infra.IsStarted() {
-		t.Fatal("first stage must still start-then-stop for a pending stop")
+	if infra.IsStarted() || infra.IsStopped() {
+		t.Fatal("stage 0 must not start or stop after a pending stop")
 	}
-	if http.IsStarted() {
-		t.Fatal("stage 1 must not start after a pending stop")
-	}
-	if http.IsStopped() {
-		t.Fatal("stage 1 must not be stopped when it never started")
+	if http.IsStarted() || http.IsStopped() {
+		t.Fatal("stage 1 must not start or stop after a pending stop")
 	}
 }
 

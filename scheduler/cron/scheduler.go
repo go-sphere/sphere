@@ -144,16 +144,12 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Unlock()
 
 	<-runCtx.Done()
-	// Tear the runtime down before returning. Returning on the bare context
-	// cancellation left the cron running: scheduled jobs kept firing after Start
-	// had already reported that it was finished, and nothing could stop them
-	// because Start is what the caller was waiting on. Stop is idempotent, so a
-	// Stop that triggered this cancellation simply joins the drain in flight.
-	stopErr := s.Stop(context.WithoutCancel(ctx))
-	if err := runCtx.Err(); err != nil {
-		return err
-	}
-	return stopErr
+	// Stop is the cleanup half of the Task contract. Returning here lets the
+	// runner (Group, boot.Run) apply its shutdown budget to Stop. A Start that
+	// called Stop with a detached context made that budget unreachable: the
+	// runner waited on Start, which waited on an unbounded drain. Cancelling
+	// the parent context without Stop leaves the runtime live — call Stop.
+	return runCtx.Err()
 }
 
 func (s *Scheduler) Stop(ctx context.Context) error {

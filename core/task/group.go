@@ -79,6 +79,11 @@ const defaultCleanupTimeout = 30 * time.Second
 // This replaces WithAutoStopTimeout, which was removed without an alias. The
 // behaviour is unchanged — the old name never bounded Group.Stop either — so the
 // migration is a rename and nothing more.
+//
+// An external Stop(ctx) whose ctx has a deadline also bounds member Stop:
+// the members see min(ctx deadline, this timeout). This timeout alone applies
+// when the group tears itself down (task failure, parent cancel, natural
+// complete).
 func WithCleanupTimeout(timeout time.Duration) GroupOption {
 	return func(o *groupOptions) {
 		o.cleanupTimeout = timeout
@@ -104,8 +109,11 @@ func WithStartTimeout(timeout time.Duration) GroupOption {
 
 // Group manages the lifecycle of multiple tasks as a coordinated unit.
 // Tasks in one stage start together; staged groups start stages in order and
-// stop them in reverse. The group implements the Task interface, allowing it
-// to be nested within other groups.
+// stop them in reverse. Start does not return until every started member has
+// been stopped. The group implements Task, so it can be nested or passed to
+// boot.NewApplication.
+//
+// See the package comment for the one-shot and HTTP-process recipes.
 type Group struct {
 	tasks []Task
 	// waves defines the staged lifecycle order. When nil, all tasks form one
@@ -126,10 +134,14 @@ type Group struct {
 	// of running forever: Stop is the only way in, and stopReqCh does not exist
 	// until Start creates it, so a dropped early Stop would be unrecoverable.
 	stopPending bool
+	// stopCleanupCtx is the ctx from the first Stop that requested shutdown
+	// while running. beginStop uses it to bound member Stop; waitForDone still
+	// uses each caller's ctx independently.
+	stopCleanupCtx context.Context
 }
 
-// NewGroup creates a new task group with the provided tasks.
-// All tasks will be managed together with coordinated startup and shutdown.
+// NewGroup creates a group that starts and stops all tasks concurrently.
+// For ordered drain (HTTP before a closer it still uses), use NewStagedGroup.
 func NewGroup(tasks ...Task) *Group {
 	return NewGroupWithOptions(tasks)
 }
@@ -204,227 +216,12 @@ func (g *Group) Identifier() string {
 	return "group"
 }
 
-// Start begins the group's tasks in staged order. Tasks within one stage start
-// concurrently; the next stage only begins once every task in the current
-// stage has finished Start successfully, so a stage can rely on the resources
-// its predecessors advertise. If any task fails to start, every stage that
-// began is stopped in reverse order. A group without stages (NewGroup) starts
-// all tasks concurrently.
-//
-// Stop is always invoked for every task whose Start was called, including
-// when every Start returns on its own (one-shot tasks). Group.Start does not
-// return until that cleanup has settled.
-// Returns an error if the group is already started/stopped or if any task fails.
-func (g *Group) Start(ctx context.Context) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	tasks := g.tasks
-	for idx, task := range tasks {
-		if task == nil {
-			return fmt.Errorf("task at index %d is nil", idx)
-		}
-	}
-
-	g.mu.Lock()
-	switch g.state {
-	case groupStateInit:
-		g.state = groupStateRunning
-		g.stopReqCh = make(chan shutdownReason, 1)
-		g.doneCh = make(chan struct{})
-		g.resultErr = nil
-		if g.stopPending {
-			// Stop raced ahead of this transition; honour it now.
-			g.stopPending = false
-			g.stopReqCh <- shutdownManualStop
-		}
-	case groupStateRunning, groupStateStopping:
-		g.mu.Unlock()
-		return ErrGroupAlreadyStarted
-	case groupStateStopped:
-		g.mu.Unlock()
-		return ErrGroupAlreadyStopped
-	default:
-		g.mu.Unlock()
-		return errors.New("task group in unknown state")
-	}
-	stopReqCh := g.stopReqCh
-	doneCh := g.doneCh
-	g.mu.Unlock()
-
-	runCtx, runCancel := context.WithCancel(ctx)
-	defer runCancel()
-
-	type startResult struct {
-		idx int
-		err error
-	}
-	stages := g.waves
-	if stages == nil {
-		stages = [][]Task{tasks}
-	}
-
-	var (
-		startErrs      multierr.Error
-		stopErrs       multierr.Error
-		stopOnce       sync.Once
-		stopDone       = make(chan struct{})
-		reason         shutdownReason
-		stopInProgress bool
-	)
-	beginStop := func(stopReason shutdownReason, stopUpTo int) {
-		stopOnce.Do(func() {
-			stopInProgress = true
-			reason = stopReason
-
-			g.mu.Lock()
-			g.state = groupStateStopping
-			g.mu.Unlock()
-
-			runCancel()
-
-			go func() {
-				stopCtx, stopCancel := g.newCleanupContext()
-				defer stopCancel()
-				g.stopTasks(stopCtx, &stopErrs, stopUpTo)
-				close(stopDone)
-			}()
-		})
-	}
-
-	// Capture ctx.Done() locally so it can be disabled once handled. A cancelled
-	// ctx keeps its Done channel readable forever; nil-ing the case prevents the
-	// select from busy-spinning while remaining tasks drain.
-	ctxDone := ctx.Done()
-	for stageIdx, stage := range stages {
-		// A stop request or parent cancellation that arrived while the previous
-		// stage was starting must be honoured before this stage begins, so its
-		// tasks are never launched only to be torn down. The first stage is
-		// exempt: a pending request there still observes the historical
-		// start-then-stop sequence the stopReqCh race handling relies on.
-		if stageIdx > 0 {
-			select {
-			case reqReason := <-stopReqCh:
-				beginStop(reqReason, stageIdx-1)
-			case <-ctxDone:
-				ctxDone = nil
-				beginStop(shutdownParentCancel, stageIdx-1)
-			default:
-			}
-		}
-		if stopInProgress {
-			break
-		}
-
-		startResults := make(chan startResult, len(stage))
-		startedIDs := make([]string, len(stage))
-		finished := make([]bool, len(stage))
-		for i, t := range stage {
-			task := t
-			idx := i
-			id := task.Identifier()
-			startedIDs[idx] = id
-			go func() {
-				err := execute(runCtx, id, task, func(taskCtx context.Context, current Task) error {
-					log.Infof("<task> %s starting", current.Identifier())
-					return current.Start(taskCtx)
-				})
-				startResults <- startResult{idx: idx, err: err}
-			}()
-		}
-
-		var startDeadline <-chan time.Time
-		var startTimer *time.Timer
-		if stageIdx < len(stages)-1 && g.opts.startTimeout > 0 {
-			startTimer = time.NewTimer(g.opts.startTimeout)
-			startDeadline = startTimer.C
-		}
-
-		remaining := len(stage)
-		for remaining > 0 {
-			select {
-			case reqReason := <-stopReqCh:
-				beginStop(reqReason, stageIdx)
-			case <-ctxDone:
-				ctxDone = nil
-				beginStop(shutdownParentCancel, stageIdx)
-			case <-startDeadline:
-				startDeadline = nil
-				var stuck []string
-				for i, id := range startedIDs {
-					if !finished[i] {
-						stuck = append(stuck, id)
-					}
-				}
-				sort.Strings(stuck)
-				startErrs.Add(fmt.Errorf("%w: stage %d still starting: %s", ErrStartTimeout, stageIdx, strings.Join(stuck, ", ")))
-				beginStop(shutdownTaskFailure, stageIdx)
-			case result := <-startResults:
-				remaining--
-				if result.idx >= 0 && result.idx < len(finished) {
-					finished[result.idx] = true
-				}
-				if result.err == nil {
-					continue
-				}
-				// A context.Canceled result is only expected when the group itself
-				// is tearing down: either an internal beginStop cancelled runCtx, or
-				// a parent ctx cancellation propagated into runCtx. When runCtx is
-				// still live the task failed on its own — even if it wraps
-				// context.Canceled — so it must count as a failure and stop the rest
-				// rather than being silently swallowed.
-				if errors.Is(result.err, context.Canceled) && runCtx.Err() != nil {
-					continue
-				}
-				startErrs.Add(result.err)
-				beginStop(shutdownTaskFailure, stageIdx)
-			}
-		}
-		if startTimer != nil {
-			startTimer.Stop()
-		}
-	}
-
-	if !stopInProgress && len(stages) > 0 {
-		beginStop(shutdownNaturalComplete, len(stages)-1)
-	}
-	if stopInProgress {
-		<-stopDone
-	}
-
-	var finalErr error
-	switch reason {
-	case shutdownTaskFailure, shutdownManualStop, shutdownParentCancel, shutdownNaturalComplete:
-		// Start errors are joined here, not only stop errors. A task that failed
-		// for its own reasons while the group was already tearing down used to be
-		// discarded on these two paths, so a graceful shutdown reported success
-		// even when a task died badly on the way out. Reporting it means an
-		// ordinary signal-triggered shutdown can now return non-nil, which callers
-		// typically map to a non-zero exit code. This is not an error injected by
-		// the teardown itself: startErrs only ever holds results that survived the
-		// context.Canceled filter above, so cancellation-driven exits stay nil.
-		finalErr = errors.Join(startErrs.Unwrap(), stopErrs.Unwrap())
-	default:
-		finalErr = startErrs.Unwrap()
-	}
-
-	g.mu.Lock()
-	g.resultErr = finalErr
-	g.state = groupStateStopped
-	g.stopReqCh = nil
-	g.mu.Unlock()
-	close(doneCh)
-
-	return finalErr
-}
-
 // Stop gracefully shuts down all tasks in the group.
 // It blocks until shutdown completes or the provided context expires.
-// The provided context only bounds the caller's wait; task Stop calls use the
-// cleanup context configured by WithCleanupTimeout.
+// If ctx has a deadline, member Stop calls are bounded by min(that deadline,
+// WithCleanupTimeout). The same ctx still bounds this caller's wait.
 // Calling Stop before Start records the request and returns nil: a subsequent
-// Start tears the group down immediately rather than running unstoppably.
+// Start returns without launching members.
 func (g *Group) Stop(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -439,6 +236,9 @@ func (g *Group) Stop(ctx context.Context) error {
 		g.stopPending = true
 		g.mu.Unlock()
 		return nil
+	}
+	if g.state == groupStateRunning && g.stopCleanupCtx == nil {
+		g.stopCleanupCtx = ctx
 	}
 	state := g.state
 	stopReqCh := g.stopReqCh
@@ -489,7 +289,14 @@ func (g *Group) waitForDone(ctx context.Context, done <-chan struct{}) error {
 		defer g.mu.Unlock()
 		return g.resultErr
 	case <-ctx.Done():
-		return ctx.Err()
+		select {
+		case <-done:
+			g.mu.Lock()
+			defer g.mu.Unlock()
+			return g.resultErr
+		default:
+			return ctx.Err()
+		}
 	}
 }
 
@@ -561,6 +368,9 @@ func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error, upToWav
 		}
 		stopWG.Wait()
 	}
+	if upToWave < 0 {
+		return
+	}
 	if upToWave >= len(waves) {
 		upToWave = len(waves) - 1
 	}
@@ -569,13 +379,25 @@ func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error, upToWav
 	}
 }
 
-func (g *Group) newCleanupContext() (context.Context, context.CancelFunc) {
+func (g *Group) cleanupTimeout() time.Duration {
 	timeout := g.opts.cleanupTimeout
 	if !g.opts.cleanupTimeoutSet {
 		timeout = defaultCleanupTimeout
 	}
-	if timeout <= 0 {
-		return context.Background(), func() {}
+	return timeout
+}
+
+func (g *Group) cleanupContext(outer context.Context) (context.Context, context.CancelFunc) {
+	if outer == nil {
+		outer = context.Background()
 	}
-	return context.WithTimeout(context.Background(), timeout)
+	timeout := g.cleanupTimeout()
+	if timeout <= 0 {
+		return context.WithCancel(outer)
+	}
+	return context.WithTimeout(outer, timeout)
+}
+
+func (g *Group) newCleanupContext() (context.Context, context.CancelFunc) {
+	return g.cleanupContext(context.Background())
 }
