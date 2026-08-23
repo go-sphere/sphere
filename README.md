@@ -62,9 +62,11 @@ For complete documentation, visit [go-sphere.github.io](https://go-sphere.github
 - [Quick Start](https://go-sphere.github.io/docs/getting-started)
 - [Development Workflow](https://go-sphere.github.io/docs/getting-started/workflow)
 - [API Definitions](https://go-sphere.github.io/docs/guides/api-definitions)
+- [HTTP Runtime](https://go-sphere.github.io/docs/guides/http-runtime)
 - [Error Handling](https://go-sphere.github.io/docs/guides/error-handling)
 - [Logging](https://go-sphere.github.io/docs/guides/logging)
-- [Scheduler](./docs/scheduler.md)
+- [Cache, Storage, Boot](https://go-sphere.github.io/docs/guides/infrastructure)
+- [Upgrading to v0.0.4](https://go-sphere.github.io/docs/guides/upgrading)
 
 ## License
 
