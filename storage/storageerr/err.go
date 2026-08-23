@@ -8,12 +8,18 @@ import (
 
 // Common storage operation errors with appropriate HTTP status codes.
 var (
-	// ErrorNotFound indicates that the requested storage key does not exist.
-	ErrorNotFound = httpx.NotFoundError(errors.New("key not found"))
+	// ErrNotFound indicates that the requested storage key does not exist.
+	ErrNotFound = httpx.NotFoundError(errors.New("key not found"))
 
-	// ErrorDistExisted indicates that the destination key already exists when overwrite is disabled.
-	ErrorDistExisted = httpx.BadRequestError(errors.New("destination key existed"))
+	// ErrDestExists indicates that the destination key already exists when overwrite is disabled.
+	ErrDestExists = httpx.BadRequestError(errors.New("destination key existed"))
 
-	// ErrorFileNameInvalid indicates that the provided file name or path is invalid or unsafe.
-	ErrorFileNameInvalid = httpx.BadRequestError(errors.New("file name invalid"))
+	// ErrFileNameInvalid indicates that the provided file name or path is invalid or unsafe.
+	ErrFileNameInvalid = httpx.BadRequestError(errors.New("file name invalid"))
+
+	// Backwards-compatible aliases and alternate spellings.
+	ErrorNotFound        = ErrNotFound
+	ErrorDestExisted     = ErrDestExists
+	ErrorDistExisted     = ErrDestExists // Deprecated: typo in original name, use ErrDestExists or ErrorDestExisted instead
+	ErrorFileNameInvalid = ErrFileNameInvalid
 )

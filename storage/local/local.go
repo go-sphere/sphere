@@ -269,7 +269,19 @@ func (c *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 		if e := ctx.Err(); e != nil {
 			return e
 		}
-		if d.IsDir() || !d.Type().IsRegular() {
+		if d.IsDir() {
+			if path != rootDir && prefix != "" {
+				rel, relErr := filepath.Rel(rootDir, path)
+				if relErr == nil {
+					dirKey := filepath.ToSlash(rel)
+					if !strings.HasPrefix(prefix, dirKey+"/") && !strings.HasPrefix(dirKey, prefix) && dirKey != prefix {
+						return filepath.SkipDir
+					}
+				}
+			}
+			return nil
+		}
+		if !d.Type().IsRegular() {
 			return nil
 		}
 		// An in-progress (or orphaned) atomic write is not a stored key.
@@ -385,7 +397,7 @@ func (c *Client) checkOverwrite(path string, overwrite bool) error {
 		return err
 	}
 	if !overwrite {
-		return storageerr.ErrorDistExisted
+		return storageerr.ErrDestExists
 	}
 	return nil
 }

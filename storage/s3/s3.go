@@ -3,7 +3,9 @@ package s3
 import (
 	"context"
 	"io"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -124,7 +126,9 @@ func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	if err != nil {
 		return "", err
 	}
-	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, -1, minio.PutObjectOptions{})
+	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, -1, minio.PutObjectOptions{
+		ContentType: mime.TypeByExtension(filepath.Ext(key)),
+	})
 	if err != nil {
 		return "", err
 	}
@@ -137,7 +141,9 @@ func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	if err != nil {
 		return "", err
 	}
-	info, err := s.client.FPutObject(ctx, s.config.Bucket, key, file, minio.PutObjectOptions{})
+	info, err := s.client.FPutObject(ctx, s.config.Bucket, key, file, minio.PutObjectOptions{
+		ContentType: mime.TypeByExtension(filepath.Ext(key)),
+	})
 	if err != nil {
 		return "", err
 	}
@@ -264,11 +270,28 @@ func (s *Client) DeleteFile(ctx context.Context, key string) error {
 // MoveFile relocates a file from source to destination key within the S3 bucket.
 // It performs a copy operation followed by deletion of the source file.
 func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	err := s.CopyFile(ctx, sourceKey, destinationKey, overwrite)
+	sourceKey, err := s.keyPreprocess(sourceKey)
 	if err != nil {
 		return err
 	}
-	sourceKey, err = s.keyPreprocess(sourceKey)
+	destinationKey, err = s.keyPreprocess(destinationKey)
+	if err != nil {
+		return err
+	}
+	// A move onto itself is a no-op, and must not run copy-then-delete: the
+	// delete would remove the very object the copy just wrote, reporting
+	// success while destroying the object.
+	if sourceKey == destinationKey {
+		exists, err := s.IsFileExists(ctx, sourceKey)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return storageerr.ErrNotFound
+		}
+		return nil
+	}
+	err = s.CopyFile(ctx, sourceKey, destinationKey, overwrite)
 	if err != nil {
 		return err
 	}
@@ -298,7 +321,7 @@ func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if !overwrite {
 		_, err := s.client.StatObject(ctx, s.config.Bucket, destinationKey, minio.StatObjectOptions{})
 		if err == nil {
-			return storageerr.ErrorDistExisted
+			return storageerr.ErrDestExists
 		}
 		if !isNoSuchKeyError(err) {
 			return err
@@ -313,7 +336,7 @@ func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	})
 	if err != nil {
 		if isNoSuchKeyError(err) {
-			return storageerr.ErrorNotFound
+			return storageerr.ErrNotFound
 		}
 		return err
 	}

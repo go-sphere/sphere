@@ -6,8 +6,11 @@ import (
 	"strings"
 )
 
-// ErrorNotVerifyHost is returned when URL host verification fails in strict mode.
-var ErrorNotVerifyHost = fmt.Errorf("not verify host")
+// ErrHostVerificationFailed is returned when URL host verification fails in strict mode.
+var ErrHostVerificationFailed = fmt.Errorf("not verify host")
+
+// ErrorNotVerifyHost is an alias for ErrHostVerificationFailed for backwards compatibility.
+var ErrorNotVerifyHost = ErrHostVerificationFailed
 
 // Handler provides URL generation and key extraction for storage backends.
 // It manages the relationship between storage keys and their public URLs.

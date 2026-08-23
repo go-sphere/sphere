@@ -171,7 +171,7 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 			return err
 		}
 		if found {
-			return storageerr.ErrorDistExisted
+			return storageerr.ErrDestExists
 		}
 	}
 	value, found, err := c.cache.Get(ctx, sourceKey)

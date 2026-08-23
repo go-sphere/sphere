@@ -249,3 +249,30 @@ func TestStorageKeyNormalization(t *testing.T) {
 		})
 	}
 }
+
+func TestStorageMoveToSameKey(t *testing.T) {
+	for _, factory := range storageFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			ctx := context.Background()
+			store := factory.new(t)
+
+			// Missing file move to itself should return ErrNotFound
+			err := store.MoveFile(ctx, "nonexistent.txt", "nonexistent.txt", true)
+			if !errors.Is(err, storageerr.ErrNotFound) {
+				t.Fatalf("MoveFile(missing to same) error = %v, want %v", err, storageerr.ErrNotFound)
+			}
+
+			// Existing file move to itself with overwrite=true should preserve the file
+			const key = "self/move.txt"
+			if _, err := store.UploadFile(ctx, bytes.NewBufferString("preserve-content"), key); err != nil {
+				t.Fatalf("seed: %v", err)
+			}
+			if err := store.MoveFile(ctx, key, key, true); err != nil {
+				t.Fatalf("MoveFile(same key, overwrite=true): %v", err)
+			}
+			if got := readStorageFile(t, ctx, store, key); got != "preserve-content" {
+				t.Fatalf("file content changed after moving to same key: got %q, want %q", got, "preserve-content")
+			}
+		})
+	}
+}

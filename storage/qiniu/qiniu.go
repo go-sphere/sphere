@@ -341,10 +341,10 @@ func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	err = manager.Move(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {
 		if isNotFoundError(err) {
-			return storageerr.ErrorNotFound
+			return storageerr.ErrNotFound
 		}
 		if !overwrite && isDestinationExistsError(err) {
-			return storageerr.ErrorDistExisted
+			return storageerr.ErrDestExists
 		}
 		return err
 	}
@@ -365,10 +365,10 @@ func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	err = manager.Copy(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {
 		if isNotFoundError(err) {
-			return storageerr.ErrorNotFound
+			return storageerr.ErrNotFound
 		}
 		if !overwrite && isDestinationExistsError(err) {
-			return storageerr.ErrorDistExisted
+			return storageerr.ErrDestExists
 		}
 		return err
 	}
