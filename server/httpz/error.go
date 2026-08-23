@@ -77,14 +77,16 @@ func AbortWithJsonError(ctx httpx.Context, err error) {
 	if !errors.As(err, &ce) {
 		code = 0
 	}
-	// Message is user-facing and always returned, so it must not become a second
-	// channel for raw error text. httpx.ParseError falls back to err.Error() for
-	// anything that does not implement httpx.MessageError, which puts driver and
-	// database strings (credentials, hostnames, SQL) on the wire. Only an
-	// explicit, non-empty message survives; everything else degrades to the
-	// generic status text.
+	// Message is user-facing. Prefer an explicit MessageError. Otherwise keep a
+	// parser-supplied message only when it is not the raw err.Error() string —
+	// that is how a custom parser maps protovalidate (or similar) without
+	// wrapping. httpx.ParseError falls back to err.Error() for unclassified
+	// errors, which would leak driver and database strings; those degrade to
+	// the generic status text.
 	var me httpx.MessageError
-	if !errors.As(err, &me) || message == "" {
+	if errors.As(err, &me) && me.GetMessage() != "" {
+		message = me.GetMessage()
+	} else if message == "" || message == err.Error() {
 		message = http.StatusText(int(status))
 	}
 	resp := ErrorResponse{

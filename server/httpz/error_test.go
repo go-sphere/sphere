@@ -196,3 +196,55 @@ func TestSetDefaultErrorParserIgnoresNil(t *testing.T) {
 		t.Fatalf("expected the previous parser to remain active, got status %d", ctx.status)
 	}
 }
+
+func TestAbortWithJsonError_CustomParserMessageKept(t *testing.T) {
+	prev := DebugMode()
+	SetDebugMode(false)
+	t.Cleanup(func() {
+		SetDebugMode(prev)
+		SetDefaultErrorParser(httpx.ParseError)
+	})
+
+	const userMsg = "name is required"
+	raw := errors.New("validation error: name: required")
+	SetDefaultErrorParser(func(err error) (int32, int32, string) {
+		return 0, http.StatusBadRequest, userMsg
+	})
+
+	ctx := &fakeContext{}
+	AbortWithJsonError(ctx, raw)
+	if ctx.status != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.status)
+	}
+	resp := ctx.body.(ErrorResponse)
+	if resp.Message != userMsg {
+		t.Fatalf("message = %q, want %q", resp.Message, userMsg)
+	}
+	if resp.Error != "" {
+		t.Fatalf("leaked Error: %q", resp.Error)
+	}
+	if resp.Code != 0 {
+		t.Fatalf("code = %d, want 0", resp.Code)
+	}
+}
+
+func TestAbortWithJsonError_ParserEchoingRawErrorIsSanitized(t *testing.T) {
+	prev := DebugMode()
+	SetDebugMode(false)
+	t.Cleanup(func() {
+		SetDebugMode(prev)
+		SetDefaultErrorParser(httpx.ParseError)
+	})
+
+	raw := errors.New("pq: password authentication failed")
+	SetDefaultErrorParser(func(err error) (int32, int32, string) {
+		return 0, http.StatusInternalServerError, err.Error()
+	})
+
+	ctx := &fakeContext{}
+	AbortWithJsonError(ctx, raw)
+	resp := ctx.body.(ErrorResponse)
+	if resp.Message != http.StatusText(http.StatusInternalServerError) {
+		t.Fatalf("message = %q", resp.Message)
+	}
+}
