@@ -2,6 +2,8 @@ package reverseproxy
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -70,8 +72,16 @@ func (c *CommonCache) Delete(ctx context.Context, key string) error {
 	)
 }
 
+// storageObjectName turns a cache key (often a RequestURI such as "/") into a
+// filename every storage driver will accept. NormalizeKey("/") is invalid, so
+// the raw URI must never be passed to UploadFile.
+func storageObjectName(cacheKey string) string {
+	sum := sha256.Sum256([]byte(cacheKey))
+	return hex.EncodeToString(sum[:])
+}
+
 func (c *CommonCache) Save(ctx context.Context, key string, header http.Header, reader io.Reader) error {
-	filename := key // base64 or uuid
+	filename := storageObjectName(key)
 	cacheFileKey, err := c.storage.UploadFile(ctx, reader, filename)
 	if err != nil {
 		return err

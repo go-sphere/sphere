@@ -1,6 +1,8 @@
 package test
 
 import (
+	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -134,6 +136,93 @@ func TestCodecCacheTTLAndDelete(t *testing.T) {
 		t.Fatalf("Exists after DelAll: %v", err)
 	} else if found {
 		t.Fatalf("DelAll must remove every key")
+	}
+}
+
+func TestCodecCacheGetDelUnmarshalErrorConsumesKey(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	inner := mcache.NewByteCache()
+	typed := cache.NewJsonCache[int](inner)
+	if err := inner.Set(ctx, "k", []byte("not-json")); err != nil {
+		t.Fatalf("Set raw: %v", err)
+	}
+
+	_, found, err := typed.GetDel(ctx, "k")
+	if err == nil {
+		t.Fatal("expected unmarshal error")
+	}
+	if !found {
+		t.Fatal("found should be true because GetDel consumed an existing entry")
+	}
+	exists, existsErr := inner.Exists(ctx, "k")
+	if existsErr != nil {
+		t.Fatalf("Exists: %v", existsErr)
+	}
+	if exists {
+		t.Fatal("undecodable key must be consumed by GetDel")
+	}
+}
+
+type getBarrierByteCache struct {
+	cache.ByteCache
+	readCount atomic.Int32
+	readTotal int32
+	allRead   chan struct{}
+}
+
+func (c *getBarrierByteCache) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	value, found, err := c.ByteCache.Get(ctx, key)
+	if c.readCount.Add(1) == c.readTotal {
+		close(c.allRead)
+	}
+	<-c.allRead
+	return value, found, err
+}
+
+func TestCodecCacheGetDelIsAtomic(t *testing.T) {
+	t.Parallel()
+
+	const consumers = 8
+	inner := &getBarrierByteCache{
+		ByteCache: mcache.NewByteCache(),
+		readTotal: consumers,
+		allRead:   make(chan struct{}),
+	}
+	typed := cache.NewJsonCache[int](inner)
+	ctx := t.Context()
+	if err := typed.Set(ctx, "once", 42); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	type result struct {
+		found bool
+		err   error
+	}
+	start := make(chan struct{})
+	results := make(chan result, consumers)
+	for range consumers {
+		go func() {
+			<-start
+			_, found, err := typed.GetDel(ctx, "once")
+			results <- result{found: found, err: err}
+		}()
+	}
+	close(start)
+
+	hits := 0
+	for range consumers {
+		result := <-results
+		if result.err != nil {
+			t.Fatalf("GetDel: %v", result.err)
+		}
+		if result.found {
+			hits++
+		}
+	}
+	if hits != 1 {
+		t.Fatalf("GetDel returned the same entry to %d callers, want 1", hits)
 	}
 }
 

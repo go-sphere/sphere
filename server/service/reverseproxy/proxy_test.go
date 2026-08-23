@@ -377,6 +377,62 @@ func TestCommonCache_SaveAndLoad(t *testing.T) {
 	}
 }
 
+func TestCommonCache_SaveRootPath(t *testing.T) {
+	cache := setupTestCache(t)
+	ctx := t.Context()
+	header := http.Header{"Content-Type": []string{"text/plain"}}
+
+	if err := cache.Save(ctx, "/", header, strings.NewReader("homepage")); err != nil {
+		t.Fatalf("Save GET /: %v", err)
+	}
+	loadedHeader, loadedBody, err := cache.Load(ctx, "/")
+	if err != nil {
+		t.Fatalf("Load GET /: %v", err)
+	}
+	defer loadedBody.Close()
+	if loadedHeader.Get("Content-Type") != "text/plain" {
+		t.Errorf("Content-Type = %q", loadedHeader.Get("Content-Type"))
+	}
+	got, err := io.ReadAll(loadedBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "homepage" {
+		t.Errorf("body = %q, want homepage", got)
+	}
+
+	if err := cache.Save(ctx, "/foo", header, strings.NewReader("without slash")); err != nil {
+		t.Fatalf("Save /foo: %v", err)
+	}
+	if err := cache.Save(ctx, "/foo/", header, strings.NewReader("with slash")); err != nil {
+		t.Fatalf("Save /foo/: %v", err)
+	}
+	_, otherBody, err := cache.Load(ctx, "/foo")
+	if err != nil {
+		t.Fatalf("Load /foo: %v", err)
+	}
+	defer otherBody.Close()
+	got, err = io.ReadAll(otherBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "without slash" {
+		t.Errorf("/foo body clobbered by /foo/: %q", got)
+	}
+	_, slashBody, err := cache.Load(ctx, "/foo/")
+	if err != nil {
+		t.Fatalf("Load /foo/: %v", err)
+	}
+	defer slashBody.Close()
+	got, err = io.ReadAll(slashBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "with slash" {
+		t.Errorf("/foo/ body clobbered by /foo: %q", got)
+	}
+}
+
 // TestCommonCache_Delete tests cache deletion
 func TestCommonCache_Delete(t *testing.T) {
 	cache := setupTestCache(t)
