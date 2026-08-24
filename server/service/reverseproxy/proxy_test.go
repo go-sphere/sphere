@@ -55,6 +55,38 @@ func TestCreateCacheReverseProxy(t *testing.T) {
 	}
 }
 
+func TestCreateCacheReverseProxyRejectsInvalidConfiguration(t *testing.T) {
+	targetURL, _ := url.Parse("http://example.com")
+
+	tests := []struct {
+		name  string
+		cache Cache
+		opts  []Option
+	}{
+		{name: "nil cache", opts: []Option{WithTargetURL(targetURL)}},
+		{name: "missing target", cache: setupTestCache(t)},
+		{name: "nil target", cache: setupTestCache(t), opts: []Option{WithTargetURL(nil)}},
+		{name: "nil cache key function", cache: setupTestCache(t), opts: []Option{
+			WithTargetURL(targetURL), WithCacheKeyFunc(nil),
+		}},
+		{name: "nil response checker", cache: setupTestCache(t), opts: []Option{
+			WithTargetURL(targetURL), WithResponseCacheCheck(nil),
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			proxy, err := CreateCacheReverseProxy(tt.cache, tt.opts...)
+			if err == nil {
+				t.Fatalf("CreateCacheReverseProxy() = (%v, nil), want error", proxy)
+			}
+			if proxy != nil {
+				t.Fatalf("CreateCacheReverseProxy() proxy = %v, want nil", proxy)
+			}
+		})
+	}
+}
+
 // TestServeCacheReverseProxy_CacheMiss tests proxy behavior when cache is empty
 func TestServeCacheReverseProxy_CacheMiss(t *testing.T) {
 	cache := setupTestCache(t)
@@ -738,6 +770,24 @@ func TestDefaultResponseCacheCheck(t *testing.T) {
 		}},
 		{name: "no-store", mutate: func(_ *http.Request, resp *http.Response) {
 			resp.Header.Set("Cache-Control", "no-store")
+		}},
+		{name: "no-cache", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Cache-Control", "no-cache")
+		}},
+		{name: "field-specific no-cache", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Cache-Control", `no-cache="X-Private"`)
+		}},
+		{name: "zero max-age", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Cache-Control", "public, max-age=0")
+		}},
+		{name: "zero shared max-age", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Cache-Control", "s-maxage=0")
+		}},
+		{name: "malformed max-age", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Cache-Control", "max-age=soon")
+		}},
+		{name: "positive shared max-age", want: true, mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Cache-Control", "public, s-maxage=60")
 		}},
 		{name: "private among directives", mutate: func(_ *http.Request, resp *http.Response) {
 			resp.Header.Set("Cache-Control", "max-age=60, private")

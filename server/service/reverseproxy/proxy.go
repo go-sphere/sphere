@@ -3,9 +3,11 @@
 //
 // CreateCacheReverseProxy tees the upstream body to the client and the
 // cache. ServeCacheReverseProxy serves a cache hit then falls through.
-// Defaults follow RFC 9111 for a shared cache: no credentialed/private/
-// Set-Cookie responses; Vary only Accept-Encoding. Default cache key is
-// GET RequestURI(); non-GET is not cached.
+// Defaults are conservative for a shared cache: no credentialed, private,
+// no-store, no-cache, immediately stale, Set-Cookie, or unsupported Vary
+// responses. The backing ByteCache options govern stored response lifetime;
+// this proxy does not revalidate with the upstream. Default cache key is GET
+// RequestURI(); non-GET is not cached.
 //
 // Cache save runs on a context detached from the request (default 30s).
 // Save failure does not affect the client stream. Load errors other than
@@ -70,12 +72,14 @@ func defaultCacheKey(request *http.Request) string {
 // so anything stored here is replayable by an anonymous caller — which makes
 // "is this response private?" the only question that matters.
 //
-// The rules follow RFC 9111: a request carrying credentials is assumed to
-// produce a user-specific response, and an upstream that says no-store, private,
-// or sets a cookie is taken at its word. Vary is honoured by refusing to store,
-// not by negotiating: the cache key is computed from the request alone on
-// lookup, where the response's Vary is not yet known, so a varying response
-// cannot be keyed correctly and must not be stored at all.
+// A request carrying credentials is assumed to produce a user-specific
+// response, and an upstream that says no-store, private, no-cache, immediately
+// stale, or sets a cookie is taken at its word. This cache cannot revalidate a
+// stored response, so directives that require revalidation are rejected. Vary
+// is honoured by refusing to store, not by negotiating: the cache key is
+// computed from the request alone on lookup, where the response's Vary is not
+// yet known, so a varying response cannot be keyed correctly and must not be
+// stored at all.
 //
 // Callers that know better can replace this via WithResponseCacheCheck — for
 // example to cache per-user responses under a key that includes the user.
@@ -94,20 +98,31 @@ func defaultResponseCacheCheck(resp *http.Response) bool {
 	if len(resp.Header.Values("Set-Cookie")) > 0 {
 		return false
 	}
-	if hasNoStoreDirective(resp.Header.Values("Cache-Control")) {
+	if hasUncacheableDirective(resp.Header.Values("Cache-Control")) {
 		return false
 	}
 	return varyIsCacheable(resp.Header.Values("Vary"))
 }
 
-// hasNoStoreDirective reports whether Cache-Control forbids shared storage.
-// "private" counts: this cache is shared by definition.
-func hasNoStoreDirective(values []string) bool {
+// hasUncacheableDirective reports whether Cache-Control forbids shared storage
+// or requires revalidation that this cache cannot perform. "private" counts
+// because this cache is shared by definition. A non-positive or malformed age
+// is rejected because replaying it without validation would make it stale.
+func hasUncacheableDirective(values []string) bool {
 	for _, value := range values {
 		for directive := range strings.SplitSeq(value, ",") {
-			switch strings.ToLower(strings.TrimSpace(directive)) {
-			case "no-store", "private":
+			name, rawAge, hasValue := strings.Cut(strings.TrimSpace(directive), "=")
+			switch strings.ToLower(strings.TrimSpace(name)) {
+			case "no-store", "private", "no-cache":
 				return true
+			case "max-age", "s-maxage":
+				if !hasValue {
+					return true
+				}
+				age, err := strconv.ParseInt(strings.Trim(strings.TrimSpace(rawAge), `"`), 10, 64)
+				if err != nil || age <= 0 {
+					return true
+				}
 			}
 		}
 	}
@@ -221,10 +236,23 @@ func ignoreCloseError(closer func() error) {
 	_ = closer()
 }
 
-// CreateCacheReverseProxy returns a ReverseProxy that tees an eligible upstream body to the client and the cache.
-// WithTargetURL is required: a nil target panics. The error return is always nil.
+// CreateCacheReverseProxy returns a ReverseProxy that tees an eligible upstream
+// body to the client and the cache. cache and WithTargetURL are required. It
+// returns an error when a required dependency or callback is nil.
 func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProxy, error) {
 	conf := newOptions(opts...)
+	if cache == nil {
+		return nil, errors.New("reverseproxy: cache is required")
+	}
+	if conf.target == nil {
+		return nil, errors.New("reverseproxy: target URL is required")
+	}
+	if conf.keygen == nil {
+		return nil, errors.New("reverseproxy: cache key function is required")
+	}
+	if conf.checker == nil {
+		return nil, errors.New("reverseproxy: response cache checker is required")
+	}
 	proxy := httputil.NewSingleHostReverseProxy(conf.target)
 	if conf.director != nil {
 		originalDirector := proxy.Director
