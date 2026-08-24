@@ -9,11 +9,16 @@ package nscache
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/go-sphere/sphere/cache"
 )
+
+// ErrInvalidNamespace is returned by NewNSCacheChecked when namespace contains
+// ":". Colons are reserved as the separator between namespace and key.
+var ErrInvalidNamespace = errors.New("nscache: namespace must not contain ':'")
 
 // NSCache is a namespaced cache wrapper that prefixes every key with
 // "<namespace>:" before delegating to an underlying cache.Cache.
@@ -32,13 +37,24 @@ type NSCache[S any] struct {
 	cache     cache.Cache[S]
 }
 
-// NewNSCache wraps cache with a key prefix of namespace + ":". It does not
-// reject a namespace that contains ":".
+// NewNSCache wraps cache with a key prefix of namespace + ":". It assumes the
+// namespace is trusted and does not contain ":". Use NewNSCacheChecked for a
+// namespace read from configuration or other external input.
 func NewNSCache[S any](namespace string, cache cache.Cache[S]) *NSCache[S] {
 	return &NSCache[S]{
 		namespace: namespace,
 		cache:     cache,
 	}
+}
+
+// NewNSCacheChecked wraps cache with a validated namespace. A namespace that
+// contains ":" returns ErrInvalidNamespace because it would overlap another
+// namespace under the prefix-based Keys and DelAll implementation.
+func NewNSCacheChecked[S any](namespace string, cache cache.Cache[S]) (*NSCache[S], error) {
+	if strings.Contains(namespace, ":") {
+		return nil, ErrInvalidNamespace
+	}
+	return NewNSCache(namespace, cache), nil
 }
 
 func (n *NSCache[S]) keygen(key string) string {

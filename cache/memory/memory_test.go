@@ -154,3 +154,48 @@ func TestSetAllowAsyncWritesConcurrent(t *testing.T) {
 		t.Fatalf("concurrent Set: %v", err)
 	}
 }
+
+func TestGetDelIsAtomicWithSet(t *testing.T) {
+	ctx := context.Background()
+	c := NewMemoryCache[string]()
+	t.Cleanup(func() { _ = c.Close() })
+
+	const attempts = 20_000
+	for i := range attempts {
+		if err := c.Set(ctx, "k", "old"); err != nil {
+			t.Fatalf("seed attempt %d: %v", i, err)
+		}
+
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		var got string
+		var found bool
+		wg.Go(func() {
+			<-start
+			if err := c.Set(ctx, "k", "new"); err != nil {
+				t.Errorf("Set attempt %d: %v", i, err)
+			}
+		})
+		wg.Go(func() {
+			<-start
+			var err error
+			got, found, err = c.GetDel(ctx, "k")
+			if err != nil {
+				t.Errorf("GetDel attempt %d: %v", i, err)
+			}
+		})
+		close(start)
+		wg.Wait()
+
+		final, exists, err := c.Get(ctx, "k")
+		if err != nil {
+			t.Fatalf("Get attempt %d: %v", i, err)
+		}
+		if found && got == "old" && !exists {
+			t.Fatalf("non-linearizable result at attempt %d: GetDel returned old value and deleted concurrent Set", i)
+		}
+		if err := c.Del(ctx, "k"); err != nil {
+			t.Fatalf("cleanup attempt %d (final=%q): %v", i, final, err)
+		}
+	}
+}

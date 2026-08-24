@@ -147,6 +147,31 @@ func TestNSCacheDelAllNamespaceIsolation(t *testing.T) {
 	}
 }
 
+func TestNewNSCacheCheckedValidatesNamespace(t *testing.T) {
+	backend := mcache.NewByteCache()
+	t.Cleanup(func() { _ = backend.Close() })
+
+	for _, namespace := range []string{"a:b", ":"} {
+		t.Run(namespace, func(t *testing.T) {
+			got, err := nscache.NewNSCacheChecked[[]byte](namespace, backend)
+			if !errors.Is(err, nscache.ErrInvalidNamespace) {
+				t.Fatalf("NewNSCacheChecked(%q) error = %v, want ErrInvalidNamespace", namespace, err)
+			}
+			if got != nil {
+				t.Fatalf("NewNSCacheChecked(%q) = %v, want nil", namespace, got)
+			}
+		})
+	}
+
+	got, err := nscache.NewNSCacheChecked[[]byte]("safe", backend)
+	if err != nil {
+		t.Fatalf("NewNSCacheChecked(valid): %v", err)
+	}
+	if got == nil {
+		t.Fatal("NewNSCacheChecked(valid) returned nil")
+	}
+}
+
 func TestNSCacheDelAllEmpty(t *testing.T) {
 	for _, factory := range backendFactories() {
 		if !factory.supportsListing {

@@ -12,9 +12,10 @@ var _ Cache[any] = (*CodecCache[any])(nil)
 
 // CodecCache adapts a ByteCache to a typed Cache[T] using the provided codec.
 // Close is a no-op; DelAll forwards to the inner ByteCache (redis FlushDB if
-// that is the backend). MultiGet drops undecodable keys. Get returns an
-// unmarshal error without deleting; GetDel atomically consumes the raw entry
-// before decoding it and reports found=true when that entry is undecodable.
+// that is the backend). MultiGet omits undecodable entries without deleting
+// them. Get returns an unmarshal error without deleting; GetDel atomically
+// consumes the raw entry before decoding it and reports found=true when that
+// entry is undecodable.
 type CodecCache[T any] struct {
 	cache ByteCache
 	codec codec.Codec
@@ -131,19 +132,13 @@ func (m *CodecCache[T]) MultiGet(ctx context.Context, keys []string) (map[string
 			// Skip the entry instead of failing the batch. A single undecodable
 			// value — written under an older schema, or by a different type
 			// sharing the key space — used to discard every other result in the
-			// request. The stale entry is deleted so the next read misses and
-			// can rebuild it. Single-key Get leaves an undecodable entry in
-			// place; GetDel has already atomically consumed it.
-			log.Warn("cache: dropping undecodable entry",
+			// request. Do not delete it here: another caller may have repaired the
+			// key since MultiGet took its snapshot. Single-key Get also leaves an
+			// undecodable entry in place; GetDel has atomically consumed it.
+			log.Warn("cache: skipping undecodable entry",
 				log.String("key", key),
 				log.Err(err),
 			)
-			if delErr := m.cache.Del(ctx, key); delErr != nil {
-				log.Warn("cache: failed to drop undecodable entry",
-					log.String("key", key),
-					log.Err(delErr),
-				)
-			}
 			continue
 		}
 		result[key] = val

@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -263,5 +264,49 @@ func TestJsonCacheAdapter(t *testing.T) {
 	}
 	if m["k2"]["v"] != 2 || m["k3"]["v"] != 3 {
 		t.Fatalf("MultiGet mismatch: %v", m)
+	}
+}
+
+func TestCodecCacheMultiGetDoesNotDeleteConcurrentRepair(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	inner := mcache.NewByteCache()
+	started := make(chan struct{})
+	resume := make(chan struct{})
+	jsonCodec := codec.JsonCodec()
+	blockingCodec := codec.NewCodec(jsonCodec.Marshal, func(data []byte, value any) error {
+		if string(data) == "broken" {
+			close(started)
+			<-resume
+			return errors.New("cannot decode stale value")
+		}
+		return jsonCodec.Unmarshal(data, value)
+	})
+	typed := cache.NewCodecCache[int](inner, blockingCodec)
+	if err := inner.Set(ctx, "k", []byte("broken")); err != nil {
+		t.Fatalf("seed stale value: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := typed.MultiGet(ctx, []string{"k"})
+		done <- err
+	}()
+	<-started
+	if err := typed.Set(ctx, "k", 42); err != nil {
+		t.Fatalf("repair value: %v", err)
+	}
+	close(resume)
+	if err := <-done; err != nil {
+		t.Fatalf("MultiGet: %v", err)
+	}
+
+	got, found, err := typed.Get(ctx, "k")
+	if err != nil {
+		t.Fatalf("Get repaired value: %v", err)
+	}
+	if !found || got != 42 {
+		t.Fatalf("concurrent repair was deleted: found=%v got=%d", found, got)
 	}
 }

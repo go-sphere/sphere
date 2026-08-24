@@ -3,8 +3,8 @@
 // High throughput, no KeyLister (NSCache.DelAll returns ErrNotSupported
 // unless another lister is in the stack). Writes Wait() unless
 // SetAllowAsyncWrites(true). Ristretto may drop writes under load; that is
-// reported as success. GetDel uses 128 FNV-striped mutexes. After Close,
-// this is the only driver that returns cache.ErrClosed.
+// reported as success. Same-key mutations and GetDel use 128 FNV-striped
+// mutexes. After Close, this is the only driver that returns cache.ErrClosed.
 //
 // NewMemoryCache and NewMemoryCacheWithCost own the ristretto instance and
 // Close it. NewMemoryCacheWithRistretto does not. NewByteCache uses
@@ -36,10 +36,9 @@ type Cache[T any] struct {
 	calculateCost    bool
 	allowAsyncWrites atomic.Bool
 	cache            *ristretto.Cache[string, T]
-	// getDelShards stripes GetDel so concurrent operations on different keys
-	// proceed in parallel, while operations on the same key stay serialized
-	// so an entry is handed to at most one caller.
-	getDelShards [numGetDelShards]sync.Mutex
+	// mutationShards serialize GetDel with writes and deletes of the same key,
+	// while allowing mutations of keys in other shards to proceed in parallel.
+	mutationShards [numGetDelShards]sync.Mutex
 	// closeMu guards every call into ristretto against a concurrent Close.
 	// ristretto's own Close sets its internal closed flag last, after it has
 	// already closed setBuf and the stop channel, so its per-method guards do
@@ -142,6 +141,9 @@ func (m *Cache[T]) Set(ctx context.Context, key string, val T) error {
 	if m.closed {
 		return cache.ErrClosed
 	}
+	shard := fnv32(key) % numGetDelShards
+	m.mutationShards[shard].Lock()
+	defer m.mutationShards[shard].Unlock()
 	var cost int64 = 1
 	if m.calculateCost {
 		cost = 0
@@ -162,6 +164,9 @@ func (m *Cache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration
 	if m.closed {
 		return cache.ErrClosed
 	}
+	shard := fnv32(key) % numGetDelShards
+	m.mutationShards[shard].Lock()
+	defer m.mutationShards[shard].Unlock()
 	var cost int64 = 1
 	if m.calculateCost {
 		cost = 0
@@ -179,6 +184,12 @@ func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
 	if m.closed {
 		return cache.ErrClosed
 	}
+	keys := make([]string, 0, len(valMap))
+	for key := range valMap {
+		keys = append(keys, key)
+	}
+	unlock := m.lockMutationShards(keys)
+	defer unlock()
 	for k, v := range valMap {
 		var cost int64 = 1
 		if m.calculateCost {
@@ -201,6 +212,12 @@ func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, exp
 	if m.closed {
 		return cache.ErrClosed
 	}
+	keys := make([]string, 0, len(valMap))
+	for key := range valMap {
+		keys = append(keys, key)
+	}
+	unlock := m.lockMutationShards(keys)
+	defer unlock()
 	for k, v := range valMap {
 		var cost int64 = 1
 		if m.calculateCost {
@@ -229,8 +246,8 @@ func (m *Cache[T]) Get(ctx context.Context, key string) (T, bool, error) {
 // returned as found to at most one caller, matching the atomic GETDEL (redis) and
 // single-transaction (badgerdb, mcache) behaviour of the other drivers.
 // ristretto has no atomic get-and-delete, but its Del removes the entry from
-// the store before returning, so the pair is enough. Only GetDel takes this
-// lock; Get/Set stay free of it.
+// the store before returning. Writes and deletes take the same key's shard, so
+// GetDel cannot remove a value installed concurrently after its read.
 func (m *Cache[T]) GetDel(ctx context.Context, key string) (T, bool, error) {
 	m.closeMu.RLock()
 	defer m.closeMu.RUnlock()
@@ -240,8 +257,8 @@ func (m *Cache[T]) GetDel(ctx context.Context, key string) (T, bool, error) {
 	}
 
 	shard := fnv32(key) % numGetDelShards
-	m.getDelShards[shard].Lock()
-	defer m.getDelShards[shard].Unlock()
+	m.mutationShards[shard].Lock()
+	defer m.mutationShards[shard].Unlock()
 
 	val, found := m.cache.Get(key)
 	if found {
@@ -257,6 +274,27 @@ func fnv32(key string) uint32 {
 		h *= 16777619
 	}
 	return h
+}
+
+func (m *Cache[T]) lockMutationShards(keys []string) func() {
+	seen := [numGetDelShards]bool{}
+	shards := make([]int, 0, len(keys))
+	for _, key := range keys {
+		shard := int(fnv32(key) % numGetDelShards)
+		if !seen[shard] {
+			seen[shard] = true
+			shards = append(shards, shard)
+		}
+	}
+	slices.Sort(shards)
+	for _, shard := range shards {
+		m.mutationShards[shard].Lock()
+	}
+	return func() {
+		for i := len(shards) - 1; i >= 0; i-- {
+			m.mutationShards[shards[i]].Unlock()
+		}
+	}
 }
 
 func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, error) {
@@ -281,6 +319,9 @@ func (m *Cache[T]) Del(ctx context.Context, key string) error {
 	if m.closed {
 		return cache.ErrClosed
 	}
+	shard := fnv32(key) % numGetDelShards
+	m.mutationShards[shard].Lock()
+	defer m.mutationShards[shard].Unlock()
 	m.cache.Del(key)
 	return nil
 }
@@ -291,6 +332,8 @@ func (m *Cache[T]) MultiDel(ctx context.Context, keys []string) error {
 	if m.closed {
 		return cache.ErrClosed
 	}
+	unlock := m.lockMutationShards(keys)
+	defer unlock()
 	for _, key := range keys {
 		m.cache.Del(key)
 	}
