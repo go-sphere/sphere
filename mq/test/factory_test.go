@@ -6,6 +6,7 @@
 package test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/go-sphere/sphere/mq"
@@ -68,13 +69,13 @@ func pubSubFactories() []pubSubFactory {
 			newInt: func(tb testing.TB) mq.PubSub[int] {
 				tb.Helper()
 				p := memory.NewPubSub[int]()
-				tb.Cleanup(func() { _ = p.Close() })
+				tb.Cleanup(func() { _ = p.Stop(context.Background()) })
 				return p
 			},
 			newPayload: func(tb testing.TB) mq.PubSub[payload] {
 				tb.Helper()
 				p := memory.NewPubSub[payload]()
-				tb.Cleanup(func() { _ = p.Close() })
+				tb.Cleanup(func() { _ = p.Stop(context.Background()) })
 				return p
 			},
 		},
@@ -90,7 +91,7 @@ func pubSubFactories() []pubSubFactory {
 				if err != nil {
 					tb.Fatalf("create redis pubsub[int]: %v", err)
 				}
-				tb.Cleanup(func() { _ = p.Close() })
+				tb.Cleanup(func() { _ = p.Stop(context.Background()) })
 				return p
 			},
 			newPayload: func(tb testing.TB) mq.PubSub[payload] {
@@ -103,7 +104,7 @@ func pubSubFactories() []pubSubFactory {
 				if err != nil {
 					tb.Fatalf("create redis pubsub[payload]: %v", err)
 				}
-				tb.Cleanup(func() { _ = p.Close() })
+				tb.Cleanup(func() { _ = p.Stop(context.Background()) })
 				return p
 			},
 		},

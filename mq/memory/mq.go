@@ -4,11 +4,17 @@
 // Default buffer is 100; WithQueueSize below 1 is ignored. Queue Publish
 // blocks when the buffer is full; PubSub Broadcast drops and logs. Close
 // stops both halves (errors.Join). Queue Close drains remaining messages
-// then returns ErrQueueClosed. Subscribe ignores ctx. DeleteQueue is extra
-// API, not on mq.Queue.
+// then returns ErrQueueClosed. Subscribe's context owns the subscription.
+// PubSub RequestStop is non-blocking; task.Task.Stop waits for handler
+// quiescence. PubSub and MessageQueue implement task.Task; use WithIdentifier
+// when a group contains more than one.
+// DeleteQueue is extra API, not on mq.Queue.
 package memory
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 // MessageQueue embeds the memory Queue and PubSub. Close joins both halves.
 type MessageQueue[T any] struct {
@@ -25,10 +31,20 @@ func NewMessageQueue[T any](opt ...Option) *MessageQueue[T] {
 	}
 }
 
-// Close closes the Queue and PubSub halves and joins their errors.
+// Close closes the Queue and requests PubSub stop. It does not wait for PubSub
+// handlers; task lifecycle owners should call Stop.
 func (p *MessageQueue[T]) Close() error {
 	return errors.Join(
 		p.Queue.Close(),
-		p.PubSub.Close(),
+		p.PubSub.RequestStop(),
+	)
+}
+
+// Stop implements task.Task by closing the Queue and waiting for PubSub
+// handlers to return or ctx to expire.
+func (p *MessageQueue[T]) Stop(ctx context.Context) error {
+	return errors.Join(
+		p.Queue.Close(),
+		p.PubSub.Stop(ctx),
 	)
 }

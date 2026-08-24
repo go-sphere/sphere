@@ -9,13 +9,15 @@ import (
 
 // options holds configuration parameters for Redis-based message queue implementations.
 type options struct {
-	client *redis.Client
-	codec  codec.Codec
+	client     *redis.Client
+	codec      codec.Codec
+	identifier string
 }
 
 func newOptions(opt ...Option) *options {
 	opts := &options{
-		codec: codec.JsonCodec(),
+		codec:      codec.JsonCodec(),
+		identifier: "redis-pubsub",
 	}
 	for _, o := range opt {
 		o(opts)
@@ -25,6 +27,16 @@ func newOptions(opt ...Option) *options {
 
 // Option defines a function type for configuring Redis message queue options.
 type Option func(*options)
+
+// WithIdentifier sets the task.Task identifier used by PubSub and
+// MessageQueue. The default is "redis-pubsub"; empty identifiers are ignored.
+func WithIdentifier(identifier string) Option {
+	return func(o *options) {
+		if identifier != "" {
+			o.identifier = identifier
+		}
+	}
+}
 
 // WithClient sets the Redis client instance to be used for message queue operations.
 // This option is required and must be provided when creating Redis-based message queues.

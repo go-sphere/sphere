@@ -24,3 +24,52 @@
 - ./server/middleware/online.NewOnline: changed from func() *Online to func(...Option) *Online
 - ./server/middleware/ratelimiter.NewNewRateLimiterByClientIP: removed
 - ./server/middleware/ratelimiter.WithSetTTL: removed
+- ./mq.PubSub[T any].Done: added
+- ./mq.PubSub[T any].Stop: added
+- ./mq.PubSub[T any].StopTopic: added
+- ./mq.PubSub[T any].Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, Handler[T]) (Subscription, error)
+- ./mq.PubSub[T any].UnsubscribeAll: removed
+- ./mq.PubSub[T].Done: added
+- ./mq.PubSub[T].Stop: added
+- ./mq.PubSub[T].StopTopic: added
+- ./mq.PubSub[T].Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, Handler[T]) (Subscription, error)
+- ./mq.PubSub[T].UnsubscribeAll, method set of MessageQueue: removed
+- io.Closer.Close, method set of PubSub: removed
+- ./mq/redis.(*PubSub[T]).Close: removed
+- ./mq/redis.(*PubSub[T]).Close: removed
+- ./mq/redis.(*PubSub[T]).Close: removed
+- ./mq/redis.(*PubSub[T]).Close: removed
+- ./mq/redis.(*PubSub[T]).Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, github.com/go-sphere/sphere/mq.Handler[T]) (github.com/go-sphere/sphere/mq.Subscription, error)
+- ./mq/redis.(*PubSub[T]).Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, github.com/go-sphere/sphere/mq.Handler[T]) (github.com/go-sphere/sphere/mq.Subscription, error)
+- ./mq/redis.(*PubSub[T]).Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, github.com/go-sphere/sphere/mq.Handler[T]) (github.com/go-sphere/sphere/mq.Subscription, error)
+- ./mq/redis.(*PubSub[T]).Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, github.com/go-sphere/sphere/mq.Handler[T]) (github.com/go-sphere/sphere/mq.Subscription, error)
+- ./mq/redis.(*PubSub[T]).UnsubscribeAll, method set of *MessageQueue: removed
+- ./mq/redis.(*PubSub[T]).UnsubscribeAll, method set of *MessageQueue: removed
+- ./mq/redis.(*PubSub[T]).UnsubscribeAll, method set of MessageQueue: removed
+- ./mq/redis.(*PubSub[T]).UnsubscribeAll, method set of MessageQueue: removed
+- ./mq/redis.(*PubSub[T]).UnsubscribeAll: removed
+- ./mq/redis.(*PubSub[T]).UnsubscribeAll: removed
+- ./mq/redis.(*PubSub[T]).UnsubscribeAll: removed
+- ./mq/redis.(*PubSub[T]).UnsubscribeAll: removed
+- ./mq/memory.(*PubSub[T]).Close: removed
+- ./mq/memory.(*PubSub[T]).Close: removed
+- ./mq/memory.(*PubSub[T]).Close: removed
+- ./mq/memory.(*PubSub[T]).Close: removed
+- ./mq/memory.(*PubSub[T]).Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, github.com/go-sphere/sphere/mq.Handler[T]) (github.com/go-sphere/sphere/mq.Subscription, error)
+- ./mq/memory.(*PubSub[T]).Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, github.com/go-sphere/sphere/mq.Handler[T]) (github.com/go-sphere/sphere/mq.Subscription, error)
+- ./mq/memory.(*PubSub[T]).Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, github.com/go-sphere/sphere/mq.Handler[T]) (github.com/go-sphere/sphere/mq.Subscription, error)
+- ./mq/memory.(*PubSub[T]).Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, github.com/go-sphere/sphere/mq.Handler[T]) (github.com/go-sphere/sphere/mq.Subscription, error)
+- ./mq/memory.(*PubSub[T]).UnsubscribeAll, method set of *MessageQueue: removed
+- ./mq/memory.(*PubSub[T]).UnsubscribeAll, method set of *MessageQueue: removed
+- ./mq/memory.(*PubSub[T]).UnsubscribeAll, method set of MessageQueue: removed
+- ./mq/memory.(*PubSub[T]).UnsubscribeAll, method set of MessageQueue: removed
+- ./mq/memory.(*PubSub[T]).UnsubscribeAll: removed
+- ./mq/memory.(*PubSub[T]).UnsubscribeAll: removed
+- ./mq/memory.(*PubSub[T]).UnsubscribeAll: removed
+- ./mq/memory.(*PubSub[T]).UnsubscribeAll: removed
+- ./mq/memory.Subscription: removed
+- ./core/task.Task.Identifier: added
+- ./core/task.Task.Start: added
+- ./core/task.Task.Stop: added
+- ./mq.PubSub[T any].RequestStop: added
+- ./mq.PubSub[T].RequestStop: added

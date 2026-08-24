@@ -3,6 +3,7 @@ package test
 import (
 	"testing"
 
+	"github.com/go-sphere/sphere/core/task"
 	"github.com/go-sphere/sphere/mq"
 	"github.com/go-sphere/sphere/mq/memory"
 	redismq "github.com/go-sphere/sphere/mq/redis"
@@ -13,9 +14,13 @@ var (
 	_ mq.Queue[int]        = (*memory.Queue[int])(nil)
 	_ mq.PubSub[int]       = (*memory.PubSub[int])(nil)
 	_ mq.MessageQueue[int] = (*memory.MessageQueue[int])(nil)
+	_ task.Task            = (*memory.PubSub[int])(nil)
+	_ task.Task            = (*memory.MessageQueue[int])(nil)
 	_ mq.Queue[int]        = (*redismq.Queue[int])(nil)
 	_ mq.PubSub[int]       = (*redismq.PubSub[int])(nil)
 	_ mq.MessageQueue[int] = (*redismq.MessageQueue[int])(nil)
+	_ task.Task            = (*redismq.PubSub[int])(nil)
+	_ task.Task            = (*redismq.MessageQueue[int])(nil)
 )
 
 func TestRedisConstructorsValidation(t *testing.T) {
@@ -35,21 +40,30 @@ func TestRedisConstructorsValidation(t *testing.T) {
 func TestMessageQueueConstruction(t *testing.T) {
 	t.Parallel()
 
-	m := memory.NewMessageQueue[int]()
+	m := memory.NewMessageQueue[int](memory.WithIdentifier("memory-events"))
 	if m.Queue == nil || m.PubSub == nil {
 		t.Fatalf("memory message queue components should not be nil")
+	}
+	if got := m.Identifier(); got != "memory-events" {
+		t.Fatalf("memory message queue identifier = %q", got)
 	}
 	if err := m.Close(); err != nil {
 		t.Fatalf("memory message queue close: %v", err)
 	}
 
 	client := redistest.NewTestRedisClient(t)
-	r, err := redismq.NewMessageQueue[int](redismq.WithClient(client))
+	r, err := redismq.NewMessageQueue[int](
+		redismq.WithClient(client),
+		redismq.WithIdentifier("redis-events"),
+	)
 	if err != nil {
 		t.Fatalf("create redis message queue: %v", err)
 	}
 	if r.Queue == nil || r.PubSub == nil {
 		t.Fatalf("redis message queue components should not be nil")
+	}
+	if got := r.Identifier(); got != "redis-events" {
+		t.Fatalf("redis message queue identifier = %q", got)
 	}
 	if err := r.Close(); err != nil {
 		t.Fatalf("redis message queue close: %v", err)

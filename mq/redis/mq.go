@@ -5,16 +5,21 @@
 // is JSON. Queue Close is a no-op. Consume cancellation is observed within
 // about 1s (BLPOP poll). Decode failures after pop return DecodeError with
 // the raw bytes; TryConsume still reports found=true — check err first.
-// After PubSub Close, Subscribe returns ErrPubSubClosed; Broadcast still
-// PUBLISHes. Topic names are Redis keys: they collide with cache keys on
-// the same DB.
+// PubSub RequestStop cancels subscriptions but never closes the injected client;
+// Broadcast and Subscribe then return mq.ErrPubSubClosed. Topic names are
+// Redis keys: they collide with cache keys on the same DB. PubSub and
+// MessageQueue implement task.Task; use WithIdentifier when a group contains
+// more than one.
 package redis
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
-// MessageQueue embeds the redis Queue and PubSub. Close joins both halves
-// (Queue Close is a no-op; PubSub Close stops subscriptions). The Redis
-// client is not closed.
+// MessageQueue embeds the Redis Queue and PubSub. Close joins Queue.Close (a
+// no-op) with PubSub.RequestStop; task.Task.Stop waits for PubSub quiescence.
+// The injected Redis client is not closed.
 type MessageQueue[T any] struct {
 	*Queue[T]
 	*PubSub[T]
@@ -37,10 +42,21 @@ func NewMessageQueue[T any](opt ...Option) (*MessageQueue[T], error) {
 	}, nil
 }
 
-// Close closes the Queue (a no-op) and PubSub halves and joins their errors.
+// Close closes the Queue (a no-op) and requests PubSub stop. It does not wait
+// for handlers; task lifecycle owners should call Stop.
 func (p *MessageQueue[T]) Close() error {
 	return errors.Join(
 		p.Queue.Close(),
-		p.PubSub.Close(),
+		p.PubSub.RequestStop(),
+	)
+}
+
+// Stop implements task.Task by closing the Queue (a no-op) and waiting for
+// PubSub handlers to return or ctx to expire. The injected Redis client remains
+// open.
+func (p *MessageQueue[T]) Stop(ctx context.Context) error {
+	return errors.Join(
+		p.Queue.Close(),
+		p.PubSub.Stop(ctx),
 	)
 }

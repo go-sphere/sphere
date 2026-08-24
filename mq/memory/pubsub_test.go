@@ -14,12 +14,12 @@ import (
 func TestBroadcastDropsWhenSubscriberQueueFull(t *testing.T) {
 	ctx := context.Background()
 	p := NewPubSub[int](WithQueueSize(1))
-	t.Cleanup(func() { _ = p.Close() })
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
 
 	started := make(chan struct{})
 	release := make(chan struct{})
 	received := make(chan int, 4)
-	if err := p.Subscribe(ctx, "topic", func(data int) error {
+	if _, err := p.Subscribe(ctx, "topic", func(_ context.Context, data int) error {
 		if data == 1 {
 			close(started)
 			<-release
@@ -68,10 +68,10 @@ func TestBroadcastDropsWhenSubscriberQueueFull(t *testing.T) {
 // only compete at random with a send that could have succeeded.
 func TestBroadcastCanceledContext(t *testing.T) {
 	p := NewPubSub[int]()
-	t.Cleanup(func() { _ = p.Close() })
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
 
 	received := make(chan int, 1)
-	if err := p.Subscribe(context.Background(), "topic", func(data int) error {
+	if _, err := p.Subscribe(context.Background(), "topic", func(_ context.Context, data int) error {
 		received <- data
 		return nil
 	}); err != nil {
@@ -104,11 +104,11 @@ func TestPubSubIgnoresInvalidQueueSize(t *testing.T) {
 	for _, size := range []int{0, -1} {
 		t.Run(fmt.Sprintf("size=%d", size), func(t *testing.T) {
 			ps := NewPubSub[int](WithQueueSize(size))
-			t.Cleanup(func() { _ = ps.Close() })
+			t.Cleanup(func() { _ = ps.Stop(context.Background()) })
 
 			const total = 10
 			received := make(chan int, total)
-			if err := ps.Subscribe(context.Background(), "topic", func(v int) error {
+			if _, err := ps.Subscribe(context.Background(), "topic", func(_ context.Context, v int) error {
 				received <- v
 				return nil
 			}); err != nil {

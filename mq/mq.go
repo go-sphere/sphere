@@ -17,10 +17,11 @@
 // # PubSub
 //
 // Broadcast is best-effort: a slow subscriber may miss messages. Subscribe's
-// ctx governs only setup, not lifetime — cancel after return does not stop
-// delivery; use UnsubscribeAll or Close. memory Subscribe ignores ctx.
-// After Close, memory Broadcast errors; redis Broadcast still PUBLISHes,
-// while Subscribe returns ErrPubSubClosed.
+// ctx owns the returned Subscription: cancellation stops it and is propagated
+// to its Handler. PubSub shutdown is deliberately two-phase. RequestStop and
+// StopTopic only request cancellation and are safe to call from inside a
+// Handler; Done closes after every Handler has returned. PubSub implements
+// task.Task, whose Stop performs a context-bounded wait for that quiescence.
 //
 // Share a Redis client with cache only if you never call cache.DelAll
 // (FlushDB) on that database.
@@ -28,8 +29,15 @@ package mq
 
 import (
 	"context"
+	"errors"
 	"io"
+
+	"github.com/go-sphere/sphere/core/task"
 )
+
+// ErrPubSubClosed is returned by Broadcast and Subscribe after
+// PubSub.RequestStop or task.Task.Stop.
+var ErrPubSubClosed = errors.New("mq: pubsub closed")
 
 // Queue is point-to-point messaging: one consumer, FIFO. Close semantics are
 // driver-split — memory stops the queue; redis Close is a no-op.
@@ -70,9 +78,31 @@ type Queue[T any] interface {
 	io.Closer
 }
 
-// PubSub provides publish-subscribe messaging capabilities with typed message support.
-// Messages are broadcast to all active subscribers of a topic.
+// Handler processes one PubSub message. ctx is the lifetime context of the
+// Subscription and is cancelled before the subscription begins stopping.
+// Handlers should use it to interrupt blocking work promptly.
+type Handler[T any] func(ctx context.Context, data T) error
+
+// Subscription is the lifecycle handle returned by PubSub.Subscribe.
+//
+// Stop requests cancellation and returns without waiting for the Handler, so
+// it is safe to call from inside that Handler. Done closes once the consumer
+// goroutine and any running Handler have returned. Stop is idempotent.
+type Subscription interface {
+	Stop() error
+	Done() <-chan struct{}
+}
+
+// PubSub provides best-effort typed publish-subscribe delivery.
+//
+// Lifecycle is two-phase so shutdown is reentrant-safe: RequestStop and
+// StopTopic request cancellation; Done (or the channel returned by StopTopic)
+// reports quiescence. The embedded task.Task makes a PubSub directly usable in
+// task.Group and boot.Run. Start is the blocking lifecycle wait; it does not
+// gate Subscribe or Broadcast, so subscriptions may be registered first.
 type PubSub[T any] interface {
+	task.Task
+
 	// Broadcast sends a message to all subscribers of the specified topic.
 	//
 	// Delivery is best-effort: implementations must not block on a subscriber
@@ -81,28 +111,30 @@ type PubSub[T any] interface {
 	// subscriber observed it. Use Queue when messages must not be dropped.
 	Broadcast(ctx context.Context, topic string, data T) error
 
-	// Subscribe registers a handler function to receive messages from the specified topic.
-	// The handler will be called for each message received on the topic.
-	//
-	// The ctx governs only the setup of the subscription (the initial registration
-	// call); it does not control the lifetime of the long-running subscription.
-	// Cancelling ctx after Subscribe returns does NOT stop delivery. To stop
-	// receiving messages, call UnsubscribeAll for the topic or Close the PubSub.
-	Subscribe(ctx context.Context, topic string, handler func(data T) error) error
+	// Subscribe registers handler on topic. ctx controls the full subscription
+	// lifetime, not just setup; cancelling it stops the subscription. The caller
+	// owns the returned handle and may call Stop independently of the PubSub.
+	Subscribe(ctx context.Context, topic string, handler Handler[T]) (Subscription, error)
 
-	// UnsubscribeAll removes all subscriptions for the specified topic and waits
-	// for handlers already running on it to return.
-	UnsubscribeAll(ctx context.Context, topic string) error
+	// StopTopic requests cancellation of every subscription currently registered
+	// on topic. It does not wait and is safe to call from a Handler. The returned
+	// channel closes when those subscriptions are quiescent. Later Subscribe calls
+	// create a new generation and are not covered by that channel.
+	StopTopic(topic string) (<-chan struct{}, error)
 
-	// Close stops all subscriptions and waits for handlers already running to
-	// return, so that once it returns no handler is still touching resources the
-	// caller is about to release. Ordered shutdown depends on this: a task group
-	// that closes the pubsub before the database or the log backend would
-	// otherwise pull them out from under a handler still executing.
-	io.Closer
+	// RequestStop requests cancellation of every subscription and prevents future
+	// Broadcast and Subscribe calls. It does not wait for Handlers and is safe to
+	// call from a Handler. RequestStop is idempotent.
+	RequestStop() error
+
+	// Done closes after RequestStop has been called and every subscription and
+	// running Handler has returned.
+	Done() <-chan struct{}
 }
 
-// MessageQueue is Queue plus PubSub. Combined Close must wait for both halves.
+// MessageQueue is Queue plus PubSub. Its Close method closes the Queue and
+// requests PubSub stop without waiting; task.Task.Stop closes the Queue and
+// waits for PubSub quiescence.
 type MessageQueue[T any] interface {
 	Queue[T]
 	PubSub[T]

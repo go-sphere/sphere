@@ -613,6 +613,34 @@ options.
 
 ## Remaining contract decisions
 
+### PubSub shutdown is two-phase and subscription contexts own delivery
+
+`mq.PubSub` no longer embeds `io.Closer`. `Subscribe` returns a
+`mq.Subscription`, and the context passed to `Subscribe` now controls the full
+subscription lifetime and is passed to every handler invocation. Cancelling it
+or calling `Subscription.Stop` stops that subscription; `Subscription.Done`
+closes after its consumer and any running handler return.
+
+Whole-instance shutdown follows the same two phases. `PubSub.RequestStop` and
+`StopTopic` only request cancellation, so either is safe to call synchronously
+from a handler. `Done` and the channel returned by `StopTopic` report actual
+quiescence. `PubSub` now implements `core/task.Task`: `Start` is its blocking
+lifecycle wait and `Stop(ctx)` requests cancellation then waits for quiescence
+within the caller's deadline. Calling task `Stop` from a handler would wait for
+that same handler; handlers must call non-blocking `RequestStop` instead.
+
+Subscribe and Broadcast are deliberately available before `Start`, so an
+application can register handlers while building its dependency graph and then
+return the PubSub from its `boot.Run` builder. `WithIdentifier` sets the task
+identifier when multiple PubSub instances share one task group.
+
+Both drivers now reject Broadcast and Subscribe after RequestStop with
+`mq.ErrPubSubClosed`. RequestStop drops buffered messages that have not entered
+a handler; PubSub remains best-effort and never drains queued delivery during
+shutdown. Redis `StopTopic` waits only for that topic rather than the old
+process-wide handler WaitGroup. `MessageQueue.Close` closes the Queue and
+requests PubSub stop; task `MessageQueue.Stop(ctx)` is the quiescing form.
+
 ### Object keys are normalized, and `UploadFile` returns the normalized key
 
 `storage.NormalizeKey` defines one rule for every driver: a leading `/` is

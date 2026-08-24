@@ -2,12 +2,14 @@ package memory
 
 // options holds configuration parameters for memory-based message queue implementations.
 type options struct {
-	queueSize int
+	queueSize  int
+	identifier string
 }
 
 func newOptions(opts ...Option) *options {
 	o := &options{
-		queueSize: 100, // default queue size
+		queueSize:  100,
+		identifier: "memory-pubsub",
 	}
 	for _, opt := range opts {
 		opt(o)
@@ -17,6 +19,16 @@ func newOptions(opts ...Option) *options {
 
 // Option defines a function type for configuring memory message queue options.
 type Option func(*options)
+
+// WithIdentifier sets the task.Task identifier used by PubSub and
+// MessageQueue. The default is "memory-pubsub"; empty identifiers are ignored.
+func WithIdentifier(identifier string) Option {
+	return func(o *options) {
+		if identifier != "" {
+			o.identifier = identifier
+		}
+	}
+}
 
 // WithQueueSize sets the buffer size for message channels in the memory queue.
 // A larger size allows more messages to be buffered before blocking publishers.

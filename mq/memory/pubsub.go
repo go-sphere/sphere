@@ -2,76 +2,106 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/go-sphere/sphere/log"
+	"github.com/go-sphere/sphere/mq"
 )
 
-// Subscription represents an active subscription to a topic with its associated handler and channels.
-type Subscription[T any] struct {
-	handler func(data T) error
+type subscription[T any] struct {
+	parent  *PubSub[T]
+	topic   string
+	handler mq.Handler[T]
 	ch      chan T
+	ctx     context.Context
+	cancel  context.CancelFunc
 	done    chan struct{}
-	// stopped closes once the consumer goroutine has returned, so Close and
-	// UnsubscribeAll can wait for a handler that is mid-execution.
-	stopped chan struct{}
+	stop    sync.Once
 }
 
-// PubSub implements an in-memory publish-subscribe message system with typed message support.
-// It broadcasts messages to all active subscribers of a topic.
+func (s *subscription[T]) Stop() error {
+	s.parent.remove(s)
+	s.requestStop()
+	return nil
+}
+
+func (s *subscription[T]) Done() <-chan struct{} {
+	return s.done
+}
+
+func (s *subscription[T]) requestStop() {
+	s.stop.Do(s.cancel)
+}
+
+// PubSub implements process-local best-effort publish-subscribe delivery.
+// Each subscription has a bounded buffer; Broadcast drops rather than blocks
+// when one subscriber falls behind.
 type PubSub[T any] struct {
-	queueSize int
-	topics    map[string][]*Subscription[T]
+	identifier string
+	queueSize  int
+	topics     map[string][]*subscription[T]
 
-	mu     sync.RWMutex
-	closed bool
+	mu       sync.RWMutex
+	closed   bool
+	done     chan struct{}
+	stopOnce sync.Once
+	handlers sync.WaitGroup
 }
 
-// NewPubSub creates a new memory-based publish-subscribe system with the specified options.
-// The default queue size is 100 messages per subscription.
+// NewPubSub creates an in-memory PubSub. The default per-subscription buffer
+// holds 100 messages.
 func NewPubSub[T any](opt ...Option) *PubSub[T] {
 	opts := newOptions(opt...)
 	return &PubSub[T]{
-		queueSize: opts.queueSize,
-		topics:    make(map[string][]*Subscription[T]),
+		identifier: opts.identifier,
+		queueSize:  opts.queueSize,
+		topics:     make(map[string][]*subscription[T]),
+		done:       make(chan struct{}),
 	}
 }
 
-// Broadcast delivers data to every subscriber of topic without blocking. A
-// full subscriber buffer drops the message and logs a warning. After Close
-// it returns an error. ctx is checked once before delivery.
+// Identifier returns the task.Task identifier configured with WithIdentifier.
+func (p *PubSub[T]) Identifier() string {
+	return p.identifier
+}
+
+// Start blocks until Stop completes or ctx is cancelled. Subscribe and
+// Broadcast are available before Start; Start is only the task lifecycle wait.
+// A caller running Start outside task.Group must still call Stop for cleanup.
+func (p *PubSub[T]) Start(ctx context.Context) error {
+	select {
+	case <-p.done:
+		return nil
+	default:
+	}
+	select {
+	case <-p.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Broadcast delivers data to every current subscriber without blocking. A
+// full subscriber buffer drops the message and logs a warning.
 func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 	p.mu.RLock()
-	subscribers, exists := p.topics[topic]
-	closed := p.closed
+	if p.closed {
+		p.mu.RUnlock()
+		return mq.ErrPubSubClosed
+	}
+	subscribers := slices.Clone(p.topics[topic])
 	p.mu.RUnlock()
-
-	if closed {
-		return fmt.Errorf("pubsub is closed")
-	}
-	if !exists || len(subscribers) == 0 {
-		return nil
-	}
-	// Checked once up front rather than inside the send select below: with a
-	// default branch the select never blocks, so a ctx case there would only
-	// compete at random with a send that could have succeeded.
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	// Copy the slice: p.topics may be mutated by Subscribe/UnsubscribeAll once the
-	// read lock is released.
-	subscribers = append([]*Subscription[T](nil), subscribers...)
 
-	// Delivery is a non-blocking send, so this loop runs inline. Fanning it out
-	// across a goroutine per subscriber would add scheduling cost per message
-	// without ever overlapping a wait.
 	for _, sub := range subscribers {
-		// The default branch provides back pressure protection: when a
-		// subscriber's buffered channel is full (slow or stalled consumer) the
-		// message is dropped and logged instead of blocking the whole Broadcast,
-		// which would otherwise hang forever under a background context.
 		select {
+		case <-sub.ctx.Done():
 		case sub.ch <- data:
 		default:
 			log.Warn("pubsub broadcast dropped message: subscriber queue full", log.String("topic", topic))
@@ -80,109 +110,179 @@ func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 	return nil
 }
 
-// Subscribe registers handler on topic and starts a consumer goroutine. ctx
-// is ignored; cancel after return does not stop delivery. Use UnsubscribeAll
-// or Close. After Close it returns an error.
-func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler func(data T) error) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.closed {
-		return fmt.Errorf("pubsub is closed")
+// Subscribe registers handler on topic. ctx controls the subscription's full
+// lifetime and is passed to every handler invocation.
+func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler mq.Handler[T]) (mq.Subscription, error) {
+	if ctx == nil {
+		return nil, errors.New("mq memory: subscription context is required")
+	}
+	if handler == nil {
+		return nil, errors.New("mq memory: subscription handler is required")
+	}
+	p.mu.RLock()
+	closed := p.closed
+	p.mu.RUnlock()
+	if closed {
+		return nil, mq.ErrPubSubClosed
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
-	sub := &Subscription[T]{
+	subCtx, cancel := context.WithCancel(ctx)
+	sub := &subscription[T]{
+		parent:  p,
+		topic:   topic,
 		handler: handler,
 		ch:      make(chan T, p.queueSize),
+		ctx:     subCtx,
+		cancel:  cancel,
 		done:    make(chan struct{}),
-		stopped: make(chan struct{}),
+	}
+
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		cancel()
+		return nil, mq.ErrPubSubClosed
 	}
 	p.topics[topic] = append(p.topics[topic], sub)
+	p.handlers.Add(1)
+	p.mu.Unlock()
 
-	go p.handleSubscription(sub)
-
-	return nil
+	go p.run(sub)
+	return sub, nil
 }
 
-func (p *PubSub[T]) handleSubscription(sub *Subscription[T]) {
-	defer close(sub.stopped)
+func (p *PubSub[T]) run(sub *subscription[T]) {
+	defer p.handlers.Done()
+	defer close(sub.done)
+	defer sub.requestStop()
+	defer p.remove(sub)
+
 	for {
 		select {
-		case data := <-sub.ch:
-			p.dispatch(sub, data)
-		case <-sub.done:
+		case <-sub.ctx.Done():
 			return
+		case data := <-sub.ch:
+			// Cancellation wins over buffered work. A handler that already started
+			// may finish, but shutdown does not drain queued PubSub messages.
+			if sub.ctx.Err() != nil {
+				return
+			}
+			p.dispatch(sub.ctx, sub.handler, data)
 		}
 	}
 }
 
-// dispatch invokes the subscriber handler for a single message with panic
-// recovery scoped to that message. A panic in one message is logged and
-// consumption continues, so a misbehaving handler can no longer kill the
-// consumer goroutine and turn the subscription into a zombie.
-func (p *PubSub[T]) dispatch(sub *Subscription[T], data T) {
+func (p *PubSub[T]) dispatch(ctx context.Context, handler mq.Handler[T], data T) {
 	defer func() {
-		if r := recover(); r != nil {
-			log.Error("recovered from panic in subscription handler", log.Any("error", r))
+		if recovered := recover(); recovered != nil {
+			log.Error("recovered from panic in subscription handler", log.Any("error", recovered))
 		}
 	}()
-	if err := sub.handler(data); err != nil {
+	if err := handler(ctx, data); err != nil {
 		log.Error("subscription handler error", log.Err(err))
 	}
 }
 
-// UnsubscribeAll stops the topic's subscriptions and waits for handlers already
-// running on them to return, so the topic is quiesced once it returns.
-func (p *PubSub[T]) UnsubscribeAll(ctx context.Context, topic string) error {
+func (p *PubSub[T]) remove(target *subscription[T]) {
+	p.mu.Lock()
+	subs := p.topics[target.topic]
+	for i, sub := range subs {
+		if sub != target {
+			continue
+		}
+		subs = slices.Delete(subs, i, i+1)
+		if len(subs) == 0 {
+			delete(p.topics, target.topic)
+		} else {
+			p.topics[target.topic] = subs
+		}
+		break
+	}
+	p.mu.Unlock()
+}
+
+// StopTopic requests cancellation of the topic's current subscriptions and
+// returns a channel that closes after their handlers return.
+func (p *PubSub[T]) StopTopic(topic string) (<-chan struct{}, error) {
 	p.mu.Lock()
 	if p.closed {
+		done := p.done
 		p.mu.Unlock()
-		return fmt.Errorf("pubsub is closed")
+		return done, nil
 	}
-	subscribers := p.topics[topic]
+	subs := p.topics[topic]
 	delete(p.topics, topic)
-	for _, sub := range subscribers {
-		close(sub.done)
-	}
 	p.mu.Unlock()
 
-	// Waiting happens outside the lock: a handler is user code of unbounded
-	// duration, and holding p.mu across it would block every Broadcast and
-	// Subscribe for as long as it runs.
-	waitForSubscriptions(subscribers)
-	return nil
+	for _, sub := range subs {
+		sub.requestStop()
+	}
+	return subscriptionsDone(subs), nil
 }
 
-// Close stops every subscription and waits for handlers already running to
-// return. Returning while a handler was still executing meant an ordered
-// shutdown could close the resources it was using — the caller has no other
-// signal that delivery has genuinely stopped.
-func (p *PubSub[T]) Close() error {
-	p.mu.Lock()
-	if p.closed {
+// RequestStop prevents new operations and requests cancellation of every
+// current subscription. It does not wait for handlers and is safe to call from
+// one. External lifecycle owners should call Stop.
+func (p *PubSub[T]) RequestStop() error {
+	p.stopOnce.Do(func() {
+		p.mu.Lock()
+		p.closed = true
+		var subs []*subscription[T]
+		for topic, topicSubs := range p.topics {
+			subs = append(subs, topicSubs...)
+			delete(p.topics, topic)
+		}
 		p.mu.Unlock()
-		return nil
-	}
-	p.closed = true
 
-	var subscribers []*Subscription[T]
-	for topic, subs := range p.topics {
-		subscribers = append(subscribers, subs...)
-		delete(p.topics, topic)
-	}
-	for _, sub := range subscribers {
-		close(sub.done)
-	}
-	p.mu.Unlock()
-
-	waitForSubscriptions(subscribers)
+		for _, sub := range subs {
+			sub.requestStop()
+		}
+		go func() {
+			p.handlers.Wait()
+			close(p.done)
+		}()
+	})
 	return nil
 }
 
-// waitForSubscriptions blocks until every consumer goroutine has returned,
-// which happens after the handler it may be running completes.
-func waitForSubscriptions[T any](subscribers []*Subscription[T]) {
-	for _, sub := range subscribers {
-		<-sub.stopped
+// Done closes after RequestStop and after every subscription handler has
+// returned.
+func (p *PubSub[T]) Done() <-chan struct{} {
+	return p.done
+}
+
+// Stop implements task.Task. It requests shutdown and waits for quiescence or
+// ctx cancellation. A handler must call RequestStop instead of waiting on
+// itself through Stop.
+func (p *PubSub[T]) Stop(ctx context.Context) error {
+	stopErr := p.RequestStop()
+	select {
+	case <-p.done:
+		return stopErr
+	default:
 	}
+	select {
+	case <-p.done:
+		return stopErr
+	case <-ctx.Done():
+		return fmt.Errorf("mq memory: stop: %w", errors.Join(stopErr, ctx.Err()))
+	}
+}
+
+func subscriptionsDone[T any](subs []*subscription[T]) <-chan struct{} {
+	done := make(chan struct{})
+	if len(subs) == 0 {
+		close(done)
+		return done
+	}
+	go func() {
+		for _, sub := range subs {
+			<-sub.done
+		}
+		close(done)
+	}()
+	return done
 }
