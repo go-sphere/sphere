@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -112,11 +113,15 @@ type errCache struct {
 	cache.Cache[*rate.Limiter]
 	getErr error
 	setErr error
+	getVal *rate.Limiter
 }
 
 func (e *errCache) Get(ctx context.Context, key string) (*rate.Limiter, bool, error) {
 	if e.getErr != nil {
 		return nil, false, e.getErr
+	}
+	if e.getVal != nil {
+		return e.getVal, true, nil
 	}
 	return nil, false, nil
 }
@@ -170,6 +175,36 @@ func TestNewRateLimiterCacheErrors(t *testing.T) {
 		_, status, _ := httpx.ParseError(err)
 		if status != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500", status)
+		}
+	})
+
+	t.Run("zero limiter from a serializing cache returns 500", func(t *testing.T) {
+		// A codec-backed cache stores the JSON "{}" for rate.Limiter (no
+		// exported fields), which decodes to a zero limiter whose Allow is
+		// always false. The middleware must surface that as an error naming
+		// the misconfiguration rather than answering 429 for every request.
+		mw := NewRateLimiter(
+			func(ctx httpx.Context) string { return "k" },
+			func(ctx httpx.Context) (*rate.Limiter, time.Duration) {
+				return rate.NewLimiter(rate.Inf, 1), time.Minute
+			},
+			WithCache(&errCache{getVal: &rate.Limiter{}}),
+		)
+
+		ctx := &fakeRateLimitContext{}
+		err := mw(ctx)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "not serializable") {
+			t.Fatalf("error = %v, want a message naming the serialization problem", err)
+		}
+		_, status, _ := httpx.ParseError(err)
+		if status != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want 500", status)
+		}
+		if ctx.nexted {
+			t.Fatal("guard-triggered request must not proceed to Next()")
 		}
 	})
 }

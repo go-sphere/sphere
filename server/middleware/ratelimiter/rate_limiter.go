@@ -41,6 +41,13 @@ type Option func(*options)
 
 // WithCache sets a custom cache implementation for storing rate limiters.
 // The default cache is an in-memory cache.
+//
+// The limiter is stored as a live in-process object and never round-trips
+// through serialization: rate.Limiter has no exported fields, so a codec-
+// backed cache (cache.NewCodecCache / NewJsonCache, e.g. over redis) stores
+// the JSON "{}" and every later request receives a zero limiter that answers
+// 429. Use the default in-process cache; across instances, keep one limiter
+// per instance or share state with a serializable design of your own.
 func WithCache(cache cache.Cache[*rate.Limiter]) Option {
 	return func(opts *options) {
 		opts.cache = cache
@@ -67,6 +74,12 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 		limiter, exist, gErr := opts.cache.Get(ctx.Context(), k)
 		if gErr != nil {
 			return httpx.InternalServerError(gErr)
+		}
+		if exist && limiter != nil && limiter.Burst() == 0 {
+			return httpx.InternalServerError(fmt.Errorf(
+				"ratelimiter: cache returned a zero limiter for key %q: "+
+					"rate.Limiter is not serializable, use an in-process cache",
+				k))
 		}
 		if !exist || limiter == nil {
 			value, nErr, _ := sf.Do(k, func() (any, error) {
