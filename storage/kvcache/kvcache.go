@@ -41,16 +41,9 @@ func NewClient(conf Config, cache cache.ByteCache) (*Client, error) {
 	}, nil
 }
 
-// keyPreprocess normalizes a caller-supplied key into its canonical form.
-// See storage.NormalizeKey for the rules; applying them here is what keeps a
-// key addressed on one backend addressing the same object on another.
-func (c *Client) keyPreprocess(key string) (string, error) {
-	return storage.NormalizeKey(key)
-}
-
 // UploadFile stores file data in the cache with the specified key and expiration time.
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
-	key, err := c.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
 	}
@@ -83,7 +76,7 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 
 // IsFileExists checks whether a file exists in the cache storage.
 func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
-	key, err := c.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return false, err
 	}
@@ -94,7 +87,7 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 // DownloadFile retrieves file data from the cache storage.
 // Returns the file content reader, MIME type based on file extension, and content size.
 func (c *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
-	key, err := c.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return storage.DownloadResult{}, err
 	}
@@ -114,7 +107,7 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 
 // DeleteFile removes a file from the cache storage.
 func (c *Client) DeleteFile(ctx context.Context, key string) error {
-	key, err := c.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return err
 	}
@@ -128,11 +121,11 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 // MoveFile relocates a file from source to destination key within cache storage.
 // This operation copies the file content and then deletes the source.
 func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourceKey, err := c.keyPreprocess(sourceKey)
+	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
 		return err
 	}
-	destinationKey, err = c.keyPreprocess(destinationKey)
+	destinationKey, err = storage.NormalizeKey(destinationKey)
 	if err != nil {
 		return err
 	}
@@ -163,11 +156,11 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 // CopyFile duplicates a file from source to destination key within cache storage.
 // Validates overwrite permissions and handles cache expiration settings.
 func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourceKey, err := c.keyPreprocess(sourceKey)
+	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
 		return err
 	}
-	destinationKey, err = c.keyPreprocess(destinationKey)
+	destinationKey, err = storage.NormalizeKey(destinationKey)
 	if err != nil {
 		return err
 	}

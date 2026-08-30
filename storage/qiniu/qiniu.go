@@ -107,13 +107,6 @@ func (n *Client) GenerateImageURL(key string, width int) string {
 	return res.String()
 }
 
-// keyPreprocess normalizes a caller-supplied key into its canonical form.
-// See storage.NormalizeKey for the rules; applying them here is what keeps a
-// key addressed on one backend addressing the same object on another.
-func (n *Client) keyPreprocess(key string) (string, error) {
-	return storage.NormalizeKey(key)
-}
-
 // GenerateUploadAuth creates a secure upload token for direct client uploads to Qiniu.
 // It generates the storage key using configured naming strategy and returns token, key, and public URL.
 // Token validity defaults to Config.UploadTTL (else defaultUploadTTL); req.TTL
@@ -128,7 +121,7 @@ func (n *Client) GenerateUploadAuth(_ context.Context, req storage.UploadAuthReq
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
-	key, err = n.keyPreprocess(key)
+	key, err = storage.NormalizeKey(key)
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
@@ -162,7 +155,7 @@ func (n *Client) GenerateUploadAuth(_ context.Context, req storage.UploadAuthReq
 
 // UploadFile uploads data from a reader to Qiniu Cloud Object Storage with the specified key.
 func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
-	key, err := n.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
 	}
@@ -182,7 +175,7 @@ func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 
 // UploadLocalFile uploads an existing local file to Qiniu Cloud Object Storage with the specified key.
 func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
-	key, err := n.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
 	}
@@ -203,7 +196,7 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 // StatFile returns lightweight metadata for a file without downloading its body.
 // It implements storage.FileStater by reusing the Qiniu stat call.
 func (n *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, error) {
-	key, err := n.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return storage.FileInfo{}, err
 	}
@@ -256,7 +249,7 @@ func (n *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 
 // IsFileExists checks whether a file exists in the Qiniu Cloud Object Storage bucket.
 func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
-	key, err := n.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return false, err
 	}
@@ -274,7 +267,7 @@ func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 // DownloadFile retrieves a file from Qiniu Cloud Object Storage.
 // Returns the file reader, content type, and content length.
 func (n *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
-	key, err := n.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return storage.DownloadResult{}, err
 	}
@@ -317,7 +310,7 @@ func (n *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 // DeleteFile removes a file from the Qiniu Cloud Object Storage bucket.
 // Deletion is idempotent: a key that does not exist reports success.
 func (n *Client) DeleteFile(ctx context.Context, key string) error {
-	key, err := n.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return err
 	}
@@ -336,11 +329,11 @@ func (n *Client) DeleteFile(ctx context.Context, key string) error {
 
 // MoveFile relocates a file from source to destination key within the Qiniu bucket.
 func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourceKey, err := n.keyPreprocess(sourceKey)
+	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
 		return err
 	}
-	destinationKey, err = n.keyPreprocess(destinationKey)
+	destinationKey, err = storage.NormalizeKey(destinationKey)
 	if err != nil {
 		return err
 	}
@@ -360,11 +353,11 @@ func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 
 // CopyFile duplicates a file from source to destination key within the Qiniu bucket.
 func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourceKey, err := n.keyPreprocess(sourceKey)
+	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
 		return err
 	}
-	destinationKey, err = n.keyPreprocess(destinationKey)
+	destinationKey, err = storage.NormalizeKey(destinationKey)
 	if err != nil {
 		return err
 	}

@@ -393,7 +393,3 @@ func (g *Group) cleanupContext(outer context.Context) (context.Context, context.
 	}
 	return context.WithTimeout(outer, timeout)
 }
-
-func (g *Group) newCleanupContext() (context.Context, context.CancelFunc) {
-	return g.cleanupContext(context.Background())
-}

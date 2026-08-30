@@ -82,13 +82,6 @@ func NewClient(conf Config) (*Client, error) {
 	}, nil
 }
 
-// keyPreprocess normalizes a caller-supplied key into its canonical form.
-// See storage.NormalizeKey for the rules; applying them here is what keeps a
-// key addressed on one backend addressing the same object on another.
-func (s *Client) keyPreprocess(key string) (string, error) {
-	return storage.NormalizeKey(key)
-}
-
 // GenerateUploadAuth creates a presigned PUT URL for direct client uploads to S3.
 // It generates the storage key using configured naming strategy and returns
 // the presigned URL, storage key, and public access URL. The presigned URL
@@ -103,7 +96,7 @@ func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthR
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
-	key, err = s.keyPreprocess(key)
+	key, err = storage.NormalizeKey(key)
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
@@ -130,7 +123,7 @@ func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthR
 
 // UploadFile uploads data from a reader to S3-compatible storage with the specified key.
 func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
-	key, err := s.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
 	}
@@ -145,7 +138,7 @@ func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 
 // UploadLocalFile uploads an existing local file to S3-compatible storage with the specified key.
 func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
-	key, err := s.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
 	}
@@ -161,7 +154,7 @@ func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 // StatFile returns lightweight metadata for a file without downloading its body.
 // It implements storage.FileStater by reusing the S3 stat (HEAD) call.
 func (s *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, error) {
-	key, err := s.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return storage.FileInfo{}, err
 	}
@@ -219,7 +212,7 @@ func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 
 // IsFileExists checks whether a file exists in the S3-compatible storage bucket.
 func (s *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
-	key, err := s.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return false, err
 	}
@@ -236,7 +229,7 @@ func (s *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 // DownloadFile retrieves a file from S3-compatible storage.
 // Returns the file reader, content type, and content size.
 func (s *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
-	key, err := s.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return storage.DownloadResult{}, err
 	}
@@ -264,7 +257,7 @@ func (s *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 
 // DeleteFile removes a file from the S3-compatible storage bucket.
 func (s *Client) DeleteFile(ctx context.Context, key string) error {
-	key, err := s.keyPreprocess(key)
+	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return err
 	}
@@ -278,11 +271,11 @@ func (s *Client) DeleteFile(ctx context.Context, key string) error {
 // MoveFile relocates a file from source to destination key within the S3 bucket.
 // It performs a copy operation followed by deletion of the source file.
 func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourceKey, err := s.keyPreprocess(sourceKey)
+	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
 		return err
 	}
-	destinationKey, err = s.keyPreprocess(destinationKey)
+	destinationKey, err = storage.NormalizeKey(destinationKey)
 	if err != nil {
 		return err
 	}
@@ -318,11 +311,11 @@ func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 // and is NOT a concurrency-safe guarantee: a racing writer between the stat and
 // the copy can still be clobbered. MoveFile inherits the same caveat.
 func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourceKey, err := s.keyPreprocess(sourceKey)
+	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
 		return err
 	}
-	destinationKey, err = s.keyPreprocess(destinationKey)
+	destinationKey, err = storage.NormalizeKey(destinationKey)
 	if err != nil {
 		return err
 	}
