@@ -151,7 +151,7 @@ func (c *Client) fixFilePath(key string) (string, error) {
 	// rel == "." means the key resolves to the root directory itself (e.g. an
 	// empty key, ".", or "/"); such keys are not valid file targets.
 	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return "", storageerr.ErrorFileNameInvalid
+		return "", storageerr.ErrFileNameInvalid
 	}
 	return filePath, nil
 }
@@ -232,13 +232,13 @@ func (c *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 	stat, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return storage.FileInfo{}, storageerr.ErrorNotFound
+			return storage.FileInfo{}, storageerr.ErrNotFound
 		}
 		return storage.FileInfo{}, err
 	}
 	// A directory is never a retrievable file; report it as missing.
 	if stat.IsDir() {
-		return storage.FileInfo{}, storageerr.ErrorNotFound
+		return storage.FileInfo{}, storageerr.ErrNotFound
 	}
 	return storage.FileInfo{
 		MIME: mime.TypeByExtension(filepath.Ext(key)),
@@ -338,7 +338,7 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 	file, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return storage.DownloadResult{}, storageerr.ErrorNotFound
+			return storage.DownloadResult{}, storageerr.ErrNotFound
 		}
 		return storage.DownloadResult{}, err
 	}
@@ -351,7 +351,7 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 	// caller does not leak the descriptor or hit EISDIR on read.
 	if stat.IsDir() {
 		_ = file.Close()
-		return storage.DownloadResult{}, storageerr.ErrorNotFound
+		return storage.DownloadResult{}, storageerr.ErrNotFound
 	}
 	return storage.DownloadResult{
 		Reader: file,
@@ -426,12 +426,12 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	}
 	if stat, e := os.Stat(sourcePath); e != nil {
 		if os.IsNotExist(e) {
-			return storageerr.ErrorNotFound
+			return storageerr.ErrNotFound
 		}
 		return e
 	} else if !stat.Mode().IsRegular() {
 		// Never relocate a whole directory (or special file) under a key.
-		return storageerr.ErrorNotFound
+		return storageerr.ErrNotFound
 	}
 	if e := c.checkOverwrite(destinationPath, overwrite); e != nil {
 		return e
@@ -461,7 +461,7 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	srcFile, err := os.Open(sourcePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return storageerr.ErrorNotFound
+			return storageerr.ErrNotFound
 		}
 		return err
 	}
@@ -474,7 +474,7 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	}
 	// Never duplicate a directory (or special file) as if it were a file key.
 	if !srcStat.Mode().IsRegular() {
-		return storageerr.ErrorNotFound
+		return storageerr.ErrNotFound
 	}
 	if e := c.checkOverwrite(destinationPath, overwrite); e != nil {
 		return e

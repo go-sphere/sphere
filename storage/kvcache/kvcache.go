@@ -96,7 +96,7 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 		return storage.DownloadResult{}, err
 	}
 	if !found {
-		return storage.DownloadResult{}, storageerr.ErrorNotFound
+		return storage.DownloadResult{}, storageerr.ErrNotFound
 	}
 	return storage.DownloadResult{
 		Reader: io.NopCloser(bytes.NewReader(data)),
@@ -138,7 +138,7 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 			return err
 		}
 		if !exists {
-			return storageerr.ErrorNotFound
+			return storageerr.ErrNotFound
 		}
 		return nil
 	}
@@ -178,7 +178,7 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 		return err
 	}
 	if !found {
-		return storageerr.ErrorNotFound
+		return storageerr.ErrNotFound
 	}
 	if c.config.Expires != nil {
 		err = c.cache.SetWithTTL(ctx, destinationKey, value, *c.config.Expires)

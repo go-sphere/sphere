@@ -102,7 +102,7 @@ func TestStorageCoreContract(t *testing.T) {
 }
 
 // TestStorageDeleteIsIdempotent locks in the FileDeleter contract: removing a
-// key that is not there succeeds instead of reporting ErrorNotFound, matching
+// key that is not there succeeds instead of reporting ErrNotFound, matching
 // the object-store drivers whose native delete is already idempotent.
 func TestStorageDeleteIsIdempotent(t *testing.T) {
 	for _, factory := range storageFactories() {
@@ -138,8 +138,8 @@ func TestStorageCopyFailurePreservesDestination(t *testing.T) {
 			}
 
 			err := store.CopyFile(ctx, "release/missing.txt", "release/live.txt", true)
-			if !errors.Is(err, storageerr.ErrorNotFound) {
-				t.Fatalf("CopyFile missing source error = %v, want %v", err, storageerr.ErrorNotFound)
+			if !errors.Is(err, storageerr.ErrNotFound) {
+				t.Fatalf("CopyFile missing source error = %v, want %v", err, storageerr.ErrNotFound)
 			}
 			if got := readStorageFile(t, ctx, store, "release/live.txt"); got != "current" {
 				t.Fatalf("destination changed after failed copy: %q", got)
@@ -161,8 +161,8 @@ func TestStorageNoOverwritePreservesDestination(t *testing.T) {
 			}
 
 			err := store.CopyFile(ctx, "copy/source.txt", "copy/destination.txt", false)
-			if !errors.Is(err, storageerr.ErrorDistExisted) {
-				t.Fatalf("CopyFile no-overwrite error = %v, want %v", err, storageerr.ErrorDistExisted)
+			if !errors.Is(err, storageerr.ErrDestExists) {
+				t.Fatalf("CopyFile no-overwrite error = %v, want %v", err, storageerr.ErrDestExists)
 			}
 			if got := readStorageFile(t, ctx, store, "copy/destination.txt"); got != "destination" {
 				t.Fatalf("destination was overwritten: %q", got)

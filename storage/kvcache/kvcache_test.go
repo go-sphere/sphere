@@ -23,8 +23,8 @@ func newTestClient(t *testing.T) *Client {
 func TestClientDownloadFileNotFound(t *testing.T) {
 	client := newTestClient(t)
 	result, err := client.DownloadFile(context.Background(), "missing.txt")
-	if !errors.Is(err, storageerr.ErrorNotFound) {
-		t.Fatalf("DownloadFile() error = %v, want %v", err, storageerr.ErrorNotFound)
+	if !errors.Is(err, storageerr.ErrNotFound) {
+		t.Fatalf("DownloadFile() error = %v, want %v", err, storageerr.ErrNotFound)
 	}
 	if result.Reader != nil {
 		t.Fatalf("DownloadFile() reader = %v, want nil", result.Reader)
@@ -67,8 +67,8 @@ func TestClientCopyFileOverwriteBehavior(t *testing.T) {
 			t.Fatalf("UploadFile(destination) error = %v", upErr)
 		}
 		copyErr := client.CopyFile(ctx, "source.txt", "existing.txt", false)
-		if !errors.Is(copyErr, storageerr.ErrorDistExisted) {
-			t.Fatalf("CopyFile() error = %v, want %v", copyErr, storageerr.ErrorDistExisted)
+		if !errors.Is(copyErr, storageerr.ErrDestExists) {
+			t.Fatalf("CopyFile() error = %v, want %v", copyErr, storageerr.ErrDestExists)
 		}
 	})
 }

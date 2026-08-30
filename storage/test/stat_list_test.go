@@ -66,8 +66,8 @@ func TestFileStaterContract(t *testing.T) {
 		t.Fatalf("StatFile size %d != DownloadFile size %d", info.Size, download.Size)
 	}
 
-	if _, err = stater.StatFile(ctx, "missing/nope.txt"); !errors.Is(err, storageerr.ErrorNotFound) {
-		t.Fatalf("StatFile(missing) error = %v, want %v", err, storageerr.ErrorNotFound)
+	if _, err = stater.StatFile(ctx, "missing/nope.txt"); !errors.Is(err, storageerr.ErrNotFound) {
+		t.Fatalf("StatFile(missing) error = %v, want %v", err, storageerr.ErrNotFound)
 	}
 }
 

@@ -36,16 +36,16 @@ func TestClient_fixFilePath(t *testing.T) {
 
 	t.Run("reject sibling directory traversal", func(t *testing.T) {
 		_, fixErr := client.fixFilePath(filepath.Join("..", "data2", "a.png"))
-		if !errors.Is(fixErr, storageerr.ErrorFileNameInvalid) {
-			t.Fatalf("fixFilePath() error = %v, want %v", fixErr, storageerr.ErrorFileNameInvalid)
+		if !errors.Is(fixErr, storageerr.ErrFileNameInvalid) {
+			t.Fatalf("fixFilePath() error = %v, want %v", fixErr, storageerr.ErrFileNameInvalid)
 		}
 	})
 
 	t.Run("reject empty and root keys", func(t *testing.T) {
 		for _, key := range []string{"", ".", "/"} {
 			_, fixErr := client.fixFilePath(key)
-			if !errors.Is(fixErr, storageerr.ErrorFileNameInvalid) {
-				t.Fatalf("fixFilePath(%q) error = %v, want %v", key, fixErr, storageerr.ErrorFileNameInvalid)
+			if !errors.Is(fixErr, storageerr.ErrFileNameInvalid) {
+				t.Fatalf("fixFilePath(%q) error = %v, want %v", key, fixErr, storageerr.ErrFileNameInvalid)
 			}
 		}
 	})
@@ -223,23 +223,23 @@ func TestClient_EmptyKeyRejected(t *testing.T) {
 		t.Fatalf("NewClient() error = %v", err)
 	}
 
-	if _, e := client.UploadFile(ctx, io.NopCloser(nil), ""); !errors.Is(e, storageerr.ErrorFileNameInvalid) {
-		t.Fatalf("UploadFile(\"\") error = %v, want %v", e, storageerr.ErrorFileNameInvalid)
+	if _, e := client.UploadFile(ctx, io.NopCloser(nil), ""); !errors.Is(e, storageerr.ErrFileNameInvalid) {
+		t.Fatalf("UploadFile(\"\") error = %v, want %v", e, storageerr.ErrFileNameInvalid)
 	}
-	if _, e := client.IsFileExists(ctx, ""); !errors.Is(e, storageerr.ErrorFileNameInvalid) {
-		t.Fatalf("IsFileExists(\"\") error = %v, want %v", e, storageerr.ErrorFileNameInvalid)
+	if _, e := client.IsFileExists(ctx, ""); !errors.Is(e, storageerr.ErrFileNameInvalid) {
+		t.Fatalf("IsFileExists(\"\") error = %v, want %v", e, storageerr.ErrFileNameInvalid)
 	}
-	if _, e := client.DownloadFile(ctx, ""); !errors.Is(e, storageerr.ErrorFileNameInvalid) {
-		t.Fatalf("DownloadFile(\"\") error = %v, want %v", e, storageerr.ErrorFileNameInvalid)
+	if _, e := client.DownloadFile(ctx, ""); !errors.Is(e, storageerr.ErrFileNameInvalid) {
+		t.Fatalf("DownloadFile(\"\") error = %v, want %v", e, storageerr.ErrFileNameInvalid)
 	}
-	if e := client.DeleteFile(ctx, ""); !errors.Is(e, storageerr.ErrorFileNameInvalid) {
-		t.Fatalf("DeleteFile(\"\") error = %v, want %v", e, storageerr.ErrorFileNameInvalid)
+	if e := client.DeleteFile(ctx, ""); !errors.Is(e, storageerr.ErrFileNameInvalid) {
+		t.Fatalf("DeleteFile(\"\") error = %v, want %v", e, storageerr.ErrFileNameInvalid)
 	}
-	if e := client.MoveFile(ctx, "", "dst.txt", true); !errors.Is(e, storageerr.ErrorFileNameInvalid) {
-		t.Fatalf("MoveFile(\"\") error = %v, want %v", e, storageerr.ErrorFileNameInvalid)
+	if e := client.MoveFile(ctx, "", "dst.txt", true); !errors.Is(e, storageerr.ErrFileNameInvalid) {
+		t.Fatalf("MoveFile(\"\") error = %v, want %v", e, storageerr.ErrFileNameInvalid)
 	}
-	if e := client.CopyFile(ctx, "", "dst.txt", true); !errors.Is(e, storageerr.ErrorFileNameInvalid) {
-		t.Fatalf("CopyFile(\"\") error = %v, want %v", e, storageerr.ErrorFileNameInvalid)
+	if e := client.CopyFile(ctx, "", "dst.txt", true); !errors.Is(e, storageerr.ErrFileNameInvalid) {
+		t.Fatalf("CopyFile(\"\") error = %v, want %v", e, storageerr.ErrFileNameInvalid)
 	}
 }
 
@@ -264,19 +264,19 @@ func TestClient_DirectoryKeyTreatedAsNotFound(t *testing.T) {
 		t.Fatal("IsFileExists(dir) = true, want false")
 	}
 
-	if _, e = client.DownloadFile(ctx, "images"); !errors.Is(e, storageerr.ErrorNotFound) {
-		t.Fatalf("DownloadFile(dir) error = %v, want %v", e, storageerr.ErrorNotFound)
+	if _, e = client.DownloadFile(ctx, "images"); !errors.Is(e, storageerr.ErrNotFound) {
+		t.Fatalf("DownloadFile(dir) error = %v, want %v", e, storageerr.ErrNotFound)
 	}
 	// Deletion is idempotent, so a key holding a directory reports success; the
 	// directory itself must still be left alone (asserted at the end).
 	if e = client.DeleteFile(ctx, "images"); e != nil {
 		t.Fatalf("DeleteFile(dir) error = %v, want nil", e)
 	}
-	if e = client.MoveFile(ctx, "images", "moved", true); !errors.Is(e, storageerr.ErrorNotFound) {
-		t.Fatalf("MoveFile(dir) error = %v, want %v", e, storageerr.ErrorNotFound)
+	if e = client.MoveFile(ctx, "images", "moved", true); !errors.Is(e, storageerr.ErrNotFound) {
+		t.Fatalf("MoveFile(dir) error = %v, want %v", e, storageerr.ErrNotFound)
 	}
-	if e = client.CopyFile(ctx, "images", "copied", true); !errors.Is(e, storageerr.ErrorNotFound) {
-		t.Fatalf("CopyFile(dir) error = %v, want %v", e, storageerr.ErrorNotFound)
+	if e = client.CopyFile(ctx, "images", "copied", true); !errors.Is(e, storageerr.ErrNotFound) {
+		t.Fatalf("CopyFile(dir) error = %v, want %v", e, storageerr.ErrNotFound)
 	}
 
 	// The directory must survive the refused operations.
@@ -298,8 +298,8 @@ func TestClient_CopyMissingSourcePreservesDestination(t *testing.T) {
 	}
 
 	err = client.CopyFile(ctx, "release/missing.txt", destination, true)
-	if !errors.Is(err, storageerr.ErrorNotFound) {
-		t.Fatalf("CopyFile() error = %v, want %v", err, storageerr.ErrorNotFound)
+	if !errors.Is(err, storageerr.ErrNotFound) {
+		t.Fatalf("CopyFile() error = %v, want %v", err, storageerr.ErrNotFound)
 	}
 
 	result, err := client.DownloadFile(ctx, destination)

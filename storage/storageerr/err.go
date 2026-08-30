@@ -1,7 +1,7 @@
 // Package storageerr is the shared sentinel errors for storage drivers,
 // wrapped with httpx status (NotFound / BadRequest).
 //
-// Use errors.Is. ErrorDistExisted is a deprecated alias of ErrDestExists.
+// Use errors.Is to compare against these sentinels.
 package storageerr
 
 import (
@@ -20,10 +20,4 @@ var (
 
 	// ErrFileNameInvalid indicates that the provided file name or path is invalid or unsafe.
 	ErrFileNameInvalid = httpx.BadRequestError(errors.New("file name invalid"))
-
-	// Backwards-compatible aliases and alternate spellings.
-	ErrorNotFound        = ErrNotFound
-	ErrorDestExisted     = ErrDestExists
-	ErrorDistExisted     = ErrDestExists // Deprecated: typo in original name, use ErrDestExists or ErrorDestExisted instead
-	ErrorFileNameInvalid = ErrFileNameInvalid
 )

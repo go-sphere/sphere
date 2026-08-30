@@ -161,7 +161,7 @@ func (s *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 	info, err := s.client.StatObject(ctx, s.config.Bucket, key, minio.StatObjectOptions{})
 	if err != nil {
 		if isNoSuchKeyError(err) {
-			return storage.FileInfo{}, storageerr.ErrorNotFound
+			return storage.FileInfo{}, storageerr.ErrNotFound
 		}
 		return storage.FileInfo{}, err
 	}
@@ -236,7 +236,7 @@ func (s *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 	object, err := s.client.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
 	if err != nil {
 		if isNoSuchKeyError(err) {
-			return storage.DownloadResult{}, storageerr.ErrorNotFound
+			return storage.DownloadResult{}, storageerr.ErrNotFound
 		}
 		return storage.DownloadResult{}, err
 	}
@@ -244,7 +244,7 @@ func (s *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 	if err != nil {
 		_ = object.Close()
 		if isNoSuchKeyError(err) {
-			return storage.DownloadResult{}, storageerr.ErrorNotFound
+			return storage.DownloadResult{}, storageerr.ErrNotFound
 		}
 		return storage.DownloadResult{}, err
 	}

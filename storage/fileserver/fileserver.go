@@ -184,7 +184,7 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 		}
 		result, err := a.store.DownloadFile(ctx.Context(), filename)
 		if err != nil {
-			if errors.Is(err, storageerr.ErrorNotFound) {
+			if errors.Is(err, storageerr.ErrNotFound) {
 				return httpx.NotFoundError(err)
 			}
 			return httpx.InternalServerError(err)

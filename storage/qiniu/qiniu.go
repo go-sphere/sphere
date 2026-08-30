@@ -204,7 +204,7 @@ func (n *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 	info, err := manager.Stat(n.config.Bucket, key)
 	if err != nil {
 		if isNotFoundError(err) {
-			return storage.FileInfo{}, storageerr.ErrorNotFound
+			return storage.FileInfo{}, storageerr.ErrNotFound
 		}
 		return storage.FileInfo{}, err
 	}
@@ -275,7 +275,7 @@ func (n *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 	object, err := manager.Get(n.config.Bucket, key, &qiniuStorage.GetObjectInput{Context: ctx})
 	if err != nil {
 		if isDownloadNotFoundError(err) {
-			return storage.DownloadResult{}, storageerr.ErrorNotFound
+			return storage.DownloadResult{}, storageerr.ErrNotFound
 		}
 		return storage.DownloadResult{}, err
 	}
@@ -292,7 +292,7 @@ func (n *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 			_ = object.Body.Close()
 		}
 		if isDownloadNotFoundError(err) {
-			return storage.DownloadResult{}, storageerr.ErrorNotFound
+			return storage.DownloadResult{}, storageerr.ErrNotFound
 		}
 		return storage.DownloadResult{}, err
 	}

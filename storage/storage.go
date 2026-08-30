@@ -150,7 +150,7 @@ type FileInfo struct {
 // interface.
 type FileStater interface {
 	// StatFile returns lightweight metadata for the file identified by key.
-	// It returns storageerr.ErrorNotFound when the key does not exist.
+	// It returns storageerr.ErrNotFound when the key does not exist.
 	StatFile(ctx context.Context, key string) (FileInfo, error)
 }
 
@@ -176,7 +176,7 @@ type FileLister interface {
 type FileDeleter interface {
 	// DeleteFile removes a file from the storage backend. Deletion is idempotent:
 	// deleting a key that does not exist reports success rather than
-	// storageerr.ErrorNotFound.
+	// storageerr.ErrNotFound.
 	DeleteFile(ctx context.Context, key string) error
 }
 

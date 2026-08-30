@@ -172,19 +172,19 @@ func normalizeUploadDir(raw string, rejectAbs bool, field string) (string, error
 func NormalizeKey(key string) (string, error) {
 	trimmed := strings.TrimPrefix(key, "/")
 	if trimmed == "" {
-		return "", storageerr.ErrorFileNameInvalid
+		return "", storageerr.ErrFileNameInvalid
 	}
 	// Checked before cleaning: path.Clean resolves ".." against the preceding
 	// segment, which would silently turn a traversal attempt into a valid key
 	// somewhere else rather than refusing it.
 	for _, segment := range strings.Split(trimmed, "/") {
 		if segment == ".." {
-			return "", storageerr.ErrorFileNameInvalid
+			return "", storageerr.ErrFileNameInvalid
 		}
 	}
 	cleaned := strings.TrimPrefix(path.Clean(trimmed), "/")
 	if cleaned == "" || cleaned == "." {
-		return "", storageerr.ErrorFileNameInvalid
+		return "", storageerr.ErrFileNameInvalid
 	}
 	return cleaned, nil
 }
