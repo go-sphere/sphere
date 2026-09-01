@@ -9,6 +9,7 @@
 package numconv
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -18,14 +19,7 @@ import (
 
 func int64ToBytes(n int64) []byte {
 	bytes := make([]byte, 8)
-	bytes[0] = byte(n >> 56)
-	bytes[1] = byte(n >> 48)
-	bytes[2] = byte(n >> 40)
-	bytes[3] = byte(n >> 32)
-	bytes[4] = byte(n >> 24)
-	bytes[5] = byte(n >> 16)
-	bytes[6] = byte(n >> 8)
-	bytes[7] = byte(n)
+	binary.BigEndian.PutUint64(bytes, uint64(n))
 	return bytes
 }
 
@@ -44,8 +38,7 @@ func bytesToInt64(b []byte) (int64, error) {
 	if len(b) != 8 {
 		return 0, fmt.Errorf("%w: decoded %d bytes, want 8", ErrNonCanonical, len(b))
 	}
-	return int64(b[0])<<56 | int64(b[1])<<48 | int64(b[2])<<40 | int64(b[3])<<32 |
-		int64(b[4])<<24 | int64(b[5])<<16 | int64(b[6])<<8 | int64(b[7]), nil
+	return int64(binary.BigEndian.Uint64(b)), nil
 }
 
 // Int64ToBase32 converts a 64-bit integer to its base32 string representation.
@@ -83,25 +76,22 @@ func Base62ToInt64(s string) (int64, error) {
 // RandomBase32 generates a random base32 string of the specified length.
 // Returns an empty string if length is non-positive.
 func RandomBase32(length int) string {
-	if length <= 0 {
-		return ""
-	}
-	result := make([]rune, length)
-	for i := range length {
-		result[i] = rune(baseconv.AlphabetBase32[rand.IntN(len(baseconv.AlphabetBase32))])
-	}
-	return string(result)
+	return randomBase(baseconv.AlphabetBase32, length)
 }
 
 // RandomBase62 generates a random base62 string of the specified length.
 // Returns an empty string if length is non-positive.
 func RandomBase62(length int) string {
+	return randomBase(baseconv.AlphabetBase62, length)
+}
+
+func randomBase(alphabet string, length int) string {
 	if length <= 0 {
 		return ""
 	}
-	result := make([]rune, length)
+	result := make([]byte, length)
 	for i := range length {
-		result[i] = rune(baseconv.AlphabetBase62[rand.IntN(len(baseconv.AlphabetBase62))])
+		result[i] = alphabet[rand.IntN(len(alphabet))]
 	}
 	return string(result)
 }

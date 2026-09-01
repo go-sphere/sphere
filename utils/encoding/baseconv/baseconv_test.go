@@ -109,3 +109,21 @@ func TestMathematicalEncodingRoundTripLeadingZeros(t *testing.T) {
 		}
 	}
 }
+
+func TestMathematicalEncodingRoundTripLongInput(t *testing.T) {
+	t.Parallel()
+
+	want := make([]byte, 1024)
+	for i := 2; i < len(want); i++ {
+		want[i] = byte(i*31 + 7)
+	}
+
+	encoded := Std62Encoding.EncodeToString(want)
+	got, err := Std62Encoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatalf("DecodeString(long input): %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("long mathematical encoding did not round-trip")
+	}
+}

@@ -104,7 +104,6 @@ func (s *VerificationStorage) forgetIdle(number string, now time.Time) {
 	delete(s.DailyCounts, number)
 	delete(s.MinuteTimestamps, number)
 	delete(s.DailyTimestamps, number)
-	delete(s.FailedAttempts, number)
 }
 
 // rollWindow resets a rate-limit counter whose window has elapsed and anchors a

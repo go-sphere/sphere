@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 )
 
@@ -46,22 +47,17 @@ func NewBaseEncodingWithPadding(alphabet string, padChar byte) (*BaseEncoding, e
 		return nil, errors.New("alphabet must have at least 2 characters")
 	}
 
-	charMap := make(map[byte]bool)
+	decodeMap := make(map[byte]int, len(alphabet))
 	for i := 0; i < len(alphabet); i++ {
 		char := alphabet[i]
-		if charMap[char] {
+		if _, exists := decodeMap[char]; exists {
 			return nil, errors.New("alphabet contains duplicate characters")
 		}
-		charMap[char] = true
+		decodeMap[char] = i
 	}
 
-	if padChar != 0 && charMap[padChar] {
+	if _, exists := decodeMap[padChar]; padChar != 0 && exists {
 		return nil, errors.New("padding character conflicts with alphabet")
-	}
-
-	decodeMap := make(map[byte]int)
-	for i := 0; i < len(alphabet); i++ {
-		decodeMap[alphabet[i]] = i
 	}
 
 	return &BaseEncoding{
@@ -88,10 +84,6 @@ func (e *BaseEncoding) EncodeToString(data []byte) string {
 }
 
 func (e *BaseEncoding) encodeBitwise(data []byte, bitsPerChar int) string {
-	if len(data) == 0 {
-		return ""
-	}
-
 	var result strings.Builder
 	var buffer uint32
 	var bitsInBuffer int
@@ -134,10 +126,6 @@ func (e *BaseEncoding) encodeBitwise(data []byte, bitsPerChar int) string {
 }
 
 func (e *BaseEncoding) encodeMathematical(data []byte) string {
-	if len(data) == 0 {
-		return ""
-	}
-
 	leadingZeros := 0
 	for _, b := range data {
 		if b == 0 {
@@ -165,9 +153,10 @@ func (e *BaseEncoding) encodeMathematical(data []byte) string {
 			carry = carry % e.base
 		}
 
-		digits = append([]int{carry}, digits...)
+		digits = append(digits, carry)
 		temp = newTemp
 	}
+	slices.Reverse(digits)
 
 	var result strings.Builder
 	for i := 0; i < leadingZeros; i++ {
@@ -175,10 +164,6 @@ func (e *BaseEncoding) encodeMathematical(data []byte) string {
 	}
 	for _, digit := range digits {
 		result.WriteByte(e.alphabet[digit])
-	}
-
-	if result.Len() == 0 {
-		result.WriteByte(e.alphabet[0])
 	}
 
 	return result.String()
@@ -285,9 +270,10 @@ func (e *BaseEncoding) decodeMathematical(data string) ([]byte, error) {
 			carry = carry % 256
 		}
 
-		result = append([]int{carry}, result...)
+		result = append(result, carry)
 		digits = newDigits
 	}
+	slices.Reverse(result)
 
 	finalResult := make([]byte, leadingZeros+len(result))
 	for i := 0; i < len(result); i++ {
