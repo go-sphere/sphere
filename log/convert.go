@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -14,13 +15,13 @@ func formatSlogValue(v slog.Value) string {
 	case slog.KindString:
 		return quoteIfNeeded(v.String())
 	case slog.KindInt64:
-		return fmt.Sprintf("%d", v.Int64())
+		return strconv.FormatInt(v.Int64(), 10)
 	case slog.KindUint64:
-		return fmt.Sprintf("%d", v.Uint64())
+		return strconv.FormatUint(v.Uint64(), 10)
 	case slog.KindFloat64:
-		return fmt.Sprintf("%g", v.Float64())
+		return strconv.FormatFloat(v.Float64(), 'g', -1, 64)
 	case slog.KindBool:
-		return fmt.Sprintf("%t", v.Bool())
+		return strconv.FormatBool(v.Bool())
 	case slog.KindDuration:
 		return quoteIfNeeded(v.Duration().String())
 	case slog.KindTime:
@@ -130,7 +131,7 @@ func quoteIfNeeded(v string) string {
 		return `""`
 	}
 	if strings.ContainsAny(v, " \t\n\r\"=") {
-		return fmt.Sprintf("%q", v)
+		return strconv.Quote(v)
 	}
 	return v
 }

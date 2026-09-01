@@ -8,7 +8,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -157,11 +157,7 @@ func (b *StdioBackend) buildLine(level Level, msg string, caller string, attrs [
 
 	// Stable ordering for backend-level attrs improves testability and readability.
 	if len(b.attrs) > 0 {
-		keys := make([]string, 0, len(b.attrs))
-		for k := range b.attrs {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(b.attrs))
 		for _, k := range keys {
 			sb.WriteByte(' ')
 			sb.WriteString(k)

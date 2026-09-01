@@ -3,7 +3,8 @@ package zapx
 import (
 	"fmt"
 	"log/slog"
-	"sort"
+	"maps"
+	"slices"
 
 	corelog "github.com/go-sphere/sphere/log"
 	"go.uber.org/zap"
@@ -12,11 +13,7 @@ import (
 
 // MapToZapFields converts attrs into zap fields in sorted key order.
 func MapToZapFields(attrs map[string]any) []zap.Field {
-	keys := make([]string, 0, len(attrs))
-	for k := range attrs {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(attrs))
 
 	fields := make([]zap.Field, 0, len(attrs))
 	for _, k := range keys {
@@ -58,11 +55,7 @@ func AttrToZapField(attr corelog.Attr) zap.Field {
 }
 
 func mapToSlogAttrs(attrs map[string]any) []slog.Attr {
-	keys := make([]string, 0, len(attrs))
-	for k := range attrs {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(attrs))
 
 	out := make([]slog.Attr, 0, len(attrs))
 	for _, k := range keys {

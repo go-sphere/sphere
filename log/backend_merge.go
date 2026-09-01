@@ -2,7 +2,8 @@ package log
 
 import (
 	"context"
-	"sort"
+	"maps"
+	"slices"
 )
 
 // ContextAttrExtractor extracts attributes from context for context-aware logging.
@@ -21,11 +22,7 @@ func MapContextAttrExtractor(extractor ContextMapExtractor) ContextAttrExtractor
 		if len(m) == 0 {
 			return nil
 		}
-		keys := make([]string, 0, len(m))
-		for k := range m {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(m))
 		attrs := make([]Attr, 0, len(m))
 		for _, k := range keys {
 			attrs = append(attrs, Any(k, m[k]))
