@@ -258,10 +258,10 @@ func (p *PubSub[T]) RequestStop() error {
 		p.mu.Lock()
 		p.closed = true
 		var subs []*subscription[T]
-		for topic, topicSubs := range p.subscriptions {
+		for _, topicSubs := range p.subscriptions {
 			subs = append(subs, topicSubs...)
-			delete(p.subscriptions, topic)
 		}
+		clear(p.subscriptions)
 		p.mu.Unlock()
 
 		for _, sub := range subs {
