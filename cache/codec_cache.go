@@ -61,27 +61,31 @@ func (m *CodecCache[T]) SetWithTTL(ctx context.Context, key string, val T, expir
 }
 
 func (m *CodecCache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
-	rawMap := make(map[string][]byte, len(valMap))
-	for k, v := range valMap {
-		raw, err := m.codec.Marshal(v)
-		if err != nil {
-			return err
-		}
-		rawMap[k] = raw
+	rawMap, err := m.marshalMap(valMap)
+	if err != nil {
+		return err
 	}
 	return m.cache.MultiSet(ctx, rawMap)
 }
 
 func (m *CodecCache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, expiration time.Duration) error {
+	rawMap, err := m.marshalMap(valMap)
+	if err != nil {
+		return err
+	}
+	return m.cache.MultiSetWithTTL(ctx, rawMap, expiration)
+}
+
+func (m *CodecCache[T]) marshalMap(valMap map[string]T) (map[string][]byte, error) {
 	rawMap := make(map[string][]byte, len(valMap))
 	for k, v := range valMap {
 		raw, err := m.codec.Marshal(v)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		rawMap[k] = raw
 	}
-	return m.cache.MultiSetWithTTL(ctx, rawMap, expiration)
+	return rawMap, nil
 }
 
 func (m *CodecCache[T]) Get(ctx context.Context, key string) (T, bool, error) {
