@@ -197,13 +197,11 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	case stateStopping:
 		// Shutdown already in progress; fall through to wait on the same channel.
 	}
+	// Every path reaching here either installed stopDone while transitioning from
+	// running or observed that same channel in stateStopping while holding mu.
 	done := s.stopDone
 	s.mu.Unlock()
 
-	if done == nil {
-		s.cancelRun()
-		return nil
-	}
 	select {
 	case <-done:
 		// Handlers have drained; release Start.
