@@ -24,15 +24,8 @@ func WithAuthData[I UID](ctx context.Context, data Data[I]) context.Context {
 // GetAuthData returns the identity stored by WithAuthData. A missing value
 // or a Data stored under a different UID type yields (_, false).
 func GetAuthData[I UID](ctx context.Context) (Data[I], bool) {
-	raw := ctx.Value(authContextKey)
-	if raw == nil {
-		return Data[I]{}, false
-	}
-	data, ok := raw.(Data[I])
-	if !ok {
-		return Data[I]{}, false
-	}
-	return data, true
+	data, ok := ctx.Value(authContextKey).(Data[I])
+	return data, ok
 }
 
 // ContextUtils provides utility functions for working with authentication context.

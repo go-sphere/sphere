@@ -156,7 +156,7 @@ func (c *config) compile() {
 		c.exposeHeadersValue = strings.Join(c.exposeHeaders, ",")
 	}
 	if c.maxAge > 0 {
-		seconds := max(c.maxAge/time.Second, 0)
+		seconds := c.maxAge / time.Second
 		c.maxAgeValue = strconv.FormatInt(int64(seconds), 10)
 		c.hasMaxAge = true
 	}
@@ -198,9 +198,6 @@ func (c *config) hasWildcardOrigin() bool {
 }
 
 func (c *config) resolveOrigin(requestOrigin string) string {
-	if len(c.allowOrigins) == 0 {
-		return ""
-	}
 	for _, allowed := range c.allowOrigins {
 		if allowed == "*" {
 			// Always the literal wildcard: NewCORS rejects "*" together with

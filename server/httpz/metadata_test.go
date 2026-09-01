@@ -8,12 +8,21 @@ import (
 // matchFakeContext adds request metadata overrides used by MatchOperation.
 type matchFakeContext struct {
 	httpxContext
-	method   string
-	fullPath string
+	method        string
+	fullPath      string
+	methodCalls   int
+	fullPathCalls int
 }
 
-func (m *matchFakeContext) Method() string   { return m.method }
-func (m *matchFakeContext) FullPath() string { return m.fullPath }
+func (m *matchFakeContext) Method() string {
+	m.methodCalls++
+	return m.method
+}
+
+func (m *matchFakeContext) FullPath() string {
+	m.fullPathCalls++
+	return m.fullPath
+}
 
 // TestMatchOperation pins the endpoint-matching helper: the operation must match
 // on method and route pattern together, and only listed operations may pass.
@@ -44,6 +53,18 @@ func TestMatchOperation(t *testing.T) {
 				t.Fatalf("match = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMatchOperationDoesNotReadPathWhenMethodMisses(t *testing.T) {
+	matcher := MatchOperation("/api", [][3]string{{"read", http.MethodGet, "/users"}}, "read")
+	ctx := &matchFakeContext{method: http.MethodDelete, fullPath: "/api/users"}
+
+	if matcher(ctx) {
+		t.Fatal("unexpected match")
+	}
+	if ctx.methodCalls != 1 || ctx.fullPathCalls != 0 {
+		t.Fatalf("metadata calls = method:%d fullPath:%d, want method:1 fullPath:0", ctx.methodCalls, ctx.fullPathCalls)
 	}
 }
 

@@ -53,13 +53,15 @@ func MatchOperation(base string, endpoints [][3]string, operations ...string) fu
 		opts[opt] = struct{}{}
 	}
 	return func(ctx httpx.Context) bool {
-		if method, ok := matches[ctx.Method()]; ok {
-			if opt, exist := method[ctx.FullPath()]; exist {
-				if _, match := opts[opt]; match {
-					return true
-				}
-			}
+		method, ok := matches[ctx.Method()]
+		if !ok {
+			return false
 		}
-		return false
+		opt, ok := method[ctx.FullPath()]
+		if !ok {
+			return false
+		}
+		_, ok = opts[opt]
+		return ok
 	}
 }
