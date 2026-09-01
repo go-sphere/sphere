@@ -135,21 +135,22 @@ func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Opti
 	ctx := context.Background()
 	if err := runHooks(ctx, opts.beforeBuild, "beforeBuild"); err != nil {
 		buildErr := fmt.Errorf("before build hooks failed: %w", err)
-		if cleanupErr := runHooks(ctx, opts.afterBuildFail, "afterBuildFail"); cleanupErr != nil {
-			return errors.Join(buildErr, fmt.Errorf("after build failure hooks: %w", cleanupErr))
-		}
-		return buildErr
+		return handleBuildFailure(ctx, opts, buildErr)
 	}
 
 	app, err := builder(conf)
 	if err != nil {
 		buildErr := fmt.Errorf("failed to build application: %w", err)
-		if cleanupErr := runHooks(ctx, opts.afterBuildFail, "afterBuildFail"); cleanupErr != nil {
-			return errors.Join(buildErr, fmt.Errorf("after build failure hooks: %w", cleanupErr))
-		}
-		return buildErr
+		return handleBuildFailure(ctx, opts, buildErr)
 	}
 	return run(ctx, app, opts)
+}
+
+func handleBuildFailure(ctx context.Context, opts *options, buildErr error) error {
+	if cleanupErr := runHooks(ctx, opts.afterBuildFail, "afterBuildFail"); cleanupErr != nil {
+		return errors.Join(buildErr, fmt.Errorf("after build failure hooks: %w", cleanupErr))
+	}
+	return buildErr
 }
 
 // newShutdownContext builds the context bounding graceful shutdown. A

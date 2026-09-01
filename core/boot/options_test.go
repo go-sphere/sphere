@@ -97,3 +97,46 @@ func TestWithLoggerBackendSyncsAfterBuildFailure(t *testing.T) {
 		t.Fatal("logger backend was not synced after build failure")
 	}
 }
+
+func TestRunBuildFailureJoinsCleanupError(t *testing.T) {
+	tests := []struct {
+		name       string
+		beforeFail bool
+	}{
+		{name: "before build failure", beforeFail: true},
+		{name: "builder failure"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buildErr := errors.New("build failed")
+			cleanupErr := errors.New("cleanup failed")
+			builderCalled := false
+			runOptions := []Option{
+				func(o *options) {
+					o.afterBuildFail = append(o.afterBuildFail, func(context.Context) error {
+						return cleanupErr
+					})
+				},
+			}
+			if tt.beforeFail {
+				runOptions = append(runOptions, func(o *options) {
+					o.beforeBuild = append(o.beforeBuild, func(context.Context) error {
+						return buildErr
+					})
+				})
+			}
+
+			err := Run(new(struct{}), func(*struct{}) (*Application, error) {
+				builderCalled = true
+				return nil, buildErr
+			}, runOptions...)
+			if !errors.Is(err, buildErr) || !errors.Is(err, cleanupErr) {
+				t.Fatalf("Run error = %v, want joined build and cleanup errors", err)
+			}
+			if want := !tt.beforeFail; builderCalled != want {
+				t.Fatalf("builder called = %v, want %v", builderCalled, want)
+			}
+		})
+	}
+}

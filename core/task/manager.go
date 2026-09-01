@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"maps"
 	"sync"
 	"time"
 
@@ -123,7 +124,8 @@ type Manager struct {
 	runMu  sync.Mutex
 	mu     sync.RWMutex
 	nextID uint64
-	tasks  map[string]*managedTask
+	// tasks only contains non-nil entries created by newManagedTask.
+	tasks map[string]*managedTask
 	// tombstones retains the final result of removed tasks so that a StopTask /
 	// GetTaskResult call after a task has already exited surfaces its cached
 	// result instead of ErrTaskNotFound. Entries are cleared when the same name
@@ -210,15 +212,10 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	m.mu.Lock()
-	if existing, ok := m.tasks[name]; ok {
-		if existing != nil && !isClosed(existing.doneCh) {
-			m.mu.Unlock()
-			cancel()
-			return ErrTaskAlreadyExists
-		}
-		if existing == nil {
-			delete(m.tasks, name)
-		}
+	if existing, ok := m.tasks[name]; ok && !isClosed(existing.doneCh) {
+		m.mu.Unlock()
+		cancel()
+		return ErrTaskAlreadyExists
 	}
 	m.nextID++
 	entry := newManagedTask(m.nextID, name, task, cancel)
@@ -298,7 +295,7 @@ func (m *Manager) StopTask(ctx context.Context, name string) error {
 	}
 
 	entry, ok := m.getTask(name)
-	if !ok || entry == nil {
+	if !ok {
 		if tomb, result := m.getTombstone(name); tomb {
 			return result
 		}
@@ -383,8 +380,8 @@ func (m *Manager) Wait() error {
 func (m *Manager) IsRunning(name string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	entry, ok := m.tasks[name]
-	return ok && entry != nil
+	_, ok := m.tasks[name]
+	return ok
 }
 
 // GetRunningTasks returns a slice of names of all currently running tasks.
@@ -393,10 +390,7 @@ func (m *Manager) GetRunningTasks() []string {
 	defer m.mu.RUnlock()
 
 	list := make([]string, 0, len(m.tasks))
-	for name, entry := range m.tasks {
-		if entry == nil {
-			continue
-		}
+	for name := range m.tasks {
 		list = append(list, name)
 	}
 	return list
@@ -412,7 +406,7 @@ func (m *Manager) GetTaskResult(name string) (found bool, err error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if entry, ok := m.tasks[name]; ok && entry != nil {
+	if entry, ok := m.tasks[name]; ok {
 		return true, errors.Join(entry.getStartErr(), entry.getStopErr())
 	}
 	if result, ok := m.tombstones[name]; ok {
@@ -425,20 +419,14 @@ func (m *Manager) GetTaskResult(name string) (found bool, err error) {
 func (m *Manager) GetTaskCount() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	count := 0
-	for _, entry := range m.tasks {
-		if entry != nil {
-			count++
-		}
-	}
-	return count
+	return len(m.tasks)
 }
 
 func (m *Manager) getTask(name string) (*managedTask, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	entry, ok := m.tasks[name]
-	if !ok || entry == nil {
+	if !ok {
 		return nil, false
 	}
 	return entry, true
@@ -448,14 +436,7 @@ func (m *Manager) snapshotTasks() map[string]*managedTask {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	copyTasks := make(map[string]*managedTask, len(m.tasks))
-	for name, task := range m.tasks {
-		if task == nil {
-			continue
-		}
-		copyTasks[name] = task
-	}
-	return copyTasks
+	return maps.Clone(m.tasks)
 }
 
 // removeTaskIfSame retires expected and records its result. The run goroutine
@@ -516,9 +497,6 @@ func (m *Manager) getTombstone(name string) (bool, error) {
 }
 
 func (m *Manager) requestStop(entry *managedTask) {
-	if entry == nil {
-		return
-	}
 	entry.stopOnce.Do(func() {
 		go func() {
 			defer close(entry.stopDoneCh)
