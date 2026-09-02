@@ -421,9 +421,6 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return err
 	}
-	if e := os.MkdirAll(filepath.Dir(destinationPath), 0o750); e != nil {
-		return e
-	}
 	if stat, e := os.Stat(sourcePath); e != nil {
 		if os.IsNotExist(e) {
 			return storageerr.ErrNotFound
@@ -432,6 +429,9 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	} else if !stat.Mode().IsRegular() {
 		// Never relocate a whole directory (or special file) under a key.
 		return storageerr.ErrNotFound
+	}
+	if e := os.MkdirAll(filepath.Dir(destinationPath), 0o750); e != nil {
+		return e
 	}
 	if e := c.checkOverwrite(destinationPath, overwrite); e != nil {
 		return e
@@ -455,9 +455,6 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return err
 	}
-	if e := os.MkdirAll(filepath.Dir(destinationPath), 0o750); e != nil {
-		return e
-	}
 	srcFile, err := os.Open(sourcePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -475,6 +472,9 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	// Never duplicate a directory (or special file) as if it were a file key.
 	if !srcStat.Mode().IsRegular() {
 		return storageerr.ErrNotFound
+	}
+	if e := os.MkdirAll(filepath.Dir(destinationPath), 0o750); e != nil {
+		return e
 	}
 	if e := c.checkOverwrite(destinationPath, overwrite); e != nil {
 		return e

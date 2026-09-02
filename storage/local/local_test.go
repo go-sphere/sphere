@@ -285,6 +285,45 @@ func TestClient_DirectoryKeyTreatedAsNotFound(t *testing.T) {
 	}
 }
 
+func TestClient_InvalidSourceDoesNotCreateDestinationParent(t *testing.T) {
+	ctx := t.Context()
+	root := t.TempDir()
+	client, err := NewClient(Config{RootDir: root})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(root, "source-dir"), 0o750); err != nil {
+		t.Fatalf("Mkdir(source-dir): %v", err)
+	}
+
+	operations := []struct {
+		name string
+		run  func(source, destination string) error
+	}{
+		{name: "move", run: func(source, destination string) error {
+			return client.MoveFile(ctx, source, destination, true)
+		}},
+		{name: "copy", run: func(source, destination string) error {
+			return client.CopyFile(ctx, source, destination, true)
+		}},
+	}
+	for _, operation := range operations {
+		for _, source := range []string{"missing.txt", "source-dir"} {
+			name := operation.name + "/" + source
+			t.Run(name, func(t *testing.T) {
+				destinationParent := filepath.Join("dest", operation.name, strings.ReplaceAll(source, ".", "-"))
+				err := operation.run(source, filepath.Join(destinationParent, "file.txt"))
+				if !errors.Is(err, storageerr.ErrNotFound) {
+					t.Fatalf("operation error = %v, want %v", err, storageerr.ErrNotFound)
+				}
+				if _, statErr := os.Stat(filepath.Join(root, destinationParent)); !os.IsNotExist(statErr) {
+					t.Fatalf("destination parent was created, Stat error = %v", statErr)
+				}
+			})
+		}
+	}
+}
+
 func TestClient_CopyMissingSourcePreservesDestination(t *testing.T) {
 	ctx := context.Background()
 	client, err := NewClient(Config{RootDir: t.TempDir()})

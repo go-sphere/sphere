@@ -44,6 +44,34 @@ func TestNewClientMimeLimit(t *testing.T) {
 	}
 }
 
+func TestGenerateImageURL(t *testing.T) {
+	t.Parallel()
+
+	client, err := NewClient(Config{PublicBase: "https://cdn.example.com"})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	tests := []struct {
+		name  string
+		key   string
+		width int
+		want  string
+	}{
+		{name: "empty key stays empty", key: "", width: 100, want: ""},
+		{name: "image query", key: "images/avatar.png", width: 100, want: "https://cdn.example.com/images/avatar.png?imageView2/2/w/100/q/75"},
+		{name: "zero width preserves current contract", key: "images/avatar.png", width: 0, want: "https://cdn.example.com/images/avatar.png?imageView2/2/w/0/q/75"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := client.GenerateImageURL(tt.key, tt.width); got != tt.want {
+				t.Fatalf("GenerateImageURL(%q, %d) = %q, want %q", tt.key, tt.width, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestIsDownloadNotFoundError pins that a missing object is recognised on the
 // download path too. Downloads are served by the object source and answer with
 // a plain HTTP 404, while the bucket-management API answers with Qiniu's 612;

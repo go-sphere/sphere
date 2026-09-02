@@ -99,6 +99,9 @@ func NewClient(conf Config) (*Client, error) {
 // It appends imageView2 parameters to enable automatic image resizing with quality optimization.
 func (n *Client) GenerateImageURL(key string, width int) string {
 	uri := n.GenerateURL(key)
+	if uri == "" {
+		return ""
+	}
 	res, err := url.Parse(uri)
 	if err != nil {
 		return uri

@@ -45,7 +45,7 @@ func DefaultKeyBuilder(prefix string) func(fileName string, dir ...string) strin
 		fileExt := path.Ext(fileName)
 		sum := md5.Sum([]byte(fileName))
 		nameMd5 := hex.EncodeToString(sum[:])
-		name := strconv.Itoa(int(time.Now().Unix())) + "_" + nameMd5 + fileExt
+		name := strconv.FormatInt(time.Now().Unix(), 10) + "_" + nameMd5 + fileExt
 		if prefix != "" {
 			name = prefix + "_" + name
 		}
@@ -66,7 +66,7 @@ func KeepFileNameKeyBuilder() func(fileName string, dir ...string) string {
 	return func(fileName string, dir ...string) string {
 		sum := md5.Sum([]byte(fileName))
 		nameMd5 := hex.EncodeToString(sum[:])
-		name := strconv.Itoa(int(time.Now().Unix())) + "_" + nameMd5
+		name := strconv.FormatInt(time.Now().Unix(), 10) + "_" + nameMd5
 		return path.Join(path.Join(dir...), name, fileName)
 	}
 }
