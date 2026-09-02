@@ -63,6 +63,19 @@ func TestNewIndexHandler(t *testing.T) {
 	})
 }
 
+func TestNewHandlerRejectsNilTargetSpec(t *testing.T) {
+	t.Parallel()
+
+	web := NewWebServer(Config{Targets: []Target{{Address: "https://api.example.com"}}})
+	handler, err := web.newHandler()
+	if err == nil {
+		t.Fatal("newHandler() error = nil, want template execution error")
+	}
+	if handler != nil {
+		t.Fatalf("newHandler() handler = %v, want nil", handler)
+	}
+}
+
 func TestWithCORS(t *testing.T) {
 	t.Parallel()
 

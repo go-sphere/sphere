@@ -190,6 +190,8 @@ func createIndex(targets []Target) ([]byte, error) {
 		return nil, err
 	}
 	var buf bytes.Buffer
-	_ = tmpl.Execute(&buf, targets)
+	if err := tmpl.Execute(&buf, targets); err != nil {
+		return nil, err
+	}
 	return buf.Bytes(), nil
 }
