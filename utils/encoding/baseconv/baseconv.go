@@ -14,7 +14,7 @@ package baseconv
 import (
 	"errors"
 	"fmt"
-	"math"
+	"math/bits"
 	"slices"
 	"strings"
 )
@@ -75,12 +75,12 @@ func (e *BaseEncoding) EncodeToString(data []byte) string {
 		return ""
 	}
 
-	bitsPerChar := math.Log2(float64(e.base))
-	if bitsPerChar != float64(int(bitsPerChar)) {
+	bitsPerChar, bitwise := powerOfTwoBits(e.base)
+	if !bitwise {
 		return e.encodeMathematical(data)
 	}
 
-	return e.encodeBitwise(data, int(bitsPerChar))
+	return e.encodeBitwise(data, bitsPerChar)
 }
 
 func (e *BaseEncoding) encodeBitwise(data []byte, bitsPerChar int) string {
@@ -192,12 +192,19 @@ func (e *BaseEncoding) DecodeString(encoded string) ([]byte, error) {
 		}
 	}
 
-	bitsPerChar := math.Log2(float64(e.base))
-	if bitsPerChar != float64(int(bitsPerChar)) {
+	bitsPerChar, bitwise := powerOfTwoBits(e.base)
+	if !bitwise {
 		return e.decodeMathematical(data)
 	}
 
-	return e.decodeBitwise(data, int(bitsPerChar))
+	return e.decodeBitwise(data, bitsPerChar)
+}
+
+func powerOfTwoBits(base int) (int, bool) {
+	if base&(base-1) != 0 {
+		return 0, false
+	}
+	return bits.Len(uint(base)) - 1, true
 }
 
 func (e *BaseEncoding) decodeBitwise(data string, bitsPerChar int) ([]byte, error) {
