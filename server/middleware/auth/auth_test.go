@@ -179,22 +179,32 @@ func (f *fullFakeContext) Next() error {
 func TestWithPrefixTransform(t *testing.T) {
 	t.Parallel()
 
-	opt := newOptions(WithPrefixTransform("Bearer"))
-	res, err := opt.transform("Bearer my-token-123")
-	if err != nil {
-		t.Fatalf("transform error: %v", err)
+	tests := []struct {
+		name   string
+		prefix string
+		text   string
+		want   string
+	}{
+		{name: "standard prefix", prefix: "Bearer", text: "Bearer my-token-123", want: "my-token-123"},
+		{name: "prefix requires whitespace boundary", prefix: "Bearer", text: "BearerToken", want: "BearerToken"},
+		{name: "multiple spaces are trimmed", prefix: "Bearer", text: "Bearer   my-token-123  ", want: "my-token-123"},
+		{name: "prefix option is trimmed", prefix: " Bearer ", text: "Bearer my-token-123", want: "my-token-123"},
+		{name: "missing prefix preserves input", prefix: "Bearer", text: "my-token-123", want: "my-token-123"},
+		{name: "empty prefix preserves input", prefix: "", text: "  my-token-123  ", want: "  my-token-123  "},
 	}
-	if res != "my-token-123" {
-		t.Fatalf("transform got %q, want %q", res, "my-token-123")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Without prefix
-	res2, err := opt.transform("my-token-123")
-	if err != nil {
-		t.Fatalf("transform error: %v", err)
-	}
-	if res2 != "my-token-123" {
-		t.Fatalf("transform got %q, want %q", res2, "my-token-123")
+			opt := newOptions(WithPrefixTransform(tt.prefix))
+			got, err := opt.transform(tt.text)
+			if err != nil {
+				t.Fatalf("transform error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("transform got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
