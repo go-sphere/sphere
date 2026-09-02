@@ -11,6 +11,7 @@ package multierr
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 )
 
@@ -45,7 +46,7 @@ func (e *Error) Add(err error) {
 	// Compact in place so the backing array stays bounded instead of creeping
 	// forward one slot per drop.
 	drop := len(e.errs) - e.Limit
-	e.errs = append(e.errs[:0], e.errs[drop:]...)
+	e.errs = slices.Delete(e.errs, 0, drop)
 	e.dropped += drop
 }
 

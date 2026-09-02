@@ -57,6 +57,18 @@ func TestLimitDropsOldestAndReportsLoss(t *testing.T) {
 	}
 }
 
+func TestLimitClearsDroppedReferences(t *testing.T) {
+	e := Error{Limit: 2, errs: make([]error, 0, 3)}
+	e.Add(errors.New("err-0"))
+	e.Add(errors.New("err-1"))
+	e.Add(errors.New("err-2"))
+
+	backing := e.errs[:cap(e.errs)]
+	if backing[len(e.errs)] != nil {
+		t.Fatalf("dropped backing slot still retains %v", backing[len(e.errs)])
+	}
+}
+
 // TestLimitKeepsBackingArrayBounded pins that repeated eviction compacts in
 // place instead of letting the backing array creep forward one slot per drop.
 func TestLimitKeepsBackingArrayBounded(t *testing.T) {
