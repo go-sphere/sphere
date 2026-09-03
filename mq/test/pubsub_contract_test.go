@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -704,6 +705,154 @@ func TestPubSubStartHonorsContext(t *testing.T) {
 			}
 			if err := ps.Stop(context.Background()); err != nil {
 				t.Fatalf("Stop after cancelled Start: %v", err)
+			}
+		})
+	}
+}
+
+// TestPubSubAdversarialHeavyConcurrentPublishVsClose60Goroutines stress tests
+// PubSub with 60 goroutines broadcasting while subscriptions are created, stopped,
+// and the entire PubSub is stopped concurrently.
+func TestPubSubAdversarialHeavyConcurrentPublishVsClose60Goroutines(t *testing.T) {
+	for _, factory := range pubSubFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			if testing.Short() {
+				t.Skip("skip stress test in short mode")
+			}
+
+			for range 3 {
+				ps := factory.newInt(t)
+				ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+				defer cancel()
+
+				const numBroadcasters = 60
+				const numSubscribers = 30
+				const numTopics = 5
+
+				var received atomic.Int64
+				var subWg sync.WaitGroup
+				var pubWg sync.WaitGroup
+				stopSignal := make(chan struct{})
+
+				// Create 30 dynamic subscribers
+				for s := range numSubscribers {
+					subID := s
+					subWg.Go(func() {
+						topic := fmt.Sprintf("ps_stress_%d", subID%numTopics)
+						sub, err := ps.Subscribe(ctx, topic, func(hCtx context.Context, data int) error {
+							received.Add(1)
+							return nil
+						})
+						if err != nil {
+							return
+						}
+
+						// Periodically Stop subscription or StopTopic
+						select {
+						case <-stopSignal:
+						case <-time.After(time.Duration(10+subID%20) * time.Millisecond):
+							_ = sub.Stop()
+						}
+					})
+				}
+
+				// Launch 60 broadcasters
+				for b := range numBroadcasters {
+					pubID := b
+					pubWg.Go(func() {
+						topic := fmt.Sprintf("ps_stress_%d", pubID%numTopics)
+						for i := 0; ; i++ {
+							select {
+							case <-stopSignal:
+								return
+							case <-ctx.Done():
+								return
+							default:
+								err := ps.Broadcast(ctx, topic, pubID*1000+i)
+								if errors.Is(err, mq.ErrPubSubClosed) {
+									return
+								}
+							}
+						}
+					})
+				}
+
+				time.Sleep(40 * time.Millisecond)
+
+				// Concurrently request stop
+				_ = ps.RequestStop()
+
+				// Wait for quiescence
+				select {
+				case <-ps.Done():
+				case <-time.After(3 * time.Second):
+					t.Fatal("PubSub.Done() did not close within timeout")
+				}
+
+				close(stopSignal)
+				pubWg.Wait()
+				subWg.Wait()
+			}
+		})
+	}
+}
+
+// TestPubSubAdversarialHandlerPanicFlooding floods a PubSub with messages
+// to handlers that randomly panic or return errors across 50 concurrent publishers.
+// Verifies 0 unhandled runtime crashes and proper quiescence.
+func TestPubSubAdversarialHandlerPanicFlooding(t *testing.T) {
+	for _, factory := range pubSubFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			if testing.Short() {
+				t.Skip("skip stress test in short mode")
+			}
+
+			ctx := context.Background()
+			ps := factory.newInt(t)
+
+			const topic = "panic_flood_topic"
+			var handledCount atomic.Int64
+
+			for range 10 {
+				_, err := ps.Subscribe(ctx, topic, func(hCtx context.Context, data int) error {
+					handledCount.Add(1)
+					if data%3 == 0 {
+						panic("simulated panic in handler")
+					}
+					if data%3 == 1 {
+						return errors.New("simulated error in handler")
+					}
+					return nil
+				})
+				if err != nil {
+					t.Fatalf("Subscribe: %v", err)
+				}
+			}
+
+			const numPublishers = 50
+			const messagesPerPub = 20
+			var wg sync.WaitGroup
+
+			for p := range numPublishers {
+				pubID := p
+				wg.Go(func() {
+					for m := range messagesPerPub {
+						_ = ps.Broadcast(ctx, topic, pubID*100+m)
+					}
+				})
+			}
+
+			wg.Wait()
+
+			// Quiesce pubsub
+			stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if err := ps.Stop(stopCtx); err != nil {
+				t.Fatalf("Stop after panic flood: %v", err)
+			}
+
+			if handledCount.Load() == 0 {
+				t.Fatal("Expected handlers to have processed messages despite panics")
 			}
 		})
 	}

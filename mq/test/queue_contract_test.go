@@ -3,9 +3,13 @@ package test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/go-sphere/sphere/mq/memory"
 )
 
 func TestQueueContract(t *testing.T) {
@@ -215,6 +219,98 @@ func TestQueueConcurrentPublishConsume(t *testing.T) {
 
 			if len(seen) != n {
 				t.Fatalf("concurrent publish/consume lost messages: got=%d want=%d", len(seen), n)
+			}
+		})
+	}
+}
+
+// TestQueueAdversarialHeavyConcurrentPublishVsClose60Goroutines tests 60 goroutines
+// publishing and consuming concurrently while Close() is invoked.
+// Crucial: verifies 0 panics on closed channel and 0 deadlocks under -race.
+func TestQueueAdversarialHeavyConcurrentPublishVsClose60Goroutines(t *testing.T) {
+	for _, factory := range queueFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			if testing.Short() {
+				t.Skip("skip stress test in short mode")
+			}
+
+			for range 5 {
+				q := factory.new(t)
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+
+				const numPublishers = 60
+				const numConsumers = 20
+				const numTopics = 5
+
+				var publishWg sync.WaitGroup
+				var consumeWg sync.WaitGroup
+				stopSignal := make(chan struct{})
+
+				var publishSuccess atomic.Int64
+				var publishClosed atomic.Int64
+				var consumeSuccess atomic.Int64
+				var consumeClosed atomic.Int64
+
+				// Launch 60 publishers
+				for p := range numPublishers {
+					pubID := p
+					publishWg.Go(func() {
+						topic := fmt.Sprintf("stress_topic_%d", pubID%numTopics)
+						for i := 0; ; i++ {
+							select {
+							case <-stopSignal:
+								return
+							case <-ctx.Done():
+								return
+							default:
+								err := q.Publish(ctx, topic, pubID*1000+i)
+								if err == nil {
+									publishSuccess.Add(1)
+								} else if errors.Is(err, memory.ErrQueueClosed) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+									publishClosed.Add(1)
+								}
+							}
+						}
+					})
+				}
+
+				// Launch 20 consumers
+				for c := range numConsumers {
+					conID := c
+					consumeWg.Go(func() {
+						topic := fmt.Sprintf("stress_topic_%d", conID%numTopics)
+						for {
+							select {
+							case <-stopSignal:
+								return
+							case <-ctx.Done():
+								return
+							default:
+								_, ok, err := q.TryConsume(ctx, topic)
+								if err == nil && ok {
+									consumeSuccess.Add(1)
+								} else if errors.Is(err, memory.ErrQueueClosed) {
+									consumeClosed.Add(1)
+									return
+								}
+							}
+						}
+					})
+				}
+
+				// Let publishers and consumers run concurrently under heavy pressure
+				time.Sleep(30 * time.Millisecond)
+
+				// Close queue while all 60 publishers and 20 consumers are hammering it
+				_ = q.Close()
+
+				// Let post-close drain run
+				time.Sleep(20 * time.Millisecond)
+				close(stopSignal)
+
+				publishWg.Wait()
+				consumeWg.Wait()
 			}
 		})
 	}

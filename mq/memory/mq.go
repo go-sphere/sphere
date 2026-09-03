@@ -36,7 +36,7 @@ func NewMessageQueue[T any](opt ...Option) *MessageQueue[T] {
 func (p *MessageQueue[T]) Close() error {
 	return errors.Join(
 		p.Queue.Close(),
-		p.PubSub.RequestStop(),
+		p.RequestStop(),
 	)
 }
 

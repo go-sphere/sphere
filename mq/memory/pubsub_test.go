@@ -125,7 +125,7 @@ func TestPubSubIgnoresInvalidQueueSize(t *testing.T) {
 			}
 
 			deadline := time.After(2 * time.Second)
-			for got := 0; got < total; got++ {
+			for got := range total {
 				select {
 				case <-received:
 				case <-deadline:
