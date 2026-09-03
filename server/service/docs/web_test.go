@@ -17,6 +17,14 @@ func TestWebLifecycleContract(t *testing.T) {
 	})
 }
 
+func TestWeb_Identifier(t *testing.T) {
+	t.Parallel()
+	web := NewWebServer(Config{})
+	if got := web.Identifier(); got != "docs" {
+		t.Fatalf("web.Identifier() = %q, want docs", got)
+	}
+}
+
 func TestNewIndexHandler(t *testing.T) {
 	t.Parallel()
 
