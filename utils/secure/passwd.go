@@ -5,7 +5,7 @@
 // returns the plaintext on error. bcrypt's 72-byte input limit applies.
 // CensorString keeps the first and last rune and fills the middle with '*'
 // to outLength; outLength < 2 or empty src yields all stars. RandString
-// panics on entropy failure and on negative length.
+// panics on entropy failure; non-positive length yields an empty string.
 package secure
 
 import (
@@ -26,8 +26,12 @@ func CryptPassword(pwd string) (string, error) {
 }
 
 // IsPasswordMatch reports whether pwd matches the bcrypt hash cyPwd.
+// It returns false if pwd exceeds bcrypt's 72-byte limit or if the hash does not match.
 // Comparison is constant-time (bcrypt).
 func IsPasswordMatch(pwd, cyPwd string) bool {
+	if len([]byte(pwd)) > 72 {
+		return false
+	}
 	err := bcrypt.CompareHashAndPassword([]byte(cyPwd), []byte(pwd))
 	return err == nil
 }
