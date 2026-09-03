@@ -248,3 +248,45 @@ func TestAbortWithJsonError_ParserEchoingRawErrorIsSanitized(t *testing.T) {
 		t.Fatalf("message = %q", resp.Message)
 	}
 }
+
+func TestAbortWithJsonError_OutOfRangeStatusClamped(t *testing.T) {
+	t.Cleanup(func() {
+		SetDefaultErrorParser(httpx.ParseError)
+	})
+
+	for _, invalidStatus := range []int32{0, -1, 50, 99, 600, 700, 1000} {
+		SetDefaultErrorParser(func(err error) (int32, int32, string) {
+			return 0, invalidStatus, "invalid status message"
+		})
+		ctx := &fakeContext{}
+		AbortWithJsonError(ctx, errors.New("sample error"))
+		if ctx.status != http.StatusInternalServerError {
+			t.Errorf("status %d was not clamped to %d, got %d", invalidStatus, http.StatusInternalServerError, ctx.status)
+		}
+	}
+}
+
+// TestStressAbortWithJsonError_ExtremeStatuses tests extreme status codes and clamping
+func TestStressAbortWithJsonError_ExtremeStatuses(t *testing.T) {
+	t.Cleanup(func() {
+		SetDefaultErrorParser(httpx.ParseError)
+	})
+
+	extremeStatuses := []int32{
+		-1000000, -500, -1, 0, 1, 50, 99,
+		600, 601, 700, 999, 1000, 50000,
+	}
+
+	for _, st := range extremeStatuses {
+		SetDefaultErrorParser(func(err error) (int32, int32, string) {
+			return 0, st, "test message"
+		})
+
+		ctx := &stressFakeContext{}
+		AbortWithJsonError(ctx, errors.New("some error"))
+
+		if ctx.status != http.StatusInternalServerError {
+			t.Errorf("extreme status %d was not clamped to 500, got %d", st, ctx.status)
+		}
+	}
+}
