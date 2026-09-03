@@ -3,9 +3,13 @@ package online
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/core/task"
 	"github.com/go-sphere/sphere/core/task/tasktest"
 )
@@ -34,8 +38,7 @@ func TestOnlineLifecycleContract(t *testing.T) {
 func TestSweepReclaimsExpiredEntries(t *testing.T) {
 	o := NewOnline(WithTrimInterval(10 * time.Millisecond))
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	go func() { _ = o.Start(ctx) }()
 	t.Cleanup(func() { _ = o.Stop(context.Background()) })
 
@@ -78,5 +81,203 @@ func TestWithTrimIntervalIgnoresNonPositive(t *testing.T) {
 		if got := NewOnline(WithTrimInterval(interval)).trimInterval; got != defaultTrimInterval {
 			t.Errorf("WithTrimInterval(%v) = %v, want the default %v", interval, got, defaultTrimInterval)
 		}
+	}
+}
+
+func TestOnline_Identifier(t *testing.T) {
+	t.Parallel()
+	o := NewOnline()
+	if got := o.Identifier(); got != "online" {
+		t.Fatalf("o.Identifier() = %q, want online", got)
+	}
+}
+
+type httpxContext = httpx.Context
+
+type fakeContext struct {
+	httpxContext
+	ctx        context.Context
+	headers    map[string]string
+	nextCalled bool
+}
+
+func (f *fakeContext) Context() context.Context {
+	if f.ctx == nil {
+		return context.Background()
+	}
+	return f.ctx
+}
+
+func (f *fakeContext) Header(key string) string {
+	if f.headers == nil {
+		return ""
+	}
+	return f.headers[key]
+}
+
+func (f *fakeContext) Next() error {
+	f.nextCalled = true
+	return nil
+}
+
+func TestOnline_Middleware(t *testing.T) {
+	t.Parallel()
+
+	o := NewOnline()
+	keygen := func(ctx httpx.Context) string {
+		return ctx.Header("X-User-ID")
+	}
+	mw := o.Middleware(keygen, 10*time.Minute)
+
+	// 1. Non-empty key records presence
+	ctx1 := &fakeContext{
+		headers: map[string]string{"X-User-ID": "user-1001"},
+	}
+	if err := mw(ctx1); err != nil {
+		t.Fatalf("mw(ctx1): %v", err)
+	}
+	if !ctx1.nextCalled {
+		t.Fatal("Next() should be called on valid key")
+	}
+	if count := o.OnlineCount(); count != 1 {
+		t.Fatalf("OnlineCount() = %d, want 1", count)
+	}
+
+	// 2. Empty key does not record presence but proceeds
+	ctx2 := &fakeContext{
+		headers: map[string]string{},
+	}
+	if err := mw(ctx2); err != nil {
+		t.Fatalf("mw(ctx2): %v", err)
+	}
+	if !ctx2.nextCalled {
+		t.Fatal("Next() should be called on empty key")
+	}
+	if count := o.OnlineCount(); count != 1 {
+		t.Fatalf("OnlineCount() = %d, want 1 (unchanged)", count)
+	}
+}
+
+type stressOnlineContext struct {
+	httpxContext
+	ctx     context.Context
+	headers map[string]string
+	nexted  atomic.Bool
+}
+
+func (s *stressOnlineContext) Context() context.Context {
+	if s.ctx == nil {
+		return context.Background()
+	}
+	return s.ctx
+}
+
+func (s *stressOnlineContext) Header(key string) string {
+	return s.headers[key]
+}
+
+func (s *stressOnlineContext) Next() error {
+	s.nexted.Store(true)
+	return nil
+}
+
+// TestOnline_AdversarialConcurrentPresenceAndTrimming tests 100+ concurrent requests
+// registering presence while the background trimmer sweeps frequently, verifying zero
+// race conditions, correct counts, and memory cleanup after TTL expiration.
+func TestOnline_AdversarialConcurrentPresenceAndTrimming(t *testing.T) {
+	t.Parallel()
+
+	tracker := NewOnline(WithTrimInterval(10 * time.Millisecond))
+
+	ctx := t.Context()
+
+	// Start background trimmer
+	trimmerDone := make(chan error, 1)
+	go func() {
+		trimmerDone <- tracker.Start(ctx)
+	}()
+
+	keygen := func(ctx httpx.Context) string {
+		return ctx.Header("X-Session-ID")
+	}
+
+	// Short TTL so we can observe trimming
+	const itemTTL = 50 * time.Millisecond
+	mw := tracker.Middleware(keygen, itemTTL)
+
+	const numWorkers = 50
+	const requestsPerWorker = 20
+	const totalKeys = numWorkers * requestsPerWorker
+
+	var wg sync.WaitGroup
+	var successCount atomic.Int64
+
+	// Concurrent writes
+	for w := range numWorkers {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			for r := range requestsPerWorker {
+				key := fmt.Sprintf("session-%d-%d", workerID, r)
+				reqCtx := &stressOnlineContext{
+					headers: map[string]string{"X-Session-ID": key},
+				}
+				err := mw(reqCtx)
+				if err != nil {
+					t.Errorf("worker %d req %d failed: %v", workerID, r, err)
+					return
+				}
+				if !reqCtx.nexted.Load() {
+					t.Errorf("worker %d req %d next not called", workerID, r)
+					return
+				}
+				successCount.Add(1)
+			}
+		}(w)
+	}
+
+	wg.Wait()
+
+	if success := successCount.Load(); success != int64(totalKeys) {
+		t.Fatalf("successCount = %d, want %d", success, totalKeys)
+	}
+
+	// Immediately after writing, count should be positive (close to totalKeys)
+	countAfterWrite := tracker.OnlineCount()
+	if countAfterWrite == 0 {
+		t.Fatalf("OnlineCount immediately after writing is 0, expected > 0")
+	}
+
+	// Wait for TTL to expire and background trimmer to prune all entries
+	deadline := time.After(2 * time.Second)
+	trimmed := false
+	for !trimmed {
+		select {
+		case <-deadline:
+			t.Fatalf("memory leak: tracker.OnlineCount() = %d after TTL expiration, want 0", tracker.OnlineCount())
+		case <-time.After(20 * time.Millisecond):
+			if tracker.OnlineCount() == 0 {
+				trimmed = true
+			}
+		}
+	}
+
+	// Test Stop idempotency under concurrency
+	var stopWg sync.WaitGroup
+	for range 10 {
+		stopWg.Go(func() {
+			_ = tracker.Stop(context.Background())
+		})
+	}
+	stopWg.Wait()
+
+	// Wait for Start goroutine to finish cleanly
+	select {
+	case err := <-trimmerDone:
+		if err != nil && err != context.Canceled {
+			t.Errorf("Start returned unexpected error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("tracker.Start did not stop after tracker.Stop()")
 	}
 }

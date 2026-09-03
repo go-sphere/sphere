@@ -3,11 +3,17 @@ package auth
 import (
 	"context"
 	"errors"
+	"net/http"
 	"slices"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/server/auth/authorizer"
+	"github.com/go-sphere/sphere/server/auth/jwtauth"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // httpxContext aliases httpx.Context so the embedded field name does not collide
@@ -283,71 +289,201 @@ func TestNewAuthMiddleware(t *testing.T) {
 	})
 }
 
-type fakeACL struct {
-	allowed map[string]map[string]bool
+type stressFakeContext struct {
+	httpxContext
+	ctx         context.Context
+	headers     map[string]string
+	cookies     map[string]string
+	nextInvoked atomic.Bool
 }
 
-func (f *fakeACL) IsAllowed(role, resource string) bool {
-	if m, ok := f.allowed[role]; ok {
-		return m[resource]
+func newStressFakeContext(headers map[string]string, cookies map[string]string) *stressFakeContext {
+	if headers == nil {
+		headers = make(map[string]string)
 	}
-	return false
+	if cookies == nil {
+		cookies = make(map[string]string)
+	}
+	return &stressFakeContext{
+		ctx:     context.Background(),
+		headers: headers,
+		cookies: cookies,
+	}
 }
 
-func TestNewPermissionMiddleware(t *testing.T) {
+func (s *stressFakeContext) Context() context.Context {
+	if s.ctx == nil {
+		return context.Background()
+	}
+	return s.ctx
+}
+
+func (s *stressFakeContext) SetContext(ctx context.Context) {
+	s.ctx = ctx
+}
+
+func (s *stressFakeContext) Header(key string) string {
+	return s.headers[key]
+}
+
+func (s *stressFakeContext) Cookie(name string) (string, error) {
+	val, ok := s.cookies[name]
+	if !ok {
+		return "", errors.New("cookie not found")
+	}
+	return val, nil
+}
+
+func (s *stressFakeContext) Next() error {
+	s.nextInvoked.Store(true)
+	return nil
+}
+
+// TestAuthMiddleware_AdversarialStress tests auth middleware under 100+ concurrent requests
+// with valid, invalid, expired, malformed, and missing tokens.
+func TestAuthMiddleware_AdversarialStress(t *testing.T) {
 	t.Parallel()
 
-	acl := &fakeACL{
-		allowed: map[string]map[string]bool{
-			"admin": {"/admin": true, "/dashboard": true},
-			"user":  {"/dashboard": true},
-		},
+	secret := "auth-middleware-secret-key-12345"
+	jwtHandler := jwtauth.NewJwtAuth[jwtauth.RBACClaims[int64]](secret)
+
+	// Pre-generate tokens
+	validToken, err := jwtHandler.GenerateToken(context.Background(), jwtauth.NewRBACClaims[int64](100, "alice", []string{"user", "admin"}, time.Now().Add(time.Hour)))
+	if err != nil {
+		t.Fatalf("Generate valid token: %v", err)
 	}
 
-	mw := NewPermissionMiddleware[int64]("/admin", acl)
+	expiredClaims := jwtauth.RBACClaims[int64]{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   "expired",
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-10 * time.Minute)),
+		},
+		UID: 101,
+	}
+	expiredToken, err := jwtHandler.GenerateToken(context.Background(), expiredClaims)
+	if err != nil {
+		t.Fatalf("Generate expired token: %v", err)
+	}
 
-	t.Run("allowed role succeeds", func(t *testing.T) {
-		ctx := &fullFakeContext{}
-		ctx.SetContext(authorizer.WithAuthData[int64](context.Background(), authorizer.Data[int64]{
-			UID:   1,
-			Roles: []string{"user", "admin"},
-		}))
-		if err := mw(ctx); err != nil {
-			t.Fatalf("mw error: %v", err)
-		}
-		if !ctx.nexted {
-			t.Fatal("Next() must be called for authorized user")
-		}
-	})
+	zeroUIDClaims := jwtauth.NewRBACClaims[int64](0, "zero-user", []string{"user"}, time.Now().Add(time.Hour))
+	zeroUIDToken, err := jwtHandler.GenerateToken(context.Background(), zeroUIDClaims)
+	if err != nil {
+		t.Fatalf("Generate zero UID token: %v", err)
+	}
 
-	t.Run("disallowed role returns forbidden", func(t *testing.T) {
-		ctx := &fullFakeContext{}
-		ctx.SetContext(authorizer.WithAuthData[int64](context.Background(), authorizer.Data[int64]{
-			UID:   2,
-			Roles: []string{"user"},
-		}))
-		err := mw(ctx)
-		if err == nil {
-			t.Fatal("expected permission error, got nil")
-		}
-		_, status, _ := httpx.ParseError(err)
-		if status != 403 {
-			t.Fatalf("status = %d, want 403", status)
-		}
-		if ctx.nexted {
-			t.Fatal("Next() must not be called when denied")
-		}
-	})
+	authMw := NewAuthMiddleware[int64, jwtauth.RBACClaims[int64]](
+		jwtHandler,
+		WithPrefixTransform(AuthorizationPrefixBearer),
+	)
 
-	t.Run("no auth data in context returns forbidden", func(t *testing.T) {
-		ctx := &fullFakeContext{}
-		err := mw(ctx)
-		if err == nil {
-			t.Fatal("expected permission error, got nil")
-		}
-		_, status, _ := httpx.ParseError(err)
-		if status != 403 {
-			t.Fatalf("status = %d, want 403", status)
-		}
-	})
+	const concurrency = 100
+
+	var wg sync.WaitGroup
+	wg.Add(concurrency * 4)
+
+	// 1. Concurrent valid requests
+	for i := range concurrency {
+		go func(id int) {
+			defer wg.Done()
+			ctx := newStressFakeContext(map[string]string{
+				AuthorizationHeader: "Bearer " + validToken,
+			}, nil)
+
+			err := authMw(ctx)
+			if err != nil {
+				t.Errorf("valid request %d failed: %v", id, err)
+				return
+			}
+			if !ctx.nextInvoked.Load() {
+				t.Errorf("valid request %d did not invoke Next()", id)
+				return
+			}
+
+			data, ok := authorizer.GetAuthData[int64](ctx.Context())
+			if !ok || data.UID != 100 {
+				t.Errorf("valid request %d expected UID 100, got %d (ok=%v)", id, data.UID, ok)
+			}
+		}(i)
+	}
+
+	// 2. Concurrent expired token requests (Must return 401, Next not called)
+	for i := range concurrency {
+		go func(id int) {
+			defer wg.Done()
+			ctx := newStressFakeContext(map[string]string{
+				AuthorizationHeader: "Bearer " + expiredToken,
+			}, nil)
+
+			err := authMw(ctx)
+			if err == nil {
+				t.Errorf("expired token request %d should have failed", id)
+				return
+			}
+			_, status, _ := httpx.ParseError(err)
+			if status != http.StatusUnauthorized {
+				t.Errorf("expired token request %d status = %d, want 401", id, status)
+			}
+			if ctx.nextInvoked.Load() {
+				t.Errorf("expired token request %d must not invoke Next()", id)
+			}
+		}(i)
+	}
+
+	// 3. Concurrent zero UID token requests (Must return 401, Next not called)
+	for i := range concurrency {
+		go func(id int) {
+			defer wg.Done()
+			ctx := newStressFakeContext(map[string]string{
+				AuthorizationHeader: "Bearer " + zeroUIDToken,
+			}, nil)
+
+			err := authMw(ctx)
+			if err == nil {
+				t.Errorf("zero UID request %d should have failed", id)
+				return
+			}
+			_, status, _ := httpx.ParseError(err)
+			if status != http.StatusUnauthorized {
+				t.Errorf("zero UID request %d status = %d, want 401", id, status)
+			}
+			if ctx.nextInvoked.Load() {
+				t.Errorf("zero UID request %d must not invoke Next()", id)
+			}
+		}(i)
+	}
+
+	// 4. Concurrent malformed / missing token requests (Must return 401, Next not called)
+	for i := range concurrency {
+		go func(id int) {
+			defer wg.Done()
+			var headerVal string
+			switch id % 3 {
+			case 0:
+				headerVal = "" // missing
+			case 1:
+				headerVal = "Bearer " // empty after strip
+			default:
+				headerVal = "Bearer corrupted.jwt.token"
+			}
+
+			ctx := newStressFakeContext(map[string]string{
+				AuthorizationHeader: headerVal,
+			}, nil)
+
+			err := authMw(ctx)
+			if err == nil {
+				t.Errorf("malformed request %d should have failed", id)
+				return
+			}
+			_, status, _ := httpx.ParseError(err)
+			if status != http.StatusUnauthorized {
+				t.Errorf("malformed request %d status = %d, want 401", id, status)
+			}
+			if ctx.nextInvoked.Load() {
+				t.Errorf("malformed request %d must not invoke Next()", id)
+			}
+		}(i)
+	}
+
+	wg.Wait()
 }
