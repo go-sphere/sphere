@@ -247,7 +247,7 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 		// wraps context.Canceled (upstream HTTP/DB clients routinely do), so it
 		// must be recorded as a failure rather than silently discarded. This
 		// mirrors the same guard in Group.Start.
-		if err != nil && !(errors.Is(err, context.Canceled) && runCtx.Err() != nil) {
+		if err != nil && (!errors.Is(err, context.Canceled) || runCtx.Err() == nil) {
 			entry.setStartErr(err)
 			m.startErr.Add(err)
 		}

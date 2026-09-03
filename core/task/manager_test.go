@@ -436,3 +436,68 @@ func TestSelfExitedTaskReleasesRunContext(t *testing.T) {
 		t.Error("the caller's context must not have been cancelled")
 	}
 }
+
+func TestManagerEdgeCases(t *testing.T) {
+	manager := NewManager()
+
+	t.Run("StartTask with nil task returns error", func(t *testing.T) {
+		err := manager.StartTask(context.Background(), "nil-task", nil)
+		if err == nil || err.Error() != "task is nil" {
+			t.Fatalf("expected 'task is nil', got %v", err)
+		}
+	})
+
+	t.Run("StartTask with empty name returns error", func(t *testing.T) {
+		worker := scripttask.NewScriptTask("worker", nil, nil)
+		err := manager.StartTask(context.Background(), "", worker)
+		if err == nil || err.Error() != "task name is empty" {
+			t.Fatalf("expected 'task name is empty', got %v", err)
+		}
+	})
+
+	t.Run("StartTask with nil context succeeds", func(t *testing.T) {
+		worker := scripttask.NewScriptTask("nil-ctx-worker", nil, nil)
+		var nilCtx context.Context
+		err := manager.StartTask(nilCtx, "nil-ctx-worker", worker)
+		if err != nil {
+			t.Fatalf("expected StartTask(nil, ...) to succeed, got %v", err)
+		}
+		if !manager.IsRunning("nil-ctx-worker") {
+			t.Fatal("expected manager.IsRunning('nil-ctx-worker') to be true")
+		}
+		if manager.GetTaskCount() != 1 {
+			t.Fatalf("expected 1 task running, got %d", manager.GetTaskCount())
+		}
+		if err := manager.StopTask(nilCtx, "nil-ctx-worker"); err != nil {
+			t.Fatalf("expected StopTask(nil, ...) to succeed, got %v", err)
+		}
+	})
+
+	t.Run("StopTask on nonexistent task returns ErrTaskNotFound", func(t *testing.T) {
+		err := manager.StopTask(context.Background(), "nonexistent")
+		if !errors.Is(err, ErrTaskNotFound) {
+			t.Fatalf("expected ErrTaskNotFound, got %v", err)
+		}
+	})
+
+	t.Run("GetTaskResult on nonexistent task returns false and nil error", func(t *testing.T) {
+		found, err := manager.GetTaskResult("nonexistent")
+		if found {
+			t.Fatal("expected found=false for nonexistent task")
+		}
+		if err != nil {
+			t.Fatalf("expected nil error for nonexistent task, got %v", err)
+		}
+	})
+
+	t.Run("StopAll with nil context does not panic", func(t *testing.T) {
+		worker := scripttask.NewScriptTask("stopall-worker", nil, nil)
+		if err := manager.StartTask(context.Background(), "stopall-worker", worker); err != nil {
+			t.Fatalf("StartTask failed: %v", err)
+		}
+		var nilCtx context.Context
+		if err := manager.StopAll(nilCtx); err != nil {
+			t.Fatalf("StopAll(nil) failed: %v", err)
+		}
+	})
+}

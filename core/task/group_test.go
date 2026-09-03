@@ -822,3 +822,65 @@ func waitError(t *testing.T, ch <-chan error, desc string) error {
 		return nil
 	}
 }
+
+func TestGroupEdgeCases(t *testing.T) {
+	t.Run("empty group starts and completes immediately", func(t *testing.T) {
+		g := NewGroup()
+		if err := g.Start(context.Background()); err != nil {
+			t.Fatalf("expected nil error on empty group, got %v", err)
+		}
+		if g.Identifier() != "group" {
+			t.Fatalf("expected 'group', got %q", g.Identifier())
+		}
+	})
+
+	t.Run("group with nil task fails validation", func(t *testing.T) {
+		g := NewGroup(nil)
+		err := g.Start(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "task at index 0 is nil") {
+			t.Fatalf("expected nil task validation error, got %v", err)
+		}
+		if g.IsStarted() {
+			t.Fatal("group should not be marked started if validation failed")
+		}
+	})
+
+	t.Run("group with second task nil fails validation", func(t *testing.T) {
+		worker := scripttask.NewScriptTask("worker", nil, nil)
+		g := NewGroup(worker, nil)
+		err := g.Start(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "task at index 1 is nil") {
+			t.Fatalf("expected validation error for task index 1, got %v", err)
+		}
+	})
+
+	t.Run("staged group with nil task fails validation", func(t *testing.T) {
+		worker := scripttask.NewScriptTask("worker", nil, nil)
+		g := NewStagedGroup([]Task{worker}, []Task{nil})
+		err := g.Start(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "task at index 1 is nil") {
+			t.Fatalf("expected validation error for staged task index 1, got %v", err)
+		}
+	})
+
+	t.Run("Stop with nil context does not panic", func(t *testing.T) {
+		worker := scripttask.NewScriptTask("worker", nil, nil)
+		g := NewGroup(worker)
+
+		startDone := make(chan error, 1)
+		go func() {
+			startDone <- g.Start(context.Background())
+		}()
+
+		waitSignal(t, worker.Started(), "worker started")
+
+		var nilCtx context.Context
+		if err := g.Stop(nilCtx); err != nil {
+			t.Fatalf("Stop(nil) failed: %v", err)
+		}
+
+		if err := waitError(t, startDone, "group start"); err != nil {
+			t.Fatalf("start returned error: %v", err)
+		}
+	})
+}

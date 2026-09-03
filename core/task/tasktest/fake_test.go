@@ -11,7 +11,6 @@ import (
 
 func TestFakeHonorsLifecycleContract(t *testing.T) {
 	for _, mode := range []tasktest.Mode{tasktest.ModeRunLoop, tasktest.ModeServer, tasktest.ModeOneshot} {
-		mode := mode
 		t.Run(modeName(mode), func(t *testing.T) {
 			tasktest.AssertLifecycleContract(t, func() task.Task {
 				f := tasktest.NewFake("contract")

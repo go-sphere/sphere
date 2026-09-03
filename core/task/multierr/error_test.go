@@ -80,3 +80,41 @@ func TestLimitKeepsBackingArrayBounded(t *testing.T) {
 		t.Errorf("backing array grew to cap %d, want it to stay near the limit", got)
 	}
 }
+
+func TestAddNilIgnored(t *testing.T) {
+	var e Error
+	e.Add(nil)
+	if len(e.errs) != 0 {
+		t.Fatalf("expected 0 errors after Add(nil), got %d", len(e.errs))
+	}
+	if e.Unwrap() != nil {
+		t.Fatalf("expected Unwrap() to be nil, got %v", e.Unwrap())
+	}
+	if e.Errors() != "" {
+		t.Fatalf("expected Errors() to be empty string, got %q", e.Errors())
+	}
+}
+
+func TestEmptyUnwrapAndErrors(t *testing.T) {
+	var e Error
+	if err := e.Unwrap(); err != nil {
+		t.Fatalf("expected nil from empty Unwrap, got %v", err)
+	}
+	if msg := e.Errors(); msg != "" {
+		t.Fatalf("expected empty string from empty Errors, got %q", msg)
+	}
+}
+
+func TestErrorsString(t *testing.T) {
+	var e Error
+	e.Add(errors.New("error alpha"))
+	e.Add(errors.New("error beta"))
+
+	msg := e.Errors()
+	if !strings.Contains(msg, "error alpha") || !strings.Contains(msg, "error beta") {
+		t.Fatalf("Errors() missing expected messages: %q", msg)
+	}
+	if msg != e.Unwrap().Error() {
+		t.Fatalf("Errors() %q != Unwrap().Error() %q", msg, e.Unwrap().Error())
+	}
+}
