@@ -39,8 +39,15 @@ func NewChanPool[T any](size int, opts ...Option[T]) *ChanPool[T] {
 // when no Close callback was set to drain them.
 func (cp *ChanPool[T]) Get() T {
 	select {
-	case obj := <-cp.ch:
-		return obj
+	case obj, ok := <-cp.ch:
+		if ok {
+			return obj
+		}
+		if cp.newFn != nil {
+			return cp.newFn()
+		}
+		var zero T
+		return zero
 	default:
 		if cp.newFn != nil {
 			return cp.newFn()
