@@ -27,6 +27,14 @@ func TestWebLifecycleContract(t *testing.T) {
 	})
 }
 
+func TestWeb_Identifier(t *testing.T) {
+	t.Parallel()
+	web := NewWebServer(newStubEngine(), nil)
+	if got := web.Identifier(); got != "file" {
+		t.Fatalf("web.Identifier() = %q, want file", got)
+	}
+}
+
 // stubEngine is an HTTP-style Engine: Start ignores context and only returns
 // after Stop, matching ListenAndServe. Stop is idempotent and safe before Start.
 type stubEngine struct {
