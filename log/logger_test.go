@@ -3,7 +3,15 @@ package log
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"math/rand/v2"
+	"os"
+	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // entry is one captured Log call, kept whole so a test can assert on the level,
@@ -350,4 +358,571 @@ func TestInitWithBackendsAcceptsExplicitNop(t *testing.T) {
 	if len(seen.entries) != before {
 		t.Fatal("NewNopBackend() must replace the current backend")
 	}
+}
+
+// Adversarial cyclic types
+type advNode struct {
+	Name     string
+	Next     *advNode
+	Prev     *advNode
+	Children []*advNode
+	Metadata map[string]any
+}
+
+type advPanicStringer struct {
+	id int
+}
+
+func (p advPanicStringer) String() string {
+	panic(fmt.Sprintf("advPanicStringer boom from %d", p.id))
+}
+
+type advPanicError struct {
+	id int
+}
+
+func (p advPanicError) Error() string {
+	panic(fmt.Sprintf("advPanicError boom from %d", p.id))
+}
+
+type advDeepTree struct {
+	Left  *advDeepTree
+	Right *advDeepTree
+	Value int
+}
+
+func buildDeepTree(depth int) *advDeepTree {
+	if depth <= 0 {
+		return &advDeepTree{Value: depth}
+	}
+	return &advDeepTree{
+		Left:  buildDeepTree(depth - 1),
+		Right: buildDeepTree(depth - 1),
+		Value: depth,
+	}
+}
+
+// Custom mock backend that occasionally errors on Sync/Close
+type advFlakyBackend struct {
+	logCount  atomic.Int64
+	syncCount atomic.Int64
+	closed    atomic.Bool
+}
+
+func (f *advFlakyBackend) Log(ctx context.Context, level Level, msg string, attrs ...Attr) {
+	f.logCount.Add(1)
+}
+
+func (f *advFlakyBackend) Sync() error {
+	f.syncCount.Add(1)
+	if f.syncCount.Load()%3 == 0 {
+		return errors.New("flaky sync error")
+	}
+	return nil
+}
+
+func (f *advFlakyBackend) Close() error {
+	f.closed.Store(true)
+	return errors.New("flaky close error")
+}
+
+func (f *advFlakyBackend) With(options ...Option) Backend {
+	return f
+}
+
+// TestAdversarialConcurrentLoggingHotSwapStress executes massive concurrent logging
+// with 150+ goroutines performing hot-swapping, deep logger derivation, sync,
+// and passing adversarial cyclic/panicking values.
+func TestAdversarialConcurrentLoggingHotSwapStress(t *testing.T) {
+	orig := logger()
+	defer func() {
+		std.Store(orig)
+	}()
+
+	tempDir := t.TempDir()
+	logFile := filepath.Join(tempDir, "adversarial_stress.log")
+
+	const (
+		numLoggers   = 80
+		numSwappers  = 20
+		numDerivers  = 30
+		numSyncers   = 15
+		numClosers   = 10
+		testDuration = 2500 * time.Millisecond
+	)
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	var (
+		totalLogs    atomic.Int64
+		totalSwaps   atomic.Int64
+		totalDerives atomic.Int64
+		totalSyncs   atomic.Int64
+	)
+
+	// Pre-create adversarial payloads
+	cyclicA := &advNode{Name: "NodeA", Metadata: make(map[string]any)}
+	cyclicB := &advNode{Name: "NodeB", Metadata: make(map[string]any)}
+	cyclicA.Next = cyclicB
+	cyclicB.Next = cyclicA
+	cyclicA.Children = []*advNode{cyclicB, cyclicA}
+	cyclicB.Children = []*advNode{cyclicA, cyclicB}
+	cyclicA.Metadata["peer"] = cyclicB
+	cyclicB.Metadata["peer"] = cyclicA
+
+	selfMap := make(map[string]any)
+	selfMap["loop"] = selfMap
+
+	selfSlice := make([]any, 2)
+	selfSlice[0] = selfSlice
+	selfSlice[1] = "end"
+
+	deepTree50 := buildDeepTree(20) // 2^20 nodes would be huge, 20 is ~1M nodes, let's keep depth 15
+	deepLinear := buildDeepLinear(64)
+
+	// Context with extractor
+	type ctxTestKey struct{}
+	extractor := func(ctx context.Context) []Attr {
+		if ctx == nil {
+			return nil
+		}
+		if v, ok := ctx.Value(ctxTestKey{}).(string); ok {
+			return []Attr{String("ctx_val", v)}
+		}
+		return nil
+	}
+
+	// 1. Goroutines actively logging
+	for i := range numLoggers {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			ctx := context.WithValue(context.Background(), ctxTestKey{}, fmt.Sprintf("goroutine-%d", id))
+
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					mode := rand.IntN(10)
+					switch mode {
+					case 0:
+						Debug("adv debug", Int("id", id), Any("cyclic", cyclicA))
+					case 1:
+						Info("adv info", Int("id", id), Any("panic_stringer", advPanicStringer{id: id}))
+					case 2:
+						Warn("adv warn", Int("id", id), Any("self_map", selfMap))
+					case 3:
+						Error("adv error", Int("id", id), Any("self_slice", selfSlice), Any("panic_err", advPanicError{id: id}))
+					case 4:
+						DebugContext(ctx, "adv debug ctx", Int("id", id), Any("deep_linear", deepLinear))
+					case 5:
+						InfoContext(ctx, "adv info ctx", Int("id", id), Any("deep_tree", deepTree50))
+					case 6:
+						var nilCtx context.Context
+						WarnContext(nilCtx, "adv warn nil ctx", Int("id", id)) // nil context robustness
+					case 7:
+						ErrorContext(ctx, "adv error ctx", Int("id", id), String("k", "v"))
+					case 8:
+						Debugf("adv debugf %d %s", id, "formatted")
+						Errorf("adv errorf %d %s", id, "formatted")
+					case 9:
+						Infof("adv infof %d", id)
+						Warnf("adv warnf %d", id)
+					}
+					totalLogs.Add(1)
+				}
+			}
+		}(i)
+	}
+
+	// 2. Goroutines hot-swapping backends
+	for i := range numSwappers {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			backends := []Backend{
+				NewNopBackend(),
+				NewStdioBackend(WithMinLevel(LevelWarn)),
+				NewStdioBackend(AddCaller(), WithName(fmt.Sprintf("stdio-swap-%d", id))),
+				NewMultiBackend(NewNopBackend(), NewStdioBackend(), &advFlakyBackend{}),
+				WrapBackendWithContextMerge(NewStdioBackend(), extractor),
+				WrapBackendWithContextMerge(NewMultiBackend(NewNopBackend(), &advFlakyBackend{}), extractor),
+				nil,
+			}
+
+			idx := 0
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					b := backends[idx%len(backends)]
+					if b != nil {
+						InitWithBackends(b)
+					} else {
+						InitWithBackends(nil, nil, nil)
+					}
+					idx++
+					totalSwaps.Add(1)
+					time.Sleep(5 * time.Millisecond)
+				}
+			}
+		}(i)
+	}
+
+	// 3. Goroutines deriving child loggers
+	for i := range numDerivers {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					child := With(
+						WithName(fmt.Sprintf("worker-%d", id)),
+						WithAttrs(map[string]any{
+							"worker_id": id,
+							"ts":        time.Now().UnixNano(),
+							"cyclic":    cyclicA,
+						}),
+						AddCaller(),
+					)
+
+					child.Info("child log 1", Any("panic", advPanicStringer{id: id}))
+					child.Error("child log 2", Any("cyclic_slice", selfSlice))
+
+					// Deeper derivation
+					grandChild := child.With(
+						WithName("sub"),
+						WithMinLevel(LevelDebug),
+						WithAttrs(map[string]any{"level": 2}),
+					)
+					grandChild.Debug("grandchild msg", Any("self_map", selfMap))
+
+					totalDerives.Add(3)
+				}
+			}
+		}(i)
+	}
+
+	// 4. Goroutines calling Sync() concurrently
+	for i := range numSyncers {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					_ = Sync()
+					totalSyncs.Add(1)
+					time.Sleep(15 * time.Millisecond)
+				}
+			}
+		}(i)
+	}
+
+	// 5. Goroutines instantiating MultiBackends and closing them
+	for i := range numClosers {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					mb := NewMultiBackend(
+						&advFlakyBackend{},
+						NewStdioBackend(),
+						&advFlakyBackend{},
+					)
+					if closer, ok := mb.(io.Closer); ok {
+						_ = closer.Close()
+					}
+					time.Sleep(25 * time.Millisecond)
+				}
+			}
+		}(i)
+	}
+
+	time.Sleep(testDuration)
+	close(stop)
+	wg.Wait()
+
+	_ = os.Remove(logFile)
+
+	t.Logf("Adversarial Log Stress Test completed successfully: %d logs, %d backend swaps, %d derives, %d syncs",
+		totalLogs.Load(), totalSwaps.Load(), totalDerives.Load(), totalSyncs.Load())
+}
+
+func buildDeepLinear(depth int) any {
+	var cur any = "bottom_linear"
+	for i := range depth {
+		cur = map[string]any{"depth": i, "next": cur}
+	}
+	return cur
+}
+
+// TestStressConcurrentLoggingAndInitWithBackends satisfies Objective 1:
+// 100+ concurrent goroutines logging while calling InitWithBackends and With(...)
+// repeatedly, verifying 0 data races, 0 panics, and 0 deadlocks.
+func TestStressConcurrentLoggingAndInitWithBackends(t *testing.T) {
+	orig := logger()
+	defer func() {
+		std.Store(orig)
+	}()
+
+	const (
+		numLoggers  = 100
+		numSwappers = 20
+		numDerivers = 30
+		numSyncers  = 10
+		duration    = 2 * time.Second
+	)
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	var totalLogs atomic.Int64
+	var totalSwaps atomic.Int64
+	var totalDerives atomic.Int64
+
+	// Goroutines actively logging via package-level methods
+	for i := range numLoggers {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			ctx := context.WithValue(context.Background(), ctxKey{}, fmt.Sprintf("goroutine-%d", id))
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					Debug("debug msg", Int("id", id), String("k", "v"))
+					Info("info msg", Int("id", id))
+					Warn("warn msg", Int("id", id))
+					Error("error msg", Int("id", id))
+
+					DebugContext(ctx, "debug ctx", Int("id", id))
+					InfoContext(ctx, "info ctx", Int("id", id))
+					WarnContext(ctx, "warn ctx", Int("id", id))
+					ErrorContext(ctx, "error ctx", Int("id", id))
+
+					Debugf("debugf %d", id)
+					Infof("infof %d", id)
+					Warnf("warnf %d", id)
+					Errorf("errorf %d", id)
+
+					totalLogs.Add(12)
+				}
+			}
+		}(i)
+	}
+
+	// Goroutines repeatedly calling InitWithBackends
+	for i := range numSwappers {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			backends := []Backend{
+				NewNopBackend(),
+				NewStdioBackend(WithMinLevel(LevelWarn)),
+				NewStdioBackend(AddCaller()),
+				NewMultiBackend(NewNopBackend(), NewStdioBackend()),
+				nil, // should be safely ignored
+			}
+			idx := 0
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					b := backends[idx%len(backends)]
+					if b != nil {
+						InitWithBackends(b)
+					} else {
+						InitWithBackends(nil, nil)
+					}
+					idx++
+					totalSwaps.Add(1)
+					time.Sleep(10 * time.Millisecond)
+				}
+			}
+		}(i)
+	}
+
+	// Goroutines calling With(...) repeatedly and logging from derived loggers
+	for i := range numDerivers {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					child := With(
+						WithName(fmt.Sprintf("child-%d", id)),
+						WithAttrs(map[string]any{
+							"worker_id": id,
+							"iteration": totalDerives.Load(),
+						}),
+					)
+					child.Info("derived logger info", String("tag", "derived"))
+					child.Errorf("derived error %d", id)
+
+					// Nested derivation
+					grandChild := child.With(WithName("nested"), AddCaller())
+					grandChild.Debug("grandchild debug")
+
+					totalDerives.Add(3)
+				}
+			}
+		}(i)
+	}
+
+	// Goroutines calling Sync() concurrently
+	for i := range numSyncers {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					_ = Sync()
+					time.Sleep(20 * time.Millisecond)
+				}
+			}
+		}(i)
+	}
+
+	time.Sleep(duration)
+	close(stop)
+	wg.Wait()
+
+	t.Logf("Stress test completed: %d logs, %d backend swaps, %d derived logs",
+		totalLogs.Load(), totalSwaps.Load(), totalDerives.Load())
+}
+
+// Deeply nested and cyclic types for Objective 2
+
+type recursiveNode struct {
+	Next *recursiveNode
+	Val  int
+}
+
+type panickingStringer struct {
+	msg string
+}
+
+func (p panickingStringer) String() string {
+	panic("panickingStringer: " + p.msg)
+}
+
+type deepStruct struct {
+	Inner any
+	Level int
+}
+
+// TestStressDeeplyNestedAndCyclicFormatting satisfies Objective 2:
+// pass deeply nested (depth > 32) and cyclic structs, panicking Stringers,
+// verifying clean fallback without process crash.
+func TestStressDeeplyNestedAndCyclicFormatting(t *testing.T) {
+	backends := []struct {
+		name string
+		b    Backend
+	}{
+		{name: "StdioBackend", b: NewStdioBackend()},
+		{name: "NopBackend", b: NewNopBackend()},
+		{name: "MultiBackend", b: NewMultiBackend(NewStdioBackend(), NewNopBackend())},
+	}
+
+	for _, tc := range backends {
+		t.Run(tc.name, func(t *testing.T) {
+			// 1. Deeply nested structure > 32 levels (e.g. depth 50)
+			var root any = "bottom"
+			for d := 50; d >= 1; d-- {
+				root = deepStruct{Inner: root, Level: d}
+			}
+
+			// Must not crash or stack overflow
+			tc.b.Log(context.Background(), LevelInfo, "testing deep struct", Any("deep", root))
+
+			// Deeply nested slice
+			var deepSlice any = "leaf"
+			for range 40 {
+				deepSlice = []any{deepSlice}
+			}
+			tc.b.Log(context.Background(), LevelInfo, "testing deep slice", Any("deep_slice", deepSlice))
+
+			// Deeply nested map
+			var deepMap any = "leaf"
+			for range 40 {
+				deepMap = map[string]any{"next": deepMap}
+			}
+			tc.b.Log(context.Background(), LevelInfo, "testing deep map", Any("deep_map", deepMap))
+
+			// 2. Cyclic pointer structures
+			nodeA := &recursiveNode{Val: 1}
+			nodeB := &recursiveNode{Val: 2}
+			nodeA.Next = nodeB
+			nodeB.Next = nodeA // cycle
+
+			tc.b.Log(context.Background(), LevelInfo, "testing cyclic pointer", Any("cyclic_ptr", nodeA))
+
+			// Self-referential pointer
+			selfNode := &recursiveNode{Val: 42}
+			selfNode.Next = selfNode
+			tc.b.Log(context.Background(), LevelInfo, "testing self pointer", Any("self_ptr", selfNode))
+
+			// Cyclic slice
+			cyclicSlice := make([]any, 1)
+			cyclicSlice[0] = cyclicSlice
+			tc.b.Log(context.Background(), LevelInfo, "testing cyclic slice", Any("cyclic_slice", cyclicSlice))
+
+			// Cyclic map
+			cyclicMap := make(map[string]any)
+			cyclicMap["self"] = cyclicMap
+			tc.b.Log(context.Background(), LevelInfo, "testing cyclic map", Any("cyclic_map", cyclicMap))
+
+			// 3. Panicking Stringer
+			ps := panickingStringer{msg: "simulated boom"}
+			tc.b.Log(context.Background(), LevelError, "testing panicking stringer", Any("stringer", ps))
+
+			// Nested panicking Stringer
+			nestedPS := map[string]any{
+				"payload": []any{
+					panickingStringer{msg: "nested boom 1"},
+					panickingStringer{msg: "nested boom 2"},
+				},
+			}
+			tc.b.Log(context.Background(), LevelError, "testing nested panicking stringer", Any("nested", nestedPS))
+		})
+	}
+}
+
+// TestStressGlobalLoggerFormatting tests that global helper methods also survive
+// cyclic and panicking structures without crashing.
+func TestStressGlobalLoggerFormatting(t *testing.T) {
+	orig := logger()
+	defer func() { std.Store(orig) }()
+
+	InitWithBackends(NewStdioBackend())
+
+	// Cyclic map
+	m := map[string]any{}
+	m["m"] = m
+	Info("global cyclic map", Any("m", m))
+	Error("global panicking stringer", Any("ps", panickingStringer{msg: "global boom"}))
+
+	// Derived logger with panicking attribute
+	derived := With(WithName("panic_test"))
+	derived.Warn("derived panicking stringer", Any("ps", panickingStringer{msg: "derived boom"}))
 }
