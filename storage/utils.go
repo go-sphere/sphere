@@ -177,7 +177,7 @@ func NormalizeKey(key string) (string, error) {
 	// Checked before cleaning: path.Clean resolves ".." against the preceding
 	// segment, which would silently turn a traversal attempt into a valid key
 	// somewhere else rather than refusing it.
-	for _, segment := range strings.Split(trimmed, "/") {
+	for segment := range strings.SplitSeq(trimmed, "/") {
 		if segment == ".." {
 			return "", storageerr.ErrFileNameInvalid
 		}
