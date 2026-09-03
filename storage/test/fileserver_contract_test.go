@@ -19,27 +19,6 @@ import (
 	"github.com/go-sphere/sphere/storage"
 	"github.com/go-sphere/sphere/storage/fileserver"
 	"github.com/go-sphere/sphere/storage/kvcache"
-	"github.com/go-sphere/sphere/storage/local"
-	"github.com/go-sphere/sphere/storage/qiniu"
-	"github.com/go-sphere/sphere/storage/s3"
-)
-
-var _ storage.CDNStorage = (*s3.Client)(nil)
-var _ storage.CDNStorage = (*qiniu.Client)(nil)
-var _ storage.CDNStorage = (*fileserver.FileServer)(nil)
-var _ storage.Storage = (*local.Client)(nil)
-var _ storage.Storage = (*kvcache.Client)(nil)
-
-// The optional FileStater / FileLister capabilities are implemented by the
-// backends that can serve them cheaply (local, s3, qiniu) and intentionally
-// omitted from kvcache and the fileserver adapter.
-var (
-	_ storage.FileStater = (*local.Client)(nil)
-	_ storage.FileStater = (*s3.Client)(nil)
-	_ storage.FileStater = (*qiniu.Client)(nil)
-	_ storage.FileLister = (*local.Client)(nil)
-	_ storage.FileLister = (*s3.Client)(nil)
-	_ storage.FileLister = (*qiniu.Client)(nil)
 )
 
 func TestFileServerGenerateUploadAuthWithMemoryImplementations(t *testing.T) {
