@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/go-sphere/sphere/utils/encoding/baseconv"
@@ -177,4 +178,108 @@ func TestRandomGenerators(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestAdversarialNumconvRoundTripAndCorruptedInputs tests full 64-bit space,
+// boundary numbers (MinInt64, MaxInt64, -1, 0, 1), and corrupted/non-canonical strings.
+func TestAdversarialNumconvRoundTripAndCorruptedInputs(t *testing.T) {
+	boundaries := []int64{
+		math.MinInt64,
+		math.MinInt64 + 1,
+		-1000000,
+		-256,
+		-1,
+		0,
+		1,
+		256,
+		1000000,
+		math.MaxInt64 - 1,
+		math.MaxInt64,
+	}
+
+	for _, val := range boundaries {
+		// Base32
+		s32 := Int64ToBase32(val)
+		dec32, err := Base32ToInt64(s32)
+		if err != nil {
+			t.Fatalf("Base32ToInt64 failed for %d: %v", val, err)
+		}
+		if dec32 != val {
+			t.Fatalf("Base32 mismatch: want %d, got %d", val, dec32)
+		}
+
+		// Base62
+		s62 := Int64ToBase62(val)
+		dec62, err := Base62ToInt64(s62)
+		if err != nil {
+			t.Fatalf("Base62ToInt64 failed for %d: %v", val, err)
+		}
+		if dec62 != val {
+			t.Fatalf("Base62 mismatch: want %d, got %d", val, dec62)
+		}
+	}
+
+	// Adversarial non-canonical and corrupted strings
+	corrupted := []string{
+		"",
+		"0",
+		"1",
+		"0000000",
+		"invalid!!!",
+		"========",
+		"\x00\x00\x00\x00",
+		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", // too long
+	}
+
+	for _, s := range corrupted {
+		if _, err := Base32ToInt64(s); err == nil {
+			t.Errorf("Base32ToInt64(%q) should fail but returned nil error", s)
+		}
+		if _, err := Base62ToInt64(s); err == nil {
+			t.Errorf("Base62ToInt64(%q) should fail but returned nil error", s)
+		}
+	}
+
+	// Concurrent random draws and encoding
+	const (
+		numGoroutines = 50
+		iterations    = 1000
+	)
+	var wg sync.WaitGroup
+	for g := range numGoroutines {
+		wg.Add(1)
+		go func(gID int) {
+			defer wg.Done()
+			for range iterations {
+				val := rand.Int64()
+				s32 := Int64ToBase32(val)
+				if got, err := Base32ToInt64(s32); err != nil || got != val {
+					t.Errorf("Base32 roundtrip failed for %d (str=%q): got=%d, err=%v", val, s32, got, err)
+				}
+				s62 := Int64ToBase62(val)
+				if got, err := Base62ToInt64(s62); err != nil || got != val {
+					t.Errorf("Base62 roundtrip failed for %d (str=%q): got=%d, err=%v", val, s62, got, err)
+				}
+
+				// Random generator bounds
+				r32 := RandomBase32(16)
+				if len(r32) != 16 {
+					t.Errorf("RandomBase32 length = %d, want 16", len(r32))
+				}
+				r62 := RandomBase62(16)
+				if len(r62) != 16 {
+					t.Errorf("RandomBase62 length = %d, want 16", len(r62))
+				}
+
+				// Non-positive lengths
+				if RandomBase32(0) != "" || RandomBase32(-5) != "" {
+					t.Errorf("RandomBase32 non-positive must return empty string")
+				}
+				if RandomBase62(0) != "" || RandomBase62(-5) != "" {
+					t.Errorf("RandomBase62 non-positive must return empty string")
+				}
+			}
+		}(g)
+	}
+	wg.Wait()
 }
