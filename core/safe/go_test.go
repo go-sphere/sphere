@@ -1,6 +1,9 @@
 package safe
 
 import (
+	"errors"
+	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -91,5 +94,161 @@ func TestGoRecoversGoroutinePanics(t *testing.T) {
 	}
 	if !ran.Load() {
 		t.Fatal("the goroutine body did not run")
+	}
+}
+
+// TestRecover_MultipleCallbacks tests that all callbacks passed to Recover are invoked in order.
+func TestRecover_MultipleCallbacks(t *testing.T) {
+	var results []string
+	func() {
+		defer Recover(
+			func(err any) { results = append(results, "first:"+err.(string)) },
+			func(err any) { results = append(results, "second:"+err.(string)) },
+			func(err any) { results = append(results, "third:"+err.(string)) },
+		)
+		panic("multi")
+	}()
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 callback invocations, got %d", len(results))
+	}
+	if results[0] != "first:multi" || results[1] != "second:multi" || results[2] != "third:multi" {
+		t.Fatalf("unexpected callback results: %v", results)
+	}
+}
+
+// TestLogRecovered directly executes LogRecovered to verify structured format logging without panic.
+func TestLogRecovered(t *testing.T) {
+	// Should not panic
+	LogRecovered("test_module", "something broke")
+}
+
+// TestSafeStress_ConcurrentPanicStorm stress tests safe.Go and safe.Run under a massive
+// panic storm of diverse types across 200+ goroutines.
+func TestSafeStress_ConcurrentPanicStorm(t *testing.T) {
+	const goroutines = 200
+	var completed atomic.Int64
+	var wg sync.WaitGroup
+	wg.Add(goroutines * 2)
+
+	// safe.Go panic storm
+	for i := range goroutines {
+		idx := i
+		Go(func() {
+			defer wg.Done()
+			defer completed.Add(1)
+
+			switch idx % 5 {
+			case 0:
+				panic("string panic payload")
+			case 1:
+				panic(errors.New("error panic payload"))
+			case 2:
+				panic(12345)
+			case 3:
+				panic(struct{ msg string }{"custom struct"})
+			case 4:
+				// Panic with nil in Go 1.21+ is wrapped in runtime.PanicNilError
+				panic(nil)
+			}
+		})
+	}
+
+	// safe.Run panic storm
+	for i := range goroutines {
+		idx := i
+		go func() {
+			defer wg.Done()
+			Run(func() {
+				defer completed.Add(1)
+				switch idx % 5 {
+				case 0:
+					panic(fmt.Sprintf("run panic %d", idx))
+				case 1:
+					panic(errors.New("run error"))
+				case 2:
+					panic(idx)
+				case 3:
+					panic([]byte("bytes panic"))
+				case 4:
+					panic(nil)
+				}
+			})
+		}()
+	}
+
+	wg.Wait()
+
+	if completed.Load() != int64(goroutines*2) {
+		t.Fatalf("expected %d completed functions, got %d", goroutines*2, completed.Load())
+	}
+}
+
+// TestSafeStress_NestedPanics verifies that nested safe.Go and safe.Run invocations
+// contain panics at every layer without deadlocking or escaping.
+func TestSafeStress_NestedPanics(t *testing.T) {
+	const iterations = 50
+	var wg sync.WaitGroup
+	wg.Add(iterations)
+
+	for range iterations {
+		Go(func() {
+			defer wg.Done()
+
+			// Layer 1
+			Run(func() {
+				defer func() {
+					// Layer 2
+					Run(func() {
+						defer func() {
+							// Layer 3 inside safe.Go
+							innerDone := make(chan struct{})
+							Go(func() {
+								defer close(innerDone)
+								panic("deep inner panic")
+							})
+							<-innerDone
+						}()
+						panic("layer 2 panic")
+					})
+				}()
+				panic("layer 1 panic")
+			})
+		})
+	}
+
+	wg.Wait()
+}
+
+// TestSafeStress_ConcurrentRecoverCallbacks tests safe.Recover with multiple handlers under load.
+func TestSafeStress_ConcurrentRecoverCallbacks(t *testing.T) {
+	const count = 100
+	var wg sync.WaitGroup
+	wg.Add(count)
+
+	var totalCallbacks atomic.Int64
+
+	for i := range count {
+		go func(val int) {
+			defer wg.Done()
+			defer Recover(
+				func(err any) {
+					totalCallbacks.Add(1)
+				},
+				func(err any) {
+					totalCallbacks.Add(1)
+				},
+				func(err any) {
+					totalCallbacks.Add(1)
+				},
+			)
+			panic(fmt.Sprintf("panic-val-%d", val))
+		}(i)
+	}
+
+	wg.Wait()
+
+	if totalCallbacks.Load() != int64(count*3) {
+		t.Fatalf("expected %d callbacks invoked, got %d", count*3, totalCallbacks.Load())
 	}
 }
