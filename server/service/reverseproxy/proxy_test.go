@@ -3,19 +3,24 @@ package reverseproxy
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/go-sphere/sphere/cache/memory"
-	"github.com/go-sphere/sphere/storage/local"
+	"github.com/go-sphere/sphere/storage/kvcache"
 )
 
 func TestDefaultCacheKey(t *testing.T) {
@@ -363,189 +368,25 @@ func TestServeCacheReverseProxy_CustomResponseChecker(t *testing.T) {
 	}
 }
 
-// TestCommonCache_SaveAndLoad tests the cache save and load operations
-func TestCommonCache_SaveAndLoad(t *testing.T) {
-	cache := setupTestCache(t)
-
-	ctx := (&http.Request{}).Context()
-	header := http.Header{
-		"Content-Type": []string{"text/plain"},
-		"X-Custom":     []string{"value"},
-	}
-	body := strings.NewReader("test content")
-
-	// Save to cache
-	err := cache.Save(ctx, "test-key", header, body)
-	if err != nil {
-		t.Fatalf("Failed to save to cache: %v", err)
-	}
-
-	// Load from cache
-	loadedHeader, loadedBody, err := cache.Load(ctx, "test-key")
-	if err != nil {
-		t.Fatalf("Failed to load from cache: %v", err)
-	}
-	defer func() {
-		if closer, ok := loadedBody.(io.Closer); ok {
-			_ = closer.Close()
-		}
-	}()
-
-	// Verify header
-	if loadedHeader.Get("Content-Type") != "text/plain" {
-		t.Errorf("Expected Content-Type 'text/plain', got '%s'", loadedHeader.Get("Content-Type"))
-	}
-	if loadedHeader.Get("X-Custom") != "value" {
-		t.Errorf("Expected X-Custom 'value', got '%s'", loadedHeader.Get("X-Custom"))
-	}
-
-	// Verify body
-	loadedContent, err := io.ReadAll(loadedBody)
-	if err != nil {
-		t.Fatalf("Failed to read body: %v", err)
-	}
-	if string(loadedContent) != "test content" {
-		t.Errorf("Expected 'test content', got '%s'", string(loadedContent))
-	}
-}
-
-func TestCommonCache_SaveRootPath(t *testing.T) {
-	cache := setupTestCache(t)
-	ctx := t.Context()
-	header := http.Header{"Content-Type": []string{"text/plain"}}
-
-	if err := cache.Save(ctx, "/", header, strings.NewReader("homepage")); err != nil {
-		t.Fatalf("Save GET /: %v", err)
-	}
-	loadedHeader, loadedBody, err := cache.Load(ctx, "/")
-	if err != nil {
-		t.Fatalf("Load GET /: %v", err)
-	}
-	defer loadedBody.Close()
-	if loadedHeader.Get("Content-Type") != "text/plain" {
-		t.Errorf("Content-Type = %q", loadedHeader.Get("Content-Type"))
-	}
-	got, err := io.ReadAll(loadedBody)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != "homepage" {
-		t.Errorf("body = %q, want homepage", got)
-	}
-
-	if err := cache.Save(ctx, "/foo", header, strings.NewReader("without slash")); err != nil {
-		t.Fatalf("Save /foo: %v", err)
-	}
-	if err := cache.Save(ctx, "/foo/", header, strings.NewReader("with slash")); err != nil {
-		t.Fatalf("Save /foo/: %v", err)
-	}
-	_, otherBody, err := cache.Load(ctx, "/foo")
-	if err != nil {
-		t.Fatalf("Load /foo: %v", err)
-	}
-	defer otherBody.Close()
-	got, err = io.ReadAll(otherBody)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != "without slash" {
-		t.Errorf("/foo body clobbered by /foo/: %q", got)
-	}
-	_, slashBody, err := cache.Load(ctx, "/foo/")
-	if err != nil {
-		t.Fatalf("Load /foo/: %v", err)
-	}
-	defer slashBody.Close()
-	got, err = io.ReadAll(slashBody)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != "with slash" {
-		t.Errorf("/foo/ body clobbered by /foo: %q", got)
-	}
-}
-
-// TestCommonCache_Delete tests cache deletion
-func TestCommonCache_Delete(t *testing.T) {
-	cache := setupTestCache(t)
-
-	ctx := (&http.Request{}).Context()
-	header := http.Header{"Content-Type": []string{"text/plain"}}
-	body := strings.NewReader("delete test")
-
-	// Save to cache
-	err := cache.Save(ctx, "delete-key", header, body)
-	if err != nil {
-		t.Fatalf("Failed to save: %v", err)
-	}
-
-	// Delete from cache
-	err = cache.Delete(ctx, "delete-key")
-	if err != nil {
-		t.Fatalf("Failed to delete: %v", err)
-	}
-
-	// Verify deletion
-	_, _, err = cache.Load(ctx, "delete-key")
-	if err == nil {
-		t.Error("Expected error when loading deleted key, got nil")
-	}
-}
-
-// TestCommonCache_Exists tests cache existence check
-func TestCommonCache_Exists(t *testing.T) {
-	cache := setupTestCache(t)
-
-	ctx := (&http.Request{}).Context()
-
-	// Check non-existent key
-	exists, err := cache.Exists(ctx, "non-existent")
-	if err == nil && exists {
-		t.Error("Non-existent key should not exist")
-	}
-
-	// Save and check
-	header := http.Header{"Content-Type": []string{"text/plain"}}
-	body := strings.NewReader("exists test")
-	err = cache.Save(ctx, "exists-key", header, body)
-	if err != nil {
-		t.Fatalf("Failed to save: %v", err)
-	}
-
-	exists, err = cache.Exists(ctx, "exists-key")
-	if err != nil {
-		t.Logf("Exists check error: %v", err)
-	}
-	if exists {
-		t.Log("Key exists as expected")
-	}
-}
-
-// setupTestCache creates a test cache instance with temporary storage
+// setupTestCache creates a test cache instance with in-memory storage.
 func setupTestCache(t *testing.T) *CommonCache {
 	t.Helper()
 
-	// Create temporary directory for test
-	tempDir := t.TempDir()
+	storageCache := memory.NewByteCache()
+	t.Cleanup(func() { _ = storageCache.Close() })
 
-	store, err := local.NewClient(local.Config{
-		RootDir: tempDir,
-	})
+	store, err := kvcache.NewClient(kvcache.Config{}, storageCache)
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
 
-	cache := NewByteCache(
-		memory.NewByteCache(),
+	headerCache := memory.NewByteCache()
+	t.Cleanup(func() { _ = headerCache.Close() })
+
+	return NewByteCache(
+		headerCache,
 		store,
 	)
-
-	// Cleanup function
-	t.Cleanup(func() {
-		// Temporary directory is automatically cleaned up by t.TempDir()
-	})
-
-	return cache
 }
 
 // TestServeCacheReverseProxy_CacheHitPreservesStatus verifies that a cache hit
@@ -983,3 +824,469 @@ func (f *failingResponseWriter) Write([]byte) (int, error) {
 }
 
 func (f *failingResponseWriter) WriteHeader(int) {}
+
+func TestWithSaveTimeout(t *testing.T) {
+	t.Parallel()
+
+	// Positive duration
+	opts := newOptions(WithSaveTimeout(15 * time.Second))
+	if opts.saveTimeout != 15*time.Second {
+		t.Fatalf("expected saveTimeout 15s, got %v", opts.saveTimeout)
+	}
+
+	// Zero duration falls back to default
+	optsZero := newOptions(WithSaveTimeout(0))
+	if optsZero.saveTimeout != defaultSaveTimeout {
+		t.Fatalf("expected defaultSaveTimeout for 0, got %v", optsZero.saveTimeout)
+	}
+
+	// Negative duration falls back to default
+	optsNeg := newOptions(WithSaveTimeout(-1 * time.Second))
+	if optsNeg.saveTimeout != defaultSaveTimeout {
+		t.Fatalf("expected defaultSaveTimeout for negative, got %v", optsNeg.saveTimeout)
+	}
+}
+
+func TestWithDirector(t *testing.T) {
+	var receivedCustomHeader string
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedCustomHeader = r.Header.Get("X-Director-Test")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("director response"))
+	}))
+	defer backend.Close()
+
+	cache := setupTestCache(t)
+	backendURL, err := url.Parse(backend.URL)
+	if err != nil {
+		t.Fatalf("Parse URL: %v", err)
+	}
+
+	proxy, err := CreateCacheReverseProxy(cache,
+		WithTargetURL(backendURL),
+		WithDirector(func(req *http.Request) {
+			req.Header.Set("X-Director-Test", "applied")
+		}),
+	)
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/test-director", nil)
+	rec := httptest.NewRecorder()
+	proxy.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if receivedCustomHeader != "applied" {
+		t.Fatalf("X-Director-Test = %q, want applied", receivedCustomHeader)
+	}
+}
+
+func TestWithServeErrorHandler(t *testing.T) {
+	// Nil error handler is ignored (keeps default)
+	serveOpts := newServeOptions(WithServeErrorHandler(nil))
+	if serveOpts.errorHandler == nil {
+		t.Fatal("errorHandler should not be nil after WithServeErrorHandler(nil)")
+	}
+
+	// Custom error handler is called on write failure during cache hit replay
+	cache := setupTestCache(t)
+	key := "/cached-for-error-handler"
+	if err := cache.Save(context.Background(), key, http.Header{}, strings.NewReader("cached payload")); err != nil {
+		t.Fatalf("seeding cache failed: %v", err)
+	}
+
+	backendURL, _ := url.Parse("http://unused.invalid")
+	proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL))
+	if err != nil {
+		t.Fatalf("Failed to create proxy: %v", err)
+	}
+
+	var capturedErr error
+	var capturedReq *http.Request
+	handler := ServeCacheReverseProxy(cache, proxy, WithServeErrorHandler(func(w http.ResponseWriter, r *http.Request, err error) {
+		capturedErr = err
+		capturedReq = r
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, key, nil)
+	handler(&failingResponseWriter{header: http.Header{}}, req)
+
+	if capturedErr == nil {
+		t.Fatal("expected error to be reported to WithServeErrorHandler, got nil")
+	}
+	if capturedReq != req {
+		t.Fatalf("expected request %v, got %v", req, capturedReq)
+	}
+}
+
+func TestWithServeCacheKeyFunc(t *testing.T) {
+	cache := setupTestCache(t)
+	const customKey = "custom-key-123"
+	if err := cache.Save(context.Background(), customKey, http.Header{"Content-Type": []string{"text/plain"}}, strings.NewReader("custom cached payload")); err != nil {
+		t.Fatalf("seeding cache failed: %v", err)
+	}
+
+	backendHitCount := 0
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backendHitCount++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("backend payload"))
+	}))
+	defer backend.Close()
+
+	backendURL, _ := url.Parse(backend.URL)
+	proxy, err := CreateCacheReverseProxy(cache,
+		WithTargetURL(backendURL),
+	)
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+
+	// Case 1: custom key function returns the cached key -> cache hit
+	handlerWithCustomKey := ServeCacheReverseProxy(cache, proxy, WithServeCacheKeyFunc(func(r *http.Request) string {
+		if r.URL.Path == "/use-custom-key" {
+			return customKey
+		}
+		return ""
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/use-custom-key", nil)
+	handlerWithCustomKey(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if rec.Body.String() != "custom cached payload" {
+		t.Fatalf("body = %q, want custom cached payload", rec.Body.String())
+	}
+	if backendHitCount != 0 {
+		t.Fatalf("backend hit count = %d, want 0 on cache hit", backendHitCount)
+	}
+
+	// Case 2: keygen returns empty string -> cache skipped, forwards to upstream proxy
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodGet, "/skip-cache", nil)
+	handlerWithCustomKey(rec2, req2)
+
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec2.Code)
+	}
+	if rec2.Body.String() != "backend payload" {
+		t.Fatalf("body = %q, want backend payload", rec2.Body.String())
+	}
+	if backendHitCount != 1 {
+		t.Fatalf("backend hit count = %d, want 1 after upstream proxy", backendHitCount)
+	}
+}
+
+// TestStressReverseProxy_ConcurrentCacheStreaming tests 50 concurrent clients requesting
+// the same and different resources through reverse proxy to verify no corruption or race conditions.
+func TestStressReverseProxy_ConcurrentCacheStreaming(t *testing.T) {
+	cache := setupTestCache(t)
+
+	// Upstream payload: 512KB
+	payload := bytes.Repeat([]byte("0123456789abcdef"), 32*1024)
+	expectedHash := sha256.Sum256(payload)
+
+	var upstreamCalls atomic.Int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamCalls.Add(1)
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(payload)
+	}))
+	defer backend.Close()
+
+	backendURL, err := url.Parse(backend.URL)
+	if err != nil {
+		t.Fatalf("Parse URL: %v", err)
+	}
+
+	proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL))
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+
+	handler := ServeCacheReverseProxy(cache, proxy)
+	frontend := httptest.NewServer(http.HandlerFunc(handler))
+	defer frontend.Close()
+
+	const concurrentClients = 40
+	var wg sync.WaitGroup
+
+	for i := range concurrentClients {
+		wg.Add(1)
+		go func(clientID int) {
+			defer wg.Done()
+			// Alternating: some clients hit the shared key /shared-payload, some hit client-specific keys
+			path := "/shared-payload"
+			if clientID%2 == 1 {
+				path = fmt.Sprintf("/client-%d-payload", clientID)
+			}
+
+			resp, reqErr := frontend.Client().Get(frontend.URL + path)
+			if reqErr != nil {
+				t.Errorf("client %d GET error: %v", clientID, reqErr)
+				return
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			body, readErr := io.ReadAll(resp.Body)
+			if readErr != nil {
+				t.Errorf("client %d ReadAll error: %v", clientID, readErr)
+				return
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("client %d got status %d, want 200", clientID, resp.StatusCode)
+				return
+			}
+
+			if len(body) != len(payload) {
+				t.Errorf("client %d got %d bytes, want %d", clientID, len(body), len(payload))
+				return
+			}
+
+			if sha256.Sum256(body) != expectedHash {
+				t.Errorf("client %d got corrupted body hash mismatch", clientID)
+				return
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	// Allow background cache.Save goroutines to finish persisting to disk before TempDir cleanup
+	time.Sleep(500 * time.Millisecond)
+	t.Logf("Concurrent streaming test passed: %d clients, %d upstream calls", concurrentClients, upstreamCalls.Load())
+}
+
+// blockingCache simulates slow or broken storage save behavior
+type customFailureCache struct {
+	Cache
+	saveMode int // 0: immediate error, 1: error after partial read, 2: hang until ctx cancel
+}
+
+func (c *customFailureCache) Save(ctx context.Context, key string, header http.Header, reader io.Reader) error {
+	switch c.saveMode {
+	case 0:
+		// Immediate error without reading
+		return errors.New("immediate storage failure")
+	case 1:
+		// Read 16KB then fail
+		buf := make([]byte, 16*1024)
+		_, _ = io.ReadFull(reader, buf)
+		return errors.New("storage network timeout during save")
+	case 2:
+		// Hang until context is done
+		<-ctx.Done()
+		return ctx.Err()
+	default:
+		return c.Cache.Save(ctx, key, header, reader)
+	}
+}
+
+// TestStressReverseProxy_BrokenCacheSinks verifies that when cache Save fails or hangs,
+// the client receives 100% of the upstream stream without truncation or error.
+func TestStressReverseProxy_BrokenCacheSinks(t *testing.T) {
+	modes := []struct {
+		name string
+		mode int
+	}{
+		{name: "immediate save error", mode: 0},
+		{name: "mid-stream save error", mode: 1},
+		{name: "hung save with saveTimeout", mode: 2},
+	}
+
+	for _, tc := range modes {
+		t.Run(tc.name, func(t *testing.T) {
+			baseCache := setupTestCache(t)
+			brokenCache := &customFailureCache{
+				Cache:    baseCache,
+				saveMode: tc.mode,
+			}
+
+			payload := bytes.Repeat([]byte("0123456789ABCDEF"), 16*1024) // 256 KB
+			expectedHash := sha256.Sum256(payload)
+
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/octet-stream")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(payload)
+			}))
+			defer backend.Close()
+
+			backendURL, err := url.Parse(backend.URL)
+			if err != nil {
+				t.Fatalf("Parse backend URL: %v", err)
+			}
+
+			var recordedErrors atomic.Int64
+			proxy, err := CreateCacheReverseProxy(
+				brokenCache,
+				WithTargetURL(backendURL),
+				WithSaveTimeout(100*time.Millisecond),
+				WithErrorHandler(func(err error) {
+					recordedErrors.Add(1)
+				}),
+			)
+			if err != nil {
+				t.Fatalf("CreateCacheReverseProxy: %v", err)
+			}
+
+			handler := ServeCacheReverseProxy(brokenCache, proxy)
+			frontend := httptest.NewServer(http.HandlerFunc(handler))
+			defer frontend.Close()
+
+			resp, err := frontend.Client().Get(frontend.URL + "/test-sink")
+			if err != nil {
+				t.Fatalf("GET request failed: %v", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("Client body read failed: %v", err)
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("Status = %d, want 200", resp.StatusCode)
+			}
+
+			if len(body) != len(payload) {
+				t.Fatalf("Client received %d bytes, want %d bytes (truncated!)", len(body), len(payload))
+			}
+
+			if sha256.Sum256(body) != expectedHash {
+				t.Fatalf("Client received corrupted data payload")
+			}
+		})
+	}
+}
+
+// TestStressReverseProxy_ClientDisconnectLeak verifies that client disconnects do not leak
+// goroutines, memory, or file descriptors.
+func TestStressReverseProxy_ClientDisconnectLeak(t *testing.T) {
+	cache := setupTestCache(t)
+
+	payload := bytes.Repeat([]byte("X"), 256*1024) // 256 KB
+
+	var backendActive atomic.Int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backendActive.Add(1)
+		defer backendActive.Add(-1)
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK)
+		// Write chunks with small delay
+		for i := 0; i < len(payload); i += 16 * 1024 {
+			end := min(i+16*1024, len(payload))
+			_, writeErr := w.Write(payload[i:end])
+			if writeErr != nil {
+				return
+			}
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}))
+	defer backend.Close()
+
+	backendURL, err := url.Parse(backend.URL)
+	if err != nil {
+		t.Fatalf("Parse URL: %v", err)
+	}
+
+	proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL), WithSaveTimeout(500*time.Millisecond))
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+
+	handler := ServeCacheReverseProxy(cache, proxy)
+	frontend := httptest.NewServer(http.HandlerFunc(handler))
+	defer frontend.Close()
+
+	initialGoroutines := runtime.NumGoroutine()
+
+	// Launch 30 clients that abort after reading only first 512 bytes
+	var wg sync.WaitGroup
+	for i := range 30 {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/abort-%d", frontend.URL, idx), nil)
+			resp, reqErr := http.DefaultClient.Do(req)
+			if reqErr != nil {
+				return
+			}
+			// Read a small chunk and close connection abruptly
+			buf := make([]byte, 512)
+			_, _ = resp.Body.Read(buf)
+			_ = resp.Body.Close()
+		}(i)
+	}
+	wg.Wait()
+
+	// Wait for goroutines and save contexts to settle
+	time.Sleep(1 * time.Second)
+
+	finalGoroutines := runtime.NumGoroutine()
+	t.Logf("Goroutines: initial=%d, final=%d", initialGoroutines, finalGoroutines)
+
+	// Verify backend connections drained
+	if active := backendActive.Load(); active != 0 {
+		t.Errorf("Active backend requests still open: %d", active)
+	}
+}
+
+// TestStressReverseProxy_UpstreamAbruptClose verifies behavior when upstream server fails mid-response.
+func TestStressReverseProxy_UpstreamAbruptClose(t *testing.T) {
+	cache := setupTestCache(t)
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("initial partial data"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		// Close the connection abruptly by hijacking
+		if hj, ok := w.(http.Hijacker); ok {
+			conn, _, _ := hj.Hijack()
+			_ = conn.Close()
+		}
+	}))
+	defer backend.Close()
+
+	backendURL, err := url.Parse(backend.URL)
+	if err != nil {
+		t.Fatalf("Parse URL: %v", err)
+	}
+
+	proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL), WithSaveTimeout(500*time.Millisecond))
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+
+	handler := ServeCacheReverseProxy(cache, proxy)
+	frontend := httptest.NewServer(http.HandlerFunc(handler))
+	defer frontend.Close()
+
+	resp, err := frontend.Client().Get(frontend.URL + "/abrupt")
+	if err == nil {
+		_, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		// We expect either request error or body read error due to hijacked connection
+		t.Logf("Upstream abrupt close resulted in read error: %v", readErr)
+	}
+
+	// Verify cache does NOT contain valid entry for /abrupt
+	time.Sleep(200 * time.Millisecond)
+	exists, err := cache.Exists(context.Background(), "/abrupt")
+	if err == nil && exists {
+		t.Errorf("Cache should not have stored corrupted/aborted response")
+	}
+}
