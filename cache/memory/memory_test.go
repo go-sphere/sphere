@@ -84,7 +84,7 @@ func TestCloseConcurrentOperations(t *testing.T) {
 			// count is kept low enough to stay cheap under -race. The failure
 			// modes this guards against (deadlock on Wait, send on closed
 			// channel) reproduce within a handful of rounds.
-			for i := 0; i < 25; i++ {
+			for range 25 {
 				c := NewByteCache()
 
 				var wg sync.WaitGroup
@@ -113,7 +113,7 @@ func TestCloseConcurrentOperations(t *testing.T) {
 // staged shutdown path relies on when a Stop is retried after a timeout.
 func TestCloseIsIdempotent(t *testing.T) {
 	c := NewByteCache()
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if err := c.Close(); err != nil {
 			t.Fatalf("Close #%d: %v", i+1, err)
 		}

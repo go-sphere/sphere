@@ -291,8 +291,8 @@ func (m *Cache[T]) lockMutationShards(keys []string) func() {
 		m.mutationShards[shard].Lock()
 	}
 	return func() {
-		for i := len(shards) - 1; i >= 0; i-- {
-			m.mutationShards[shards[i]].Unlock()
+		for _, shard := range slices.Backward(shards) {
+			m.mutationShards[shard].Unlock()
 		}
 	}
 }

@@ -493,3 +493,307 @@ func TestByteCacheValueOwnership(t *testing.T) {
 		})
 	}
 }
+
+// TestCacheAdversarialTTLBoundaries systematically tests boundary TTL conditions:
+// negative TTLs (-1ns, -1ms, -1h), 0 TTL (persistence & TTL clear), short TTL expiration.
+func TestCacheAdversarialTTLBoundaries(t *testing.T) {
+	t.Parallel()
+
+	factories := append(statefulByteCacheFactories(), noCacheFactory())
+	for _, factory := range factories {
+		t.Run(factory.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			c := factory.new(t)
+
+			// 1. Negative TTL validation
+			negDurations := []time.Duration{
+				-1 * time.Nanosecond,
+				-1 * time.Millisecond,
+				-1 * time.Second,
+				-1 * time.Hour,
+			}
+			for _, d := range negDurations {
+				key := fmt.Sprintf("neg_ttl_%d", int64(d))
+				if err := c.SetWithTTL(ctx, key, []byte("val"), d); !errors.Is(err, cache.ErrInvalidTTL) {
+					t.Fatalf("SetWithTTL with d=%v returned %v, want ErrInvalidTTL", d, err)
+				}
+				exists, err := c.Exists(ctx, key)
+				if err != nil {
+					t.Fatalf("Exists for %s: %v", key, err)
+				}
+				if exists {
+					t.Fatalf("Key %s should not exist after negative TTL SetWithTTL", key)
+				}
+
+				if err := c.MultiSetWithTTL(ctx, map[string][]byte{key: []byte("val")}, d); !errors.Is(err, cache.ErrInvalidTTL) {
+					t.Fatalf("MultiSetWithTTL with d=%v returned %v, want ErrInvalidTTL", d, err)
+				}
+				exists, err = c.Exists(ctx, key)
+				if err != nil {
+					t.Fatalf("Exists for %s: %v", key, err)
+				}
+				if exists {
+					t.Fatalf("Key %s should not exist after negative TTL MultiSetWithTTL", key)
+				}
+			}
+
+			if factory.name == "nocache" {
+				return
+			}
+
+			// 2. TTL=0 overwrites and clears existing TTL (never expires)
+			keyZero := "ttl_clear_to_zero"
+			if err := c.SetWithTTL(ctx, keyZero, []byte("val1"), 30*time.Millisecond); err != nil {
+				t.Fatalf("SetWithTTL 30ms: %v", err)
+			}
+			// Overwrite with TTL = 0
+			if err := c.SetWithTTL(ctx, keyZero, []byte("val_permanent"), 0); err != nil {
+				t.Fatalf("SetWithTTL 0: %v", err)
+			}
+			time.Sleep(60 * time.Millisecond)
+			val, found, err := c.Get(ctx, keyZero)
+			if err != nil {
+				t.Fatalf("Get after TTL=0 overwrite: %v", err)
+			}
+			if !found || string(val) != "val_permanent" {
+				t.Fatalf("Key %s expired after TTL=0 overwrite: found=%v, val=%s", keyZero, found, string(val))
+			}
+
+			// 3. MultiSetWithTTL with TTL=0
+			mKeyZero := "m_ttl_clear_to_zero"
+			if err := c.MultiSetWithTTL(ctx, map[string][]byte{mKeyZero: []byte("mval1")}, 30*time.Millisecond); err != nil {
+				t.Fatalf("MultiSetWithTTL 30ms: %v", err)
+			}
+			if err := c.MultiSetWithTTL(ctx, map[string][]byte{mKeyZero: []byte("mval_permanent")}, 0); err != nil {
+				t.Fatalf("MultiSetWithTTL 0: %v", err)
+			}
+			time.Sleep(60 * time.Millisecond)
+			mval, found, err := c.Get(ctx, mKeyZero)
+			if err != nil {
+				t.Fatalf("Get after MultiSetWithTTL=0: %v", err)
+			}
+			if !found || string(mval) != "mval_permanent" {
+				t.Fatalf("Key %s expired after MultiSetWithTTL=0: found=%v, val=%s", mKeyZero, found, string(mval))
+			}
+
+			// 4. Short TTL expiration
+			keyExp := "short_ttl_exp"
+			if err := c.SetWithTTL(ctx, keyExp, []byte("expiring"), 20*time.Millisecond); err != nil {
+				t.Fatalf("SetWithTTL short: %v", err)
+			}
+			assertEventuallyNotFound(t, c, keyExp)
+
+			// 5. Empty key handling
+			if factory.name == "badgerdb" {
+				// BadgerDB engine natively rejects empty byte slice keys (badger.ErrEmptyKey).
+				if err := c.Set(ctx, "", []byte("empty_key_val")); err == nil {
+					t.Fatalf("BadgerDB should reject empty key")
+				}
+			}
+			if factory.name != "badgerdb" {
+				if err := c.Set(ctx, "", []byte("empty_key_val")); err != nil {
+					t.Fatalf("Set empty key: %v", err)
+				}
+				vEmpty, found, err := c.Get(ctx, "")
+				if err != nil {
+					t.Fatalf("Get empty key: %v", err)
+				}
+				if !found || string(vEmpty) != "empty_key_val" {
+					t.Fatalf("Empty key value mismatch: found=%v val=%q", found, string(vEmpty))
+				}
+				if err := c.Del(ctx, ""); err != nil {
+					t.Fatalf("Del empty key: %v", err)
+				}
+				_, found, err = c.Get(ctx, "")
+				if err != nil {
+					t.Fatalf("Get empty key after del: %v", err)
+				}
+				if found {
+					t.Fatalf("Empty key still exists after Del")
+				}
+			}
+		})
+	}
+}
+
+// TestCacheAdversarialConcurrency60Goroutines executes heavy concurrent operations
+// across 60 goroutines performing Set, Get, GetDel, Del, MultiSet, MultiGet, and MultiDel
+// under -race.
+func TestCacheAdversarialConcurrency60Goroutines(t *testing.T) {
+	for _, factory := range statefulByteCacheFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			if testing.Short() {
+				t.Skip("skip stress test in short mode")
+			}
+
+			ctx := context.Background()
+			c := factory.new(t)
+
+			const numGoroutines = 60
+			const opsPerGoroutine = 50
+
+			var wg sync.WaitGroup
+			errCh := make(chan error, numGoroutines*opsPerGoroutine)
+
+			for g := range numGoroutines {
+				gID := g
+				wg.Go(func() {
+					for op := range opsPerGoroutine {
+						key := fmt.Sprintf("stress_k_%d", (gID+op)%20)
+						val := []byte(fmt.Sprintf("val_%d_%d", gID, op))
+
+						switch op % 6 {
+						case 0:
+							if err := c.Set(ctx, key, val); err != nil {
+								errCh <- fmt.Errorf("Set(%s): %w", key, err)
+							}
+						case 1:
+							if err := c.SetWithTTL(ctx, key, val, 500*time.Millisecond); err != nil {
+								errCh <- fmt.Errorf("SetWithTTL(%s): %w", key, err)
+							}
+						case 2:
+							_, _, err := c.Get(ctx, key)
+							if err != nil {
+								errCh <- fmt.Errorf("Get(%s): %w", key, err)
+							}
+						case 3:
+							_, _, err := c.GetDel(ctx, key)
+							if err != nil {
+								errCh <- fmt.Errorf("GetDel(%s): %w", key, err)
+							}
+						case 4:
+							m := map[string][]byte{
+								key:                        val,
+								fmt.Sprintf("%s_alt", key): val,
+							}
+							if err := c.MultiSet(ctx, m); err != nil {
+								errCh <- fmt.Errorf("MultiSet: %w", err)
+							}
+						case 5:
+							if err := c.Del(ctx, key); err != nil {
+								errCh <- fmt.Errorf("Del(%s): %w", key, err)
+							}
+						}
+					}
+				})
+			}
+
+			wg.Wait()
+			close(errCh)
+
+			for err := range errCh {
+				t.Fatalf("concurrent stress error: %v", err)
+			}
+		})
+	}
+}
+
+// TestCacheAdversarialGetDelExclusivity60Goroutines verifies that GetDel provides
+// strict at-most-once semantics across 60 goroutines competing for each key.
+func TestCacheAdversarialGetDelExclusivity60Goroutines(t *testing.T) {
+	for _, factory := range statefulByteCacheFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			if testing.Short() {
+				t.Skip("skip stress test in short mode")
+			}
+
+			ctx := context.Background()
+			c := factory.new(t)
+
+			const numKeys = 50
+			const numConsumers = 60
+
+			for i := range numKeys {
+				key := fmt.Sprintf("atomic_token_%d", i)
+				if err := c.Set(ctx, key, []byte(fmt.Sprintf("token_%d", i))); err != nil {
+					t.Fatalf("Set(%s): %v", key, err)
+				}
+			}
+
+			hits := make([]atomic.Int64, numKeys)
+			startBarrier := make(chan struct{})
+			var wg sync.WaitGroup
+			errCh := make(chan error, numKeys*numConsumers)
+
+			for i := range numKeys {
+				keyIdx := i
+				key := fmt.Sprintf("atomic_token_%d", keyIdx)
+				for range numConsumers {
+					wg.Go(func() {
+						<-startBarrier
+						val, found, err := c.GetDel(ctx, key)
+						if err != nil {
+							errCh <- err
+							return
+						}
+						if found {
+							if string(val) != fmt.Sprintf("token_%d", keyIdx) {
+								errCh <- fmt.Errorf("corrupted token value: %s", string(val))
+								return
+							}
+							hits[keyIdx].Add(1)
+						}
+					})
+				}
+			}
+
+			close(startBarrier)
+			wg.Wait()
+			close(errCh)
+
+			for err := range errCh {
+				t.Fatalf("GetDel concurrent error: %v", err)
+			}
+
+			for i := range numKeys {
+				consumed := hits[i].Load()
+				if consumed > 1 {
+					t.Fatalf("Key atomic_token_%d was consumed %d times (MUST be at most 1)", i, consumed)
+				}
+			}
+		})
+	}
+}
+
+// TestCacheAdversarialCloseUnderConcurrentLoad verifies that calling Close()
+// while 50 goroutines are actively performing Set/Get/GetDel/Del does NOT cause panics.
+func TestCacheAdversarialCloseUnderConcurrentLoad(t *testing.T) {
+	for _, factory := range statefulByteCacheFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			if factory.name == "badgerdb" {
+				// BadgerDB engine's DB.Close() blocks waiting for active transactions to complete,
+				// which deadlocks if transactions wait for watermark marks during DB.Close().
+				t.Skip("badgerdb does not support Close() concurrent with active uncoordinated write transactions")
+			}
+			ctx := context.Background()
+			c := factory.new(t)
+
+			const workers = 50
+			const opsPerWorker = 30
+			var wg sync.WaitGroup
+
+			for i := range workers {
+				workerID := i
+				wg.Go(func() {
+					key := fmt.Sprintf("close_k_%d", workerID)
+					val := []byte("payload")
+					for range opsPerWorker {
+						_ = c.Set(ctx, key, val)
+						_, _, _ = c.Get(ctx, key)
+						_, _, _ = c.GetDel(ctx, key)
+						_ = c.Del(ctx, key)
+					}
+				})
+			}
+
+			// Let workers start running under load
+			time.Sleep(5 * time.Millisecond)
+
+			// Trigger Close concurrently
+			_ = c.Close()
+
+			wg.Wait()
+		})
+	}
+}
