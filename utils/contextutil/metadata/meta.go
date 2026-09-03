@@ -26,12 +26,15 @@ func WithMeta(ctx context.Context, m map[string]any) context.Context {
 }
 
 // MetaFrom extracts metadata from the given context.
-// It returns nil only when WithMeta was never called. A stored value that is
+// It returns nil if ctx is nil or when WithMeta was never called. A stored value that is
 // not a map also yields nil (not reachable through this package's API).
 //
 // The returned map is the one held by the context, not a copy: treat it as
 // read-only. Writing to it races with every other holder of the same context.
 func MetaFrom(ctx context.Context) map[string]any {
+	if ctx == nil {
+		return nil
+	}
 	if v := ctx.Value(metaContextKey); v != nil {
 		if m, ok := v.(map[string]any); ok {
 			return m
