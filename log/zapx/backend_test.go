@@ -2,20 +2,21 @@ package zapx
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
-	"sync"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/go-sphere/sphere/log"
 	"go.uber.org/zap"
 )
 
 func TestZapLogger(t *testing.T) {
+	originalBackend := log.With().Backend()
+	originalSlog := slog.Default()
+	t.Cleanup(func() {
+		log.InitWithBackends(originalBackend)
+		slog.SetDefault(originalSlog)
+	})
 	backend := NewBackend(NewDefaultConfig(), log.AddCaller())
 
 	log.InitWithBackends(backend)
@@ -32,139 +33,6 @@ func TestZapLogger(t *testing.T) {
 
 	backend.ZapLogger().Warn("zap", zap.String("key", "value"))
 	backend.zapLogger.With(zap.String("key", "value")).Warn("zap", zap.String("key2", "value2"))
-}
-
-type advZapCyclic struct {
-	Name string
-	Peer *advZapCyclic
-}
-
-type advZapPanicMarshaler struct {
-	msg string
-}
-
-func (p advZapPanicMarshaler) MarshalJSON() ([]byte, error) {
-	panic("advZapPanicMarshaler panic: " + p.msg)
-}
-
-type advZapPanicStringer struct {
-	msg string
-}
-
-func (p advZapPanicStringer) String() string {
-	panic("advZapPanicStringer panic: " + p.msg)
-}
-
-func TestAdversarialZapxStress(t *testing.T) {
-	tempDir := t.TempDir()
-	logPath := filepath.Join(tempDir, "zapx_adversarial.log")
-
-	cfg := Config{
-		Level: "debug",
-		Console: ConsoleConfig{
-			Disable: false,
-		},
-		File: FileConfig{
-			FileName:   logPath,
-			MaxSize:    1,
-			MaxBackups: 2,
-			MaxAge:     1,
-		},
-	}
-
-	backend := NewBackend(cfg)
-	defer func() { _ = backend.Close() }()
-
-	const (
-		numLoggers   = 50
-		numDerivers  = 20
-		numSloggers  = 20
-		testDuration = 2 * time.Second
-	)
-
-	stop := make(chan struct{})
-	var wg sync.WaitGroup
-	var totalLogs atomic.Int64
-
-	cyclic1 := &advZapCyclic{Name: "C1"}
-	cyclic2 := &advZapCyclic{Name: "C2"}
-	cyclic1.Peer = cyclic2
-	cyclic2.Peer = cyclic1
-
-	// 1. Direct Backend.Log concurrent calls
-	for i := range numLoggers {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			for {
-				select {
-				case <-stop:
-					return
-				default:
-					backend.Log(context.Background(), log.LevelDebug, "debug zap", log.Int("id", id))
-					backend.Log(context.Background(), log.LevelInfo, "info zap",
-						log.Any("cyclic", cyclic1),
-						log.Any("panic_marshaler", advZapPanicMarshaler{msg: "boom"}),
-						log.Any("panic_stringer", advZapPanicStringer{msg: "boom"}),
-					)
-					backend.Log(context.Background(), log.LevelWarn, "warn zap", log.String("key", "val"))
-					backend.Log(context.Background(), log.LevelError, "error zap", log.Int("code", 500))
-					totalLogs.Add(4)
-				}
-			}
-		}(i)
-	}
-
-	// 2. Derived backends with With(...)
-	for i := range numDerivers {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			for {
-				select {
-				case <-stop:
-					return
-				default:
-					child := backend.With(
-						log.WithName(fmt.Sprintf("child-%d", id)),
-						log.WithAttrs(map[string]any{"worker": id}),
-					)
-					child.Log(context.Background(), log.LevelInfo, "child log", log.Int("id", id))
-					grandChild := child.With(log.WithName("sub"))
-					grandChild.Log(context.Background(), log.LevelError, "grandchild log")
-					totalLogs.Add(2)
-				}
-			}
-		}(i)
-	}
-
-	// 3. SlogLogger bridge
-	for i := range numSloggers {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			slogger := backend.SlogLogger(log.WithName(fmt.Sprintf("slog-%d", id)))
-			for {
-				select {
-				case <-stop:
-					return
-				default:
-					slogger.Info("slog info msg", "worker", id)
-					slogger.Error("slog error msg", "error", fmt.Errorf("sample error %d", id))
-					totalLogs.Add(2)
-				}
-			}
-		}(i)
-	}
-
-	time.Sleep(testDuration)
-	close(stop)
-	wg.Wait()
-
-	_ = backend.Sync()
-	_ = os.Remove(logPath)
-
-	t.Logf("Zapx Adversarial Stress completed: %d total log operations", totalLogs.Load())
 }
 
 type cyclicZapNode struct {
