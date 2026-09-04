@@ -79,12 +79,16 @@ func TestEnqueueWithDelay(t *testing.T) {
 	}
 	startTestScheduler(t, s)
 
+	enqueuedAt := time.Now()
 	if _, err := s.Enqueue(context.Background(), "delayed", nil, scheduler.WithDelay(250*time.Millisecond)); err != nil {
 		t.Fatalf("enqueue: %v", err)
 	}
 
 	select {
-	case <-got:
+	case handledAt := <-got:
+		if elapsed := handledAt.Sub(enqueuedAt); elapsed < 200*time.Millisecond {
+			t.Fatalf("delayed task ran after %s, want at least 200ms", elapsed)
+		}
 	case <-time.After(3 * time.Second):
 		t.Fatalf("delayed task was not handled")
 	}

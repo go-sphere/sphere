@@ -319,7 +319,14 @@ func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, op
 	applied := scheduler.ApplyEnqueueOptions(opts...)
 	asynqOpts := make([]sasynq.Option, 0, 7)
 	if applied.Delay > 0 {
-		asynqOpts = append(asynqOpts, sasynq.ProcessIn(applied.Delay))
+		// Asynq persists scheduled timestamps as Unix seconds. Round the
+		// absolute deadline up so sub-second delays never execute early.
+		deadline := time.Now().Add(applied.Delay)
+		processAt := deadline.Truncate(time.Second)
+		if deadline.After(processAt) {
+			processAt = processAt.Add(time.Second)
+		}
+		asynqOpts = append(asynqOpts, sasynq.ProcessAt(processAt))
 	}
 	if !applied.Deadline.IsZero() {
 		asynqOpts = append(asynqOpts, sasynq.Deadline(applied.Deadline))

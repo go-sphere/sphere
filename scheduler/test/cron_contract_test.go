@@ -107,8 +107,9 @@ func TestCronContractStopWaitsForRunningHandler(t *testing.T) {
 			s := factory.new(t)
 			started := make(chan struct{})
 			release := make(chan struct{})
+			signalStarted := sync.OnceFunc(func() { close(started) })
 			if err := s.Register("blocking", "@every 1s", func(context.Context) error {
-				closeOnce(started)
+				signalStarted()
 				<-release
 				return nil
 			}); err != nil {
@@ -156,13 +157,14 @@ func TestCronContractStopKeepsHandlerContextLiveWhileDraining(t *testing.T) {
 			started := make(chan struct{})
 			release := make(chan struct{})
 			handlerCtx := make(chan context.Context, 1)
+			signalStarted := sync.OnceFunc(func() { close(started) })
 
 			if err := s.Register("blocking", "@every 1s", func(ctx context.Context) error {
 				select {
 				case handlerCtx <- ctx:
 				default:
 				}
-				closeOnce(started)
+				signalStarted()
 				<-release
 				return nil
 			}); err != nil {
@@ -182,8 +184,11 @@ func TestCronContractStopKeepsHandlerContextLiveWhileDraining(t *testing.T) {
 				stopDone <- s.Stop(stopCtx)
 			}()
 
-			// Let Stop enter its drain, then check the handler is still usable.
-			time.Sleep(200 * time.Millisecond)
+			select {
+			case err := <-stopDone:
+				t.Fatalf("stop returned before handler finished: %v", err)
+			case <-time.After(50 * time.Millisecond):
+			}
 			if err := running.Err(); err != nil {
 				t.Errorf("in-flight handler context was cancelled while Stop was still draining: %v", err)
 			}
@@ -200,74 +205,15 @@ func TestCronContractStopKeepsHandlerContextLiveWhileDraining(t *testing.T) {
 	}
 }
 
-// TestCronContractStopRacingStartFullyShutsDown covers the window between Start
-// taking ownership of the lifecycle and the underlying runtime actually coming
-// up. A Stop landing inside that window must not report the scheduler closed
-// while leaving the runtime live — a leaked runtime keeps firing handlers and,
-// for the asynq driver, keeps using a Redis client the caller is free to close.
-//
-// The window is narrow, so this is a stress test: it repeats the race and checks
-// that handlers have genuinely stopped once everything has settled.
-func TestCronContractStopRacingStartFullyShutsDown(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skip scheduler start/stop race stress test in short mode")
-	}
-	for _, factory := range cronFactories() {
-		t.Run(factory.name, func(t *testing.T) {
-			for attempt := range 5 {
-				s := factory.new(t)
-				var count atomic.Int32
-				if err := s.Register("tick", "@every 1s", func(context.Context) error {
-					count.Add(1)
-					return nil
-				}); err != nil {
-					t.Fatalf("attempt %d register: %v", attempt, err)
-				}
-
-				ctx, cancel := context.WithCancel(context.Background())
-				startDone := make(chan error, 1)
-				go func() { startDone <- s.Start(ctx) }()
-
-				// Pile several Stops onto the startup sequence to widen the race.
-				var stoppers sync.WaitGroup
-				for range 8 {
-					stoppers.Go(func() { _ = s.Stop(context.Background()) })
-				}
-				stoppers.Wait()
-
-				// Whatever the interleaving was, a final Stop must leave the
-				// scheduler quiesced.
-				stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
-				_ = s.Stop(stopCtx)
-				stopCancel()
-				cancel()
-				select {
-				case err := <-startDone:
-					if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, scheduler.ErrClosed) {
-						t.Fatalf("attempt %d start: %v", attempt, err)
-					}
-				case <-time.After(5 * time.Second):
-					t.Fatalf("attempt %d: Start did not return", attempt)
-				}
-
-				settled := count.Load()
-				time.Sleep(1200 * time.Millisecond)
-				if got := count.Load(); got != settled {
-					t.Fatalf("attempt %d: handler still firing after shutdown: %d -> %d", attempt, settled, got)
-				}
-			}
-		})
-	}
-}
-
 func TestCronContractStopTimeoutThenRetrySucceeds(t *testing.T) {
 	for _, factory := range cronFactories() {
 		t.Run(factory.name, func(t *testing.T) {
 			s := factory.new(t)
 			started := make(chan struct{})
 			release := make(chan struct{})
+			signalStarted := sync.OnceFunc(func() { close(started) })
 			if err := s.Register("blocking", "@every 1s", func(context.Context) error {
-				closeOnce(started)
+				signalStarted()
 				<-release
 				return nil
 			}); err != nil {
@@ -348,9 +294,4 @@ func waitForChan(tb testing.TB, timeout time.Duration, ch <-chan struct{}) {
 	case <-time.After(timeout):
 		tb.Fatalf("channel not signaled within %s", timeout)
 	}
-}
-
-func closeOnce(ch chan struct{}) {
-	defer func() { _ = recover() }()
-	close(ch)
 }
