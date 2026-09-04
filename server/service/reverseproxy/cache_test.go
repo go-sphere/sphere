@@ -1,6 +1,7 @@
 package reverseproxy
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -144,8 +145,11 @@ func TestCommonCache_Exists(t *testing.T) {
 
 	// Check non-existent key
 	exists, err := cache.Exists(ctx, "non-existent")
-	if err == nil && exists {
-		t.Error("Non-existent key should not exist")
+	if !errors.Is(err, ErrCacheNotFound) {
+		t.Fatalf("Exists(non-existent) error = %v, want %v", err, ErrCacheNotFound)
+	}
+	if exists {
+		t.Fatal("non-existent key exists")
 	}
 
 	// Save and check
@@ -158,9 +162,9 @@ func TestCommonCache_Exists(t *testing.T) {
 
 	exists, err = cache.Exists(ctx, "exists-key")
 	if err != nil {
-		t.Logf("Exists check error: %v", err)
+		t.Fatalf("Exists(saved key): %v", err)
 	}
-	if exists {
-		t.Log("Key exists as expected")
+	if !exists {
+		t.Fatal("saved key does not exist")
 	}
 }

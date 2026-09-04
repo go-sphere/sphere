@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/go-sphere/httpx"
 )
@@ -147,9 +146,8 @@ func TestAbortWithJsonError_ClassifiedMessageReturned(t *testing.T) {
 	}
 }
 
-// TestAbortWithJsonErrorConcurrentConfig exercises the globals that
-// AbortWithJsonError reads on every request against concurrent reconfiguration.
-// It asserts nothing by itself; the race detector is the oracle.
+// TestAbortWithJsonErrorConcurrentConfig exercises requests alongside global
+// reconfiguration and verifies every response remains structurally valid.
 func TestAbortWithJsonErrorConcurrentConfig(t *testing.T) {
 	prevDebug := DebugMode()
 	t.Cleanup(func() {
@@ -158,29 +156,32 @@ func TestAbortWithJsonErrorConcurrentConfig(t *testing.T) {
 	})
 
 	var wg sync.WaitGroup
-	stop := make(chan struct{})
+	start := make(chan struct{})
 
 	wg.Go(func() {
-		for i := 0; ; i++ {
-			select {
-			case <-stop:
-				return
-			default:
-			}
+		<-start
+		for i := range 1_000 {
 			SetDebugMode(i%2 == 0)
 			SetDefaultErrorParser(httpx.ParseError)
 		}
 	})
 	for range 4 {
 		wg.Go(func() {
-			for range 500 {
-				AbortWithJsonError(&fakeContext{}, errors.New("boom"))
+			<-start
+			for range 250 {
+				ctx := &fakeContext{}
+				AbortWithJsonError(ctx, errors.New("boom"))
+				if ctx.status != http.StatusInternalServerError {
+					t.Errorf("status = %d, want %d", ctx.status, http.StatusInternalServerError)
+				}
+				if _, ok := ctx.body.(ErrorResponse); !ok {
+					t.Errorf("body type = %T, want ErrorResponse", ctx.body)
+				}
 			}
 		})
 	}
 
-	time.Sleep(20 * time.Millisecond)
-	close(stop)
+	close(start)
 	wg.Wait()
 }
 
@@ -262,31 +263,6 @@ func TestAbortWithJsonError_OutOfRangeStatusClamped(t *testing.T) {
 		AbortWithJsonError(ctx, errors.New("sample error"))
 		if ctx.status != http.StatusInternalServerError {
 			t.Errorf("status %d was not clamped to %d, got %d", invalidStatus, http.StatusInternalServerError, ctx.status)
-		}
-	}
-}
-
-// TestStressAbortWithJsonError_ExtremeStatuses tests extreme status codes and clamping
-func TestStressAbortWithJsonError_ExtremeStatuses(t *testing.T) {
-	t.Cleanup(func() {
-		SetDefaultErrorParser(httpx.ParseError)
-	})
-
-	extremeStatuses := []int32{
-		-1000000, -500, -1, 0, 1, 50, 99,
-		600, 601, 700, 999, 1000, 50000,
-	}
-
-	for _, st := range extremeStatuses {
-		SetDefaultErrorParser(func(err error) (int32, int32, string) {
-			return 0, st, "test message"
-		})
-
-		ctx := &stressFakeContext{}
-		AbortWithJsonError(ctx, errors.New("some error"))
-
-		if ctx.status != http.StatusInternalServerError {
-			t.Errorf("extreme status %d was not clamped to 500, got %d", st, ctx.status)
 		}
 	}
 }

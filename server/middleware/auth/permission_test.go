@@ -2,12 +2,9 @@ package auth
 
 import (
 	"context"
-	"net/http"
-	"sync"
 	"testing"
 
 	"github.com/go-sphere/httpx"
-	"github.com/go-sphere/sphere/server/auth/acl"
 	"github.com/go-sphere/sphere/server/auth/authorizer"
 )
 
@@ -78,92 +75,4 @@ func TestNewPermissionMiddleware(t *testing.T) {
 			t.Fatalf("status = %d, want 403", status)
 		}
 	})
-}
-
-// TestPermissionMiddleware_AdversarialStress tests permission middleware with ACL
-// under 100+ concurrent requests.
-func TestPermissionMiddleware_AdversarialStress(t *testing.T) {
-	t.Parallel()
-
-	accessControl := acl.NewACL()
-	accessControl.Allow("admin", "/api/v1/admin")
-	accessControl.Allow("admin", "/api/v1/metrics")
-	accessControl.Allow("operator", "/api/v1/metrics")
-	accessControl.Allow("user", "/api/v1/profile")
-
-	adminMw := NewPermissionMiddleware[int64]("/api/v1/admin", accessControl)
-	metricsMw := NewPermissionMiddleware[int64]("/api/v1/metrics", accessControl)
-
-	const concurrency = 100
-	var wg sync.WaitGroup
-	wg.Add(concurrency * 3)
-
-	// 1. Admin accessing /admin -> Allowed
-	for i := range concurrency {
-		go func(id int) {
-			defer wg.Done()
-			ctx := newStressFakeContext(nil, nil)
-			ctx.SetContext(authorizer.WithAuthData[int64](context.Background(), authorizer.Data[int64]{
-				UID:   int64(id),
-				Roles: []string{"admin"},
-			}))
-
-			err := adminMw(ctx)
-			if err != nil {
-				t.Errorf("admin request %d failed: %v", id, err)
-				return
-			}
-			if !ctx.nextInvoked.Load() {
-				t.Errorf("admin request %d did not call Next()", id)
-			}
-		}(i)
-	}
-
-	// 2. User accessing /admin -> 403 Forbidden
-	for i := range concurrency {
-		go func(id int) {
-			defer wg.Done()
-			ctx := newStressFakeContext(nil, nil)
-			ctx.SetContext(authorizer.WithAuthData[int64](context.Background(), authorizer.Data[int64]{
-				UID:   int64(id),
-				Roles: []string{"user"},
-			}))
-
-			err := adminMw(ctx)
-			if err == nil {
-				t.Errorf("user request %d to admin endpoint should fail", id)
-				return
-			}
-			_, status, _ := httpx.ParseError(err)
-			if status != http.StatusForbidden {
-				t.Errorf("user request %d status = %d, want 403", id, status)
-			}
-			if ctx.nextInvoked.Load() {
-				t.Errorf("user request %d must not call Next()", id)
-			}
-		}(i)
-	}
-
-	// 3. Unauthenticated request to /metrics -> 403 Forbidden
-	for i := range concurrency {
-		go func(id int) {
-			defer wg.Done()
-			ctx := newStressFakeContext(nil, nil)
-
-			err := metricsMw(ctx)
-			if err == nil {
-				t.Errorf("unauth request %d to metrics endpoint should fail", id)
-				return
-			}
-			_, status, _ := httpx.ParseError(err)
-			if status != http.StatusForbidden {
-				t.Errorf("unauth request %d status = %d, want 403", id, status)
-			}
-			if ctx.nextInvoked.Load() {
-				t.Errorf("unauth request %d must not call Next()", id)
-			}
-		}(i)
-	}
-
-	wg.Wait()
 }

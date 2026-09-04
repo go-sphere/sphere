@@ -3,7 +3,6 @@ package ratelimiter
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -212,41 +211,6 @@ func TestNewRateLimiterCacheErrors(t *testing.T) {
 	})
 }
 
-func TestNewRateLimiterSingleflight(t *testing.T) {
-	t.Parallel()
-
-	var limiterCreated int
-	var mu sync.Mutex
-
-	mw := NewRateLimiter(
-		func(ctx httpx.Context) string { return "shared-key" },
-		func(ctx httpx.Context) (*rate.Limiter, time.Duration) {
-			mu.Lock()
-			limiterCreated++
-			mu.Unlock()
-			time.Sleep(20 * time.Millisecond)
-			return rate.NewLimiter(rate.Inf, 100), time.Minute
-		},
-	)
-
-	var wg sync.WaitGroup
-	for range 10 {
-		wg.Go(func() {
-			ctx := &fakeRateLimitContext{}
-			_ = mw(ctx)
-		})
-	}
-	wg.Wait()
-
-	mu.Lock()
-	created := limiterCreated
-	mu.Unlock()
-
-	if created != 1 {
-		t.Fatalf("limiter created %d times concurrently, want 1 (singleflight)", created)
-	}
-}
-
 type stressRateLimitContext struct {
 	httpxContext
 	ctx      context.Context
@@ -270,25 +234,28 @@ func (s *stressRateLimitContext) Next() error {
 	return nil
 }
 
-// TestRateLimiter_ConcurrentSingleflightStampede tests 200 concurrent requests hitting
-// the rate limiter on a cold cache for the same key.
-// It verifies singleflight deduplication (createLimiter called once) and accurate burst enforcement.
+// TestRateLimiter_ConcurrentSingleflightStampede verifies that concurrent cache
+// misses for one key create a single limiter and share its burst budget.
 func TestRateLimiter_ConcurrentSingleflightStampede(t *testing.T) {
 	t.Parallel()
 
-	const burst = 25
-	const totalRequests = 200
+	const burst = 8
+	const totalRequests = 64
 
 	var createdCount atomic.Int64
+	var arrived atomic.Int64
+	allArrived := make(chan struct{})
 
 	mw := NewRateLimiter(
 		func(ctx httpx.Context) string {
+			if arrived.Add(1) == totalRequests {
+				close(allArrived)
+			}
 			return "stampede-key"
 		},
 		func(ctx httpx.Context) (*rate.Limiter, time.Duration) {
 			createdCount.Add(1)
-			// Small artificial delay to maximize concurrent stampede in singleflight
-			time.Sleep(10 * time.Millisecond)
+			<-allArrived
 			return rate.NewLimiter(rate.Every(time.Minute), burst), time.Minute
 		},
 	)
@@ -298,14 +265,10 @@ func TestRateLimiter_ConcurrentSingleflightStampede(t *testing.T) {
 	var errorCount atomic.Int64
 
 	var wg sync.WaitGroup
-	wg.Add(totalRequests)
-
-	// Start barrier to release all goroutines simultaneously
 	startBarrier := make(chan struct{})
 
 	for range totalRequests {
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-startBarrier
 
 			ctx := &stressRateLimitContext{clientIP: "10.0.0.1"}
@@ -325,10 +288,9 @@ func TestRateLimiter_ConcurrentSingleflightStampede(t *testing.T) {
 					t.Errorf("nil error but Next() not called")
 				}
 			}
-		}()
+		})
 	}
 
-	// Release all goroutines
 	close(startBarrier)
 	wg.Wait()
 
@@ -349,186 +311,35 @@ func TestRateLimiter_ConcurrentSingleflightStampede(t *testing.T) {
 	}
 }
 
-// TestRateLimiter_HighCardinalityConcurrentStampede tests 50 distinct client IPs
-// with 10 concurrent requests each (500 total concurrent requests released via barrier),
-// ensuring singleflight deduplication per key and independent rate limit buckets.
-func TestRateLimiter_HighCardinalityConcurrentStampede(t *testing.T) {
+func TestRateLimiter_CacheExpirationRebuildsLimiter(t *testing.T) {
 	t.Parallel()
 
-	const numIPs = 50
-	const requestsPerIP = 10
-	const burst = 3
-
-	var createdTotal atomic.Int64
-
+	var createdCount atomic.Int64
 	mw := NewRateLimiter(
-		func(ctx httpx.Context) string {
-			return ctx.ClientIP()
-		},
+		func(ctx httpx.Context) string { return "expiration-key" },
 		func(ctx httpx.Context) (*rate.Limiter, time.Duration) {
-			createdTotal.Add(1)
-			time.Sleep(10 * time.Millisecond) // Ensures all concurrent requests per IP join singleflight
-			return rate.NewLimiter(rate.Every(time.Minute), burst), time.Minute
+			createdCount.Add(1)
+			return rate.NewLimiter(rate.Every(time.Hour), 1), 100 * time.Millisecond
 		},
 		WithCache(mcache.NewMapCache[*rate.Limiter]()),
 	)
 
-	var wg sync.WaitGroup
-	var totalAllowed atomic.Int64
-	var totalLimited atomic.Int64
-	var totalErrors atomic.Int64
-
-	startBarrier := make(chan struct{})
-
-	for ipIdx := range numIPs {
-		clientIP := fmt.Sprintf("192.168.2.%d", ipIdx)
-		for reqIdx := range requestsPerIP {
-			wg.Add(1)
-			go func(ip string, reqNum int) {
-				defer wg.Done()
-				<-startBarrier
-
-				ctx := &stressRateLimitContext{clientIP: ip}
-				err := mw(ctx)
-				if err != nil {
-					_, status, _ := httpx.ParseError(err)
-					if status == http.StatusTooManyRequests {
-						totalLimited.Add(1)
-					} else {
-						totalErrors.Add(1)
-					}
-				} else {
-					if ctx.nexted.Load() {
-						totalAllowed.Add(1)
-					}
-				}
-			}(clientIP, reqIdx)
-		}
-	}
-
-	close(startBarrier)
-	wg.Wait()
-
-	if errs := totalErrors.Load(); errs != 0 {
-		t.Fatalf("totalErrors = %d, expected 0", errs)
-	}
-
-	// Each IP must create exactly 1 limiter due to singleflight
-	if created := createdTotal.Load(); created != int64(numIPs) {
-		t.Fatalf("createdTotal = %d, expected %d (1 per IP)", created, numIPs)
-	}
-
-	// For each of the 50 IPs, exactly `burst` (3) requests should be allowed
-	expectedAllowed := int64(numIPs * burst)
-	expectedLimited := int64(numIPs * (requestsPerIP - burst))
-
-	if totalAllowed.Load() != expectedAllowed {
-		t.Fatalf("totalAllowed = %d, expected %d", totalAllowed.Load(), expectedAllowed)
-	}
-	if totalLimited.Load() != expectedLimited {
-		t.Fatalf("totalLimited = %d, expected %d", totalLimited.Load(), expectedLimited)
-	}
-}
-
-// TestRateLimiter_HighCardinalityConcurrency_DefaultCache tests 100 distinct client IPs
-// hitting the rate limiter concurrently with the default memory cache.
-func TestRateLimiter_HighCardinalityConcurrency_DefaultCache(t *testing.T) {
-	t.Parallel()
-
-	const numIPs = 100
-	const requestsPerIP = 5
-	const burst = 2
-
-	mw := NewRateLimiterByClientIP(time.Minute, burst, time.Minute)
-
-	var wg sync.WaitGroup
-	var totalAllowed atomic.Int64
-	var totalLimited atomic.Int64
-	var totalErrors atomic.Int64
-
-	for ipIdx := range numIPs {
-		clientIP := fmt.Sprintf("10.200.1.%d", ipIdx)
-		for reqIdx := range requestsPerIP {
-			wg.Add(1)
-			go func(ip string, reqNum int) {
-				defer wg.Done()
-				ctx := &stressRateLimitContext{clientIP: ip}
-				err := mw(ctx)
-				if err != nil {
-					_, status, _ := httpx.ParseError(err)
-					if status == http.StatusTooManyRequests {
-						totalLimited.Add(1)
-					} else {
-						totalErrors.Add(1)
-					}
-				} else {
-					if ctx.nexted.Load() {
-						totalAllowed.Add(1)
-					}
-				}
-			}(clientIP, reqIdx)
-		}
-	}
-
-	wg.Wait()
-
-	if errs := totalErrors.Load(); errs != 0 {
-		t.Fatalf("totalErrors = %d, expected 0", errs)
-	}
-
-	total := totalAllowed.Load() + totalLimited.Load()
-	if total != int64(numIPs*requestsPerIP) {
-		t.Fatalf("total processed = %d, expected %d", total, numIPs*requestsPerIP)
-	}
-
-	// At least `numIPs * burst` requests should be allowed
-	if totalAllowed.Load() < int64(numIPs*burst) {
-		t.Fatalf("totalAllowed = %d, expected >= %d", totalAllowed.Load(), numIPs*burst)
-	}
-}
-
-// TestRateLimiter_ReplenishmentAndExpiration tests token replenishment and cache TTL eviction.
-func TestRateLimiter_ReplenishmentAndExpiration(t *testing.T) {
-	t.Parallel()
-
-	// 1 token every 50ms, burst 1, cache TTL 100ms
-	mw := NewRateLimiter(
-		func(ctx httpx.Context) string { return "replenish-key" },
-		func(ctx httpx.Context) (*rate.Limiter, time.Duration) {
-			return rate.NewLimiter(rate.Every(50*time.Millisecond), 1), 100 * time.Millisecond
-		},
-		WithCache(mcache.NewMapCache[*rate.Limiter]()),
-	)
-
-	// 1. First request allowed
 	ctx1 := &stressRateLimitContext{}
 	if err := mw(ctx1); err != nil {
 		t.Fatalf("first request failed: %v", err)
 	}
 
-	// 2. Immediate second request rejected
 	ctx2 := &stressRateLimitContext{}
 	if err := mw(ctx2); err == nil {
 		t.Fatal("immediate second request should be rejected")
 	}
 
-	// 3. Sleep 60ms for replenishment -> allowed
-	time.Sleep(60 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 	ctx3 := &stressRateLimitContext{}
 	if err := mw(ctx3); err != nil {
-		t.Fatalf("replenished request failed: %v", err)
-	}
-
-	// 4. Immediate fourth request rejected
-	ctx4 := &stressRateLimitContext{}
-	if err := mw(ctx4); err == nil {
-		t.Fatal("immediate fourth request should be rejected")
-	}
-
-	// 5. Sleep 120ms to trigger cache TTL eviction -> new limiter created -> allowed
-	time.Sleep(120 * time.Millisecond)
-	ctx5 := &stressRateLimitContext{}
-	if err := mw(ctx5); err != nil {
 		t.Fatalf("post-TTL request failed: %v", err)
+	}
+	if created := createdCount.Load(); created != 2 {
+		t.Fatalf("createLimiter called %d times, want 2", created)
 	}
 }

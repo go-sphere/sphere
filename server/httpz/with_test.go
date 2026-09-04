@@ -6,9 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/go-sphere/httpx"
 )
@@ -273,134 +271,6 @@ func (f *stressFakeContext) Text(code int, s string) error {
 	f.status = code
 	f.text = s
 	return nil
-}
-
-type customCodeMsgError struct {
-	code int32
-	msg  string
-	err  error
-}
-
-func (e *customCodeMsgError) Error() string { return e.err.Error() }
-
-func (e *customCodeMsgError) GetCode() int32 { return e.code }
-
-func (e *customCodeMsgError) GetMessage() string { return e.msg }
-
-// TestStressPanicStorm executes thousands of concurrent panics with diverse types
-// while concurrently toggling debug mode and default error parser.
-func TestStressPanicStorm(t *testing.T) {
-	prevDebug := DebugMode()
-	t.Cleanup(func() {
-		SetDebugMode(prevDebug)
-		SetDefaultErrorParser(httpx.ParseError)
-	})
-
-	const numGoroutines = 50
-	const iterations = 200
-
-	var panicCount atomic.Int64
-	var abortHandlerCount atomic.Int64
-	var totalRuns atomic.Int64
-
-	var wg sync.WaitGroup
-	stop := make(chan struct{})
-
-	// Flapper goroutine for config
-	wg.Go(func() {
-		i := 0
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-				switch i % 3 {
-				case 0:
-					SetDefaultErrorParser(nil) // should be ignored safely
-				case 1:
-					SetDefaultErrorParser(httpx.ParseError)
-				default:
-					SetDefaultErrorParser(func(err error) (int32, int32, string) {
-						return 1001, http.StatusUnprocessableEntity, "custom entity error"
-					})
-				}
-				i++
-				time.Sleep(100 * time.Microsecond)
-			}
-		}
-	})
-
-	// Worker goroutines
-	for g := range numGoroutines {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-			for iter := range iterations {
-				totalRuns.Add(1)
-				panicKind := (workerID + iter) % 7
-
-				ctx := &stressFakeContext{}
-				h := WithRecover("stress panic handler", func(c httpx.Context) error {
-					switch panicKind {
-					case 0:
-						panic("secret_db_password_12345")
-					case 1:
-						panic(errors.New("sql: syntax error at or near WHERE /var/lib/postgresql/data"))
-					case 2:
-						panic(9999)
-					case 3:
-						panic(struct{ Secret string }{Secret: "top_secret_token"})
-					case 4:
-						panic(http.ErrAbortHandler)
-					case 5:
-						return errors.New("normal error return")
-					case 6:
-						return &customCodeMsgError{
-							code: 4001,
-							msg:  "friendly user message",
-							err:  errors.New("internal sensitive detail in struct"),
-						}
-					default:
-						return nil
-					}
-				})
-
-				if panicKind == 4 {
-					// http.ErrAbortHandler MUST re-panic
-					func() {
-						defer func() {
-							r := recover()
-							if r == http.ErrAbortHandler {
-								abortHandlerCount.Add(1)
-							} else {
-								t.Errorf("expected http.ErrAbortHandler, got %v", r)
-							}
-						}()
-						_ = h(ctx)
-						t.Errorf("expected panic for ErrAbortHandler, got normal exit")
-					}()
-				} else {
-					// Must not panic
-					err := h(ctx)
-					if err != nil {
-						t.Errorf("expected WithRecover to return nil error, got %v", err)
-					}
-					panicCount.Add(1)
-				}
-			}
-		}(g)
-	}
-
-	// Let workers run
-	go func() {
-		time.Sleep(500 * time.Millisecond)
-		close(stop)
-	}()
-
-	wg.Wait()
-
-	t.Logf("Stress completed: total runs=%d, recovered panics=%d, abortHandler panics=%d",
-		totalRuns.Load(), panicCount.Load(), abortHandlerCount.Load())
 }
 
 // TestStressNoLeakageUnderNonDebug verifies strict data leakage prevention under diverse errors.

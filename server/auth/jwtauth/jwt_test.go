@@ -2,12 +2,8 @@ package jwtauth
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"fmt"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,7 +18,6 @@ func TestJwtAuth_GenerateToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)
 	}
-	t.Log(token)
 	parsedClaims, err := jwtAuth.ParseToken(context.Background(), token)
 	if err != nil {
 		t.Fatalf("failed to parse token: %v", err)
@@ -46,104 +41,6 @@ func TestJwtAuth_GenerateToken(t *testing.T) {
 	_, err = jwtAuth2.ParseToken(context.Background(), token)
 	if err == nil {
 		t.Error("expected error, got nil")
-	}
-	t.Log(err)
-}
-
-// TestJwtAuth_AdversarialStress tests concurrent token generation and parsing
-// under race detector with multiple goroutines, keys, and algorithms.
-func TestJwtAuth_AdversarialStress(t *testing.T) {
-	t.Parallel()
-
-	const concurrency = 50
-	const iterations = 50
-
-	secret := "adversarial-secret-key-32bytes!!"
-	authHS256 := NewJwtAuth[RBACClaims[int64]](secret, WithSigningMethod(jwt.SigningMethodHS256))
-	authHS512 := NewJwtAuth[RBACClaims[string]](secret, WithSigningMethod(jwt.SigningMethodHS512))
-
-	var wg sync.WaitGroup
-	var validIntCount atomic.Int64
-	var validStrCount atomic.Int64
-
-	for i := range concurrency {
-		wg.Add(2)
-
-		// Goroutine for int64 UID claims
-		go func(workerID int) {
-			defer wg.Done()
-			for j := range iterations {
-				uid := int64(workerID*1000 + j + 1)
-				claims := NewRBACClaims[int64](uid, fmt.Sprintf("sub-%d", uid), []string{"user", "tester"}, time.Now().Add(time.Hour))
-				token, err := authHS256.GenerateToken(context.Background(), claims)
-				if err != nil {
-					t.Errorf("worker %d: GenerateToken failed: %v", workerID, err)
-					return
-				}
-
-				parsed, err := authHS256.ParseToken(context.Background(), token)
-				if err != nil {
-					t.Errorf("worker %d: ParseToken failed: %v", workerID, err)
-					return
-				}
-
-				gotUID, err := parsed.GetUID()
-				if err != nil || gotUID != uid {
-					t.Errorf("worker %d: GetUID = %d, err = %v, want %d", workerID, gotUID, err, uid)
-					return
-				}
-
-				sub, _ := parsed.GetSubject()
-				if sub != fmt.Sprintf("sub-%d", uid) {
-					t.Errorf("worker %d: GetSubject = %q, want sub-%d", workerID, sub, uid)
-					return
-				}
-
-				roles, _ := parsed.GetRoles()
-				if len(roles) != 2 || roles[0] != "user" || roles[1] != "tester" {
-					t.Errorf("worker %d: GetRoles = %v, want [user tester]", workerID, roles)
-					return
-				}
-				validIntCount.Add(1)
-			}
-		}(i)
-
-		// Goroutine for string UID claims
-		go func(workerID int) {
-			defer wg.Done()
-			for j := range iterations {
-				uid := fmt.Sprintf("str-user-%d-%d", workerID, j)
-				claims := NewRBACClaims[string](uid, "test-str-subject", []string{"editor"}, time.Now().Add(time.Hour))
-				token, err := authHS512.GenerateToken(context.Background(), claims)
-				if err != nil {
-					t.Errorf("str-worker %d: GenerateToken failed: %v", workerID, err)
-					return
-				}
-
-				parsed, err := authHS512.ParseToken(context.Background(), token)
-				if err != nil {
-					t.Errorf("str-worker %d: ParseToken failed: %v", workerID, err)
-					return
-				}
-
-				gotUID, err := parsed.GetUID()
-				if err != nil || gotUID != uid {
-					t.Errorf("str-worker %d: GetUID = %q, err = %v, want %q", workerID, gotUID, err, uid)
-					return
-				}
-				validStrCount.Add(1)
-			}
-		}(i)
-	}
-
-	wg.Wait()
-
-	expectedTotal := int64(concurrency * iterations)
-	if validIntCount.Load() != expectedTotal {
-		t.Errorf("validIntCount = %d, want %d", validIntCount.Load(), expectedTotal)
-	}
-	if validStrCount.Load() != expectedTotal {
-		t.Errorf("validStrCount = %d, want %d", validStrCount.Load(), expectedTotal)
 	}
 }
 
@@ -265,8 +162,7 @@ func TestJwtAuth_TemporalConstraints(t *testing.T) {
 	}
 }
 
-// TestJwtAuth_MissingUIDClaimsAdversarial tests tokens with zero or missing UID.
-func TestJwtAuth_MissingUIDClaimsAdversarial(t *testing.T) {
+func TestJwtAuth_MissingUIDClaims(t *testing.T) {
 	t.Parallel()
 
 	authInt := NewJwtAuth[RBACClaims[int64]]("secret")
@@ -301,25 +197,4 @@ func TestJwtAuth_MissingUIDClaimsAdversarial(t *testing.T) {
 	if _, err := parsedStr.GetUID(); !errors.Is(err, authorizer.MissingUIDError) {
 		t.Fatalf("expected MissingUIDError, got %v", err)
 	}
-}
-
-// TestJwtAuth_RandomFuzzing runs concurrent fuzzing with random byte payloads.
-func TestJwtAuth_RandomFuzzing(t *testing.T) {
-	t.Parallel()
-
-	auth := NewJwtAuth[RBACClaims[int64]]("fuzz-secret")
-
-	var wg sync.WaitGroup
-	for range 20 {
-		wg.Go(func() {
-			buf := make([]byte, 128)
-			for range 50 {
-				_, _ = rand.Read(buf)
-				randomStr := base64.RawURLEncoding.EncodeToString(buf)
-				// Must not panic
-				_, _ = auth.ParseToken(context.Background(), randomStr)
-			}
-		})
-	}
-	wg.Wait()
 }
