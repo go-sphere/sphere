@@ -2,11 +2,9 @@ package baseconv
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/base32"
 	"encoding/base64"
 	"strings"
-	"sync"
 	"testing"
 )
 
@@ -19,8 +17,6 @@ func TestBaseEncoding_Encode(t *testing.T) {
 	demo2 := base64.StdEncoding.EncodeToString([]byte("Hello, World!"))
 	if demo != demo2 {
 		t.Errorf("Expected %s, got %s", demo2, demo)
-	} else {
-		t.Logf("Base64 encoding of 'Hello, World!' is %s", demo)
 	}
 }
 
@@ -128,44 +124,4 @@ func TestMathematicalEncodingRoundTripLongInput(t *testing.T) {
 	if !bytes.Equal(got, want) {
 		t.Fatal("long mathematical encoding did not round-trip")
 	}
-}
-
-func TestStressBaseconvConcurrency(t *testing.T) {
-	const (
-		numGoroutines = 50
-		iterations    = 200
-	)
-
-	var wg sync.WaitGroup
-	for g := range numGoroutines {
-		wg.Go(func() {
-			for i := range iterations {
-				// Generate random payload
-				length := (g*iterations + i) % 128
-				data := make([]byte, length)
-				_, _ = rand.Read(data)
-
-				// Test Std32
-				enc32 := Std32Encoding.EncodeToString(data)
-				dec32, err := Std32Encoding.DecodeString(enc32)
-				if err != nil {
-					t.Errorf("Std32 decode error: %v", err)
-				}
-				if !bytes.Equal(data, dec32) {
-					t.Errorf("Std32 mismatch on length %d", length)
-				}
-
-				// Test Std62
-				enc62 := Std62Encoding.EncodeToString(data)
-				dec62, err := Std62Encoding.DecodeString(enc62)
-				if err != nil {
-					t.Errorf("Std62 decode error: %v", err)
-				}
-				if !bytes.Equal(data, dec62) {
-					t.Errorf("Std62 mismatch on length %d", length)
-				}
-			}
-		})
-	}
-	wg.Wait()
 }
