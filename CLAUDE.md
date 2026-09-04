@@ -67,7 +67,12 @@ This is the `github.com/go-sphere/sphere` Go module — a library-only collectio
 - `go test ./...` — full test suite; CI runs this on push/PR to `master`.
 - `go test ./<pkg>/...` — scope tests to one package (e.g. `go test ./cache/...`). Use this while iterating.
 - `go test -run TestName ./<pkg>` — run a single test.
-- `make lint` — the authoritative "green" gate. Runs `go fix`, `go fmt`, `go vet`, `go get ./...`, `go test ./...`, `go mod tidy`, then `golangci-lint fmt --no-config --enable gofmt,goimports`, `golangci-lint run --no-config --fix`, and `nilaway -include-pkgs=github.com/go-sphere/sphere ./...`. Run before opening a PR.
+- `make deps-update` — update direct dependencies and tidy the module.
+- `make fmt` — format Go code and imports.
+- `make lint` — run non-mutating format, vet, golangci-lint, and nilaway checks.
+- `make test` — run the full test suite.
+- `make check` — the standard green gate: verify dependencies, lint, and test.
+- `make verify` — run `make check` plus race-enabled tests.
 - `TAG=v0.0.1 make add-tags` / `make del-tags` — release tag management (signed tags pushed to origin).
 
 `nilaway` is part of the lint gate; new code must keep nil-handling explicit or it will fail there.
@@ -105,6 +110,6 @@ Tests are co-located with source as `_test.go` files. Cross-driver contract test
 
 - Single Go module at the repo root; do not introduce nested modules or `go.work`.
 - Constructors are `New<Type>`; context is always the first parameter on context-aware funcs.
-- Imports are managed by `goimports` via `make lint` — do not hand-order them.
+- Imports are managed by `goimports` via `make fmt` — do not hand-order them.
 - Commit subjects follow `<type>: <imperative summary>` (`feat`, `fix`, `refactor`, `chore`, …) and stay under ~70 chars. PRs should include the `go test ./...` evidence and call out which top-level packages were touched.
 - Timezone defaults to `Asia/Shanghai` via `boot.InitTimezone` in `core/boot/init.go`'s package init; override by calling `InitTimezone` again before `Run`.

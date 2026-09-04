@@ -253,13 +253,18 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 	if conf.checker == nil {
 		return nil, errors.New("reverseproxy: response cache checker is required")
 	}
-	proxy := httputil.NewSingleHostReverseProxy(conf.target)
-	if conf.director != nil {
-		originalDirector := proxy.Director
-		proxy.Director = func(req *http.Request) {
-			originalDirector(req)
-			conf.director(req)
-		}
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(req *httputil.ProxyRequest) {
+			req.SetURL(conf.target)
+			// Preserve NewSingleHostReverseProxy's default Host behavior. The
+			// configured director may still override it after URL rewriting.
+			req.Out.Host = req.In.Host
+			req.Out.Header["X-Forwarded-For"] = req.In.Header["X-Forwarded-For"]
+			req.SetXForwarded()
+			if conf.director != nil {
+				conf.director(req.Out)
+			}
+		},
 	}
 
 	cacheFlags := sync.Map{}
