@@ -3,7 +3,6 @@ package test
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -141,64 +140,42 @@ func TestCodecCacheGetDelUnmarshalErrorConsumesKey(t *testing.T) {
 	}
 }
 
-type getBarrierByteCache struct {
+type getDelSpyByteCache struct {
 	cache.ByteCache
-	readCount atomic.Int32
-	readTotal int32
-	allRead   chan struct{}
+	getCalls    int
+	getDelCalls int
 }
 
-func (c *getBarrierByteCache) Get(ctx context.Context, key string) ([]byte, bool, error) {
-	value, found, err := c.ByteCache.Get(ctx, key)
-	if c.readCount.Add(1) == c.readTotal {
-		close(c.allRead)
-	}
-	<-c.allRead
-	return value, found, err
+func (c *getDelSpyByteCache) Get(context.Context, string) ([]byte, bool, error) {
+	c.getCalls++
+	return nil, false, errors.New("CodecCache.GetDel must not call Get")
 }
 
-func TestCodecCacheGetDelIsAtomic(t *testing.T) {
+func (c *getDelSpyByteCache) GetDel(ctx context.Context, key string) ([]byte, bool, error) {
+	c.getDelCalls++
+	return c.ByteCache.GetDel(ctx, key)
+}
+
+func TestCodecCacheGetDelDelegatesToAtomicPrimitive(t *testing.T) {
 	t.Parallel()
 
-	const consumers = 8
-	inner := &getBarrierByteCache{
+	inner := &getDelSpyByteCache{
 		ByteCache: mcache.NewByteCache(),
-		readTotal: consumers,
-		allRead:   make(chan struct{}),
 	}
 	typed := cache.NewJsonCache[int](inner)
-	ctx := t.Context()
-	if err := typed.Set(ctx, "once", 42); err != nil {
+	if err := typed.Set(t.Context(), "once", 42); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
 
-	type result struct {
-		found bool
-		err   error
+	value, found, err := typed.GetDel(t.Context(), "once")
+	if err != nil {
+		t.Fatalf("GetDel: %v", err)
 	}
-	start := make(chan struct{})
-	results := make(chan result, consumers)
-	for range consumers {
-		go func() {
-			<-start
-			_, found, err := typed.GetDel(ctx, "once")
-			results <- result{found: found, err: err}
-		}()
+	if !found || value != 42 {
+		t.Fatalf("GetDel = (%d, %v), want (42, true)", value, found)
 	}
-	close(start)
-
-	hits := 0
-	for range consumers {
-		result := <-results
-		if result.err != nil {
-			t.Fatalf("GetDel: %v", result.err)
-		}
-		if result.found {
-			hits++
-		}
-	}
-	if hits != 1 {
-		t.Fatalf("GetDel returned the same entry to %d callers, want 1", hits)
+	if inner.getCalls != 0 || inner.getDelCalls != 1 {
+		t.Fatalf("backend calls = Get:%d GetDel:%d, want Get:0 GetDel:1", inner.getCalls, inner.getDelCalls)
 	}
 }
 

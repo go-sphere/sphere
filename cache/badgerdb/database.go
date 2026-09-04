@@ -84,7 +84,7 @@ func (d *Database) SetWithTTL(ctx context.Context, key string, val []byte, expir
 	return d.db.Update(func(txn *badger.Txn) error {
 		entry := badger.NewEntry([]byte(key), val)
 		if expiration > 0 {
-			entry = entry.WithTTL(expiration)
+			entry.ExpiresAt = badgerExpiresAt(expiration)
 		}
 		// expiration == 0: never expire; skip WithTTL so no ExpiresAt is set.
 		return txn.SetEntry(entry)
@@ -108,11 +108,13 @@ func (d *Database) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte
 		return cache.ErrInvalidTTL
 	}
 	return d.db.Update(func(txn *badger.Txn) error {
+		expiresAt := uint64(0)
+		if expiration > 0 {
+			expiresAt = badgerExpiresAt(expiration)
+		}
 		for k, v := range valMap {
 			entry := badger.NewEntry([]byte(k), v)
-			if expiration > 0 {
-				entry = entry.WithTTL(expiration)
-			}
+			entry.ExpiresAt = expiresAt
 			// expiration == 0: never expire; skip WithTTL so no ExpiresAt is set.
 			if err := txn.SetEntry(entry); err != nil {
 				return err
@@ -120,6 +122,17 @@ func (d *Database) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte
 		}
 		return nil
 	})
+}
+
+// Badger stores expiry timestamps with one-second precision. Round the
+// requested deadline up so a positive TTL never expires early.
+func badgerExpiresAt(expiration time.Duration) uint64 {
+	deadline := time.Now().Add(expiration)
+	expiresAt := deadline.Truncate(time.Second)
+	if deadline.After(expiresAt) {
+		expiresAt = expiresAt.Add(time.Second)
+	}
+	return uint64(expiresAt.Unix())
 }
 
 func (d *Database) Get(ctx context.Context, key string) ([]byte, bool, error) {

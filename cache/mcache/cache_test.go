@@ -84,12 +84,22 @@ func TestConcurrentExpiredReads(t *testing.T) {
 		key := string(rune('a' + i))
 		wg.Go(func() {
 			for range 32 {
-				if _, _, err := c.Get(ctx, key); err != nil {
+				value, found, err := c.Get(ctx, key)
+				if err != nil {
 					t.Errorf("Get(%q): %v", key, err)
 					return
 				}
-				if _, err := c.MultiGet(ctx, []string{key}); err != nil {
+				if found || value != nil {
+					t.Errorf("Get(%q) returned expired value: found=%v value=%q", key, found, value)
+					return
+				}
+				values, err := c.MultiGet(ctx, []string{key})
+				if err != nil {
 					t.Errorf("MultiGet(%q): %v", key, err)
+					return
+				}
+				if _, ok := values[key]; ok {
+					t.Errorf("MultiGet(%q) returned expired value", key)
 					return
 				}
 			}
