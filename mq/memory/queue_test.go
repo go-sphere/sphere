@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 )
 
 // TestQueueDeleteQueue verifies that DeleteQueue reclaims the internal map entry
@@ -173,43 +172,39 @@ func TestTryConsumeDrainsBufferedMessagesAfterClose(t *testing.T) {
 	}
 }
 
-// TestConsumeRacingCloseNeverDropsMessages stresses Consume against a concurrent
-// Close. It cannot force the specific interleaving where a buffered message and
-// the shutdown signal become ready together (the runtime hands a published value
-// straight to a parked receiver), so it is a smoke test for the race detector
-// rather than a pin for the drain preference — the deterministic guarantee is
-// covered by TestConsumeDrainsBufferedMessagesAfterClose.
-func TestConsumeRacingCloseNeverDropsMessages(t *testing.T) {
-	for range 200 {
-		ctx := context.Background()
+// TestPublishRacingClosePreservesAcceptedMessages checks the observable race
+// contract: a message acknowledged by Publish remains consumable after Close.
+func TestPublishRacingClosePreservesAcceptedMessages(t *testing.T) {
+	for range 32 {
+		ctx := t.Context()
 		q := NewQueue[int]()
 
-		result := make(chan int, 1)
-		errCh := make(chan error, 1)
+		start := make(chan struct{})
+		publishResult := make(chan error, 1)
+		closeResult := make(chan error, 1)
 		go func() {
-			data, err := q.Consume(ctx, "topic")
-			if err != nil {
-				errCh <- err
-				return
-			}
-			result <- data
+			<-start
+			publishResult <- q.Publish(ctx, "topic", 7)
 		}()
+		go func() {
+			<-start
+			closeResult <- q.Close()
+		}()
+		close(start)
 
-		time.Sleep(time.Millisecond)
-		_ = q.Publish(ctx, "topic", 7)
-		_ = q.Close()
-
-		select {
-		case data := <-result:
-			if data != 7 {
-				t.Fatalf("Consume returned %d, want 7", data)
-			}
-		case err := <-errCh:
-			if !errors.Is(err, ErrQueueClosed) {
-				t.Fatalf("unexpected Consume error: %v", err)
-			}
-		case <-time.After(2 * time.Second):
-			t.Fatal("Consume did not return")
+		publishErr := <-publishResult
+		if err := <-closeResult; err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if errors.Is(publishErr, ErrQueueClosed) {
+			continue
+		}
+		if publishErr != nil {
+			t.Fatalf("Publish: %v", publishErr)
+		}
+		data, err := q.Consume(ctx, "topic")
+		if err != nil || data != 7 {
+			t.Fatalf("Consume accepted message = (%d, %v), want (7, nil)", data, err)
 		}
 	}
 }

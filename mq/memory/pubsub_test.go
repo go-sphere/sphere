@@ -115,9 +115,6 @@ func TestPubSubIgnoresInvalidQueueSize(t *testing.T) {
 				t.Fatalf("Subscribe: %v", err)
 			}
 
-			// Let the subscriber goroutine reach its receive loop.
-			time.Sleep(50 * time.Millisecond)
-
 			for i := range total {
 				if err := ps.Broadcast(context.Background(), "topic", i); err != nil {
 					t.Fatalf("Broadcast: %v", err)

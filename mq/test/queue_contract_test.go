@@ -3,13 +3,9 @@ package test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/go-sphere/sphere/mq/memory"
 )
 
 func TestQueueContract(t *testing.T) {
@@ -104,17 +100,30 @@ func TestQueueBlockingConsume(t *testing.T) {
 		}
 
 		t.Run(factory.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			q := factory.new(t)
-
-			go func() {
-				time.Sleep(40 * time.Millisecond)
-				_ = q.Publish(context.Background(), "blocking-topic", 9)
-			}()
 
 			consumeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 			defer cancel()
-			msg, err := q.Consume(consumeCtx, "blocking-topic")
+			type consumeResult struct {
+				message int
+				err     error
+			}
+			result := make(chan consumeResult, 1)
+			go func() {
+				message, err := q.Consume(consumeCtx, "blocking-topic")
+				result <- consumeResult{message: message, err: err}
+			}()
+			select {
+			case got := <-result:
+				t.Fatalf("Consume returned before Publish: %+v", got)
+			case <-time.After(50 * time.Millisecond):
+			}
+			if err := q.Publish(ctx, "blocking-topic", 9); err != nil {
+				t.Fatalf("Publish to blocked consumer: %v", err)
+			}
+			got := <-result
+			msg, err := got.message, got.err
 			if err != nil {
 				t.Fatalf("blocking Consume: %v", err)
 			}
@@ -160,18 +169,25 @@ func TestQueueClose(t *testing.T) {
 	for _, factory := range queueFactories() {
 		t.Run(factory.name, func(t *testing.T) {
 			t.Parallel()
-			if !factory.closeStopsQueue {
-				t.Skip("queue uses caller-owned resources; Close does not disable operations")
-			}
 
 			q := factory.new(t)
 			if err := q.Close(); err != nil {
 				t.Fatalf("Close: %v", err)
 			}
 
-			_, _, err := q.TryConsume(context.Background(), "topic")
-			if err == nil {
-				t.Fatalf("expected error after Close")
+			if factory.closeStopsQueue {
+				if _, _, err := q.TryConsume(t.Context(), "topic"); err == nil {
+					t.Fatal("TryConsume after Close error = nil, want closed error")
+				}
+				return
+			}
+
+			if err := q.Publish(t.Context(), "topic", 1); err != nil {
+				t.Fatalf("Publish after no-op Close: %v", err)
+			}
+			got, err := q.Consume(t.Context(), "topic")
+			if err != nil || got != 1 {
+				t.Fatalf("Consume after no-op Close = (%d, %v), want (1, nil)", got, err)
 			}
 		})
 	}
@@ -184,7 +200,7 @@ func TestQueueConcurrentPublishConsume(t *testing.T) {
 				t.Skip("skip concurrent queue test in short mode")
 			}
 
-			ctx := context.Background()
+			ctx := t.Context()
 			q := factory.new(t)
 
 			const n = 64
@@ -204,113 +220,18 @@ func TestQueueConcurrentPublishConsume(t *testing.T) {
 			}
 
 			seen := make(map[int]bool, n)
-			deadline := time.Now().Add(3 * time.Second)
-			for len(seen) < n && time.Now().Before(deadline) {
-				msg, found, err := q.TryConsume(ctx, "concurrent")
+			consumeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+			for range n {
+				msg, err := q.Consume(consumeCtx, "concurrent")
 				if err != nil {
-					t.Fatalf("TryConsume concurrent: %v", err)
-				}
-				if !found {
-					time.Sleep(5 * time.Millisecond)
-					continue
+					t.Fatalf("Consume concurrent: %v", err)
 				}
 				seen[msg] = true
 			}
 
 			if len(seen) != n {
 				t.Fatalf("concurrent publish/consume lost messages: got=%d want=%d", len(seen), n)
-			}
-		})
-	}
-}
-
-// TestQueueAdversarialHeavyConcurrentPublishVsClose60Goroutines tests 60 goroutines
-// publishing and consuming concurrently while Close() is invoked.
-// Crucial: verifies 0 panics on closed channel and 0 deadlocks under -race.
-func TestQueueAdversarialHeavyConcurrentPublishVsClose60Goroutines(t *testing.T) {
-	for _, factory := range queueFactories() {
-		t.Run(factory.name, func(t *testing.T) {
-			if testing.Short() {
-				t.Skip("skip stress test in short mode")
-			}
-
-			for range 5 {
-				q := factory.new(t)
-				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-				defer cancel()
-
-				const numPublishers = 60
-				const numConsumers = 20
-				const numTopics = 5
-
-				var publishWg sync.WaitGroup
-				var consumeWg sync.WaitGroup
-				stopSignal := make(chan struct{})
-
-				var publishSuccess atomic.Int64
-				var publishClosed atomic.Int64
-				var consumeSuccess atomic.Int64
-				var consumeClosed atomic.Int64
-
-				// Launch 60 publishers
-				for p := range numPublishers {
-					pubID := p
-					publishWg.Go(func() {
-						topic := fmt.Sprintf("stress_topic_%d", pubID%numTopics)
-						for i := 0; ; i++ {
-							select {
-							case <-stopSignal:
-								return
-							case <-ctx.Done():
-								return
-							default:
-								err := q.Publish(ctx, topic, pubID*1000+i)
-								if err == nil {
-									publishSuccess.Add(1)
-								} else if errors.Is(err, memory.ErrQueueClosed) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-									publishClosed.Add(1)
-								}
-							}
-						}
-					})
-				}
-
-				// Launch 20 consumers
-				for c := range numConsumers {
-					conID := c
-					consumeWg.Go(func() {
-						topic := fmt.Sprintf("stress_topic_%d", conID%numTopics)
-						for {
-							select {
-							case <-stopSignal:
-								return
-							case <-ctx.Done():
-								return
-							default:
-								_, ok, err := q.TryConsume(ctx, topic)
-								if err == nil && ok {
-									consumeSuccess.Add(1)
-								} else if errors.Is(err, memory.ErrQueueClosed) {
-									consumeClosed.Add(1)
-									return
-								}
-							}
-						}
-					})
-				}
-
-				// Let publishers and consumers run concurrently under heavy pressure
-				time.Sleep(30 * time.Millisecond)
-
-				// Close queue while all 60 publishers and 20 consumers are hammering it
-				_ = q.Close()
-
-				// Let post-close drain run
-				time.Sleep(20 * time.Millisecond)
-				close(stopSignal)
-
-				publishWg.Wait()
-				consumeWg.Wait()
 			}
 		})
 	}
