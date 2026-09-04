@@ -34,7 +34,11 @@ func run(ctx context.Context, t task.Task, options *options) error {
 		defer func() {
 			if r := recover(); r != nil {
 				safe.LogRecovered(t.Identifier(), r)
-				startErr <- fmt.Errorf("task panic: %v", r)
+				if err, ok := r.(error); ok {
+					startErr <- fmt.Errorf("task panic: %w", err)
+				} else {
+					startErr <- fmt.Errorf("task panic: %v", r)
+				}
 			}
 		}()
 		if err := t.Start(ctx); err != nil {

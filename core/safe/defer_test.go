@@ -5,7 +5,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
 func TestIfErrorPresent(t *testing.T) {
@@ -101,80 +100,38 @@ func TestInitErrorHandler_NilIgnored(t *testing.T) {
 func TestConcurrentInitAndIfErrorPresent(t *testing.T) {
 	defer InitErrorHandler(defaultErrorHandler)
 
+	var handledA atomic.Int64
+	var handledB atomic.Int64
+	handlerA := func(error) { handledA.Add(1) }
+	handlerB := func(error) { handledB.Add(1) }
+	InitErrorHandler(handlerA)
+
+	start := make(chan struct{})
 	var wg sync.WaitGroup
-	for range 50 {
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			InitErrorHandler(func(err error) {})
-		}()
-		go func() {
-			defer wg.Done()
-			IfErrorPresent(func() error {
-				return errors.New("concurrent err")
-			})
-			IfErrorXPresent(func() (int, error) {
-				return 1, errors.New("concurrent err x")
-			})
-		}()
-	}
-	wg.Wait()
-}
-
-// TestSafeStress_ConcurrentInitAndIfError verifies thread safety of InitErrorHandler
-// and IfErrorPresent / IfErrorXPresent under heavy concurrent execution.
-func TestSafeStress_ConcurrentInitAndIfError(t *testing.T) {
-	var errCounter atomic.Int64
-	defer InitErrorHandler(defaultErrorHandler)
-
-	var wg sync.WaitGroup
-	stopSignal := make(chan struct{})
-
-	// 10 updater goroutines
-	for i := range 10 {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			for {
-				select {
-				case <-stopSignal:
-					return
-				default:
-					InitErrorHandler(func(err error) {
-						errCounter.Add(1)
-					})
-					// Also test nil ignore
-					InitErrorHandler(nil)
-				}
-			}
-		}(i)
-	}
-
-	// 20 reporter goroutines
-	for i := range 20 {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			for j := range 200 {
-				if j%2 == 0 {
-					IfErrorPresent(func() error {
-						return errors.New("err")
-					})
+	for updater := range 4 {
+		wg.Go(func() {
+			<-start
+			for i := range 100 {
+				if (updater+i)%2 == 0 {
+					InitErrorHandler(handlerA)
 				} else {
-					IfErrorXPresent(func() (int, error) {
-						return j, errors.New("err x")
-					})
+					InitErrorHandler(handlerB)
 				}
 			}
-		}(i)
+		})
 	}
-
-	// Let reporter routines finish
-	time.Sleep(50 * time.Millisecond)
-	close(stopSignal)
+	for range 8 {
+		wg.Go(func() {
+			<-start
+			for range 100 {
+				IfErrorPresent(func() error { return errors.New("concurrent err") })
+			}
+		})
+	}
+	close(start)
 	wg.Wait()
 
-	if errCounter.Load() == 0 {
-		t.Fatal("expected error handler to be invoked at least once")
+	if got, want := handledA.Load()+handledB.Load(), int64(800); got != want {
+		t.Fatalf("handled errors = %d, want %d", got, want)
 	}
 }

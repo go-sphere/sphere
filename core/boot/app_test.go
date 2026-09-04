@@ -8,10 +8,11 @@ import (
 )
 
 func TestApplicationStartPreservesUnexpectedWrappedCancellation(t *testing.T) {
+	taskErr := errors.New("task failed")
 	task := &mockTask{
 		identifier: "wrapped-cancellation",
 		startFunc: func(context.Context) error {
-			return fmt.Errorf("task failed before shutdown: %w", context.Canceled)
+			return fmt.Errorf("%w before shutdown: %w", taskErr, context.Canceled)
 		},
 	}
 
@@ -21,5 +22,8 @@ func TestApplicationStartPreservesUnexpectedWrappedCancellation(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v, want wrapped context.Canceled", err)
+	}
+	if !errors.Is(err, taskErr) {
+		t.Fatalf("error = %v, want wrapped task failure %v", err, taskErr)
 	}
 }

@@ -8,10 +8,7 @@ import (
 func TestInitTimezone(t *testing.T) {
 	t.Run("valid timezone updates time.Local", func(t *testing.T) {
 		orig := time.Local
-		defer func() {
-			time.Local = orig
-			_ = InitTimezone(DefaultTimezone)
-		}()
+		t.Cleanup(func() { time.Local = orig })
 
 		err := InitTimezone("UTC")
 		if err != nil {
@@ -24,10 +21,7 @@ func TestInitTimezone(t *testing.T) {
 
 	t.Run("invalid timezone returns error and leaves location unchanged", func(t *testing.T) {
 		orig := time.Local
-		defer func() {
-			time.Local = orig
-			_ = InitTimezone(DefaultTimezone)
-		}()
+		t.Cleanup(func() { time.Local = orig })
 
 		err := InitTimezone("Invalid/Nonexistent_Timezone_12345")
 		if err == nil {

@@ -175,10 +175,11 @@ func TestRun_TaskStartError(t *testing.T) {
 }
 
 func TestRun_TaskStartPanic(t *testing.T) {
+	panicErr := errors.New("start panic")
 	task := &mockTask{
 		identifier: "test-task",
 		startFunc: func(ctx context.Context) error {
-			panic("something went wrong")
+			panic(panicErr)
 		},
 	}
 	opts := newOptions(WithShutdownTimeout(1 * time.Second))
@@ -188,8 +189,11 @@ func TestRun_TaskStartPanic(t *testing.T) {
 		t.Fatal("Expected error from panic, got nil")
 	}
 
-	if !errors.Is(err, context.Canceled) && !task.stopCalled.Load() {
-		t.Error("Task Stop should be called after panic")
+	if !errors.Is(err, panicErr) {
+		t.Fatalf("error = %v, want wrapped panic %v", err, panicErr)
+	}
+	if !task.stopCalled.Load() {
+		t.Fatal("Task Stop was not called after panic")
 	}
 }
 

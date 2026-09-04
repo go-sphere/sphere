@@ -2,6 +2,7 @@ package boot_test
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -13,16 +14,17 @@ import (
 
 type bootHungTask struct {
 	id          string
-	startCalled atomic.Bool
 	stopCalled  atomic.Bool
 	stopStarted atomic.Bool
+	startReady  chan struct{}
 	stopDone    chan struct{}
 }
 
 func newBootHungTask(id string) *bootHungTask {
 	return &bootHungTask{
-		id:       id,
-		stopDone: make(chan struct{}),
+		id:         id,
+		startReady: make(chan struct{}),
+		stopDone:   make(chan struct{}),
 	}
 }
 
@@ -31,7 +33,7 @@ func (h *bootHungTask) Identifier() string {
 }
 
 func (h *bootHungTask) Start(ctx context.Context) error {
-	h.startCalled.Store(true)
+	close(h.startReady)
 	<-ctx.Done()
 	return ctx.Err()
 }
@@ -47,9 +49,7 @@ func (h *bootHungTask) Stop(ctx context.Context) error {
 	}
 }
 
-func TestAdversarialBoot_ShutdownScenarios(t *testing.T) {
-	t.Parallel()
-
+func TestBootShutdownScenarios(t *testing.T) {
 	t.Run("ShutdownTimeoutUnblocksHangingStop", func(t *testing.T) {
 		tk := newBootHungTask("hung-stop-task")
 		shutdownTimeout := 60 * time.Millisecond
@@ -79,14 +79,17 @@ func TestAdversarialBoot_ShutdownScenarios(t *testing.T) {
 			)
 		}()
 
-		// Wait for task to start
-		for !tk.startCalled.Load() {
-			time.Sleep(5 * time.Millisecond)
+		select {
+		case <-tk.startReady:
+		case <-time.After(time.Second):
+			t.Fatal("task did not start")
 		}
 
 		// Trigger shutdown via signal
 		startShutdown := time.Now()
-		_ = syscall.Kill(syscall.Getpid(), syscall.SIGUSR1)
+		if err := syscall.Kill(syscall.Getpid(), syscall.SIGUSR1); err != nil {
+			t.Fatalf("send shutdown signal: %v", err)
+		}
 
 		select {
 		case err := <-runDone:
@@ -100,8 +103,11 @@ func TestAdversarialBoot_ShutdownScenarios(t *testing.T) {
 			if !afterStopCtxLive.Load() {
 				t.Fatalf("expected afterStop hook to receive live fallback context")
 			}
-			if err == nil {
-				t.Fatalf("expected deadline/stop error in run result, got nil")
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("run error = %v, want context.DeadlineExceeded", err)
+			}
+			if !tk.stopCalled.Load() {
+				t.Fatal("task Stop was not called")
 			}
 		case <-time.After(2 * time.Second):
 			t.Fatalf("boot.Run deadlocked on hanging Stop")

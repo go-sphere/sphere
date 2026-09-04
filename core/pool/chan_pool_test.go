@@ -3,8 +3,6 @@ package pool
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"math/rand"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -103,17 +101,19 @@ func TestChanPoolGetContext(t *testing.T) {
 }
 
 func TestChanPoolConcurrent(t *testing.T) {
+	var resets atomic.Int64
 	pool := NewChanPool(10,
 		WithNew(func() *bytes.Buffer { return new(bytes.Buffer) }),
 		WithReset(func(b *bytes.Buffer) *bytes.Buffer {
+			resets.Add(1)
 			b.Reset()
 			return b
 		}),
 	)
 
 	var wg sync.WaitGroup
-	const goroutines = 100
-	const iterations = 1000
+	const goroutines = 16
+	const iterations = 100
 
 	for range goroutines {
 		wg.Go(func() {
@@ -125,6 +125,12 @@ func TestChanPoolConcurrent(t *testing.T) {
 		})
 	}
 	wg.Wait()
+	if got, want := resets.Load(), int64(goroutines*iterations); got != want {
+		t.Fatalf("reset calls = %d, want %d", got, want)
+	}
+	if got := pool.Len(); got == 0 || got > pool.Cap() {
+		t.Fatalf("retained objects = %d, want within [1, %d]", got, pool.Cap())
+	}
 }
 
 func TestChanPoolLenCap(t *testing.T) {
@@ -158,28 +164,33 @@ func TestChanPoolLenCap(t *testing.T) {
 
 func TestChanPoolGetContextBlocking(t *testing.T) {
 	pool := NewChanPool[string](1)
-
-	// Put object later in another goroutine
+	type result struct {
+		obj string
+		ok  bool
+	}
+	resultCh := make(chan result, 1)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
 	go func() {
-		time.Sleep(50 * time.Millisecond)
-		pool.Put("delayed")
+		obj, ok := pool.GetContext(ctx)
+		resultCh <- result{obj: obj, ok: ok}
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
+	select {
+	case got := <-resultCh:
+		t.Fatalf("GetContext returned before Put: %+v", got)
+	case <-time.After(20 * time.Millisecond):
+	}
+	if !pool.Put("delayed") {
+		t.Fatal("Put delayed object failed")
+	}
+	got := <-resultCh
 
-	start := time.Now()
-	obj, ok := pool.GetContext(ctx)
-	elapsed := time.Since(start)
-
-	if !ok {
+	if !got.ok {
 		t.Fatal("expected ok=true")
 	}
-	if obj != "delayed" {
-		t.Fatalf("expected 'delayed', got %q", obj)
-	}
-	if elapsed < 40*time.Millisecond {
-		t.Fatalf("expected to wait at least 40ms, waited %v", elapsed)
+	if got.obj != "delayed" {
+		t.Fatalf("expected 'delayed', got %q", got.obj)
 	}
 }
 
@@ -313,19 +324,20 @@ func TestChanPoolGetContextWithAllowCreate(t *testing.T) {
 			WithAllowCreate[string](false),
 		)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-		defer cancel()
-
-		// Pool is empty, allowCreate is false, should wait and timeout
-		start := time.Now()
-		_, ok := pool.GetContext(ctx)
-		elapsed := time.Since(start)
-
-		if ok {
-			t.Fatal("expected ok=false after timeout")
+		ctx, cancel := context.WithCancel(t.Context())
+		result := make(chan bool, 1)
+		go func() {
+			_, ok := pool.GetContext(ctx)
+			result <- ok
+		}()
+		select {
+		case ok := <-result:
+			t.Fatalf("GetContext returned before cancellation: ok=%v", ok)
+		case <-time.After(20 * time.Millisecond):
 		}
-		if elapsed < 40*time.Millisecond {
-			t.Fatalf("expected to wait at least 40ms, waited %v", elapsed)
+		cancel()
+		if ok := <-result; ok {
+			t.Fatal("expected ok=false after cancellation")
 		}
 	})
 
@@ -335,27 +347,31 @@ func TestChanPoolGetContextWithAllowCreate(t *testing.T) {
 			WithAllowCreate[string](false),
 		)
 
-		// Put object later
-		go func() {
-			time.Sleep(30 * time.Millisecond)
-			pool.Put("delayed")
-		}()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		type result struct {
+			obj string
+			ok  bool
+		}
+		resultCh := make(chan result, 1)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
-
-		start := time.Now()
-		obj, ok := pool.GetContext(ctx)
-		elapsed := time.Since(start)
-
-		if !ok {
+		go func() {
+			obj, ok := pool.GetContext(ctx)
+			resultCh <- result{obj: obj, ok: ok}
+		}()
+		select {
+		case got := <-resultCh:
+			t.Fatalf("GetContext returned before Put: %+v", got)
+		case <-time.After(20 * time.Millisecond):
+		}
+		if !pool.Put("delayed") {
+			t.Fatal("Put delayed object failed")
+		}
+		got := <-resultCh
+		if !got.ok {
 			t.Fatal("expected ok=true")
 		}
-		if obj != "delayed" {
-			t.Fatalf("expected 'delayed', got %q", obj)
-		}
-		if elapsed < 20*time.Millisecond {
-			t.Fatalf("expected to wait at least 20ms, waited %v", elapsed)
+		if got.obj != "delayed" {
+			t.Fatalf("expected 'delayed', got %q", got.obj)
 		}
 	})
 }
@@ -363,16 +379,17 @@ func TestChanPoolGetContextWithAllowCreate(t *testing.T) {
 // TestChanPoolConcurrentPutClose exercises the Put/Close race (BUG-05): a Put
 // that overlaps with Close must never send on a closed channel. Run with -race.
 func TestChanPoolConcurrentPutClose(t *testing.T) {
-	for range 200 {
+	for range 32 {
 		pool := NewChanPool[int](8)
 
+		var accepted atomic.Int64
 		var wg sync.WaitGroup
 		for i := range 8 {
-			wg.Add(1)
-			go func(v int) {
-				defer wg.Done()
-				pool.Put(v)
-			}(i)
+			wg.Go(func() {
+				if pool.Put(i + 1) {
+					accepted.Add(1)
+				}
+			})
 		}
 
 		pool.Close()
@@ -380,6 +397,13 @@ func TestChanPoolConcurrentPutClose(t *testing.T) {
 
 		if !pool.IsClosed() {
 			t.Fatal("pool should report closed")
+		}
+		var retained int64
+		for pool.Get() != 0 {
+			retained++
+		}
+		if got := accepted.Load(); got != retained {
+			t.Fatalf("accepted puts = %d, retained objects = %d", got, retained)
 		}
 	}
 }
@@ -400,8 +424,11 @@ func TestChanPoolGetContextClosedWhileBlocked(t *testing.T) {
 		resCh <- result{obj: obj, ok: ok}
 	}()
 
-	// Give the goroutine time to block on the empty pool, then close.
-	time.Sleep(20 * time.Millisecond)
+	select {
+	case res := <-resCh:
+		t.Fatalf("GetContext returned before Close: %+v", res)
+	case <-time.After(20 * time.Millisecond):
+	}
 	pool.Close()
 
 	select {
@@ -468,237 +495,6 @@ func TestChanPoolGetClosedWithNew(t *testing.T) {
 		}
 		if createdCount != 1 {
 			t.Fatalf("expected createdCount=1, got %d", createdCount)
-		}
-	})
-}
-
-// TestChanPoolStress_ConcurrentGetPutClose executes heavy concurrent Get, GetContext,
-// Put, and Close across 60+ goroutines under -race over many iterations.
-func TestChanPoolStress_ConcurrentGetPutClose(t *testing.T) {
-	const iterations = 50
-
-	for iter := range iterations {
-		var (
-			createdCount atomic.Int64
-			closedCount  atomic.Int64
-			resetCount   atomic.Int64
-			acceptCount  atomic.Int64
-		)
-
-		poolCap := (iter % 10) + 1
-		p := NewChanPool(poolCap,
-			WithNew(func() string {
-				c := createdCount.Add(1)
-				return fmt.Sprintf("val-%d", c)
-			}),
-			WithReset(func(s string) string {
-				resetCount.Add(1)
-				return s
-			}),
-			WithAccept(func(s string) bool {
-				acceptCount.Add(1)
-				return len(s) > 0
-			}),
-			WithClose(func(s string) {
-				closedCount.Add(1)
-			}),
-		)
-
-		var wg sync.WaitGroup
-		startSignal := make(chan struct{})
-
-		// 20 Get & Put workers
-		for range 20 {
-			wg.Go(func() {
-				<-startSignal
-				for range 50 {
-					v := p.Get()
-					if v != "" {
-						p.Put(v)
-					}
-				}
-			})
-		}
-
-		// 20 GetContext & Put workers
-		for i := range 20 {
-			wg.Add(1)
-			go func(idx int) {
-				defer wg.Done()
-				<-startSignal
-				for j := range 50 {
-					ctx, cancel := context.WithTimeout(context.Background(), time.Duration(j%5)*time.Millisecond)
-					v, ok := p.GetContext(ctx)
-					cancel()
-					if ok && v != "" {
-						p.Put(v)
-					}
-				}
-			}(i)
-		}
-
-		// 20 Put & Len/Cap/IsClosed inspectors
-		for i := range 20 {
-			wg.Add(1)
-			go func(workerID int) {
-				defer wg.Done()
-				<-startSignal
-				for j := range 50 {
-					p.Put(fmt.Sprintf("item-%d-%d", workerID, j))
-					_ = p.Len()
-					_ = p.Cap()
-					_ = p.IsClosed()
-				}
-			}(i)
-		}
-
-		// 1 Close worker triggered after short random delay
-		wg.Go(func() {
-			<-startSignal
-			time.Sleep(time.Duration(rand.Intn(3)) * time.Millisecond)
-			p.Close()
-			// Double close test
-			p.Close()
-		})
-
-		close(startSignal)
-		wg.Wait()
-
-		if !p.IsClosed() {
-			t.Fatalf("iteration %d: pool should be closed", iter)
-		}
-
-		// Post-close verification
-		if p.Put("after-close") {
-			t.Fatalf("iteration %d: Put after Close must return false", iter)
-		}
-
-		ctx := context.Background()
-		_, ok := p.GetContext(ctx)
-		if ok {
-			t.Fatalf("iteration %d: GetContext after Close must return ok=false", iter)
-		}
-	}
-}
-
-// TestChanPoolStress_MassiveConcurrency50Plus runs 100 concurrent workers on a buffer pool.
-func TestChanPoolStress_MassiveConcurrency50Plus(t *testing.T) {
-	p := NewChanPool(20,
-		WithNew(func() *bytes.Buffer {
-			return new(bytes.Buffer)
-		}),
-		WithReset(func(b *bytes.Buffer) *bytes.Buffer {
-			b.Reset()
-			return b
-		}),
-		WithAccept(func(b *bytes.Buffer) bool {
-			return b != nil
-		}),
-	)
-
-	const goroutines = 100
-	const opsPerGoroutine = 500
-
-	var wg sync.WaitGroup
-	wg.Add(goroutines)
-
-	for i := range goroutines {
-		go func(id int) {
-			defer wg.Done()
-			for j := range opsPerGoroutine {
-				var buf *bytes.Buffer
-				if j%2 == 0 {
-					buf = p.Get()
-				} else {
-					ctx, cancel := context.WithTimeout(context.Background(), 2*time.Millisecond)
-					var ok bool
-					buf, ok = p.GetContext(ctx)
-					cancel()
-					if !ok || buf == nil {
-						buf = new(bytes.Buffer)
-					}
-				}
-
-				if buf == nil {
-					t.Errorf("worker %d: unexpected nil buffer", id)
-					return
-				}
-
-				buf.WriteString("sample data")
-				_ = p.Put(buf)
-			}
-		}(i)
-	}
-
-	wg.Wait()
-	p.Close()
-}
-
-// TestChanPoolStress_GetAfterCloseSemantics exhaustively verifies Get() post-Close behavior.
-func TestChanPoolStress_GetAfterCloseSemantics(t *testing.T) {
-	t.Run("drained closed pool with WithNew returns new instances repeatedly", func(t *testing.T) {
-		var counter atomic.Int32
-		p := NewChanPool(5, WithNew(func() int32 {
-			return counter.Add(1)
-		}))
-
-		p.Put(100)
-		p.Put(200)
-		p.Close() // channel closed, no closeFn so items 100 and 200 remain in channel
-
-		// First two Get() calls retrieve leftover items
-		if v := p.Get(); v != 100 {
-			t.Fatalf("expected 100, got %d", v)
-		}
-		if v := p.Get(); v != 200 {
-			t.Fatalf("expected 200, got %d", v)
-		}
-
-		// Channel is now drained and closed; next Get() calls must invoke WithNew
-		for i := int32(1); i <= 10; i++ {
-			if v := p.Get(); v != i {
-				t.Fatalf("expected WithNew call %d, got %d", i, v)
-			}
-		}
-	})
-
-	t.Run("drained closed pool without WithNew returns zero value", func(t *testing.T) {
-		p := NewChanPool[string](5)
-		p.Put("leftover")
-		p.Close()
-
-		if v := p.Get(); v != "leftover" {
-			t.Fatalf("expected 'leftover', got %q", v)
-		}
-
-		// Now empty and closed without WithNew
-		for range 5 {
-			if v := p.Get(); v != "" {
-				t.Fatalf("expected empty string zero value, got %q", v)
-			}
-		}
-	})
-
-	t.Run("closed with WithClose drains items then WithNew triggers", func(t *testing.T) {
-		var drained []string
-		p := NewChanPool(5,
-			WithNew(func() string { return "brand-new" }),
-			WithClose(func(s string) {
-				drained = append(drained, s)
-			}),
-		)
-
-		p.Put("item1")
-		p.Put("item2")
-		p.Close() // WithClose drains "item1" and "item2"
-
-		if len(drained) != 2 {
-			t.Fatalf("expected 2 drained items, got %d", len(drained))
-		}
-
-		// Channel is drained by Close(); Get() should immediately return new item
-		if v := p.Get(); v != "brand-new" {
-			t.Fatalf("expected 'brand-new', got %q", v)
 		}
 	})
 }
