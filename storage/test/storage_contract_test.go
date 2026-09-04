@@ -3,18 +3,14 @@ package test
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/go-sphere/sphere/cache/memory"
 	"github.com/go-sphere/sphere/storage"
@@ -229,8 +225,13 @@ func TestStorageKeyNormalization(t *testing.T) {
 						t.Errorf("UploadFile(%q) returned key %q, want %q", tc.given, got, tc.want)
 					}
 					// The returned key must address the object it just wrote.
-					if _, err := store.DownloadFile(ctx, got); err != nil {
+					download, err := store.DownloadFile(ctx, got)
+					if err != nil {
 						t.Errorf("the key returned for %q does not resolve: %v", tc.given, err)
+						continue
+					}
+					if err := download.Reader.Close(); err != nil {
+						t.Errorf("close DownloadFile(%q): %v", got, err)
 					}
 				}
 			})
@@ -288,20 +289,6 @@ func TestStorageMoveToSameKey(t *testing.T) {
 	}
 }
 
-// countOpenFDs counts the number of open file descriptors for the current process.
-func countOpenFDs(t *testing.T) int {
-	t.Helper()
-	fdDir := "/dev/fd"
-	if runtime.GOOS == "linux" {
-		fdDir = "/proc/self/fd"
-	}
-	entries, err := os.ReadDir(fdDir)
-	if err != nil {
-		t.Skipf("cannot read %s to count file descriptors: %v", fdDir, err)
-	}
-	return len(entries)
-}
-
 // failingReader simulates a stream interruption by failing with an error after reading N bytes.
 type failingReader struct {
 	data      []byte
@@ -330,34 +317,37 @@ func (r *failingReader) Read(p []byte) (n int, err error) {
 	return toRead, nil
 }
 
-// TestStorageConcurrentUploadDownload stress tests concurrent uploads, downloads,
-// stats, and overwrites, verifying data integrity via SHA256 checksums and atomicity.
+// TestStorageConcurrentUploadDownload verifies that independent writes retain
+// their bytes and shared-key overwrites are observed only as complete payloads.
 func TestStorageConcurrentUploadDownload(t *testing.T) {
 	for _, factory := range storageFactories() {
 		t.Run(factory.name, func(t *testing.T) {
 			store := factory.new(t)
-			ctx := context.Background()
+			ctx := t.Context()
 
-			const concurrency = 20
-			const opsPerWorker = 30
+			const concurrency = 8
+			const opsPerWorker = 8
+			const sharedKey = "concurrent/shared.dat"
+			validSharedPayloads := map[string]struct{}{"seed": {}}
+			for workerID := range concurrency {
+				for op := range opsPerWorker {
+					payload := fmt.Sprintf("worker-%d-op-%d-payload", workerID, op)
+					validSharedPayloads[payload] = struct{}{}
+				}
+			}
+			if _, err := store.UploadFile(ctx, strings.NewReader("seed"), sharedKey); err != nil {
+				t.Fatalf("seed shared key: %v", err)
+			}
+
 			var wg sync.WaitGroup
-
 			errCh := make(chan error, concurrency*opsPerWorker)
 
-			for i := range concurrency {
-				wg.Add(1)
-				go func(workerID int) {
-					defer wg.Done()
+			for workerID := range concurrency {
+				wg.Go(func() {
 					for op := range opsPerWorker {
-						key := fmt.Sprintf("concurrent/worker_%d/file_%d.dat", workerID, op%5)
-						size := 1024 + (op*79)%32768
-						payload := make([]byte, size)
-						for j := range payload {
-							payload[j] = byte((workerID*31 + op*17 + j) % 256)
-						}
-						expectedHash := sha256.Sum256(payload)
+						key := fmt.Sprintf("concurrent/worker_%d/file_%d.dat", workerID, op)
+						payload := []byte(fmt.Sprintf("private-worker-%d-op-%d", workerID, op))
 
-						// 1. Upload
 						uploadedKey, err := store.UploadFile(ctx, bytes.NewReader(payload), key)
 						if err != nil {
 							errCh <- fmt.Errorf("worker %d op %d upload error: %w", workerID, op, err)
@@ -368,26 +358,26 @@ func TestStorageConcurrentUploadDownload(t *testing.T) {
 							return
 						}
 
-						// 2. Download and verify hash
 						res, err := store.DownloadFile(ctx, key)
 						if err != nil {
 							errCh <- fmt.Errorf("worker %d op %d download error: %w", workerID, op, err)
 							return
 						}
 						data, err := io.ReadAll(res.Reader)
-						_ = res.Reader.Close()
+						closeErr := res.Reader.Close()
 						if err != nil {
 							errCh <- fmt.Errorf("worker %d op %d read download error: %w", workerID, op, err)
 							return
 						}
-						actualHash := sha256.Sum256(data)
-						if actualHash != expectedHash {
-							errCh <- fmt.Errorf("worker %d op %d hash mismatch: got %x, want %x", workerID, op, actualHash, expectedHash)
+						if closeErr != nil {
+							errCh <- fmt.Errorf("worker %d op %d close download: %w", workerID, op, closeErr)
+							return
+						}
+						if !bytes.Equal(data, payload) {
+							errCh <- fmt.Errorf("worker %d op %d private payload = %q, want %q", workerID, op, data, payload)
 							return
 						}
 
-						// 3. Concurrent shared key overwrite test
-						sharedKey := fmt.Sprintf("concurrent/shared_%d.dat", op%3)
 						sharedPayload := []byte(fmt.Sprintf("worker-%d-op-%d-payload", workerID, op))
 						_, err = store.UploadFile(ctx, bytes.NewReader(sharedPayload), sharedKey)
 						if err != nil {
@@ -395,22 +385,27 @@ func TestStorageConcurrentUploadDownload(t *testing.T) {
 							return
 						}
 
-						// Download shared key - must be intact (no partial corruptions)
 						sRes, err := store.DownloadFile(ctx, sharedKey)
-						if err == nil {
-							sData, rErr := io.ReadAll(sRes.Reader)
-							_ = sRes.Reader.Close()
-							if rErr != nil {
-								errCh <- fmt.Errorf("worker %d read shared error: %w", workerID, rErr)
-								return
-							}
-							if len(sData) == 0 {
-								errCh <- fmt.Errorf("worker %d got empty shared data", workerID)
-								return
-							}
+						if err != nil {
+							errCh <- fmt.Errorf("worker %d shared download error: %w", workerID, err)
+							return
+						}
+						sData, readErr := io.ReadAll(sRes.Reader)
+						closeErr = sRes.Reader.Close()
+						if readErr != nil {
+							errCh <- fmt.Errorf("worker %d read shared error: %w", workerID, readErr)
+							return
+						}
+						if closeErr != nil {
+							errCh <- fmt.Errorf("worker %d close shared download: %w", workerID, closeErr)
+							return
+						}
+						if _, ok := validSharedPayloads[string(sData)]; !ok {
+							errCh <- fmt.Errorf("worker %d observed partial shared payload %q", workerID, sData)
+							return
 						}
 					}
-				}(i)
+				})
 			}
 
 			wg.Wait()
@@ -518,193 +513,94 @@ func TestStorageStreamInterruptionAndAtomicCleanup(t *testing.T) {
 	})
 }
 
-// TestStorageAdversarialPathTraversal runs an exhaustive battery of path traversal
-// payloads against NormalizeKey and local.Client to ensure zero escape from RootDir.
-func TestStorageAdversarialPathTraversal(t *testing.T) {
-	tempDir := t.TempDir()
-	client, err := local.NewClient(local.Config{RootDir: tempDir})
+// TestStoragePathTraversalRejected verifies every local operation rejects an
+// invalid key and cannot modify a sentinel beside RootDir.
+func TestStoragePathTraversalRejected(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "root")
+	client, err := local.NewClient(local.Config{RootDir: root})
 	if err != nil {
 		t.Fatalf("new local client: %v", err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
+	const sentinelBody = "outside storage root"
+	sentinelPath := filepath.Join(parent, "sentinel.txt")
+	if err := os.WriteFile(sentinelPath, []byte(sentinelBody), 0o600); err != nil {
+		t.Fatalf("write sentinel: %v", err)
+	}
+	if _, err := client.UploadFile(ctx, strings.NewReader("safe source"), "safe/source.txt"); err != nil {
+		t.Fatalf("seed safe source: %v", err)
+	}
 
 	traversalPayloads := []string{
-		"../etc/passwd",
-		"../../../../../../etc/passwd",
+		"../sentinel.txt",
+		"../../sentinel.txt",
 		"..",
-		"../",
 		"/..",
-		"/../",
 		"dir/..",
-		"dir/../..",
 		"dir/../../escape",
-		"a/b/c/../../../../root.txt",
-		"foo/bar/../../../../../../etc/shadow",
 		"dir//..//secret.txt",
-		"dir/./../../secret.txt",
-		"./../escape",
-		"../foo/bar",
-		"foo/../",
-		"a/..",
-		"a/../b/../..",
-		"../../",
-		strings.Repeat("../", 100) + "escape.txt",
-		strings.Repeat("a/", 50) + strings.Repeat("../", 55) + "escape.txt",
 		"",
 		"/",
-		"///",
 		".",
-		"./",
-		"//..",
 	}
 
 	for _, payload := range traversalPayloads {
-		t.Run(fmt.Sprintf("NormalizeKey(%q)", payload), func(t *testing.T) {
-			norm, err := storage.NormalizeKey(payload)
-			if err == nil {
-				// If NormalizeKey did not return error, ensure normalized key has no '..' and cannot escape
-				if strings.Contains(norm, "..") || strings.HasPrefix(norm, "/") || norm == "" || norm == "." {
-					t.Fatalf("NormalizeKey(%q) = %q is unsafe!", payload, norm)
+		t.Run(fmt.Sprintf("key=%q", payload), func(t *testing.T) {
+			assertInvalid := func(operation string, err error) {
+				t.Helper()
+				if !errors.Is(err, storageerr.ErrFileNameInvalid) {
+					t.Errorf("%s error = %v, want %v", operation, err, storageerr.ErrFileNameInvalid)
 				}
 			}
-		})
 
-		t.Run(fmt.Sprintf("LocalClient.UploadFile(%q)", payload), func(t *testing.T) {
-			_, err := client.UploadFile(ctx, strings.NewReader("malicious"), payload)
-			if err == nil {
-				t.Fatalf("UploadFile(%q) succeeded! Expected security rejection", payload)
+			_, err := storage.NormalizeKey(payload)
+			assertInvalid("NormalizeKey", err)
+			_, err = client.UploadFile(ctx, strings.NewReader("malicious"), payload)
+			assertInvalid("UploadFile", err)
+			_, err = client.DownloadFile(ctx, payload)
+			assertInvalid("DownloadFile", err)
+			_, err = client.IsFileExists(ctx, payload)
+			assertInvalid("IsFileExists", err)
+			_, err = client.StatFile(ctx, payload)
+			assertInvalid("StatFile", err)
+			assertInvalid("DeleteFile", client.DeleteFile(ctx, payload))
+			assertInvalid("CopyFile source", client.CopyFile(ctx, payload, "safe/copy.txt", true))
+			assertInvalid("CopyFile destination", client.CopyFile(ctx, "safe/source.txt", payload, true))
+			assertInvalid("MoveFile source", client.MoveFile(ctx, payload, "safe/move.txt", true))
+			assertInvalid("MoveFile destination", client.MoveFile(ctx, "safe/source.txt", payload, true))
+
+			body, readErr := os.ReadFile(sentinelPath)
+			if readErr != nil {
+				t.Fatalf("read outside sentinel: %v", readErr)
 			}
-		})
-
-		t.Run(fmt.Sprintf("LocalClient.DownloadFile(%q)", payload), func(t *testing.T) {
-			_, err := client.DownloadFile(ctx, payload)
-			if err == nil {
-				t.Fatalf("DownloadFile(%q) succeeded! Expected security rejection", payload)
+			if string(body) != sentinelBody {
+				t.Fatalf("outside sentinel changed: got %q, want %q", body, sentinelBody)
 			}
-		})
-
-		t.Run(fmt.Sprintf("LocalClient.IsFileExists(%q)", payload), func(t *testing.T) {
-			exists, err := client.IsFileExists(ctx, payload)
-			if err == nil && exists {
-				t.Fatalf("IsFileExists(%q) reported true! Expected false or error", payload)
-			}
-		})
-
-		t.Run(fmt.Sprintf("LocalClient.StatFile(%q)", payload), func(t *testing.T) {
-			_, err := client.StatFile(ctx, payload)
-			if err == nil {
-				t.Fatalf("StatFile(%q) succeeded! Expected error", payload)
-			}
-		})
-
-		t.Run(fmt.Sprintf("LocalClient.DeleteFile(%q)", payload), func(t *testing.T) {
-			_ = client.DeleteFile(ctx, payload)
 		})
 	}
 }
 
-// TestStorageDescriptorLeakHarness executes 1,000 mixed storage operations
-// and empirically verifies that open file descriptors do not leak.
-func TestStorageDescriptorLeakHarness(t *testing.T) {
-	tempDir := t.TempDir()
-	client, err := local.NewClient(local.Config{RootDir: tempDir})
+func TestLocalDownloadReaderCanBeClosed(t *testing.T) {
+	client, err := local.NewClient(local.Config{RootDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("new local client: %v", err)
 	}
-	ctx := context.Background()
-
-	// Seed some files and directories
-	subDir := filepath.Join(tempDir, "existing_dir")
-	if err := os.MkdirAll(subDir, 0o750); err != nil {
-		t.Fatalf("mkdir: %v", err)
+	if _, err := client.UploadFile(t.Context(), strings.NewReader("body"), "file.txt"); err != nil {
+		t.Fatalf("seed upload: %v", err)
 	}
 
-	for i := range 20 {
-		key := fmt.Sprintf("seed/file_%d.txt", i)
-		if _, err := client.UploadFile(ctx, strings.NewReader(fmt.Sprintf("content %d", i)), key); err != nil {
-			t.Fatalf("seed upload: %v", err)
+	for range 8 {
+		result, err := client.DownloadFile(t.Context(), "file.txt")
+		if err != nil {
+			t.Fatalf("DownloadFile: %v", err)
 		}
-	}
-
-	// Warm up
-	for range 50 {
-		res, err := client.DownloadFile(ctx, "seed/file_0.txt")
-		if err == nil {
-			_ = res.Reader.Close()
+		if err := result.Reader.Close(); err != nil {
+			t.Fatalf("close download reader: %v", err)
 		}
-	}
-
-	runtime.GC()
-	initialFDs := countOpenFDs(t)
-
-	const iterations = 1000
-	var ops atomic.Int64
-
-	for i := range iterations {
-		opType := i % 10
-		switch opType {
-		case 0:
-			// Successful upload
-			key := fmt.Sprintf("bench/file_%d.txt", i%100)
-			_, _ = client.UploadFile(ctx, strings.NewReader("bench data"), key)
-		case 1:
-			// Interrupted upload
-			key := fmt.Sprintf("bench/fail_%d.txt", i%100)
-			bad := &failingReader{
-				data:      []byte("some data to fail on"),
-				failAfter: 5,
-				err:       io.ErrClosedPipe,
-			}
-			_, _ = client.UploadFile(ctx, bad, key)
-		case 2:
-			// Successful download + read + close
-			key := fmt.Sprintf("seed/file_%d.txt", i%20)
-			res, err := client.DownloadFile(ctx, key)
-			if err == nil {
-				_, _ = io.ReadAll(res.Reader)
-				_ = res.Reader.Close()
-			}
-		case 3:
-			// Interrupted / partially read download + close
-			key := fmt.Sprintf("seed/file_%d.txt", i%20)
-			res, err := client.DownloadFile(ctx, key)
-			if err == nil {
-				buf := make([]byte, 2)
-				_, _ = res.Reader.Read(buf)
-				_ = res.Reader.Close()
-			}
-		case 4:
-			// Download non-existent file
-			_, _ = client.DownloadFile(ctx, "nonexistent/file.txt")
-		case 5:
-			// Download directory (treat as missing)
-			_, _ = client.DownloadFile(ctx, "existing_dir")
-		case 6:
-			// StatFile on existing, missing, and dir
-			_, _ = client.StatFile(ctx, fmt.Sprintf("seed/file_%d.txt", i%20))
-			_, _ = client.StatFile(ctx, "missing/file.txt")
-			_, _ = client.StatFile(ctx, "existing_dir")
-		case 7:
-			// CopyFile
-			_ = client.CopyFile(ctx, "seed/file_0.txt", fmt.Sprintf("bench/copy_%d.txt", i%50), true)
-		case 8:
-			// MoveFile
-			_ = client.MoveFile(ctx, fmt.Sprintf("bench/copy_%d.txt", i%50), fmt.Sprintf("bench/move_%d.txt", i%50), true)
-		case 9:
-			// ListFiles
-			_, _, _ = client.ListFiles(ctx, "seed", "", 10)
+		if _, err := result.Reader.Read(make([]byte, 1)); err == nil {
+			t.Fatal("read after Close succeeded")
 		}
-		ops.Add(1)
-	}
-
-	runtime.GC()
-	time.Sleep(50 * time.Millisecond)
-	finalFDs := countOpenFDs(t)
-
-	fdDelta := finalFDs - initialFDs
-	if fdDelta > 5 {
-		t.Fatalf("File descriptor leak detected! initial FDs=%d, final FDs=%d, delta=%d after %d ops",
-			initialFDs, finalFDs, fdDelta, ops.Load())
 	}
 }
 

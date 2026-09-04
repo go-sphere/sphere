@@ -230,12 +230,18 @@ func TestS3ClientMoveFileSelfMove(t *testing.T) {
 		t.Fatalf("MoveFile() error = %v", err)
 	}
 
-	existsOld, _ := client.IsFileExists(ctx, key)
+	existsOld, err := client.IsFileExists(ctx, key)
+	if err != nil {
+		t.Fatalf("IsFileExists(old key) error = %v", err)
+	}
 	if existsOld {
 		t.Fatal("old key still exists after MoveFile")
 	}
 
-	existsNew, _ := client.IsFileExists(ctx, destKey)
+	existsNew, err := client.IsFileExists(ctx, destKey)
+	if err != nil {
+		t.Fatalf("IsFileExists(new key) error = %v", err)
+	}
 	if !existsNew {
 		t.Fatal("new key does not exist after MoveFile")
 	}
