@@ -107,14 +107,12 @@ func WithJson[T any](handler func(ctx httpx.Context) (T, error)) httpx.Handler {
 			return err
 		}
 		// Respect a status code the handler may have set via ctx.Status
-		// (e.g. 201 Created, 204 No Content). httpx exposes the currently
-		// buffered status through the optional ResponseInfo capability; when it
-		// is unavailable or unset we fall back to 200 OK.
+		// (e.g. 201 Created, 204 No Content). ResponseInfo is part of the
+		// httpx.Context contract; when the status is unset or out of range we
+		// fall back to 200 OK.
 		status := http.StatusOK
-		if ri, ok := httpx.AsResponseInfo(ctx); ok {
-			if code := ri.StatusCode(); code >= 100 && code <= 599 {
-				status = code
-			}
+		if code := ctx.StatusCode(); code >= 100 && code <= 599 {
+			status = code
 		}
 		return ctx.JSON(status, DataResponse[T]{
 			Success: true,
