@@ -63,6 +63,15 @@ func AbortWithJsonError(ctx httpx.Context, err error) {
 		})
 		return
 	}
+	status, resp := buildErrorResponse(err)
+	_ = ctx.JSON(status, resp)
+}
+
+// buildErrorResponse maps err to an HTTP status and the standard
+// ErrorResponse envelope using the configured parser and debug mode. It is
+// shared by AbortWithJsonError and the in-stream SSE error frame so both
+// paths render errors identically.
+func buildErrorResponse(err error) (int, ErrorResponse) {
 	code, status, message := (*defaultErrorParser.Load())(err)
 	if status < 100 || status > 599 {
 		status = http.StatusInternalServerError
@@ -96,5 +105,5 @@ func AbortWithJsonError(ctx httpx.Context, err error) {
 	if debugMode.Load() {
 		resp.Error = err.Error()
 	}
-	_ = ctx.JSON(int(status), resp)
+	return int(status), resp
 }

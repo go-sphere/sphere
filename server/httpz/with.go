@@ -24,6 +24,14 @@
 //
 // EndpointsToMatches / MatchOperation turn generated [operation, method, path]
 // routes into a matcher for middleware/selector.
+//
+// # Streaming
+//
+// WithSSE wraps two-phase server-streaming handlers as Server-Sent Events
+// responses with lazy commit: prepare/bind errors and stream errors before
+// the first message render as regular JSON error statuses, later failures
+// arrive in-stream as a terminal "error" event, and successful streams end
+// with a "done" event. See sse.go for the full contract.
 package httpz
 
 import (
