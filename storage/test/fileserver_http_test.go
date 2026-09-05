@@ -339,6 +339,7 @@ type miniContext struct {
 	r      *http.Request
 	params map[string]string
 	store  map[string]any
+	status int
 }
 
 func newMiniContext(ctx context.Context, w http.ResponseWriter, r *http.Request, params map[string]string) *miniContext {
@@ -460,7 +461,21 @@ func (c *miniContext) BindHeader(dst any) error {
 }
 
 func (c *miniContext) Status(code int) {
+	c.writeHeader(code)
+}
+
+// writeHeader records the status so StatusCode (httpx.ResponseInfo, part of
+// the Context contract) can report it.
+func (c *miniContext) writeHeader(code int) {
+	c.status = code
 	c.w.WriteHeader(code)
+}
+
+func (c *miniContext) StatusCode() int {
+	if c.status == 0 {
+		return http.StatusOK
+	}
+	return c.status
 }
 
 func (c *miniContext) SetHeader(key, value string) {
@@ -473,32 +488,32 @@ func (c *miniContext) SetCookie(cookie *http.Cookie) {
 
 func (c *miniContext) JSON(code int, v any) error {
 	c.w.Header().Set("Content-Type", "application/json")
-	c.w.WriteHeader(code)
+	c.writeHeader(code)
 	return json.NewEncoder(c.w).Encode(v)
 }
 
 func (c *miniContext) Text(code int, s string) error {
 	c.w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	c.w.WriteHeader(code)
+	c.writeHeader(code)
 	_, err := io.WriteString(c.w, s)
 	return err
 }
 
 func (c *miniContext) NoContent(code int) error {
-	c.w.WriteHeader(code)
+	c.writeHeader(code)
 	return nil
 }
 
 func (c *miniContext) Bytes(code int, b []byte, contentType string) error {
 	c.w.Header().Set("Content-Type", contentType)
-	c.w.WriteHeader(code)
+	c.writeHeader(code)
 	_, err := c.w.Write(b)
 	return err
 }
 
 func (c *miniContext) DataFromReader(code int, contentType string, r io.Reader, size int) error {
 	c.w.Header().Set("Content-Type", contentType)
-	c.w.WriteHeader(code)
+	c.writeHeader(code)
 	if size >= 0 {
 		_, err := io.CopyN(c.w, r, int64(size))
 		if err != nil && !errors.Is(err, io.EOF) {
@@ -516,6 +531,7 @@ func (c *miniContext) File(filePath string) error {
 }
 
 func (c *miniContext) Redirect(code int, location string) error {
+	c.status = code
 	http.Redirect(c.w, c.r, location, code)
 	return nil
 }
