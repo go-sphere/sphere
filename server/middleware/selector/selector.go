@@ -4,6 +4,12 @@
 //
 // NewSelectorMiddleware returns one wrapper per input middleware, not a
 // single middleware. Empty AND matcher is true; empty OR matcher is false.
+//
+// Composition warning: httpz.MatchOperation fails closed — it reports true
+// when the route pattern is indeterminate. Wrapping it in
+// NewLogicalNotMatcher inverts that into "skip the middleware", which is the
+// unsafe direction. To express "everything except X", select X positively
+// and attach the middleware to the outer group instead of using Not.
 package selector
 
 import (

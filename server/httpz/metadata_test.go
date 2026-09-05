@@ -24,6 +24,12 @@ func (m *matchFakeContext) FullPath() string {
 	return m.fullPath
 }
 
+// Path backs the fail-closed warning log, which reports the raw request path
+// when the route pattern is unavailable.
+func (m *matchFakeContext) Path() string {
+	return "/raw" + m.fullPath
+}
+
 // TestMatchOperation pins the endpoint-matching helper: the operation must match
 // on method and route pattern together, and only listed operations may pass.
 func TestMatchOperation(t *testing.T) {
@@ -31,7 +37,8 @@ func TestMatchOperation(t *testing.T) {
 		{"create", http.MethodPost, "/users"},
 		{"read", http.MethodGet, "/users"},
 		{"list", http.MethodGet, "/users/"},
-	}, "create", "read")
+		{"download", http.MethodGet, "/files/*name"},
+	}, "create", "read", "download")
 
 	tests := []struct {
 		name     string
@@ -44,6 +51,13 @@ func TestMatchOperation(t *testing.T) {
 		{name: "unlisted operation", method: http.MethodGet, fullPath: "/api/users/", want: false},
 		{name: "wrong method", method: http.MethodDelete, fullPath: "/api/users", want: false},
 		{name: "wrong path", method: http.MethodPost, fullPath: "/api/orders", want: false},
+		// Fail closed: an empty route pattern must report a hit so gated
+		// middleware still runs (audit B7).
+		{name: "indeterminate route fails closed", method: http.MethodGet, fullPath: "", want: true},
+		// echox/fiberx rewrite "/files/*name" to "/files/*" at registration
+		// time; both wildcard dialects must resolve to the operation.
+		{name: "named wildcard", method: http.MethodGet, fullPath: "/api/files/*name", want: true},
+		{name: "anonymous wildcard", method: http.MethodGet, fullPath: "/api/files/*", want: true},
 	}
 
 	for _, tt := range tests {
@@ -83,5 +97,46 @@ func TestEndpointsToMatchesPinsJoinPaths(t *testing.T) {
 	}
 	if get["/api/users/"] != "op" || get["/api/users"] != "other" {
 		t.Fatalf("joined paths = %v, want the slash to be preserved", get)
+	}
+}
+
+// TestEndpointsToMatchesWildcardDualForm pins the dual indexing of trailing
+// named wildcards: both the verbatim and the anonymous dialect must resolve,
+// and non-trailing or bare asterisks must stay untouched.
+func TestEndpointsToMatchesWildcardDualForm(t *testing.T) {
+	got := EndpointsToMatches("/api", [][3]string{
+		{"download", "GET", "/files/*name"},
+		{"static", "GET", "/assets"},
+	})
+
+	get := got["GET"]
+	if get["/api/files/*name"] != "download" || get["/api/files/*"] != "download" {
+		t.Fatalf("wildcard forms = %v, want both /api/files/*name and /api/files/*", get)
+	}
+	if get["/api/assets"] != "static" {
+		t.Fatalf("static path missing: %v", get)
+	}
+	if len(get) != 3 {
+		t.Fatalf("got %d entries, want 3 (no spurious rewrites): %v", len(get), get)
+	}
+}
+
+func TestAnonymousWildcardPath(t *testing.T) {
+	cases := map[string]string{
+		"/files/*name":  "/files/*",
+		"/files/*":      "/files/*",
+		"/files":        "/files",
+		"/a/*x/tail":    "/a/*x/tail", // wildcard not in final segment: untouched
+		"/foo*bar":      "/foo*bar",   // not preceded by '/': untouched
+		"*root":         "*root",
+		"/":             "/",
+		"":              "",
+		"/deep/a/*rest": "/deep/a/*",
+		"/files/*name/": "/files/*name/", // trailing slash after wildcard: untouched
+	}
+	for in, want := range cases {
+		if got := anonymousWildcardPath(in); got != want {
+			t.Fatalf("anonymousWildcardPath(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
