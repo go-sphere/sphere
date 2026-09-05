@@ -280,6 +280,71 @@ func TestWithSSESendUnblocksWhenClientGone(t *testing.T) {
 	drainSSE(frames, result) // must not deadlock
 }
 
+// generatedWatchRequest/Response and the handler below replicate, shape for
+// shape, what protoc-gen-sphere emits for a server-streaming method. This
+// pins the contract between the generator template and the WithSSE API: if
+// either side drifts, this stops compiling or the wire format changes.
+type generatedWatchRequest struct {
+	Topic string `json:"topic" uri:"topic"`
+	Limit int64  `json:"limit" query:"limit"`
+}
+
+type generatedWatchResponse struct {
+	Event string `json:"event"`
+	Seq   int64  `json:"seq"`
+}
+
+type generatedStreamServer interface {
+	Watch(context.Context, *generatedWatchRequest, func(*generatedWatchResponse) error) error
+}
+
+func generatedWatchHandler(srv generatedStreamServer) httpx.Handler {
+	return WithSSE(func(ctx httpx.Context) (SSEStream[*generatedWatchResponse], error) {
+		var in generatedWatchRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return nil, err
+		}
+		if err := ctx.BindURI(&in); err != nil {
+			return nil, err
+		}
+		stdCtx := ctx.Context()
+		return func(send func(*generatedWatchResponse) error) error {
+			return srv.Watch(stdCtx, &in, send)
+		}, nil
+	})
+}
+
+type fakeStreamServer struct{}
+
+func (fakeStreamServer) Watch(ctx context.Context, req *generatedWatchRequest, send func(*generatedWatchResponse) error) error {
+	for i := int64(0); i < req.Limit; i++ {
+		if err := send(&generatedWatchResponse{Event: req.Topic, Seq: i}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestWithSSEGeneratedShape(t *testing.T) {
+	for name, newEngine := range sseEngines() {
+		t.Run(name, func(t *testing.T) {
+			engine := newEngine()
+			engine.Group("").GET("/watch/:topic", generatedWatchHandler(fakeStreamServer{}))
+
+			status, _, body := sseDo(t, engine, "/watch/news?limit=2")
+			if status != http.StatusOK {
+				t.Fatalf("status = %d, body=%q", status, body)
+			}
+			want := "data: {\"event\":\"news\",\"seq\":0}\n\n" +
+				"data: {\"event\":\"news\",\"seq\":1}\n\n" +
+				"event: done\ndata: {}\n\n"
+			if body != want {
+				t.Fatalf("body = %q, want %q", body, want)
+			}
+		})
+	}
+}
+
 // TestWithSSELiveDisconnectUnblocksProducer runs a real server and drops the
 // client mid-stream: the producer's send must return an error shortly after,
 // proving the pump's abort path unblocks the producer goroutine instead of
