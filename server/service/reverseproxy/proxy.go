@@ -12,6 +12,15 @@
 // Cache save runs on a context detached from the request (default 30s).
 // Save failure does not affect the client stream. Load errors other than
 // miss are logged and the request goes upstream.
+//
+// To mount the proxy on an httpx engine, adapt it as a net/http handler and
+// register it through httpz.MountStdAll:
+//
+//	proxy, err := reverseproxy.CreateCacheReverseProxy(cache,
+//		reverseproxy.WithTargetURL(target))
+//	if err != nil { ... }
+//	handler := http.HandlerFunc(reverseproxy.ServeCacheReverseProxy(cache, proxy))
+//	err = httpz.MountStdAll(engine.Group(""), "/proxy/*filepath", handler, http.MethodGet)
 package reverseproxy
 
 import (

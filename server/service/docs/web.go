@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/sphere/server/httpz"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"github.com/swaggo/swag"
 )
@@ -41,6 +42,7 @@ type Config struct {
 type Web struct {
 	config  Config
 	server  *http.Server
+	engine  httpx.Engine
 	mu      sync.Mutex
 	stopped bool
 }
@@ -70,14 +72,58 @@ func NewWebServer(conf Config) *Web {
 	}
 }
 
+// NewWebServerWithEngine serves the documentation on a caller-provided
+// httpx.Engine instead of a private http.Server: routes are registered
+// immediately via Register, and Start/Stop delegate to the engine, which
+// keeps the engine's single-use lifecycle (Start after Stop returns
+// httpx.ErrEngineClosed). conf.Address is ignored — the engine owns the
+// listener. A nil engine panics: that is a programming error.
+func NewWebServerWithEngine(conf Config, engine httpx.Engine) (*Web, error) {
+	if engine == nil {
+		panic("docs: NewWebServerWithEngine requires a non-nil engine")
+	}
+	w := &Web{
+		config: conf,
+		engine: engine,
+	}
+	if err := w.Register(engine.Group("")); err != nil {
+		return nil, err
+	}
+	return w, nil
+}
+
+// Register mounts the documentation index, Swagger UI, and API reverse
+// proxies (with the same relaxed CORS wrapper as the standalone server) onto
+// any httpx.Registrar that supports mounting net/http handlers.
+//
+// The underlying http.ServeMux dispatches on the full request path, so r
+// must be a root group; to mount under a prefix, wrap the registrar's routes
+// with http.StripPrefix before calling Register. Only the catch-all
+// "/*filepath" is registered — it also matches "/" on every official
+// adapter, and registering "/" alongside it makes gin's router panic. The
+// catch-all competes with other routes on the same engine (gin panics on
+// conflicting wildcards) — prefer a dedicated engine or port for docs.
+func (w *Web) Register(r httpx.Registrar) error {
+	handler, err := w.newHandler()
+	if err != nil {
+		return err
+	}
+	return httpz.MountStdAll(r, "/*filepath", handler)
+}
+
 // Identifier returns the service identifier for the documentation web server.
 func (w *Web) Identifier() string {
 	return "docs"
 }
 
 // Start serves the documentation index, Swagger UI, and reverse-proxied APIs.
-// A Start after Stop returns nil without listening.
+// In standalone mode a Start after Stop returns nil without listening; in
+// engine mode (NewWebServerWithEngine) lifecycle is delegated to the engine,
+// so a restart returns httpx.ErrEngineClosed instead.
 func (w *Web) Start(ctx context.Context) error {
+	if w.engine != nil {
+		return w.engine.Start()
+	}
 	handler, err := w.newHandler()
 	if err != nil {
 		return err
@@ -99,6 +145,9 @@ func (w *Web) Start(ctx context.Context) error {
 
 // Stop gracefully shuts down the documentation web server.
 func (w *Web) Stop(ctx context.Context) error {
+	if w.engine != nil {
+		return w.engine.Stop(ctx)
+	}
 	w.mu.Lock()
 	w.stopped = true
 	server := w.server
