@@ -27,7 +27,8 @@ Sphere is not meant to replace Go's standard toolchain, Makefiles, Buf, Docker, 
 - **`server/httpz`** - Response envelopes and handler wrappers on top of `httpx`.
 - **`server/middleware`** - Common middleware such as auth, CORS, online tracking, rate limiting, and middleware selectors.
 - **`cache`**, **`mq`**, **`scheduler`**, **`storage`** - Interfaces and default adapters for common service infrastructure.
-- **`log`**, **`confstore`**, **`infra`** - Practical wrappers for logging, configuration, and infrastructure clients.
+- **`log`** and **`log/logbuffer`** - Backend-agnostic logging plus a cursor-addressable in-memory tail for realtime delivery.
+- **`confstore`**, **`infra`** - Practical wrappers for configuration and infrastructure clients.
 
 ### Project Bootstrap and Templates
 
