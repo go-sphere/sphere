@@ -91,6 +91,69 @@ func TestCreateCacheReverseProxyRejectsInvalidConfiguration(t *testing.T) {
 }
 
 // TestServeCacheReverseProxy_NonGETNotCached tests that non-GET requests are not cached
+// TestServeCacheReverseProxy_PathRewritingDirectorStillHitsCache pins that the
+// cache key (and the cacheability check) are derived from the client request,
+// not the director-rewritten outbound request. A director that strips a path
+// prefix previously made the save-side key differ from the lookup-side key,
+// so the cache silently never hit.
+func TestServeCacheReverseProxy_PathRewritingDirectorStillHitsCache(t *testing.T) {
+	cache := setupTestCache(t)
+
+	backendCalls := 0
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backendCalls++
+		_, _ = w.Write([]byte("backend " + r.URL.Path))
+	}))
+	defer backend.Close()
+
+	backendURL, _ := url.Parse(backend.URL)
+	proxy, err := CreateCacheReverseProxy(
+		cache,
+		WithTargetURL(backendURL),
+		WithDirector(func(r *http.Request) {
+			// The upstream serves under /v1; the client sees /public. This
+			// rewrite must not change the cache key.
+			r.URL.Path = "/v1" + r.URL.Path
+		}),
+	)
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+	handler := ServeCacheReverseProxy(cache, proxy)
+
+	first := httptest.NewRequest(http.MethodGet, "/public/doc", nil)
+	firstRec := httptest.NewRecorder()
+	handler(firstRec, first)
+	if got := firstRec.Body.String(); got != "backend /v1/public/doc" {
+		t.Fatalf("first response = %q", got)
+	}
+
+	// The save runs detached from the request, so wait until the entry lands
+	// before issuing the second request.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		exists, err := cache.Exists(context.Background(), "/public/doc")
+		if err == nil && exists {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("cached entry did not appear: exists=%v err=%v", exists, err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// A second, identical client request must be served from the cache.
+	second := httptest.NewRequest(http.MethodGet, "/public/doc", nil)
+	secondRec := httptest.NewRecorder()
+	handler(secondRec, second)
+	if got := secondRec.Body.String(); got != "backend /v1/public/doc" {
+		t.Fatalf("second response = %q, want the cached first response", got)
+	}
+	if backendCalls != 1 {
+		t.Fatalf("backend calls = %d, want 1 (second request should hit the cache)", backendCalls)
+	}
+}
+
 func TestServeCacheReverseProxy_NonGETNotCached(t *testing.T) {
 	cache := setupTestCache(t)
 

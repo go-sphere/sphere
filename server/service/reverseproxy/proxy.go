@@ -51,6 +51,22 @@ type (
 	ResponseCacheCheckFunc func(*http.Response) bool
 )
 
+// inboundRequestKey is the context key under which CreateCacheReverseProxy
+// stashes the client request for ModifyResponse to recover.
+type inboundRequestKey struct{}
+
+// inboundRequest returns the client request stored by Rewrite, or req itself
+// when none was stored (ModifyResponse reached outside this proxy's Rewrite).
+func inboundRequest(req *http.Request) *http.Request {
+	if req == nil {
+		return nil
+	}
+	if in, ok := req.Context().Value(inboundRequestKey{}).(*http.Request); ok && in != nil {
+		return in
+	}
+	return req
+}
+
 // defaultSaveTimeout bounds how long persisting one response to the cache may
 // take. The save runs on a context detached from the request, so nothing else
 // would ever stop it.
@@ -270,6 +286,14 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 			req.Out.Host = req.In.Host
 			req.Out.Header["X-Forwarded-For"] = req.In.Header["X-Forwarded-For"]
 			req.SetXForwarded()
+			// Stash the client request before the director mutates the outbound
+			// one. Cache key and cacheability are properties of what the client
+			// asked for; deriving them from the outbound request would diverge
+			// from the lookup path (ServeCacheReverseProxy keys on the inbound
+			// request) as soon as a director rewrites the path — and would let a
+			// director that strips credentials make a private response look
+			// cacheable to the default checker.
+			req.Out = req.Out.WithContext(context.WithValue(req.Out.Context(), inboundRequestKey{}, req.In))
 			if conf.director != nil {
 				conf.director(req.Out)
 			}
@@ -278,6 +302,10 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 
 	cacheFlags := sync.Map{}
 	proxy.ModifyResponse = func(resp *http.Response) error {
+		// resp.Request is the outbound request; recover the client request
+		// stored in Rewrite so the checker and key derivation match the cache
+		// lookup path.
+		resp.Request = inboundRequest(resp.Request)
 		if !conf.checker(resp) {
 			return nil
 		}
