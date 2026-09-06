@@ -28,13 +28,10 @@ func TestOnlineLifecycleContract(t *testing.T) {
 }
 
 // TestSweepReclaimsExpiredEntries checks that entries do not survive their TTL
-// once the tracker is running.
-//
-// It observes through OnlineCount, which reclaims as a side effect, so it
-// cannot distinguish "the sweep reclaimed it" from "this call did". What it
-// pins is the externally promised behaviour — an expired entry stops being
-// counted — and, with the interface assertion above, that the sweep has
-// somewhere to run.
+// once the tracker is running. It observes through OnlineCount, while the
+// periodic Trim (Start) is what physically reclaims; what it pins is the
+// externally promised behaviour — an expired entry stops being counted — and,
+// with the interface assertion above, that the sweep has somewhere to run.
 func TestSweepReclaimsExpiredEntries(t *testing.T) {
 	o := NewOnline(WithTrimInterval(10 * time.Millisecond))
 
@@ -71,6 +68,24 @@ func TestZeroValueStartErrors(t *testing.T) {
 	var o Online
 	if err := o.Start(context.Background()); !errors.Is(err, ErrNotInitialized) {
 		t.Fatalf("Start on zero-value Online: got %v, want ErrNotInitialized", err)
+	}
+}
+
+// TestZeroValueMiddlewareAndCountDoNotPanic covers the request-path methods on a
+// zero-value Online. They previously dereferenced the nil backing cache and
+// panicked mid-request; the zero value must fail diagnosably or report nothing
+// instead.
+func TestZeroValueMiddlewareAndCountDoNotPanic(t *testing.T) {
+	var o Online
+
+	if count := o.OnlineCount(); count != 0 {
+		t.Fatalf("OnlineCount on zero-value Online = %d, want 0", count)
+	}
+
+	mw := o.Middleware(func(ctx httpx.Context) string { return "k" }, time.Minute)
+	err := mw(&fakeContext{})
+	if !errors.Is(err, ErrNotInitialized) {
+		t.Fatalf("Middleware on zero-value Online: got %v, want ErrNotInitialized", err)
 	}
 }
 

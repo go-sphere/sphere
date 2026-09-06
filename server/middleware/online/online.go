@@ -82,6 +82,14 @@ func NewOnline(options ...Option) *Online {
 // It extracts a key from the request context and updates the online status with the specified TTL.
 func (l *Online) Middleware(keygen func(ctx httpx.Context) string, ttl time.Duration) httpx.Middleware {
 	return func(ctx httpx.Context) error {
+		if l.cache == nil {
+			// A zero-value Online has no backing cache; dereferencing it
+			// panics on the request path. Start already fails fast with
+			// ErrNotInitialized, so reaching a request through the zero value
+			// means the tracker was never constructed with NewOnline — fail
+			// the request with the same diagnosable error.
+			return ErrNotInitialized
+		}
 		key := keygen(ctx)
 		if key != "" {
 			_ = l.cache.SetWithTTL(ctx.Context(), key, struct{}{}, ttl)
@@ -90,9 +98,14 @@ func (l *Online) Middleware(keygen func(ctx httpx.Context) string, ttl time.Dura
 	}
 }
 
-// OnlineCount returns the current number of online entities.
-// This count reflects entries that have not yet expired from the cache.
+// OnlineCount returns the number of keys currently resident in the tracker.
+// The count is approximate: expired entries stay until Start's periodic Trim
+// reclaims them, so a caller that polls this as a metric may briefly over-count.
+// An Online built via its zero value tracks nothing, so the count is 0.
 func (l *Online) OnlineCount() int {
+	if l.cache == nil {
+		return 0
+	}
 	return l.cache.Count()
 }
 
