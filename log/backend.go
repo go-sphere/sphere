@@ -1,6 +1,9 @@
 package log
 
-import "context"
+import (
+	"context"
+	"log/slog"
+)
 
 // Level is a backend-agnostic log level.
 type Level int8
@@ -18,4 +21,11 @@ type Backend interface {
 	Log(ctx context.Context, level Level, msg string, attrs ...Attr)
 	Sync() error
 	With(options ...Option) Backend
+}
+
+// slogBackend is an optional capability for backends that can expose a
+// *slog.Logger, allowing WithLoggerBackend to also route the standard library's
+// slog output through the configured backend.
+type SlogBackend interface {
+	SlogLogger(options ...Option) *slog.Logger
 }

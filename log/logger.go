@@ -125,6 +125,12 @@ func (l *coreLogger) With(options ...Option) Logger {
 	return &coreLogger{backend: l.backend.With(options...)}
 }
 
+// NewLogger wraps a Backend as a Logger. Use it at the boundary where a
+// caller has a Backend but a consumer wants BaseLogger / Logger.
+func NewLogger(backend Backend) Logger {
+	return &coreLogger{backend: backend}
+}
+
 func (l *coreLogger) Sync() error {
 	return l.backend.Sync()
 }

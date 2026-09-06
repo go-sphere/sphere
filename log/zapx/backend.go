@@ -135,6 +135,10 @@ func (z *Backend) write(logger *zap.Logger, level corelog.Level, msg string, fie
 // backend does not own the file handle, so Close on it is a no-op.
 // log.WithMinLevel is ignored; the zap level is fixed by Config.Level.
 func (z *Backend) With(options ...corelog.Option) corelog.Backend {
+	return z.with(options...)
+}
+
+func (z *Backend) with(options ...corelog.Option) *Backend {
 	resolved := corelog.NewOptions(options...)
 	logger := z.zapLogger
 	if resolved.Name != "" {
@@ -190,9 +194,12 @@ func (z *Backend) SlogLogger(options ...corelog.Option) *slog.Logger {
 }
 
 // ZapLogger returns the raw *zap.Logger without the extra caller skip used
-// by Backend.Log.
-func (z *Backend) ZapLogger() *zap.Logger {
-	return z.zapLogger
+// by Backend.Log. Options derive a logger without changing this backend.
+func (z *Backend) ZapLogger(options ...corelog.Option) *zap.Logger {
+	if len(options) == 0 {
+		return z.zapLogger
+	}
+	return z.with(options...).zapLogger
 }
 
 // consoleSyncer drops the error from syncing the console sink.

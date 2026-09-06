@@ -108,13 +108,6 @@ func AddAfterStop(f Hook) Option {
 	}
 }
 
-// slogBackend is an optional capability for backends that can expose a
-// *slog.Logger, allowing WithLoggerBackend to also route the standard library's
-// slog output through the configured backend.
-type slogBackend interface {
-	SlogLogger(options ...log.Option) *slog.Logger
-}
-
 // WithLoggerBackend configures automatic logger initialization with the provided backend.
 // It installs the backend as the global logger before the application builder
 // runs and syncs it after stop (or after a build failure).
@@ -125,7 +118,7 @@ func WithLoggerBackend(backend log.Backend) Option {
 	return func(o *options) {
 		o.beforeBuild = append(o.beforeBuild, func(context.Context) error {
 			log.InitWithBackends(backend)
-			if sb, ok := backend.(slogBackend); ok {
+			if sb, ok := backend.(log.SlogBackend); ok {
 				slog.SetDefault(sb.SlogLogger())
 			}
 			return nil

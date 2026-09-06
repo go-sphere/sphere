@@ -55,6 +55,23 @@ func installRecorder(tb testing.TB) *recordingBackend {
 	return rec
 }
 
+func TestNewLoggerRoutesToBackend(t *testing.T) {
+	rec := &recordingBackend{}
+	lg := NewLogger(rec)
+	lg.Info("hello", String("k", "v"))
+
+	got := rec.last(t)
+	if got.level != LevelInfo {
+		t.Errorf("level = %v, want LevelInfo", got.level)
+	}
+	if got.msg != "hello" {
+		t.Errorf("msg = %q, want hello", got.msg)
+	}
+	if len(got.attrs) != 1 || got.attrs[0].Key != "k" || got.attrs[0].Value.String() != "v" {
+		t.Errorf("attrs = %+v, want k=v", got.attrs)
+	}
+}
+
 // TestPackageLevelRouting pins which level each package-level function emits at.
 //
 // The facade is twelve near-identical one-line bodies that differ only in the
