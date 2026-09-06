@@ -29,6 +29,11 @@ var ErrInvalidNamespace = errors.New("nscache: namespace must not contain ':'")
 // (mcache, badgerdb, redis, nocache, CodecCache if the inner is a lister);
 // otherwise it returns cache.ErrNotSupported.
 //
+// Wrapping the shared cache in a namespace is the safe way to expose a
+// "clear cache" management action: the bare redis driver's DelAll is a
+// FlushDB of the selected database, which would also wipe mq/scheduler keys
+// sharing that DB.
+//
 // Namespaces must be flat and must not contain ":". Isolation is by key
 // prefix, so with namespaces "a" and "a:b" the keys of "a:b" also carry the
 // "a:" prefix, and DelAll or Keys on "a" would reach into "a:b".

@@ -1,10 +1,12 @@
 // Package mcache is a mutex-protected map cache.Cache driver with lazy TTL.
 //
 // No background janitor: expired entries are dropped on Get/GetDel/MultiGet/
-// Count. There is no capacity cap. Close is a no-op; later operations still
-// succeed. Implements cache.KeyLister. []byte values are cloned; other types
-// are stored as the caller's value. Get takes a write lock so it can delete
-// expired keys.
+// and bulk-reclaimed by Trim. There is no capacity cap. Close is a no-op;
+// later operations still succeed. Implements cache.KeyLister. []byte values
+// are cloned; other types are stored as the caller's value. Get takes a write
+// lock so it can delete expired keys; Count is a cheap read and does not
+// reclaim, so keep Trim on a timer in long-running processes (online.Start
+// does exactly this).
 package mcache
 
 import (
@@ -226,8 +228,22 @@ func keyToString[K comparable](k K) string {
 	return fmt.Sprint(k)
 }
 
-// Count drops expired entries and returns how many keys remain.
+// Count returns how many keys remain, without reclaiming expired entries. The
+// length is approximate: it can include keys past their TTL that no read has
+// touched yet. Expired-entry reclamation belongs to Trim (or the next
+// Get/GetDel/MultiGet that touches a key), and Count deliberately does not
+// sweep: as a read-mostly metric called from request-adjacent paths (an
+// online-presence counter), sweeping under the write lock on every call would
+// put an O(n) scan on the hot path and stall writers.
 func (t *Map[K, S]) Count() int {
+	t.rw.RLock()
+	defer t.rw.RUnlock()
+	return len(t.store)
+}
+
+// Trim drops expired entries. It is the boundedness half of the lazy-TTL
+// design: sweep on a timer, not on the read or write path.
+func (t *Map[K, S]) Trim() {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 
@@ -238,12 +254,6 @@ func (t *Map[K, S]) Count() int {
 			delete(t.expiration, key)
 		}
 	}
-	return len(t.store)
-}
-
-// Trim drops expired entries. It is Count without the returned length.
-func (t *Map[K, S]) Trim() {
-	_ = t.Count()
 }
 
 func (t *Map[K, S]) Exists(ctx context.Context, key K) (bool, error) {

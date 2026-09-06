@@ -108,10 +108,11 @@ func TestConcurrentExpiredReads(t *testing.T) {
 	wg.Wait()
 }
 
-// TestCountAndTrimReclaimExpired covers the only bulk reclamation path this
-// cache has. Expired entries stay resident in both maps until the key is
-// touched again or Count/Trim sweeps, so the sweep is asserted against the
-// internal maps rather than through Get.
+// TestCountAndTrimReclaimExpired covers the bulk reclamation path this cache
+// has. Expired entries stay resident in both maps until the key is touched
+// again or Trim sweeps, so the sweep is asserted against the internal maps
+// rather than through Get. Count is deliberately a cheap read: it may include
+// expired-but-resident entries, so the sweep must come from Trim.
 func TestCountAndTrimReclaimExpired(t *testing.T) {
 	ctx := context.Background()
 	c := NewByteCache()
@@ -128,17 +129,14 @@ func TestCountAndTrimReclaimExpired(t *testing.T) {
 		t.Fatalf("expired entry should still be resident before a sweep: store=%d", len(c.store))
 	}
 
-	if got := c.Count(); got != 1 {
-		t.Fatalf("Count mismatch: got=%d want=1", got)
+	// Count stays a read: it reports what is resident (including the expired
+	// key) and does not reclaim.
+	if got := c.Count(); got != 2 {
+		t.Fatalf("Count mismatch: got=%d want=2", got)
 	}
-	if len(c.store) != 1 || len(c.expiration) != 0 {
-		t.Fatalf("Count must drop expired entries: store=%d expiration=%d", len(c.store), len(c.expiration))
+	if len(c.store) != 2 {
+		t.Fatalf("Count must not drop expired entries: store=%d", len(c.store))
 	}
-
-	if err := c.SetWithTTL(ctx, "gone2", []byte("v"), time.Millisecond); err != nil {
-		t.Fatalf("SetWithTTL: %v", err)
-	}
-	time.Sleep(10 * time.Millisecond)
 
 	c.Trim()
 	if len(c.store) != 1 || len(c.expiration) != 0 {

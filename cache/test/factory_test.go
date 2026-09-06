@@ -15,6 +15,7 @@ import (
 	"github.com/go-sphere/sphere/cache/mcache"
 	"github.com/go-sphere/sphere/cache/memory"
 	"github.com/go-sphere/sphere/cache/nocache"
+	"github.com/go-sphere/sphere/cache/nscache"
 	"github.com/go-sphere/sphere/cache/redis"
 	"github.com/go-sphere/sphere/test/redistest"
 )
@@ -68,6 +69,21 @@ func statefulByteCacheFactories() []byteCacheFactory {
 				c := redis.NewByteCache(client)
 				tb.Cleanup(func() { _ = c.Close() })
 				return c
+			},
+		},
+		{
+			// nscache wraps an injected backend; its Close is a no-op, so the
+			// wrapped mcache (the only in-memory driver implementing KeyLister,
+			// which DelAll requires) is owned and closed by the factory.
+			// Registering it here pins that its namespace wrapping
+			// (DelAll/Keys/MultiDel) honours the same contract as the plain
+			// drivers.
+			name: "nscache(mcache)",
+			new: func(tb testing.TB) cache.ByteCache {
+				tb.Helper()
+				backend := mcache.NewByteCache()
+				tb.Cleanup(func() { _ = backend.Close() })
+				return nscache.NewNSCache[[]byte]("contract-ns", backend)
 			},
 		},
 	}
