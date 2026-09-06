@@ -83,5 +83,8 @@ func defaultCreateFileKey(ctx context.Context, server *FileServer, filename stri
 }
 
 func defaultUploadSuccessWithData(ctx httpx.Context, key, url string) error {
-	return ctx.JSON(200, httpz.DataResponse[UploadResult]{Data: UploadResult{Key: key, URL: url}})
+	// Success must be explicit: DataResponse.Success serializes without
+	// omitempty, so a zero value would report a successful upload as
+	// success:false, contradicting the envelope's own convention.
+	return ctx.JSON(200, httpz.DataResponse[UploadResult]{Success: true, Data: UploadResult{Key: key, URL: url}})
 }

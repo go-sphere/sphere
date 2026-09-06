@@ -2,10 +2,12 @@ package fileserver
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"strings"
 	"testing"
 
+	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/cache/memory"
 	"github.com/go-sphere/sphere/storage"
 )
@@ -85,6 +87,49 @@ func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
 			t.Fatal("expected error, got nil")
 		}
 	})
+}
+
+// successContext captures the JSON response body so the envelope can be
+// asserted. httpxContext aliases httpx.Context so embedding it does not create
+// a field named Context, which would shadow the interface's Context() method.
+type successContext struct {
+	httpxContext
+	body []byte
+}
+
+func (s *successContext) JSON(code int, v any) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	s.body = b
+	return nil
+}
+
+type httpxContext = httpx.Context
+
+// TestUploadSuccessEnvelopeHasSuccessTrue pins that the default upload success
+// writer reports the envelope's Success field as true. DataResponse.Success
+// serializes without omitempty, so forgetting to set it made every successful
+// upload come back as success:false.
+func TestUploadSuccessEnvelopeHasSuccessTrue(t *testing.T) {
+	ctx := &successContext{}
+	if err := defaultUploadSuccessWithData(ctx, "abc", "https://example.com/abc"); err != nil {
+		t.Fatalf("defaultUploadSuccessWithData: %v", err)
+	}
+	var resp struct {
+		Success bool         `json:"success"`
+		Data    UploadResult `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.body, &resp); err != nil {
+		t.Fatalf("unmarshal body %q: %v", ctx.body, err)
+	}
+	if !resp.Success {
+		t.Fatalf("success = false, want true (body %s)", ctx.body)
+	}
+	if resp.Data.Key != "abc" || resp.Data.URL != "https://example.com/abc" {
+		t.Fatalf("data = %+v, want key=abc url=https://example.com/abc", resp.Data)
+	}
 }
 
 func TestGenerateUploadAuth_RejectEmptyFileName(t *testing.T) {

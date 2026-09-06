@@ -116,6 +116,16 @@ func TestHandler_GenerateURL(t *testing.T) {
 			key:  "https://other.com/test.jpg",
 			want: "https://other.com/test.jpg",
 		},
+		{
+			name: "dotdot key is refused instead of folding outside the base",
+			key:  "../secret.png",
+			want: "",
+		},
+		{
+			name: "dotdot nested key is refused",
+			key:  "images/../../secret.png",
+			want: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -337,6 +347,30 @@ func TestHandler_ExtractKeyFromURLWithMode(t *testing.T) {
 			strict:    true,
 			want:      "images/photo.jpg",
 			wantErr:   false,
+		},
+		{
+			name:      "dotdot segment rejected in strict mode",
+			publicURL: "http://localhost:8080",
+			uri:       "http://localhost:8080/../secret.png",
+			strict:    true,
+			want:      "",
+			wantErr:   true,
+		},
+		{
+			name:      "encoded dotdot segment rejected",
+			publicURL: "http://localhost:8080",
+			uri:       "http://localhost:8080/%2e%2e/secret.png",
+			strict:    true,
+			want:      "",
+			wantErr:   true,
+		},
+		{
+			name:      "dotdot segment under base path rejected",
+			publicURL: "https://cdn.example.com/static",
+			uri:       "https://cdn.example.com/static/../secret.png",
+			strict:    true,
+			want:      "",
+			wantErr:   true,
 		},
 		{
 			name:      "http scheme with explicit default port",

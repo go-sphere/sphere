@@ -1,7 +1,10 @@
 // Package urlhandler joins object keys onto a public base URL and extracts
 // keys back. GenerateURL ignores params (the URLHandler interface accepts
 // them). Keys that already look like http:// or https:// are returned
-// unchanged. ExtractKeyFromURL is strict about host/path.
+// unchanged. ExtractKeyFromURL is strict about host/path. Keys containing a
+// ".." path segment are refused on both sides: drivers reject them, so a
+// stored key could never address an object, and JoinPath would silently fold
+// such a key outside the public base when rendering it.
 package urlhandler
 
 import (
@@ -15,6 +18,11 @@ var ErrHostVerificationFailed = fmt.Errorf("not verify host")
 
 // ErrorNotVerifyHost is an alias for ErrHostVerificationFailed for backwards compatibility.
 var ErrorNotVerifyHost = ErrHostVerificationFailed
+
+// ErrInvalidKeyPath is returned when an extracted key contains a ".." path
+// segment. Every storage driver refuses such keys, so persisting one would
+// diverge from the object it can never address.
+var ErrInvalidKeyPath = fmt.Errorf("invalid key path")
 
 // Handler provides URL generation and key extraction for storage backends.
 // It manages the relationship between storage keys and their public URLs.
@@ -66,6 +74,13 @@ func (n *Handler) generateURL(key string) string {
 	if hasHttpScheme(key) {
 		return key
 	}
+	if containsDotDot(key) {
+		// url.JoinPath would resolve ".." against the base and silently fold
+		// the URL to a sibling of the public base. No storage driver accepts
+		// such a key, so refuse to mint a URL for it instead of emitting one
+		// that addresses the wrong origin/path.
+		return ""
+	}
 	result, err := url.JoinPath(n.publicURLBase, key)
 	if err != nil {
 		return ""
@@ -110,7 +125,24 @@ func (n *Handler) ExtractKeyFromURLWithMode(uri string, strict bool) (string, er
 	if err != nil {
 		return "", err
 	}
+	if containsDotDot(key) {
+		// Drivers reject ".." segments (storage.NormalizeKey), so a key
+		// extracted here could never address an object — persisting it only
+		// produces a dirty value that later storage calls fail on.
+		return "", ErrInvalidKeyPath
+	}
 	return key, nil
+}
+
+// containsDotDot reports whether a decoded key contains a ".." path segment
+// (or its encoded alias, which PathUnescape has already folded to "..").
+func containsDotDot(key string) bool {
+	for segment := range strings.SplitSeq(key, "/") {
+		if segment == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 // ExtractKeyFromURL extracts the storage key from a URL with strict host verification enabled.
