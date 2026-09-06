@@ -125,6 +125,38 @@ func TestRateLimitWindowRolls(t *testing.T) {
 }
 
 // TestVerifyConsumesMatchedCode pins the one-time-use property.
+// TestSaveCodeClearsAnActiveFreeze pins that issuing a fresh code lifts a
+// standing freeze. The freeze protects the codes that were outstanding when
+// the guesses failed; the default code lifetime (5m) is shorter than the
+// default lockout window (15m), so without this a victim who re-requested a
+// code after being locked out would stay frozen until the old freeze elapsed —
+// by which time every code it protected had long expired.
+func TestSaveCodeClearsAnActiveFreeze(t *testing.T) {
+	const number = "13800000002"
+	s := newTestSystem()
+	if err := s.SaveCode(number, "111111", time.Minute); err != nil {
+		t.Fatalf("SaveCode: %v", err)
+	}
+	for range DefaultMaxAttempts {
+		s.Verify(number, "999999")
+	}
+	if _, ok := s.store.LockedUntil[number]; !ok {
+		t.Fatal("expected the number to be frozen")
+	}
+
+	// The owner requests a new code; the freeze must clear with the code it
+	// protected, and the fresh code must verify immediately.
+	if err := s.SaveCode(number, "222222", time.Minute); err != nil {
+		t.Fatalf("SaveCode after freeze: %v", err)
+	}
+	if _, ok := s.store.LockedUntil[number]; ok {
+		t.Error("a fresh code must clear the previous freeze")
+	}
+	if !s.Verify(number, "222222") {
+		t.Error("the fresh code must verify once the old freeze is cleared")
+	}
+}
+
 func TestVerifyConsumesMatchedCode(t *testing.T) {
 	const number = "13700000000"
 	s := newTestSystem()

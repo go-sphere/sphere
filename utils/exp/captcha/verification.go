@@ -180,6 +180,14 @@ func (s *VerificationSystem) SaveCode(number string, code string, expiresIn time
 	s.store.MinuteCounts[number]++
 	s.store.DailyCounts[number]++
 	s.store.FailedAttempts[number] = 0
+	// A freeze exists to protect the codes outstanding at the time of the
+	// failed guesses. Issuing a fresh code supersedes those old ones — the
+	// number now has a new credential the freeze would otherwise reject until
+	// it elapsed, which with a short code lifetime can outlive every code it
+	// was meant to protect. Clearing the freeze keeps the victim usable; the
+	// new code still gets a fresh failure budget because the counter reset
+	// above.
+	delete(s.store.LockedUntil, number)
 
 	newCaptcha := VerificationCode{
 		Code:      code,
