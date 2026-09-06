@@ -16,16 +16,23 @@ package authorizer
 
 import (
 	"context"
-
-	"golang.org/x/exp/constraints"
 )
+
+// integerish is the set of Go integer types plus string. It mirrors what
+// golang.org/x/exp/constraints.Integer unions with ~string would express,
+// inlined so the module does not depend on x/exp for a single constraint.
+type integerish interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+		~string
+}
 
 // UID represents valid user identifier types: integers or strings. These mirror
 // the identifier types used for database primary keys, which are effectively only
 // integer or string. For IDs that are neither (for example uuid.UUID), use the
 // string form via its String() representation.
 type UID interface {
-	constraints.Integer | ~string
+	integerish
 }
 
 // Claims represents the interface for extracting user information from authentication tokens.
