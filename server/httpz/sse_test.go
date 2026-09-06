@@ -345,6 +345,115 @@ func TestWithSSEGeneratedShape(t *testing.T) {
 	}
 }
 
+// TestWithSSEUnencodableFirstMessagePins the pre-commit encode check: a first
+// message that cannot be JSON-serialized is a handler programming error and
+// must surface as a plain JSON 500 — not as a committed 200 stream that ends
+// up empty except for a log line.
+func TestWithSSEUnencodableFirstMessagePins(t *testing.T) {
+	for name, newEngine := range sseEngines() {
+		t.Run(name, func(t *testing.T) {
+			type unencodable struct {
+				Fn func()
+			}
+			engine := newEngine()
+			engine.Group("").GET("/sse", WithSSE(func(ctx httpx.Context) (SSEStream[unencodable], error) {
+				return func(send func(unencodable) error) error {
+					return send(unencodable{Fn: func() {}})
+				}, nil
+			}, WithSSEHeartbeat(0)))
+
+			status, header, body := sseDo(t, engine, "/sse")
+			if status != http.StatusInternalServerError {
+				t.Fatalf("status = %d, body=%q, want JSON 500 for an unencodable first message", status, body)
+			}
+			if ct := header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+				t.Fatalf("content-type = %q, want JSON error", ct)
+			}
+		})
+	}
+}
+
+// TestWithSSEEagerCommitPreFrameErrorIsStreamEvent pins eager-commit
+// semantics: with the response committed up front, a producer failure before
+// any message is delivered as a terminal error event on the 200 stream, not
+// as a JSON error status (the lazy default's behaviour).
+func TestWithSSEEagerCommitPreFrameErrorIsStreamEvent(t *testing.T) {
+	for name, newEngine := range sseEngines() {
+		t.Run(name, func(t *testing.T) {
+			engine := newEngine()
+			engine.Group("").GET("/sse", WithSSE(func(ctx httpx.Context) (SSEStream[sseMsg], error) {
+				return func(send func(sseMsg) error) error {
+					return httpx.NewForbiddenError("not yours")
+				}, nil
+			}, WithSSEHeartbeat(0), WithSSEEagerCommit()))
+
+			status, header, body := sseDo(t, engine, "/sse")
+			if status != http.StatusOK {
+				t.Fatalf("status = %d, body=%q, want committed 200", status, body)
+			}
+			if ct := header.Get("Content-Type"); ct != httpx.ContentTypeEventStream {
+				t.Fatalf("content-type = %q, want event stream", ct)
+			}
+			want := "event: error\ndata: {\"success\":false,\"code\":0,\"message\":\"not yours\"}\n\n"
+			if body != want {
+				t.Fatalf("body = %q, want %q", body, want)
+			}
+		})
+	}
+}
+
+// TestWithSSEEagerCommitEmptyStream pins that an eager-commit producer which
+// never sends still yields a well-formed stream with the terminal done event.
+func TestWithSSEEagerCommitEmptyStream(t *testing.T) {
+	for name, newEngine := range sseEngines() {
+		t.Run(name, func(t *testing.T) {
+			engine := newEngine()
+			engine.Group("").GET("/sse", WithSSE(func(ctx httpx.Context) (SSEStream[sseMsg], error) {
+				return func(send func(sseMsg) error) error { return nil }, nil
+			}, WithSSEHeartbeat(0), WithSSEEagerCommit()))
+
+			status, _, body := sseDo(t, engine, "/sse")
+			if status != http.StatusOK {
+				t.Fatalf("status = %d, body=%q", status, body)
+			}
+			if body != "event: done\ndata: {}\n\n" {
+				t.Fatalf("body = %q", body)
+			}
+		})
+	}
+}
+
+// TestWithSSEEagerCommitHeartbeatsBeforeFirstFrame pins the reason eager
+// commit exists: an idle producer must still emit heartbeat comments after
+// the response is committed, otherwise proxies drop the silent stream. The
+// default lazy path never commits (and never heartbeats) until the first
+// send; eager-commit without a wait-loop ticker would still be silent.
+func TestWithSSEEagerCommitHeartbeatsBeforeFirstFrame(t *testing.T) {
+	for name, newEngine := range sseEngines() {
+		t.Run(name, func(t *testing.T) {
+			engine := newEngine()
+			engine.Group("").GET("/sse", WithSSE(func(ctx httpx.Context) (SSEStream[sseMsg], error) {
+				return func(send func(sseMsg) error) error {
+					time.Sleep(80 * time.Millisecond)
+					return send(sseMsg{Msg: "late"})
+				}, nil
+			}, WithSSEHeartbeat(20*time.Millisecond), WithSSEEagerCommit()))
+
+			status, _, body := sseDo(t, engine, "/sse")
+			if status != http.StatusOK {
+				t.Fatalf("status = %d, body=%q", status, body)
+			}
+			dataAt := strings.Index(body, "data: {\"msg\":\"late\"}")
+			if dataAt < 0 {
+				t.Fatalf("body = %q, missing the late data event", body)
+			}
+			if !strings.Contains(body[:dataAt], ": \n\n") {
+				t.Fatalf("body = %q, want a heartbeat comment before the first data event", body)
+			}
+		})
+	}
+}
+
 // TestWithSSELiveDisconnectUnblocksProducer runs a real server and drops the
 // client mid-stream: the producer's send must return an error shortly after,
 // proving the pump's abort path unblocks the producer goroutine instead of

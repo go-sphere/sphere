@@ -2,7 +2,9 @@ package httpz
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"runtime/debug"
 	"time"
 
@@ -47,8 +49,9 @@ var errSSEStreamEnded = errors.New("httpz: SSE stream ended")
 type SSEStream[T any] func(send func(T) error) error
 
 type sseOptions struct {
-	heartbeat time.Duration
-	retry     time.Duration
+	heartbeat   time.Duration
+	retry       time.Duration
+	eagerCommit bool
 }
 
 // SSEOption configures WithSSE.
@@ -70,6 +73,21 @@ func WithSSERetry(d time.Duration) SSEOption {
 	}
 }
 
+// WithSSEEagerCommit commits the event stream as soon as the handler runs,
+// before the producer's first message. By default the response stays
+// uncommitted until the first send, which lets a producer error before any
+// message become a regular JSON error status; the cost is that an idle
+// stream — one whose backfill is empty and that never sends until an event
+// arrives later — never commits, so its heartbeat never starts and proxies
+// may drop it. Enable this for push-style endpoints that must hold the
+// connection open across arbitrary silence: the response is then always a
+// committed 200 stream, and errors surface as in-stream "error" events.
+func WithSSEEagerCommit() SSEOption {
+	return func(o *sseOptions) {
+		o.eagerCommit = true
+	}
+}
+
 // WithSSE wraps a two-phase server-streaming handler as an httpx handler
 // producing a Server-Sent Events response.
 //
@@ -83,8 +101,10 @@ func WithSSERetry(d time.Duration) SSEOption {
 // still produces a plain JSON error status, while a later error is delivered
 // in-stream as a terminal "error" event (the HTTP status is already 200 by
 // then). A successful stream — including one that never sends — terminates
-// with a "done" event. Messages are encoded with the same JSON encoding as
-// WithJson and delivered as unnamed (default "message" type) events.
+// with a "done" event. WithSSEEagerCommit commits the response up front for
+// endpoints that must hold idle connections open; see its doc for the
+// trade-off. Messages are encoded with the same JSON encoding as WithJson and
+// delivered as unnamed (default "message" type) events.
 //
 // Operational notes: the wrapper emits heartbeat comments (see
 // WithSSEHeartbeat) so idle streams survive proxy idle timeouts, and the
@@ -144,6 +164,16 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 			result <- stream(send)
 		}()
 
+		// Eager mode commits before the first frame: the pump waits for the
+		// producer itself. A pre-frame producer error is delivered in-stream
+		// as an "error" event rather than a JSON status, because the response
+		// is already committed — the point of the mode.
+		if conf.eagerCommit {
+			return serveSSE(ctx, conf, func(w *httpx.SSEWriter) error {
+				return pumpSSEEager(w, conf, reqCtx, frames, result, cancel)
+			})
+		}
+
 		// Gate: hold the response uncommitted until the producer either
 		// emits its first message or finishes.
 		select {
@@ -156,6 +186,16 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 				return serveSSE(ctx, conf, func(w *httpx.SSEWriter) error {
 					return w.SendJSON(SSEEventDone, struct{}{})
 				})
+			}
+			// Encode the first frame before the response commits. A message
+			// that cannot be JSON-serialized is a handler programming error;
+			// once the stream is committed it can only surface as a log line
+			// behind an empty 200 stream. Failing here keeps the error on the
+			// WithRecover path, which renders a plain JSON 500.
+			if _, err := json.Marshal(first); err != nil {
+				cancel(errSSEStreamEnded)
+				drainSSE(frames, result)
+				return fmt.Errorf("httpz: WithSSE first message is not JSON-serializable: %w", err)
 			}
 			return serveSSE(ctx, conf, func(w *httpx.SSEWriter) error {
 				return pumpSSE(w, conf, reqCtx, first, frames, result, cancel)
@@ -172,7 +212,12 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 // retry frame. Once ServerSentEvents has been called the response is
 // committed on the sync adapters and owned by the framework on fiber, so
 // errors from this point are not returned to the WithRecover error path —
-// write failures normally just mean the client went away.
+// write failures normally just mean the client went away. They are logged at
+// Error level because an aborted stream after commit is invisible to the
+// client-side caller: the response already carries 200, so a later failure
+// would otherwise leave no trace louder than a Debug line. A first-frame
+// encode failure never reaches this point: WithSSE detects it in the gate
+// before committing.
 func serveSSE(ctx httpx.Context, conf sseOptions, fn func(w *httpx.SSEWriter) error) error {
 	err := httpx.ServerSentEvents(ctx, func(w *httpx.SSEWriter) error {
 		if conf.retry > 0 {
@@ -183,7 +228,7 @@ func serveSSE(ctx httpx.Context, conf sseOptions, fn func(w *httpx.SSEWriter) er
 		return fn(w)
 	})
 	if err != nil {
-		log.Debug("httpz: SSE stream terminated with error", log.Err(err))
+		log.Error("httpz: SSE stream terminated with error", log.Err(err))
 	}
 	return nil
 }
@@ -238,6 +283,63 @@ func pumpSSE[T any](
 			}
 		case <-reqCtx.Done():
 			return abort(context.Cause(reqCtx))
+		}
+	}
+}
+
+// pumpSSEEager is the response-side pump for eager-commit streams: the
+// response is already committed, so it first waits for the producer's first
+// frame (or its completion / the request context), then hands off to the same
+// pump loop pumpSSE runs from that frame onward.
+//
+// Heartbeats must run during this wait. The reason eager-commit exists is
+// that an idle producer — empty backfill, first event arrives later — would
+// otherwise hold a committed stream with no traffic, and proxies would drop
+// it. pumpSSE only starts its ticker after the first message, so the wait
+// loop has to keep the connection alive itself.
+func pumpSSEEager[T any](
+	w *httpx.SSEWriter,
+	conf sseOptions,
+	reqCtx context.Context,
+	frames <-chan T,
+	result <-chan error,
+	cancel context.CancelCauseFunc,
+) error {
+	var ticker *time.Ticker
+	var heartbeat <-chan time.Time
+	if conf.heartbeat > 0 {
+		ticker = time.NewTicker(conf.heartbeat)
+		defer ticker.Stop()
+		heartbeat = ticker.C
+	}
+
+	for {
+		select {
+		case first, ok := <-frames:
+			if ticker != nil {
+				ticker.Stop()
+			}
+			if !ok {
+				// The producer finished without sending anything. Deliver its
+				// outcome as the terminal event: the response is committed, so
+				// there is no JSON status left to fall back on.
+				if err := <-result; err != nil {
+					_, resp := buildErrorResponse(err)
+					return w.SendJSON(SSEEventError, resp)
+				}
+				return w.SendJSON(SSEEventDone, struct{}{})
+			}
+			return pumpSSE(w, conf, reqCtx, first, frames, result, cancel)
+		case <-heartbeat:
+			if err := w.Comment(""); err != nil {
+				cancel(err)
+				drainSSE(frames, result)
+				return err
+			}
+		case <-reqCtx.Done():
+			cancel(context.Cause(reqCtx))
+			drainSSE(frames, result)
+			return nil
 		}
 	}
 }

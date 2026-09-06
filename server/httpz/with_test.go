@@ -15,10 +15,11 @@ import (
 // overriding only the methods the wrappers under test actually call.
 type withFakeContext struct {
 	httpxContext
-	status int
-	body   any
-	text   string
-	values map[string]any
+	status    int
+	noContent int
+	body      any
+	text      string
+	values    map[string]any
 }
 
 func (f *withFakeContext) JSON(code int, v any) error {
@@ -30,6 +31,12 @@ func (f *withFakeContext) JSON(code int, v any) error {
 func (f *withFakeContext) Text(code int, s string) error {
 	f.status = code
 	f.text = s
+	return nil
+}
+
+func (f *withFakeContext) NoContent(code int) error {
+	f.status = code
+	f.noContent = code
 	return nil
 }
 
@@ -100,6 +107,42 @@ func TestWithJsonRespectsBufferedStatus(t *testing.T) {
 		}
 		if ctx.status != http.StatusOK {
 			t.Fatalf("status = %d, want %d", ctx.status, http.StatusOK)
+		}
+	})
+
+	t.Run("buffered 204 writes NoContent, not a JSON body", func(t *testing.T) {
+		ctx := &withFakeContext{}
+		handler := WithJson(func(httpx.Context) (string, error) {
+			ctx.status = http.StatusNoContent
+			return "gone", nil
+		})
+
+		if err := handler(ctx); err != nil {
+			t.Fatalf("handler: %v", err)
+		}
+		if ctx.noContent != http.StatusNoContent {
+			t.Fatalf("noContent = %d, want %d", ctx.noContent, http.StatusNoContent)
+		}
+		if ctx.body != nil {
+			t.Fatalf("JSON body written for 204: %v", ctx.body)
+		}
+	})
+
+	t.Run("buffered 304 writes NoContent, not a JSON body", func(t *testing.T) {
+		ctx := &withFakeContext{}
+		handler := WithJson(func(httpx.Context) (string, error) {
+			ctx.status = http.StatusNotModified
+			return "cached", nil
+		})
+
+		if err := handler(ctx); err != nil {
+			t.Fatalf("handler: %v", err)
+		}
+		if ctx.noContent != http.StatusNotModified {
+			t.Fatalf("noContent = %d, want %d", ctx.noContent, http.StatusNotModified)
+		}
+		if ctx.body != nil {
+			t.Fatalf("JSON body written for 304: %v", ctx.body)
 		}
 	})
 }
