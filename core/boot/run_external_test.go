@@ -49,6 +49,61 @@ func (h *bootHungTask) Stop(ctx context.Context) error {
 	}
 }
 
+func TestRun_StagedShutdownTimeoutStopsEarlierStages(t *testing.T) {
+	var closerStopped atomic.Bool
+	closer := task.NewFunc("closer", func(context.Context) error {
+		return nil
+	}, func(context.Context) error {
+		time.Sleep(40 * time.Millisecond)
+		closerStopped.Store(true)
+		return nil
+	})
+	httpTask := newBootHungTask("http")
+	shutdownTimeout := 60 * time.Millisecond
+
+	type config struct{}
+	runDone := make(chan error, 1)
+	go func() {
+		runDone <- boot.Run(
+			&config{},
+			func(*config) (*boot.Application, error) {
+				return boot.NewStagedApplication(
+					[]task.Task{closer},
+					[]task.Task{httpTask},
+				), nil
+			},
+			boot.WithShutdownTimeout(shutdownTimeout),
+			boot.WithShutdownSignals(syscall.SIGUSR1),
+		)
+	}()
+
+	select {
+	case <-httpTask.startReady:
+	case <-time.After(time.Second):
+		t.Fatal("http task did not start")
+	}
+
+	startShutdown := time.Now()
+	if err := syscall.Kill(syscall.Getpid(), syscall.SIGUSR1); err != nil {
+		t.Fatalf("send shutdown signal: %v", err)
+	}
+
+	select {
+	case err := <-runDone:
+		if !closerStopped.Load() {
+			t.Fatal("earlier stage Stop was skipped after last-stage timeout")
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("run error = %v, want context.DeadlineExceeded", err)
+		}
+		if elapsed := time.Since(startShutdown); elapsed > time.Second {
+			t.Fatalf("shutdown took %v, want last-stage timeout plus a short join", elapsed)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("boot.Run deadlocked after staged Stop timeout")
+	}
+}
+
 func TestBootShutdownScenarios(t *testing.T) {
 	t.Run("ShutdownTimeoutUnblocksHangingStop", func(t *testing.T) {
 		tk := newBootHungTask("hung-stop-task")

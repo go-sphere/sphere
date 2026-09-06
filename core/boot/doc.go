@@ -46,7 +46,8 @@
 // of an Application, capped by task.WithCleanupTimeout (also default 30s).
 // After-stop hooks share that context when Stop finishes early; if Stop
 // consumes the whole budget they get a short fresh context instead of an
-// already-expired one.
+// already-expired one. The same fallback bounds waiting for Start so a
+// staged Group can still Stop earlier stages after a last-stage timeout.
 //
 // WithShutdownSignals() with no arguments disables boot's signal handling
 // rather than subscribing to every signal.

@@ -15,7 +15,8 @@ import (
 )
 
 // afterStopFallbackTimeout is used when Stop consumed the whole shutdown
-// budget, so after-stop hooks are not handed an already-expired context.
+// budget: after-stop hooks are not handed an already-expired context, and
+// Start is given the same bound so remaining Group stages can finish.
 const afterStopFallbackTimeout = 2 * time.Second
 
 // Hook is a lifecycle callback. All hooks in a phase run even if an earlier
@@ -48,8 +49,9 @@ type Option func(*options)
 
 // WithShutdownTimeout bounds the context passed to Task.Stop during graceful
 // shutdown. It does not kill the process or abort goroutines that ignore
-// context: when the deadline expires, Stop is asked to return, after-stop
-// hooks still run, and Run then returns.
+// context: when the deadline expires, Stop is asked to return, remaining
+// Group stages get a short join window so earlier-stage cleanup can still run,
+// after-stop hooks still run, and Run then returns.
 //
 // A non-positive duration means no limit, matching task.WithCleanupTimeout and
 // task.WithManagerCleanupTimeout. Passing it straight through instead produced a

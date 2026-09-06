@@ -478,6 +478,39 @@ func TestRun_ShutdownTimeout(t *testing.T) {
 	}
 }
 
+func TestJoinStartResultCollectsStartAfterExpiredShutdown(t *testing.T) {
+	startErr := make(chan error, 1)
+	shutdownCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	released := make(chan struct{})
+	go func() {
+		<-released
+		startErr <- errors.New("later stage")
+		close(startErr)
+	}()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- joinStartResult(startErr, shutdownCtx)
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("joinStartResult returned before Start: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(released)
+	select {
+	case err := <-done:
+		if err == nil || err.Error() != "later stage" {
+			t.Fatalf("joinStartResult = %v, want later stage error", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("joinStartResult did not receive Start result")
+	}
+}
+
 func TestRun_ShutdownTimeoutBoundsGroupedTaskStop(t *testing.T) {
 	task := &mockTask{
 		identifier: "slow-stop",

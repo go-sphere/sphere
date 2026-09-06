@@ -19,6 +19,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/server/httpz"
@@ -130,8 +131,9 @@ func (w *Web) Start(ctx context.Context) error {
 	}
 
 	server := &http.Server{
-		Addr:    w.config.Address,
-		Handler: handler,
+		Addr:              w.config.Address,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 	w.mu.Lock()
 	if w.stopped {
@@ -152,7 +154,7 @@ func (w *Web) Stop(ctx context.Context) error {
 	w.stopped = true
 	server := w.server
 	w.mu.Unlock()
-	return httpx.Close(ctx, server)
+	return httpz.StopServer(ctx, server)
 }
 
 func registerTarget(mux *http.ServeMux, spec *swag.Spec, target string) error {

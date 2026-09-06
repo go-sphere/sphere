@@ -88,12 +88,8 @@ func run(ctx context.Context, t task.Task, options *options) error {
 	cancel()
 
 	if startError == nil {
-		select {
-		case err, ok := <-startErr:
-			if ok && err != nil {
-				startError = err
-			}
-		case <-shutdownCtx.Done():
+		if err := joinStartResult(startErr, shutdownCtx); err != nil {
+			startError = err
 		}
 	}
 
@@ -155,6 +151,31 @@ func handleBuildFailure(ctx context.Context, opts *options, buildErr error) erro
 		return errors.Join(buildErr, fmt.Errorf("after build failure hooks: %w", cleanupErr))
 	}
 	return buildErr
+}
+
+// joinStartResult waits for the Start goroutine after Stop. When Stop used
+// the whole shutdown budget, Start may still be finishing remaining Group
+// stages (a staged closer, logger flush) whose Stop calls already received
+// the expired ctx. A short fresh bound lets those return instead of racing
+// the process exit. A Start that never returns is abandoned when the bound
+// fires; Stop already reported the deadline.
+func joinStartResult(startErr <-chan error, shutdownCtx context.Context) error {
+	waitCtx := shutdownCtx
+	waitCancel := func() {}
+	if shutdownCtx.Err() != nil {
+		waitCtx, waitCancel = context.WithTimeout(context.Background(), afterStopFallbackTimeout)
+	}
+	defer waitCancel()
+
+	select {
+	case err, ok := <-startErr:
+		if ok {
+			return err
+		}
+		return nil
+	case <-waitCtx.Done():
+		return nil
+	}
 }
 
 // newShutdownContext builds the context bounding graceful shutdown. A
