@@ -35,7 +35,9 @@ import (
 
 // Task is a lifecycle-managed component: a server, worker, or other
 // background operation. Group and Manager always call Stop for a task whose
-// Start was invoked, including when Start returned on its own.
+// Start was invoked, including when Start returned on its own. NewFunc builds
+// a Task from an identifier and Start/Stop callbacks when a dedicated type is
+// not needed.
 type Task interface {
 	// Identifier returns a unique identifier for this task, used in logs.
 	Identifier() string

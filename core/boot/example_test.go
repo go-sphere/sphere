@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-sphere/sphere/core/boot"
 	"github.com/go-sphere/sphere/core/task"
-	"github.com/go-sphere/sphere/core/task/scripttask"
 	"github.com/go-sphere/sphere/infra/redis"
 )
 
@@ -40,7 +39,7 @@ func ExampleAddBeforeStart_readinessProbe() {
 func ExampleRun_oneShot() {
 	type conf struct{}
 	_ = boot.Run(&conf{}, func(*conf) (*boot.Application, error) {
-		job := scripttask.NewScriptTask("migrate", func(context.Context) error {
+		job := task.NewFunc("migrate", func(context.Context) error {
 			return nil
 		}, nil)
 		return boot.NewApplication(job), nil
@@ -50,8 +49,8 @@ func ExampleRun_oneShot() {
 // HTTP and companions start concurrently. Close Wire-owned clients after
 // every Task.Stop, not as a sibling Task of the server.
 func ExampleRun_httpAndInfra() {
-	httpSrv := scripttask.NewScriptTask("http", nil, nil)
-	consumer := scripttask.NewScriptTask("mq", nil, nil)
+	httpSrv := task.NewFunc("http", nil, nil)
+	consumer := task.NewFunc("mq", nil, nil)
 	_ = boot.NewApplication(httpSrv, consumer)
 }
 
@@ -71,10 +70,10 @@ func ExampleRun_wireCleanup() {
 
 // Ordered drain: last stage (HTTP) stops before the previous stage.
 func ExampleRun_staged() {
-	closer := scripttask.NewScriptTask("cache-trim", func(context.Context) error {
+	closer := task.NewFunc("cache-trim", func(context.Context) error {
 		return nil
 	}, nil)
-	httpSrv := scripttask.NewScriptTask("http", nil, nil)
+	httpSrv := task.NewFunc("http", nil, nil)
 
 	_ = boot.NewStagedApplication(
 		[]task.Task{closer},
