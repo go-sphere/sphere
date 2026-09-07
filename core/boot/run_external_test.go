@@ -169,6 +169,62 @@ func TestBootShutdownScenarios(t *testing.T) {
 		}
 	})
 
+	t.Run("BeforeStopHookHangIsBounded", func(t *testing.T) {
+		tk := newBootHungTask("hung-stop-task")
+		shutdownTimeout := 60 * time.Millisecond
+
+		type config struct{}
+		conf := &config{}
+		hookStarted := make(chan struct{})
+
+		runDone := make(chan error, 1)
+		go func() {
+			runDone <- boot.Run(
+				conf,
+				func(_ *config) (*boot.Application, error) {
+					return boot.NewApplication(tk), nil
+				},
+				boot.WithShutdownTimeout(shutdownTimeout),
+				boot.WithShutdownSignals(syscall.SIGUSR1),
+				boot.AddBeforeStop(func(ctx context.Context) error {
+					close(hookStarted)
+					// Honour the context: a hang here must be bounded by the
+					// shutdown window, not stall Run forever on an unbounded ctx.
+					<-ctx.Done()
+					return ctx.Err()
+				}),
+			)
+		}()
+
+		select {
+		case <-tk.startReady:
+		case <-time.After(time.Second):
+			t.Fatal("task did not start")
+		}
+
+		startShutdown := time.Now()
+		if err := syscall.Kill(syscall.Getpid(), syscall.SIGUSR1); err != nil {
+			t.Fatalf("send shutdown signal: %v", err)
+		}
+		select {
+		case <-hookStarted:
+		case <-time.After(time.Second):
+			t.Fatal("before-stop hook did not run")
+		}
+
+		select {
+		case err := <-runDone:
+			if elapsed := time.Since(startShutdown); elapsed > 2*time.Second {
+				t.Fatalf("shutdown took %v, before-stop hook was not bounded", elapsed)
+			}
+			if err == nil {
+				t.Fatal("expected a deadline error from the before-stop hook")
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("boot.Run deadlocked on a hanging before-stop hook")
+		}
+	})
+
 	t.Run("PanickingHooksAcrossLifecycle", func(t *testing.T) {
 		type config struct{}
 		conf := &config{}

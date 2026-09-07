@@ -48,10 +48,13 @@ func newOptions(opts ...Option) *options {
 type Option func(*options)
 
 // WithShutdownTimeout bounds the context passed to Task.Stop during graceful
-// shutdown. It does not kill the process or abort goroutines that ignore
-// context: when the deadline expires, Stop is asked to return, remaining
-// Group stages get a short join window so earlier-stage cleanup can still run,
-// after-stop hooks still run, and Run then returns.
+// shutdown. Before-stop hooks receive a separate window of the same length, so
+// a hook that honours its context cannot hang shutdown forever, and a slow
+// hook cannot consume the budget Task.Stop still needs. It does not kill the
+// process or abort goroutines that ignore context: when the deadline expires,
+// Stop is asked to return, remaining Group stages get a short join window so
+// earlier-stage cleanup can still run, after-stop hooks still run, and Run
+// then returns.
 //
 // A non-positive duration means no limit, matching task.WithCleanupTimeout and
 // task.WithManagerCleanupTimeout. Passing it straight through instead produced a

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -71,6 +72,70 @@ func TestStagedGroupNaturalCompleteStopsInReverseOrder(t *testing.T) {
 	defer mu.Unlock()
 	if len(stopOrder) != 2 || stopOrder[0] != "mig" || stopOrder[1] != "db" {
 		t.Fatalf("stop order %v, want [mig db]", stopOrder)
+	}
+}
+
+// TestStagedGroupStopBudgetExhaustedStillStopsEarlierStages pins that a stage
+// whose Stop begins only after the shared cleanup budget is exhausted still
+// receives a live context. Previously every wave shared one context with a
+// single deadline: a slow last-stage drain that used up the whole budget made
+// the earlier stage's ctx-honouring Stop fail immediately with
+// DeadlineExceeded and skip the cleanup the staged order exists to protect.
+func TestStagedGroupStopBudgetExhaustedStillStopsEarlierStages(t *testing.T) {
+	var closerRan atomic.Bool
+	closerCtxLive := make(chan bool, 1)
+	closer := tasktest.NewFake("closer")
+	closer.Mode = tasktest.ModeOneshot
+	closer.StopFunc = func(ctx context.Context) error {
+		closerCtxLive <- ctx.Err() == nil
+		closerRan.Store(true)
+		return nil
+	}
+	httpSrv := tasktest.NewFake("http")
+	httpSrv.Mode = tasktest.ModeServer
+	// The http Stop blocks until the shared cleanup budget expires, so the
+	// closer wave only starts after the deadline has passed.
+	httpSrv.StopFunc = func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+
+	group := task.NewStagedGroupWithOptions(
+		[][]task.Task{{closer}, {httpSrv}},
+		task.WithCleanupTimeout(60*time.Millisecond),
+	)
+	startErrCh := make(chan error, 1)
+	go func() {
+		startErrCh <- group.Start(context.Background())
+	}()
+
+	select {
+	case <-httpSrv.Started():
+	case <-time.After(2 * time.Second):
+		t.Fatal("http did not start")
+	}
+	// A natural complete does not happen while the server stage blocks in
+	// Start, so request shutdown manually, as boot.Run would. The http stage
+	// exceeds the cleanup budget, so the stop result is expected to carry a
+	// deadline error — what this test pins is that the earlier stage still
+	// stops afterwards, under a live context.
+	if stopErr := group.Stop(context.Background()); stopErr == nil {
+		t.Fatal("expected a deadline error from the over-budget http stage, got nil")
+	}
+
+	select {
+	case ctxLive := <-closerCtxLive:
+		if !ctxLive {
+			t.Fatal("earlier-stage Stop received an already-expired context")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("closer Stop was never called after the budget was exhausted")
+	}
+	if !closerRan.Load() {
+		t.Fatal("closer Stop did not run")
+	}
+	if err := waitFakeErr(t, startErrCh, "staged group result"); err == nil {
+		t.Fatal("expected the stop deadline error, got nil")
 	}
 }
 

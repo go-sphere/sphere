@@ -70,8 +70,18 @@ func run(ctx context.Context, t task.Task, options *options) error {
 
 	log.Infof("Initiating shutdown due to: %s", shutdownReason)
 
+	// Bound the before-stop hooks with their own window of the same length.
+	// They previously ran on the run ctx, which has no deadline, so a hook
+	// that honours its context but hangs (e.g. notifying an unresponsive peer
+	// that this instance is draining) could stall shutdown past
+	// WithShutdownTimeout indefinitely. A separate window, rather than sharing
+	// the Task.Stop deadline, keeps a slow hook from starving Stop of its
+	// budget.
+	hookCtx, hookCancel := newShutdownContext(options.shutdownTimeout)
+	defer hookCancel()
+
 	var errs []error
-	if err := runHooks(ctx, options.beforeStop, "beforeStop"); err != nil {
+	if err := runHooks(hookCtx, options.beforeStop, "beforeStop"); err != nil {
 		errs = append(errs, fmt.Errorf("before stop hooks: %w", err))
 	}
 

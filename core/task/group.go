@@ -64,6 +64,12 @@ type groupOptions struct {
 // reason on the same lifecycle.
 const defaultCleanupTimeout = 30 * time.Second
 
+// fallbackCleanupBudget bounds the context of a wave whose Stop begins after
+// the shared cleanup budget has already been exhausted (see stopTasks). It
+// mirrors core/boot's after-stop fallback so post-deadline cleanup still runs
+// under a live, bounded context.
+const fallbackCleanupBudget = 2 * time.Second
+
 // WithCleanupTimeout bounds the context each member Stop receives.
 //
 // It does not bound how long Group.Stop waits: that wait uses the caller's ctx.
@@ -302,7 +308,9 @@ func (g *Group) waitForDone(ctx context.Context, done <-chan struct{}) error {
 // first), each stage draining fully before the previous begins, while tasks
 // within a stage stop concurrently. Stages beyond upToWave were never started
 // and receive no Stop call. The provided ctx (the cleanup context) is the
-// shared shutdown budget across every stage.
+// shared shutdown budget across every stage; a stage whose Stop begins after
+// that budget is exhausted receives a short fresh context instead of an
+// expired one (see stopWave).
 func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error, upToWave int) {
 	waves := g.waves
 	if waves == nil {
@@ -346,6 +354,20 @@ func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error, upToWav
 	}
 
 	stopWave := func(wave []Task) {
+		// The cleanup context is shared across every wave, and waves stop in
+		// reverse order, so an early-stopping (last) wave that drains slowly can
+		// exhaust the budget before the earlier stages it must protect begin
+		// stopping. Handing those waves an already-expired context would make
+		// every ctx-honouring Stop return DeadlineExceeded immediately and skip
+		// the cleanup it exists to perform. Once the shared budget is gone, each
+		// remaining wave gets a short fresh bound instead.
+		waveCtx := ctx
+		cancel := func() {}
+		if ctx.Err() != nil {
+			waveCtx, cancel = context.WithTimeout(context.Background(), fallbackCleanupBudget)
+		}
+		defer cancel()
+
 		var stopWG sync.WaitGroup
 		for _, t := range wave {
 			task := t
@@ -353,7 +375,7 @@ func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error, upToWav
 				id := task.Identifier()
 				mark(id, 1)
 				defer mark(id, -1)
-				err := execute(ctx, id, task, func(taskCtx context.Context, current Task) error {
+				err := execute(waveCtx, id, task, func(taskCtx context.Context, current Task) error {
 					log.Infof("<task> %s stopping", current.Identifier())
 					return current.Stop(taskCtx)
 				})
