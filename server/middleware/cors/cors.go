@@ -164,11 +164,15 @@ func (c *config) compile() {
 
 func (c *config) apply(method, origin, reqHeaders string, setHeader func(string, string)) bool {
 	allowedOrigin := c.resolveOrigin(origin)
+	if !c.hasWildcardOrigin() {
+		// Vary must be set even when the origin misses or is absent: the
+		// response for this URL still varies on Origin, and a shared cache
+		// that stores a CORS-header-less variant would replay it to an
+		// allowed origin, breaking CORS for legitimate clients.
+		setHeader("Vary", "Origin")
+	}
 	if allowedOrigin != "" {
 		setHeader("Access-Control-Allow-Origin", allowedOrigin)
-		if allowedOrigin != "*" {
-			setHeader("Vary", "Origin")
-		}
 		if c.allowCredentials {
 			setHeader("Access-Control-Allow-Credentials", "true")
 		}
