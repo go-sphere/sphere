@@ -65,6 +65,14 @@ func TestParserTokenClaimsErrors(t *testing.T) {
 			wantErr: uidErr,
 		},
 		{
+			// A claims implementation that returns (zero, nil) instead of
+			// MissingUIDError must not authenticate: every token signed with
+			// the same secret would otherwise share one identity.
+			name:    "zero uid without error is rejected",
+			claims:  stubClaims{uid: 0, subject: "alice", roles: []string{"admin"}},
+			wantErr: authorizer.MissingUIDError,
+		},
+		{
 			name:      "subject error leaves subject empty",
 			claims:    stubClaims{uid: 7, subjectErr: errors.New("no subject"), roles: []string{"admin"}},
 			wantData:  true,

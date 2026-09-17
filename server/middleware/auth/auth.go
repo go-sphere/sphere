@@ -49,10 +49,15 @@ func parserToken[T authorizer.UID, C authorizer.Claims[T]](ctx httpx.Context, to
 
 	var data authorizer.Data[T]
 	// The identity is mandatory: without it a zero UID would be stored as a valid
-	// authenticated user and pass every downstream ownership check.
+	// authenticated user and pass every downstream ownership check. Enforce it
+	// here too rather than trusting every Claims implementation to do so.
 	data.UID, err = claims.GetUID()
 	if err != nil {
 		return err
+	}
+	var zero T
+	if data.UID == zero {
+		return authorizer.MissingUIDError
 	}
 	// Subject and roles are optional. Implementations that cannot supply them leave
 	// the zero value, which only ever narrows what the request is allowed to do.
@@ -124,6 +129,8 @@ func WithTransform(f func(text string) (string, error)) Option {
 }
 
 // WithPrefixTransform strips prefix+" " when the token starts with it.
+// The match is case-insensitive: HTTP auth schemes ("Bearer") are defined as
+// case-insensitive, and compliant clients may send "bearer <token>".
 // A missing prefix is not an error; the raw string is parsed.
 func WithPrefixTransform(prefix string) Option {
 	prefix = strings.TrimSpace(prefix)
@@ -131,8 +138,8 @@ func WithPrefixTransform(prefix string) Option {
 		prefix = prefix + " "
 	}
 	return WithTransform(func(text string) (string, error) {
-		if len(prefix) > 0 && strings.HasPrefix(text, prefix) {
-			text = strings.TrimSpace(strings.TrimPrefix(text, prefix))
+		if len(prefix) > 0 && len(text) >= len(prefix) && strings.EqualFold(text[:len(prefix)], prefix) {
+			text = strings.TrimSpace(text[len(prefix):])
 		}
 		return text, nil
 	})
