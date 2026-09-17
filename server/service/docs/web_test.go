@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,6 +28,21 @@ func TestWeb_Identifier(t *testing.T) {
 	web := NewWebServer(Config{})
 	if got := web.Identifier(); got != "docs" {
 		t.Fatalf("web.Identifier() = %q, want docs", got)
+	}
+}
+
+// TestRegisterTargetRejectsInvalidURLs pins the fail-fast validation: url.Parse
+// accepts "localhost:8080" (scheme "localhost", empty host) and bare paths, and
+// without the check the misconfiguration only surfaced as per-request
+// "unsupported protocol scheme" proxy failures.
+func TestRegisterTargetRejectsInvalidURLs(t *testing.T) {
+	t.Parallel()
+
+	spec := &swag.Spec{InfoInstanceName: "TargetV1"}
+	for _, target := range []string{"localhost:8080", "/api", "ftp://example.com", "https://"} {
+		if err := registerTarget(http.NewServeMux(), spec, target); err == nil {
+			t.Errorf("registerTarget(%q) = nil, want an error", target)
+		}
 	}
 }
 
@@ -107,15 +123,18 @@ func TestWithCORS(t *testing.T) {
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("status = %d, want 204", rec.Code)
 		}
-		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
-			t.Fatalf("Allow-Origin = %q, want http://localhost:3000", got)
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+			t.Fatalf("Allow-Origin = %q, want *", got)
 		}
-		if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
-			t.Fatalf("Allow-Credentials = %q, want true", got)
+		if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "" {
+			t.Fatalf("Allow-Credentials = %q, want unset", got)
 		}
 	})
 
-	t.Run("request with Origin mirrors Origin and sets Credentials", func(t *testing.T) {
+	// Never credentialed: reflecting the Origin together with
+	// Access-Control-Allow-Credentials would let any website drive
+	// cookie-bearing requests through the docs proxy.
+	t.Run("request with Origin stays wildcard without Credentials", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api", nil)
 		req.Header.Set("Origin", "https://example.com")
 		rec := httptest.NewRecorder()
@@ -124,11 +143,11 @@ func TestWithCORS(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", rec.Code)
 		}
-		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://example.com" {
-			t.Fatalf("Allow-Origin = %q, want https://example.com", got)
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+			t.Fatalf("Allow-Origin = %q, want *", got)
 		}
-		if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
-			t.Fatalf("Allow-Credentials = %q, want true", got)
+		if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "" {
+			t.Fatalf("Allow-Credentials = %q, want unset", got)
 		}
 	})
 
@@ -221,8 +240,8 @@ func TestEngineModeServesDocs(t *testing.T) {
 			if resp.StatusCode != http.StatusNoContent {
 				t.Fatalf("OPTIONS preflight = %d, want 204", resp.StatusCode)
 			}
-			if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
-				t.Fatalf("Allow-Origin = %q", got)
+			if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "*" {
+				t.Fatalf("Allow-Origin = %q, want *", got)
 			}
 		})
 	}
@@ -277,5 +296,54 @@ func TestRegisterTargetAndProxying(t *testing.T) {
 	backendURL, _ := url.Parse(backend.URL)
 	if receivedHost != backendURL.Host {
 		t.Fatalf("received host = %q, want %q", receivedHost, backendURL.Host)
+	}
+}
+
+// fakeSwagger is a swag.Swagger whose document the test controls. The library's
+// *swag.Spec reads its document from an unexported field, so a document that
+// can be served at all has to come from a type of our own.
+type fakeSwagger string
+
+func (f fakeSwagger) ReadDoc() string { return string(f) }
+
+// TestSwaggerDocJSONRewritesWithoutMutatingSpec pins both halves of the docs
+// proxy contract. The document the UI fetches has to point at the local proxy
+// prefix, otherwise "Try it out" calls the target's real host and base path.
+// The caller's *swag.Spec must come back unchanged: it is normally the same
+// pointer the generated docs package registered in the process-wide swag
+// registry, and the API service serves its own /swagger/doc.json from it.
+func TestSwaggerDocJSONRewritesWithoutMutatingSpec(t *testing.T) {
+	const instance = "DocJSONTargetV1"
+	if swag.GetSwagger(instance) == nil {
+		swag.Register(instance, fakeSwagger(`{"swagger":"2.0","host":"api.internal","basePath":"/real/base","info":{"title":"t"}}`))
+	}
+
+	spec := &swag.Spec{InfoInstanceName: instance, Description: "described", Version: "v1"}
+	web := NewWebServer(Config{Targets: []Target{{Address: "https://api.example.com", Spec: spec}}})
+	handler, err := web.newHandler()
+	if err != nil {
+		t.Fatalf("newHandler: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/docjsontargetv1/doc/swagger/doc.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("doc.json status = %d, want 200", rec.Code)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("doc.json is not JSON: %v", err)
+	}
+	if got := doc["basePath"]; got != "/docjsontargetv1/api" {
+		t.Fatalf("basePath = %v, want /docjsontargetv1/api", got)
+	}
+	if got := doc["host"]; got != "" {
+		t.Fatalf("host = %v, want empty", got)
+	}
+
+	if spec.BasePath != "" || spec.Host != "" || spec.Description != "described" {
+		t.Fatalf("caller spec was mutated: %+v", spec)
 	}
 }

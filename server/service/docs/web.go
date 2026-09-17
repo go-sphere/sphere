@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -48,22 +49,67 @@ type Web struct {
 	stopped bool
 }
 
+// indexTarget is the subset of a Target the index page renders. Resolving it up
+// front keeps the template from reaching into the caller's *swag.Spec.
+type indexTarget struct {
+	Name        string
+	Description string
+	Version     string
+	Address     string
+}
+
 func (w *Web) newHandler() (http.Handler, error) {
 	mux := http.NewServeMux()
 
-	indexRaw, err := createIndex(w.config.Targets)
+	indexes := make([]indexTarget, 0, len(w.config.Targets))
+	seen := make(map[string]string, len(w.config.Targets))
+	for _, target := range w.config.Targets {
+		if target.Spec == nil {
+			return nil, fmt.Errorf("docs: target %s has no swagger spec", target.Address)
+		}
+		name, description := resolveTarget(target.Spec, target.Address)
+		// Route prefixes are the lowercased instance name, so two targets that
+		// differ only in case collide as well. http.ServeMux reports a collision
+		// by panicking, which would turn a config mistake into a startup crash
+		// out of a function that already returns an error.
+		key := strings.ToLower(name)
+		if previous, duplicate := seen[key]; duplicate {
+			return nil, fmt.Errorf("docs: targets %s and %s both use swagger instance name %q; their proxy and UI routes would collide", previous, target.Address, name)
+		}
+		seen[key] = target.Address
+		indexes = append(indexes, indexTarget{
+			Name:        name,
+			Description: description,
+			Version:     target.Spec.Version,
+			Address:     target.Address,
+		})
+	}
+
+	indexRaw, err := createIndex(indexes)
 	if err != nil {
 		return nil, err
 	}
 	mux.Handle("/", newIndexHandler(indexRaw))
 
-	for _, spec := range w.config.Targets {
-		if err := registerTarget(mux, spec.Spec, spec.Address); err != nil {
+	for _, target := range w.config.Targets {
+		if err := registerTarget(mux, target.Spec, target.Address); err != nil {
 			return nil, err
 		}
 	}
 
 	return withCORS(mux), nil
+}
+
+// resolveTarget derives the values the docs server needs from a target: the
+// instance name that drives its route prefix, and the description shown for it.
+// Both are read-only, so the caller's *swag.Spec is left untouched.
+func resolveTarget(spec *swag.Spec, address string) (name, description string) {
+	name = spec.InstanceName()
+	description = spec.Description
+	if description == "" {
+		description = fmt.Sprintf(" | proxy for %s", address)
+	}
+	return name, description
 }
 
 // NewWebServer creates a new documentation web server with the given configuration.
@@ -162,16 +208,17 @@ func registerTarget(mux *http.ServeMux, spec *swag.Spec, target string) error {
 	if err != nil {
 		return fmt.Errorf("invalid target URL: %v", err)
 	}
-
-	basePath := "/" + strings.ToLower(spec.InstanceName())
-	spec.Host = ""
-	spec.BasePath = path.Join(basePath, "api")
-	if spec.Description == "" {
-		spec.Description = fmt.Sprintf(" | proxy for %s", target)
+	// url.Parse accepts "localhost:8080" (scheme "localhost", empty host) and
+	// bare paths; without this check the misconfiguration only surfaces as
+	// per-request "unsupported protocol scheme" proxy failures.
+	if (targetURL.Scheme != "http" && targetURL.Scheme != "https") || targetURL.Host == "" {
+		return fmt.Errorf("invalid target URL %q: must be http(s)://host[:port]", target)
 	}
 
+	basePath := "/" + strings.ToLower(spec.InstanceName())
+
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
-	proxyPath := spec.BasePath
+	proxyPath := path.Join(basePath, "api")
 	proxyHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		r.URL.Path = strings.TrimPrefix(r.URL.Path, proxyPath)
 		if r.URL.Path == "" {
@@ -185,11 +232,57 @@ func registerTarget(mux *http.ServeMux, spec *swag.Spec, target string) error {
 	mux.Handle(proxyPath+"/", proxyHandler)
 
 	docPath := path.Join(basePath, "doc", "swagger")
-	swaggerHandler := httpSwagger.Handler(httpSwagger.InstanceName(spec.InstanceName()))
+	name, description := resolveTarget(spec, target)
+	swaggerHandler := httpSwagger.Handler(httpSwagger.InstanceName(name))
 	mux.Handle(docPath, swaggerHandler)
 	mux.Handle(docPath+"/", swaggerHandler)
+	// More specific than the UI subtree above, so it wins for this path only.
+	mux.Handle(docPath+"/doc.json", swaggerDocHandler(name, proxyPath, description))
 
 	return nil
+}
+
+// swaggerDocHandler serves the target's Swagger document with the fields that
+// only make sense behind this proxy rewritten on the way out: the UI is served
+// by the docs server, so "Try it out" has to call back into /<instance>/api
+// instead of the target's own host and base path.
+//
+// Rewriting the response rather than the spec is what keeps the caller's
+// *swag.Spec read-only. That spec is usually also the one the generated docs
+// package registered in the process-wide swag registry, so editing it would
+// change what the API service's own /swagger/doc.json serves — and would race
+// with the handler serving that document.
+func swaggerDocHandler(instanceName, proxyPath, description string) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		raw, err := swag.ReadDoc(instanceName)
+		if err != nil {
+			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		var doc map[string]any
+		if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		doc["host"] = ""
+		doc["basePath"] = proxyPath
+		if info, ok := doc["info"].(map[string]any); ok {
+			if current, _ := info["description"].(string); current == "" {
+				info["description"] = description
+			}
+		}
+		body, err := json.Marshal(doc)
+		if err != nil {
+			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		rw.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = rw.Write(body)
+	})
 }
 
 func newIndexHandler(body []byte) http.Handler {
@@ -209,16 +302,13 @@ func newIndexHandler(body []byte) http.Handler {
 // withCORS wraps the documentation handler with relaxed CORS headers for development/debugging.
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		// For local development and quick debugging of Swagger docs:
-		// when the request carries an Origin, echo that origin with credentials;
-		// otherwise fall back to "*" without credentials.
-		if origin := r.Header.Get("Origin"); origin != "" {
-			rw.Header().Set("Access-Control-Allow-Origin", origin)
-			rw.Header().Set("Vary", "Origin")
-			rw.Header().Set("Access-Control-Allow-Credentials", "true")
-		} else {
-			rw.Header().Set("Access-Control-Allow-Origin", "*")
-		}
+		// For local development and quick debugging of Swagger docs. Allow any
+		// origin, but never with credentials: echoing the Origin together with
+		// Access-Control-Allow-Credentials would let any website drive
+		// cookie-bearing requests through this server to the proxied APIs.
+		// Bearer tokens set explicitly by the caller (swagger "Authorize") do
+		// not need credentialed CORS.
+		rw.Header().Set("Access-Control-Allow-Origin", "*")
 		rw.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS, PUT, POST, DELETE, UPDATE")
 		rw.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 		if r.Method == http.MethodOptions {
@@ -233,7 +323,7 @@ func withCORS(next http.Handler) http.Handler {
 var indexHTML string
 
 // createIndex generates an HTML index page listing all available documentation targets.
-func createIndex(targets []Target) ([]byte, error) {
+func createIndex(targets []indexTarget) ([]byte, error) {
 	tmpl, err := template.New("index").Funcs(template.FuncMap{
 		"lower": strings.ToLower,
 	}).Parse(indexHTML)

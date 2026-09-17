@@ -39,9 +39,9 @@
 <div class="content">
     {{range .}}
         <div class="api-card pure-u-1 pure-u-md-1-2">
-            <h2><a href="/{{.Spec.InstanceName | lower}}/doc/swagger/">{{.Spec.InstanceName}}</a></h2>
-            <p><strong>Description:</strong> {{.Spec.Description}}</p>
-            <p><strong>Version:</strong> {{.Spec.Version}}</p>
+            <h2><a href="/{{.Name | lower}}/doc/swagger/">{{.Name}}</a></h2>
+            <p><strong>Description:</strong> {{.Description}}</p>
+            <p><strong>Version:</strong> {{.Version}}</p>
             <p><strong>Proxy:</strong> {{.Address}}</p>
         </div>
     {{end}}
