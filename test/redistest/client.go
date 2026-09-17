@@ -29,7 +29,9 @@ func NewTestRedisClient(t *testing.T) *redis.Client {
 	}
 
 	done := make(chan struct{})
+	stopped := make(chan struct{})
 	go func() {
+		defer close(stopped)
 		ticker := time.NewTicker(5 * time.Millisecond)
 		defer ticker.Stop()
 		for {
@@ -44,6 +46,10 @@ func NewTestRedisClient(t *testing.T) *redis.Client {
 
 	t.Cleanup(func() {
 		close(done)
+		// Join the ticker goroutine before tearing anything down: cleanups run
+		// LIFO, so miniredis's own cleanup (server shutdown) follows this one
+		// and must not race an in-flight FastForward.
+		<-stopped
 		_ = client.Close()
 	})
 
