@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -20,7 +21,11 @@ const cacheFileKeyForReverseProxyBody = "X-Cache-ReverseProxy-Body"
 var ErrCacheNotFound = errors.New("no cache found")
 
 // Cache persists reverse-proxy response headers and bodies.
-// Save stores both; Load returns headers and a body reader; Header returns headers only.
+// Save stores both; Load returns headers and a body reader; Header returns
+// headers only, with the internal body-pointer entry already removed.
+//
+// Exists and Load report ErrCacheNotFound for a missing header or body pointer.
+// Storage errors are returned unchanged.
 type Cache interface {
 	Exists(ctx context.Context, key string) (bool, error)
 	Delete(ctx context.Context, key string) error
@@ -46,25 +51,39 @@ func NewByteCache(cache cache.ByteCache, storage storage.Storage, setCacheOption
 }
 
 func (c *CommonCache) Exists(ctx context.Context, key string) (bool, error) {
-	header, err := c.Header(ctx, key)
+	header, err := c.header(ctx, key)
 	if err != nil {
 		return false, err
 	}
 	cacheFileKey := header.Get(cacheFileKeyForReverseProxyBody)
 	if cacheFileKey == "" {
-		return false, errors.New("no cache file found")
+		// The key exists but its stored headers carry no body pointer, so there
+		// is no body to serve: a miss, not a cache-layer failure. Callers key on
+		// ErrCacheNotFound to tell the two apart — ServeCacheReverseProxy logs
+		// anything else at ERROR level for every request.
+		return false, fmt.Errorf("reverseproxy: cache entry %q has no stored body: %w", key, ErrCacheNotFound)
 	}
 	return c.storage.IsFileExists(ctx, cacheFileKey)
 }
 
 func (c *CommonCache) Delete(ctx context.Context, key string) error {
-	header, err := c.Header(ctx, key)
+	headerRaw, found, err := c.cache.Get(ctx, key)
 	if err != nil {
 		return err
 	}
-	cacheFileKey := header.Get(cacheFileKeyForReverseProxyBody)
+	if !found {
+		return ErrCacheNotFound
+	}
+	// Best-effort parse: a corrupt or degenerate header blob must still be
+	// removable through the public API — failure to recover the body key only
+	// skips the storage delete, never the cache delete.
+	var cacheFileKey string
+	header := http.Header{}
+	if jErr := json.Unmarshal(headerRaw, &header); jErr == nil {
+		cacheFileKey = header.Get(cacheFileKeyForReverseProxyBody)
+	}
 	if cacheFileKey == "" {
-		return nil
+		return c.cache.Del(ctx, key)
 	}
 	return errors.Join(
 		c.cache.Del(ctx, key),
@@ -105,13 +124,14 @@ func (c *CommonCache) Save(ctx context.Context, key string, header http.Header, 
 }
 
 func (c *CommonCache) Load(ctx context.Context, key string) (http.Header, io.ReadCloser, error) {
-	header, err := c.Header(ctx, key)
+	header, err := c.header(ctx, key)
 	if err != nil {
 		return nil, nil, err
 	}
 	cacheFileKey := header.Get(cacheFileKeyForReverseProxyBody)
 	if cacheFileKey == "" {
-		return nil, nil, errors.New("no cache file found")
+		// See Exists: a stored entry without a body pointer is a miss.
+		return nil, nil, fmt.Errorf("reverseproxy: cache entry %q has no stored body: %w", key, ErrCacheNotFound)
 	}
 	header.Del(cacheFileKeyForReverseProxyBody)
 	result, err := c.storage.DownloadFile(ctx, cacheFileKey)
@@ -121,7 +141,21 @@ func (c *CommonCache) Load(ctx context.Context, key string) (http.Header, io.Rea
 	return header, result.Reader, nil
 }
 
+// Header returns the stored response headers for key, without the internal
+// body-pointer entry. That entry names the storage object holding the body —
+// an implementation detail callers replaying these headers to a client must
+// not publish — so it is stripped here rather than left to the caller.
 func (c *CommonCache) Header(ctx context.Context, key string) (http.Header, error) {
+	header, err := c.header(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	header.Del(cacheFileKeyForReverseProxyBody)
+	return header, nil
+}
+
+// header returns the stored header blob as-is, internal entries included.
+func (c *CommonCache) header(ctx context.Context, key string) (http.Header, error) {
 	headerRaw, found, err := c.cache.Get(ctx, key)
 	if err != nil {
 		return nil, err

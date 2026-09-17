@@ -583,6 +583,22 @@ func TestDefaultResponseCacheCheck(t *testing.T) {
 		{name: "private among directives", mutate: func(_ *http.Request, resp *http.Response) {
 			resp.Header.Set("Cache-Control", "max-age=60, private")
 		}},
+		// This cache cannot revalidate, so a directive that demands it must
+		// veto storage even when a positive max-age is present.
+		{name: "must-revalidate among directives", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Cache-Control", "max-age=60, must-revalidate")
+		}},
+		{name: "proxy-revalidate", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Cache-Control", "proxy-revalidate")
+		}},
+		// A custom director can let Accept-Encoding through, and the key has no
+		// encoding dimension, so an encoded variant must never be stored.
+		{name: "encoded response", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Content-Encoding", "gzip")
+		}},
+		{name: "identity encoding", want: true, mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Content-Encoding", "identity")
+		}},
 		{name: "vary on a header not in the key", mutate: func(_ *http.Request, resp *http.Response) {
 			resp.Header.Set("Vary", "Accept-Language")
 		}},

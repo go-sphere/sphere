@@ -7,11 +7,14 @@
 // no-store, no-cache, immediately stale, Set-Cookie, or unsupported Vary
 // responses. The backing ByteCache options govern stored response lifetime;
 // this proxy does not revalidate with the upstream. Default cache key is GET
-// RequestURI(); non-GET is not cached.
+// RequestURI(); non-GET is not cached. The default key does not include the
+// Host, so multi-vhost deployments need WithCacheKeyFunc.
 //
 // Cache save runs on a context detached from the request (default 30s).
-// Save failure does not affect the client stream. Load errors other than
-// miss are logged and the request goes upstream.
+// Save failure does not affect the client stream, and neither does a save that
+// is merely slow: the body is handed to Save through a bounded queue, and the
+// cache is abandoned rather than the client throttled when it cannot keep up.
+// Load errors other than miss are logged and the request goes upstream.
 //
 // To mount the proxy on an httpx engine, adapt it as a net/http handler and
 // register it through httpz.MountStdAll:
@@ -85,6 +88,10 @@ type Options struct {
 // Option configures CreateCacheReverseProxy.
 type Option = func(*Options)
 
+// defaultCacheKey keys on the request URI alone. Rewrite preserves the
+// inbound Host towards the upstream, so an instance fronting name-based
+// virtual hosts would mix their entries under this default — such deployments
+// must supply a WithCacheKeyFunc that includes request.Host.
 func defaultCacheKey(request *http.Request) string {
 	if request.Method != http.MethodGet {
 		return ""
@@ -123,6 +130,13 @@ func defaultResponseCacheCheck(resp *http.Response) bool {
 	if len(resp.Header.Values("Set-Cookie")) > 0 {
 		return false
 	}
+	// The default director strips Accept-Encoding, so an encoded response only
+	// appears with a custom director. The key carries no encoding dimension,
+	// so a stored gzip/br variant would be replayed to clients that never
+	// offered it — refuse to store it instead.
+	if ce := resp.Header.Get("Content-Encoding"); ce != "" && !strings.EqualFold(ce, "identity") {
+		return false
+	}
 	if hasUncacheableDirective(resp.Header.Values("Cache-Control")) {
 		return false
 	}
@@ -138,7 +152,7 @@ func hasUncacheableDirective(values []string) bool {
 		for directive := range strings.SplitSeq(value, ",") {
 			name, rawAge, hasValue := strings.Cut(strings.TrimSpace(directive), "=")
 			switch strings.ToLower(strings.TrimSpace(name)) {
-			case "no-store", "private", "no-cache":
+			case "no-store", "private", "no-cache", "must-revalidate", "proxy-revalidate":
 				return true
 			case "max-age", "s-maxage":
 				if !hasValue {
@@ -313,12 +327,13 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 		if key == "" {
 			return nil // no cache key, do not cache
 		}
-		if _, ok := cacheFlags.Load(key); ok {
-			return nil // already cached, do not cache again
+		if _, loaded := cacheFlags.LoadOrStore(key, struct{}{}); loaded {
+			// Atomic check-and-set: a separate Load+Store let two concurrent
+			// misses for the same key both claim it and race their saves.
+			return nil // already being cached, do not cache again
 		}
-		cacheFlags.Store(key, struct{}{})
 		clientPipeReader, clientPipeWriter := io.Pipe()
-		cachePipeReader, cachePipeWriter := io.Pipe()
+		cacheBody := newCacheQueue()
 
 		originalBody := resp.Body
 		resp.Body = clientPipeReader
@@ -328,7 +343,7 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 			defer func() {
 				ignoreCloseError(originalBody.Close)
 				ignoreCloseError(clientPipeWriter.Close)
-				ignoreCloseError(cachePipeWriter.Close)
+				cacheBody.CloseWithError(nil)
 			}()
 			// The two sinks are written separately rather than through an
 			// io.MultiWriter. A MultiWriter fails as a whole as soon as either
@@ -338,6 +353,11 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 			// affect it. A cache backend that rejects the write outright — a
 			// full disk, an expired credential, an invalid key — reads nothing
 			// at all, so this was reachable on the very first chunk.
+			//
+			// The cache side is written through a bounded queue rather than a
+			// pipe for the same reason, extended to a backend that is merely
+			// slow: the queue's Write never blocks, so Save's pace cannot become
+			// the client's.
 			buf := make([]byte, 32*1024)
 			cacheBroken := false
 			for {
@@ -345,15 +365,15 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 				if n > 0 {
 					if _, err := clientPipeWriter.Write(buf[:n]); err != nil {
 						// The client is gone; the cache entry would be partial.
-						_ = cachePipeWriter.CloseWithError(err)
+						cacheBody.CloseWithError(err)
 						return
 					}
 					if !cacheBroken {
-						if _, err := cachePipeWriter.Write(buf[:n]); err != nil {
+						if _, err := cacheBody.Write(buf[:n]); err != nil {
 							// Give up on caching, keep serving the client. The
 							// reader side reports the failure through Save.
 							cacheBroken = true
-							_ = cachePipeWriter.CloseWithError(err)
+							cacheBody.CloseWithError(err)
 						}
 					}
 				}
@@ -361,7 +381,7 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 					if readErr != io.EOF {
 						_ = clientPipeWriter.CloseWithError(readErr)
 						if !cacheBroken {
-							_ = cachePipeWriter.CloseWithError(readErr)
+							cacheBody.CloseWithError(readErr)
 						}
 					}
 					return
@@ -371,15 +391,13 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 
 		// goroutine to save cache
 		safe.Go(func() {
-			defer func() {
-				cacheFlags.Delete(key)
-				ignoreCloseError(cachePipeReader.Close)
-			}()
+			defer cacheFlags.Delete(key)
 			// Detached from the request, but bounded. Detaching alone let a
-			// backend that never answers hold this goroutine, the copy
-			// goroutine, the upstream body and the key's cacheFlags entry for
-			// the life of the process — and because the flag is only cleared
-			// here, that key was never cached again either.
+			// backend that never answers hold this goroutine and the key's
+			// cacheFlags entry for the life of the process — and because the
+			// flag is only cleared here, that key was never cached again either.
+			// The copy goroutine is no longer among the things a stalled backend
+			// can hold: the queue above caps how long it waits for this side.
 			ctx, cancel := context.WithTimeout(context.WithoutCancel(resp.Request.Context()), conf.saveTimeout)
 			defer cancel()
 			// Persist the real status code inside the header blob so it can be
@@ -392,7 +410,7 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 			// this also covers a custom checker that does not.
 			cacheHeader.Del("Set-Cookie")
 			cacheHeader.Set(cacheStatusHeader, strconv.Itoa(resp.StatusCode))
-			if err := cache.Save(ctx, key, cacheHeader, cachePipeReader); err != nil {
+			if err := cache.Save(ctx, key, cacheHeader, cacheBody); err != nil {
 				// Cache save failed, but continue serving client
 				// Error is silently ignored as cache is not critical
 				conf.errorHandler(err)
