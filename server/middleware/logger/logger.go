@@ -3,6 +3,14 @@
 // Log records one entry after the downstream chain: Info when Next succeeds,
 // Error when Next returns an error. RecoveryLog recovers a panic so the
 // process stays up, logs it at Error, and finishes the request as HTTP 500.
+//
+// RecoveryLog deliberately returns nil after recovering (returning an error
+// would let an enclosing middleware write a second response onto the committed
+// one), so it must be the innermost recovery layer: composed as
+// Log(RecoveryLog(lg, true)) the panic is still logged at Error, with its
+// stack, by RecoveryLog — but the outer Log sees a successful chain and records
+// the request at Info with status=500 and the request fields. Do not expect
+// Log's level alone to reveal a recovered panic.
 package logger
 
 import (
