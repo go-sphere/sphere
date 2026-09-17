@@ -26,13 +26,13 @@ import (
 
 // Config holds the configuration parameters for S3-compatible object storage.
 type Config struct {
-	Endpoint        string                       `json:"endpoint"`
-	AccessKeyID     string                       `json:"access_key"`
-	SecretAccessKey string                       `json:"secret"`
-	Token           string                       `json:"token"`
-	Bucket          string                       `json:"bucket"`
-	UseSSL          bool                         `json:"use_ssl"`
-	PublicBase      string                       `json:"public_base"`
+	Endpoint        string                       `json:"endpoint" yaml:"endpoint"`
+	AccessKeyID     string                       `json:"access_key" yaml:"access_key"`
+	SecretAccessKey string                       `json:"secret" yaml:"secret"`
+	Token           string                       `json:"token" yaml:"token"`
+	Bucket          string                       `json:"bucket" yaml:"bucket"`
+	UseSSL          bool                         `json:"use_ssl" yaml:"use_ssl"`
+	PublicBase      string                       `json:"public_base" yaml:"public_base"`
 	Dir             string                       `json:"dir" yaml:"dir"`
 	UploadNaming    storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"`
 	// UploadTTL is the default validity window for presigned upload URLs, and

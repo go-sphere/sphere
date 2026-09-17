@@ -64,11 +64,14 @@ func writeFileAtomic(destPath string, src io.Reader) error {
 	}
 	tmpPath := tmp.Name()
 	_, err = io.Copy(tmp, src)
-	if err == nil {
-		err = tmp.Sync()
-	}
+	// Chmod before Sync: the fsync persists data and mode together, so power
+	// loss after the rename cannot leave the published file at CreateTemp's
+	// private 0o600.
 	if err == nil {
 		err = tmp.Chmod(mode)
+	}
+	if err == nil {
+		err = tmp.Sync()
 	}
 	if closeErr := tmp.Close(); closeErr != nil && err == nil {
 		err = closeErr
@@ -89,6 +92,11 @@ func writeFileAtomic(destPath string, src io.Reader) error {
 }
 
 // syncDir flushes a directory's own entries to disk.
+//
+// Every caller has already renamed the new content into place, so an error
+// here means the write may not survive a power loss — not that it failed: the
+// new content is published and any previous content at the key is gone. A
+// caller retrying on this error overwrites rather than restores.
 func syncDir(dir string) error {
 	d, err := os.Open(dir)
 	if err != nil {
@@ -158,8 +166,13 @@ func (c *Client) fixFilePath(key string) (string, error) {
 
 // UploadFile uploads data from a reader to the local filesystem with the specified key.
 // It creates the necessary directory structure and writes the file content.
-// The write is atomic: a failure leaves any previous content at the key intact
-// and never publishes a partially written file.
+//
+// The rename that publishes the content is atomic: a failure before it leaves
+// any previous content at the key intact and never publishes a partially
+// written file. A failure after it — the final directory sync — reports an
+// error although the new content is already in place (and an overwrite has
+// already replaced what was there): the write happened, but it may not survive
+// a power loss.
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	// Returned below instead of the caller's original: this driver stores under
 	// the normalized form, and handing back the raw key meant a value persisted
@@ -396,6 +409,13 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 // It deliberately does not remove the destination: both callers finish with a
 // rename, which replaces it atomically, so nothing is destroyed before the
 // replacement is ready.
+//
+// The check is not atomic with that rename: a concurrent writer can create the
+// destination in the window between the two, and its content is then replaced
+// despite overwrite being off. The no-overwrite guarantee is therefore exact
+// against a single writer and best-effort against concurrent ones — the same
+// shape the s3 and kvcache drivers have, neither of which has an atomic
+// conditional write available either.
 func (c *Client) checkOverwrite(path string, overwrite bool) error {
 	_, err := os.Stat(path)
 	if err != nil {
@@ -446,13 +466,24 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	if e := os.Rename(sourcePath, destinationPath); e != nil {
 		return e
 	}
+	// Match the durability contract of writeFileAtomic: without flushing the
+	// affected directory entries, a reported-successful move can roll back
+	// (or half-apply across two directories) on power loss.
+	if e := syncDir(filepath.Dir(destinationPath)); e != nil {
+		return e
+	}
+	if srcDir, dstDir := filepath.Dir(sourcePath), filepath.Dir(destinationPath); srcDir != dstDir {
+		return syncDir(srcDir)
+	}
 	return nil
 }
 
 // CopyFile duplicates a file from source to destination key within local filesystem storage.
 // Creates necessary directory structure and handles overwrite logic.
-// The copy is atomic: the destination is replaced only once the full contents
-// are written, so a failure at any point leaves it untouched.
+// The copy is atomic up to the rename that publishes it: a failure before that
+// point leaves the destination untouched, while a failure from the final
+// directory sync reports an error for content that is already there and may not
+// survive a power loss. See syncDir.
 func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourcePath, err := c.fixFilePath(sourceKey)
 	if err != nil {

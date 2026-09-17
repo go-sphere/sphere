@@ -80,12 +80,13 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	_, found, err := c.cache.Get(ctx, key)
-	return found, err
+	return c.cache.Exists(ctx, key)
 }
 
 // DownloadFile retrieves file data from the cache storage.
 // Returns the file content reader, MIME type based on file extension, and content size.
+// MIME is empty for a key whose extension is missing or unknown to mime.TypeByExtension;
+// callers that need a Content-Type have to sniff the bytes or supply their own.
 func (c *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -120,6 +121,11 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 
 // MoveFile relocates a file from source to destination key within cache storage.
 // This operation copies the file content and then deletes the source.
+//
+// The two steps are not atomic: when the delete fails after the copy succeeded
+// the object is readable at both keys and the error is reported for a move that
+// half happened. A retry is safe — the copy is idempotent — but a caller must
+// not read the error as "the destination was not written".
 func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
@@ -155,6 +161,11 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 
 // CopyFile duplicates a file from source to destination key within cache storage.
 // Validates overwrite permissions and handles cache expiration settings.
+//
+// The overwrite check is best-effort: ByteCache has no compare-and-set, so a
+// concurrent writer can create the destination between Exists and Set and have
+// its entry replaced even though overwrite is false. The guarantee holds
+// against a single writer; concurrent writers need external coordination.
 func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
@@ -165,7 +176,7 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 		return err
 	}
 	if !overwrite {
-		_, found, err := c.cache.Get(ctx, destinationKey)
+		found, err := c.cache.Exists(ctx, destinationKey)
 		if err != nil {
 			return err
 		}

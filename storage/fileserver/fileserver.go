@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-sphere/httpx"
@@ -52,6 +53,9 @@ type FileServer struct {
 	cache   cache.ByteCache
 	store   storage.Storage
 	handler storage.URLHandler
+
+	closeOnce sync.Once
+	closeErr  error
 }
 
 // NewCDNAdapter constructs a FileServer that wraps store with one-time PUT
@@ -85,6 +89,23 @@ func NewCDNAdapter(conf Config, cache cache.ByteCache, store storage.Storage, op
 		store:   store,
 		handler: handler,
 	}, nil
+}
+
+// Close releases the resources this FileServer owns: with WithOwnedCache it
+// closes the injected cache, and without it Close does nothing, because the
+// cache and the store belong to the caller. The store is never closed.
+//
+// Close is idempotent and safe to call concurrently; it reports the cache's
+// own close error, and callers that keep using the adapter afterwards see the
+// cache's closed error (cache.ErrClosed for the in-memory driver) on the
+// upload-token path.
+func (a *FileServer) Close() error {
+	a.closeOnce.Do(func() {
+		if a.opts.ownsCache {
+			a.closeErr = a.cache.Close()
+		}
+	})
+	return a.closeErr
 }
 
 func (a *FileServer) GenerateURL(key string, params ...url.Values) string {
@@ -187,6 +208,12 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 			if errors.Is(err, storageerr.ErrNotFound) {
 				return httpx.NotFoundError(err)
 			}
+			// A traversal-shaped or otherwise invalid key is the client's
+			// fault; wrapping it in InternalServerError would mask the 400
+			// the sentinel already carries.
+			if errors.Is(err, storageerr.ErrFileNameInvalid) {
+				return httpx.BadRequestError(err)
+			}
 			return httpx.InternalServerError(err)
 		}
 		headers := maps.Clone(sharedHeaders)
@@ -223,9 +250,20 @@ func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 		if key == "" {
 			return httpx.NewBadRequestError("key is required")
 		}
+		// Validated before the token is spent: GetDel consumes it, and a request
+		// that cannot be served anyway should not be the reason a client's upload
+		// URL goes dead.
+		body := ctx.BodyReader()
+		if body == nil {
+			return httpx.NewBadRequestError("empty request body")
+		}
 		// GetDel consumes the token atomically. Reading and then deleting left a
 		// window in which two concurrent requests both saw the token as valid,
 		// so a single-use upload URL could be redeemed more than once.
+		//
+		// The token is spent even when the upload below fails: a retry needs a new
+		// authorization. That keeps a failed attempt from restoring a URL that a
+		// caller could still be racing on, at the cost of one extra round trip.
 		filename, found, err := a.cache.GetDel(ctx.Context(), key)
 		if err != nil {
 			return httpx.InternalServerError(err)
@@ -233,11 +271,7 @@ func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 		if !found {
 			return httpx.NewBadRequestError("key expires or not found")
 		}
-		data := ctx.BodyReader()
-		if data == nil {
-			return httpx.NewBadRequestError("empty request body")
-		}
-		uploadKey, err := a.UploadFile(ctx.Context(), data, string(filename))
+		uploadKey, err := a.UploadFile(ctx.Context(), body, string(filename))
 		if err != nil {
 			return httpx.InternalServerError(err)
 		}

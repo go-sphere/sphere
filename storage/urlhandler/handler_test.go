@@ -380,6 +380,22 @@ func TestHandler_ExtractKeyFromURLWithMode(t *testing.T) {
 			want:      "test.png",
 			wantErr:   false,
 		},
+		{
+			name:      "same host with another HTTP scheme",
+			publicURL: "https://localhost:8080",
+			uri:       "http://localhost:8080/test.jpg",
+			strict:    true,
+			want:      "test.jpg",
+			wantErr:   false,
+		},
+		{
+			name:      "protocol-relative base accepts either scheme",
+			publicURL: "//localhost:8080",
+			uri:       "http://localhost:8080/test.jpg",
+			strict:    true,
+			want:      "test.jpg",
+			wantErr:   false,
+		},
 	}
 
 	for _, tt := range tests {

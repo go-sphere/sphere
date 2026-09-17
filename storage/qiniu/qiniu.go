@@ -4,7 +4,14 @@
 // Upload tokens use InsertOnly: 1. MimeLimit applies to the token path
 // (declared Content-Type), not byte sniffing, and not server-side
 // UploadFile. PutPolicy.Expires is relative seconds (sub-second rounded up
-// to 1). Delete of miss is idempotent. Download Size comes from Stat.
+// to 1). Delete of miss is idempotent. Download Size comes from the length the
+// SDK read off its own HEAD, falling back to Stat only when that length is
+// unknown or the stored content type is empty.
+//
+// Stat, IsFileExists, DeleteFile, MoveFile and CopyFile ignore the context
+// they are given: the SDK's BucketManager methods for these hardcode
+// context.Background() and v7.27.0 offers no ctx-taking variant. Uploads,
+// downloads and listings do honour cancellation.
 package qiniu
 
 import (
@@ -282,31 +289,36 @@ func (n *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 		}
 		return storage.DownloadResult{}, err
 	}
-	// The SDK fills GetObjectOutput.ContentLength only after the download
-	// goroutine has finished writing the body, while Get returns as soon as the
-	// response headers arrive — so the field read here is always zero, and
-	// reading it at all races that goroutine. Size is contractually the number
-	// of readable bytes and drives Content-Length on the HTTP path, where a zero
-	// makes the server send an empty body, so it is resolved with a stat instead.
-	// This mirrors the s3 driver, which stats the object for the same reason.
-	info, err := manager.Stat(n.config.Bucket, key)
-	if err != nil {
-		if object.Body != nil {
-			_ = object.Body.Close()
-		}
-		if isDownloadNotFoundError(err) {
-			return storage.DownloadResult{}, storageerr.ErrNotFound
-		}
-		return storage.DownloadResult{}, err
-	}
+	// The SDK sets ContentLength from response headers before Get returns and
+	// does not update it while streaming. Reuse it instead of issuing another
+	// Stat, which adds a round trip and may observe a replacement object.
+	size := object.ContentLength
 	mime := object.ContentType
-	if mime == "" {
-		mime = info.MimeType
+	if size < 0 || mime == "" {
+		// -1 means the SDK could not determine a length (chunked transfer), and
+		// it applies when the downloader switches to streaming the whole body.
+		// An empty content type is the other field only the stat can supply.
+		info, err := manager.Stat(n.config.Bucket, key)
+		if err != nil {
+			if object.Body != nil {
+				_ = object.Body.Close()
+			}
+			if isDownloadNotFoundError(err) {
+				return storage.DownloadResult{}, storageerr.ErrNotFound
+			}
+			return storage.DownloadResult{}, err
+		}
+		if size < 0 {
+			size = info.Fsize
+		}
+		if mime == "" {
+			mime = info.MimeType
+		}
 	}
 	return storage.DownloadResult{
 		Reader: object.Body,
 		MIME:   mime,
-		Size:   info.Fsize,
+		Size:   size,
 	}, nil
 }
 

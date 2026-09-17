@@ -96,7 +96,14 @@ func (n *Handler) ExtractKeyFromURLWithMode(uri string, strict bool) (string, er
 		return "", nil
 	}
 	if !hasHttpScheme(uri) {
-		return strings.TrimPrefix(uri, "/"), nil
+		key := strings.TrimPrefix(uri, "/")
+		// Same refusal as the full-URL branch below: a ".."-carrying key can
+		// never address an object, so persisting it only produces a dirty
+		// value that later storage calls fail on.
+		if containsDotDot(key) {
+			return "", ErrInvalidKeyPath
+		}
+		return key, nil
 	}
 
 	u, err := url.Parse(uri)

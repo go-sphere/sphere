@@ -210,6 +210,36 @@ type miniRoute struct {
 	handler httpx.Handler
 }
 
+type unknownSizeStorage struct{ storage.Storage }
+
+func (s unknownSizeStorage) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
+	result, err := s.Storage.DownloadFile(ctx, key)
+	result.Size = -1
+	return result, err
+}
+
+func TestFileServerDownloadUnknownSize(t *testing.T) {
+	router := newMiniRouter()
+	tokens := memory.NewByteCache()
+	t.Cleanup(func() { _ = tokens.Close() })
+	store := unknownSizeStorage{newInMemoryStorage(t)}
+	if _, err := store.UploadFile(t.Context(), strings.NewReader("payload"), "a.txt"); err != nil {
+		t.Fatal(err)
+	}
+	adapter, err := fileserver.NewCDNAdapter(fileserver.Config{
+		PutBase: "http://localhost/upload", GetBase: "http://localhost/files",
+	}, tokens, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter.RegisterFileDownloader(router.Group("/files"))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/files/a.txt", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "payload" {
+		t.Fatalf("download = %d %q, want 200 payload", rec.Code, rec.Body.String())
+	}
+}
+
 type miniRouter struct {
 	prefix string
 	routes *[]miniRoute

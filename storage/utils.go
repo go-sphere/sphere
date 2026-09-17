@@ -139,7 +139,12 @@ func normalizeUploadDir(raw string, rejectAbs bool, field string) (string, error
 	if rejectAbs && path.IsAbs(value) {
 		return "", fmt.Errorf("%s must be relative", field)
 	}
-	value = strings.TrimPrefix(value, "/")
+	// TrimLeft, not TrimPrefix: one leading slash is not the only way to write a
+	// root-anchored path. "//uploads" keeps its leading slash through a single
+	// TrimPrefix and through Clean, so JoinUploadKey would return the absolute
+	// key "/uploads/..." — which the local driver folds to "uploads/..." and the
+	// verbatim drivers keep, i.e. the same logical key on two different objects.
+	value = strings.TrimLeft(value, "/")
 	value = path.Clean(value)
 	if value == "." {
 		return "", nil
@@ -169,6 +174,13 @@ func normalizeUploadDir(raw string, rejectAbs bool, field string) (string, error
 //   - a ".." segment is rejected rather than resolved, so a key can never
 //     traverse out of its prefix
 //   - a key that normalizes to nothing is rejected
+//
+// "\" is an ordinary character here, not a separator, because it is an ordinary
+// character in an object key: "..\..\x" is a single valid segment. Only the
+// local driver maps keys onto a filesystem where "\" separates (on Windows),
+// and the containment check in its fixFilePath is what keeps such a key from
+// resolving outside the root. Callers that need a key to mean the same thing on
+// every driver should avoid backslashes.
 func NormalizeKey(key string) (string, error) {
 	trimmed := strings.TrimPrefix(key, "/")
 	if trimmed == "" {

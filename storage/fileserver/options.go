@@ -20,6 +20,9 @@ type options struct {
 	createFileKey         func(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error)
 	downloadCacheControl  string
 	inlineDownload        bool
+	// ownsCache marks the cache as a resource of this FileServer rather than an
+	// injected dependency, so Close releases it.
+	ownsCache bool
 }
 
 // Option configures file server behavior.
@@ -42,6 +45,20 @@ func WithCreateFileKey(fn func(ctx context.Context, server *FileServer, filename
 func WithCacheControl(maxAge uint64) Option {
 	return func(o *options) {
 		o.downloadCacheControl = "max-age=" + strconv.FormatUint(maxAge, 10)
+	}
+}
+
+// WithOwnedCache makes the FileServer close the cache handed to NewCDNAdapter
+// when FileServer.Close is called.
+//
+// By default the cache is injected and stays the caller's to close, because a
+// Process-wide cache is usually shared with other users of the same server. A
+// FileServer built on a cache it allocated for itself (typically an in-memory
+// one, whose only owner is this adapter) must say so with this option:
+// otherwise nothing ever releases the cache's background resources.
+func WithOwnedCache() Option {
+	return func(o *options) {
+		o.ownsCache = true
 	}
 }
 
