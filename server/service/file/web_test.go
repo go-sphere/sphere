@@ -2,13 +2,16 @@ package file
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"sync"
 	"testing"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/sphere/cache"
 	"github.com/go-sphere/sphere/core/task"
 	"github.com/go-sphere/sphere/core/task/tasktest"
+	"github.com/go-sphere/sphere/storage"
 )
 
 var _ task.Task = (*Web)(nil)
@@ -25,6 +28,37 @@ func TestWebLifecycleContract(t *testing.T) {
 		}
 		return NewWebServer(newStubEngine(), storage)
 	})
+}
+
+func TestWebStopReleasesOwnedUploadTokenCache(t *testing.T) {
+	t.Parallel()
+
+	adapter, err := NewLocalFileService(LocalFileServiceConfig{
+		RootDir:    t.TempDir(),
+		PublicBase: "http://127.0.0.1/",
+	})
+	if err != nil {
+		t.Fatalf("NewLocalFileService: %v", err)
+	}
+	web := NewWebServer(newStubEngine(), adapter)
+	ctx := context.Background()
+
+	if _, err := adapter.GenerateUploadAuth(ctx, storage.UploadAuthRequest{FileName: "a.txt"}); err != nil {
+		t.Fatalf("GenerateUploadAuth before Stop: %v", err)
+	}
+
+	if err := web.Stop(ctx); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if _, err := adapter.GenerateUploadAuth(ctx, storage.UploadAuthRequest{FileName: "b.txt"}); !errors.Is(err, cache.ErrClosed) {
+		t.Fatalf("GenerateUploadAuth after Stop = %v, want cache.ErrClosed", err)
+	}
+
+	// A task can be stopped repeatedly; the owned cache must not be closed
+	// twice or turn the second Stop into an error.
+	if err := web.Stop(ctx); err != nil {
+		t.Fatalf("second Stop = %v, want nil", err)
+	}
 }
 
 func TestWeb_Identifier(t *testing.T) {

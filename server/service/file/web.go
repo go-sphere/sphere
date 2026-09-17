@@ -9,6 +9,7 @@ package file
 
 import (
 	"context"
+	"errors"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/cache/memory"
@@ -38,6 +39,11 @@ type LocalFileServiceConfig struct {
 }
 
 // NewLocalFileService builds a local-disk CDN adapter with an in-memory byte cache and 3600s Cache-Control.
+//
+// The in-memory token cache has no other owner, so it is marked as owned: the
+// adapter's Close releases it, and Web.Stop calls that when the service stops.
+// A caller that builds the adapter but never wraps it in a Web is responsible
+// for calling Close itself.
 func NewLocalFileService(conf LocalFileServiceConfig) (*fileserver.FileServer, error) {
 	client, err := local.NewClient(local.Config{
 		RootDir: conf.RootDir,
@@ -45,16 +51,19 @@ func NewLocalFileService(conf LocalFileServiceConfig) (*fileserver.FileServer, e
 	if err != nil {
 		return nil, err
 	}
+	tokens := memory.NewByteCache()
 	adapter, err := fileserver.NewCDNAdapter(
 		fileserver.Config{
 			PutBase: conf.PublicBase,
 			GetBase: conf.PublicBase,
 		},
-		memory.NewByteCache(),
+		tokens,
 		client,
 		fileserver.WithCacheControl(3600),
+		fileserver.WithOwnedCache(),
 	)
 	if err != nil {
+		_ = tokens.Close()
 		return nil, err
 	}
 	return adapter, nil
@@ -72,7 +81,12 @@ func (w *Web) Start(ctx context.Context) error {
 	return w.engine.Start()
 }
 
-// Stop gracefully shuts down the file web server.
+// Stop shuts down the engine before closing resources owned by the adapter.
+// A caller-supplied cache remains open unless WithOwnedCache was set.
 func (w *Web) Stop(ctx context.Context) error {
-	return w.engine.Stop(ctx)
+	stopErr := w.engine.Stop(ctx)
+	if w.storage == nil {
+		return stopErr
+	}
+	return errors.Join(stopErr, w.storage.Close())
 }
