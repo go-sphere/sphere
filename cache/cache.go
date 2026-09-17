@@ -80,7 +80,8 @@ var ErrClosed = errors.New("cache: cache is closed")
 // wrapping instead of degrading to ErrNotSupported.
 //
 // Implementations may load the full key set into the returned slice and
-// must honour ctx cancellation.
+// must honour ctx cancellation. The returned keys are unique; their order is
+// unspecified.
 type KeyLister interface {
 	Keys(ctx context.Context, prefix string) ([]string, error)
 }
@@ -90,7 +91,9 @@ type KeyLister interface {
 // Value ownership: for byte-slice caches (ByteCache and the []byte instantiation
 // of any driver), stored and returned values are independent copies. A caller
 // may reuse an encoding buffer after Set and may append to a value returned by
-// Get without disturbing what is cached.
+// Get without disturbing what is cached. A named byte-slice type (for example
+// `type Payload []byte` used as Cache[Payload]) is a distinct type, not the
+// []byte instantiation, and falls under the rule below.
 //
 // For every other value type the cache stores whatever it is given: a driver
 // backed by an in-process map keeps the caller's own value, so mutating a value
@@ -126,6 +129,10 @@ type Bulk[S any] interface {
 	// MultiSet stores multiple key-value pairs in the cache without expiration.
 	MultiSet(ctx context.Context, valMap map[string]S) error
 	// MultiGet retrieves multiple values from the cache by their keys, returning a map of found key-value pairs.
+	// When err is non-nil the returned map is unspecified and must be ignored.
+	// A key missing from a nil-error result is not proof that it is absent from
+	// the backend: wrappers may skip an entry they cannot decode (see
+	// CodecCache.MultiGet).
 	MultiGet(ctx context.Context, keys []string) (map[string]S, error)
 	// MultiDel removes multiple keys from the cache.
 	MultiDel(ctx context.Context, keys []string) error

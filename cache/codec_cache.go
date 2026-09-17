@@ -22,6 +22,10 @@ type CodecCache[T any] struct {
 }
 
 // NewCodecCache creates a typed cache adapter from any ByteCache and codec.
+//
+// CodecCache adds no synchronization of its own, so the codec must be safe for
+// concurrent use: every adapter method may call Marshal/Unmarshal from several
+// goroutines, and one codec can be shared by several adapters.
 func NewCodecCache[T any](cache ByteCache, codec codec.Codec) *CodecCache[T] {
 	return &CodecCache[T]{
 		cache: cache,
@@ -120,6 +124,9 @@ func (m *CodecCache[T]) GetDel(ctx context.Context, key string) (T, bool, error)
 	return val, true, nil
 }
 
+// MultiGet retrieves multiple values by key. Entries the codec cannot decode
+// are skipped with a warning instead of failing the batch, so a nil-error
+// result may omit keys that exist in the backend.
 func (m *CodecCache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, error) {
 	rawMap, err := m.cache.MultiGet(ctx, keys)
 	if err != nil {

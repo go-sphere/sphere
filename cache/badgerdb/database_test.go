@@ -3,7 +3,9 @@ package badgerdb
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/dgraph-io/badger/v4"
@@ -96,4 +98,37 @@ func TestCloseOwnership(t *testing.T) {
 			t.Fatalf("owned instance must be closed: got err=%v", err)
 		}
 	})
+}
+
+// The long keys exceed Badger's transaction budget if deleted together.
+func TestDelAllBatches(t *testing.T) {
+	ctx := t.Context()
+	db := newTestDB(t)
+
+	const keys = 2037
+	valMap := make(map[string][]byte, 500)
+	prefix := strings.Repeat("k", 8*1024)
+	for i := range keys {
+		valMap[fmt.Sprintf("%s_%06d", prefix, i)] = []byte("v")
+		if len(valMap) == 500 {
+			if err := db.MultiSet(ctx, valMap); err != nil {
+				t.Fatalf("MultiSet: %v", err)
+			}
+			clear(valMap)
+		}
+	}
+	if err := db.MultiSet(ctx, valMap); err != nil {
+		t.Fatalf("MultiSet: %v", err)
+	}
+
+	if err := db.DelAll(ctx); err != nil {
+		t.Fatalf("DelAll: %v", err)
+	}
+	got, err := db.Keys(ctx, "")
+	if err != nil {
+		t.Fatalf("Keys: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("Keys after DelAll: got %d keys, want 0", len(got))
+	}
 }

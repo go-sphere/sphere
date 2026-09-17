@@ -14,7 +14,10 @@ import (
 )
 
 // NoCache is a no-operation cache implementation that does not store any data.
-// It implements the Cache interface but all operations are no-ops, useful for disabling caching.
+// It implements the Cache interface; every operation succeeds without storing
+// anything, except SetWithTTL/MultiSetWithTTL, which still reject a negative
+// expiration with cache.ErrInvalidTTL. It is useful for disabling caching
+// without hiding caller bugs.
 type NoCache[T any] struct{}
 
 // NewNoCache creates a new no-operation cache that doesn't actually cache anything.

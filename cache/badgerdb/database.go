@@ -238,8 +238,13 @@ func (d *Database) MultiDel(ctx context.Context, keys []string) error {
 	})
 }
 
-// DelAll removes every entry by enumerating the keyspace and a single
-// MultiDel, mirroring nscache.NSCache.DelAll.
+// delAllBatchSize bounds how many deletes DelAll issues per transaction: one
+// transaction over the whole keyspace would exceed badger's transaction size
+// limits (ErrTxnTooBig) on a large database.
+const delAllBatchSize = 1000
+
+// DelAll removes every entry by enumerating the keyspace and deleting in
+// bounded batches, mirroring nscache.NSCache.DelAll.
 //
 // It deliberately avoids badger's DropAll, which is documented as safe against
 // concurrent writes but not against concurrent reads — the caller is expected to
@@ -255,10 +260,17 @@ func (d *Database) DelAll(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if len(keys) == 0 {
-		return nil
+	for len(keys) > 0 {
+		batch := keys
+		if len(batch) > delAllBatchSize {
+			batch = keys[:delAllBatchSize]
+		}
+		if err := d.MultiDel(ctx, batch); err != nil {
+			return err
+		}
+		keys = keys[len(batch):]
 	}
-	return d.MultiDel(ctx, keys)
+	return nil
 }
 
 // Keys returns every key whose name starts with prefix. It uses a read-only

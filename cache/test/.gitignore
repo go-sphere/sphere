@@ -1,1 +1,5 @@
-/temp*
+# Badger data directories left behind by ad-hoc local runs (the tests use
+# t.TempDir()). Directory-only patterns: a source file such as
+# temp_helper.go must never be silently ignored.
+/temp/
+/temp_*/

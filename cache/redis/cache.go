@@ -21,7 +21,11 @@ import (
 
 const scanBatchSize = 256
 
-// ErrorType is returned by MultiGet when an MGET value is not a string.
+// ErrorType is returned by MultiGet if an MGET element is neither nil nor a
+// string. It is a defensive guard, not a signal callers can rely on: Redis
+// reports a key holding a non-string value as a nil element (a miss), and
+// go-redis decodes MGET elements as string or nil, so today this error cannot
+// occur and non-string values are indistinguishable from missing keys.
 var ErrorType = fmt.Errorf("type error")
 
 // ByteCache is a Redis-backed cache implementation for storing raw byte data.
@@ -120,6 +124,8 @@ func (c *ByteCache) MultiGet(ctx context.Context, keys []string) (map[string][]b
 			}
 			result[key] = []byte(raw)
 		}
+		// A nil element means the key is missing or holds a non-string value:
+		// both are reported as a miss (see ErrorType).
 	}
 	return result, nil
 }
@@ -156,18 +162,33 @@ func (c *ByteCache) Exists(ctx context.Context, key string) (bool, error) {
 // It drains SCAN with a glob-escaped MATCH pattern so metacharacters in the
 // prefix (*, ?, [, ], \) are treated literally. If any SCAN batch fails the
 // partial result is discarded and the error is returned.
+//
+// SCAN only guarantees that a key present for the whole iteration is returned
+// at least once: it may return the same key in several batches (for example
+// while the keyspace is rehashing), so the result is de-duplicated to honour
+// the KeyLister uniqueness rule. Order remains unspecified.
 func (c *ByteCache) Keys(ctx context.Context, prefix string) ([]string, error) {
 	pattern := escapeGlob(prefix) + "*"
 	var (
 		cursor uint64
 		keys   []string
+		// Allocated unconditionally: a lazily-created map makes the write below
+		// look reachable with a nil map to nilaway, which cannot see that an
+		// empty batch skips the loop body.
+		seen = make(map[string]struct{})
 	)
 	for {
 		batch, next, err := c.client.Scan(ctx, cursor, pattern, scanBatchSize).Result()
 		if err != nil {
 			return nil, err
 		}
-		keys = append(keys, batch...)
+		for _, key := range batch {
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			keys = append(keys, key)
+		}
 		cursor = next
 		if cursor == 0 {
 			return keys, nil

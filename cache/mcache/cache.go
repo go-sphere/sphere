@@ -22,6 +22,9 @@ import (
 
 // Map is a simple in-memory cache implementation using Go's built-in map with read-write mutex protection.
 // It supports TTL-based expiration and is suitable for lightweight caching needs without external dependencies.
+//
+// The zero value is not usable — the maps are nil, so the first write panics.
+// Build one with NewMapCache, NewMapCacheWithCapacity, NewCache, or NewByteCache.
 type Map[K comparable, S any] struct {
 	rw         sync.RWMutex
 	store      map[K]S
@@ -199,8 +202,9 @@ func (t *Map[K, S]) DelAll(ctx context.Context) error {
 
 // Keys returns every cached key whose string form starts with prefix.
 // Entries whose TTL has passed are skipped so the result stays consistent
-// with Get/Exists; cleanup of those stale map entries is left to Count/Trim
-// or the next Get/MultiGet that touches them.
+// with Get/Exists; those stale map entries are reclaimed by Trim or by the
+// next Get/GetDel/MultiGet that touches them. Count deliberately does not
+// reclaim (see its doc).
 func (t *Map[K, S]) Keys(ctx context.Context, prefix string) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

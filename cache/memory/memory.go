@@ -57,6 +57,11 @@ type Cache[T any] struct {
 
 // NewMemoryCache creates a new in-memory cache with default settings.
 // The cache uses a fixed cost of 1 per item and does not calculate actual memory usage.
+//
+// Construction cannot fail: ristretto.NewCache only errors when NumCounters,
+// MaxCost, or BufferItems is zero or negative, and the constants used here are
+// positive. The error is deliberately ignored so a nil backend can never be
+// returned.
 func NewMemoryCache[T any]() *Cache[T] {
 	cache, _ := ristretto.NewCache[string, T](&ristretto.Config[string, T]{
 		NumCounters: defaultNumCounters,
@@ -72,6 +77,10 @@ func NewMemoryCache[T any]() *Cache[T] {
 
 // NewMemoryCacheWithCost creates a new in-memory cache with a custom cost function.
 // The cost function determines the memory cost of each cached item, enabling memory-based eviction policies.
+//
+// Construction cannot fail for the same reason as NewMemoryCache: the
+// hardcoded config values are positive, and a nil cost falls back to
+// ristretto's own default.
 func NewMemoryCacheWithCost[T any](cost func(T) int64) *Cache[T] {
 	cache, _ := ristretto.NewCache[string, T](&ristretto.Config[string, T]{
 		NumCounters: defaultNumCounters,
