@@ -430,6 +430,13 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 		// Never relocate a whole directory (or special file) under a key.
 		return storageerr.ErrNotFound
 	}
+	// A move onto itself is a no-op. Without this guard checkOverwrite would
+	// see the source file at the destination path and report ErrDestExists
+	// when overwrite is off, even though nothing would be overwritten.
+	// Mirrors the s3/kvcache drivers.
+	if sourcePath == destinationPath {
+		return nil
+	}
 	if e := os.MkdirAll(filepath.Dir(destinationPath), 0o750); e != nil {
 		return e
 	}

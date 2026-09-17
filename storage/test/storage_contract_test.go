@@ -285,6 +285,16 @@ func TestStorageMoveToSameKey(t *testing.T) {
 			if got := readStorageFile(t, ctx, store, key); got != "preserve-content" {
 				t.Fatalf("file content changed after moving to same key: got %q, want %q", got, "preserve-content")
 			}
+
+			// Existing file move to itself with overwrite=false is a no-op too:
+			// the destination "existing" file is the source itself, so nothing
+			// would be overwritten.
+			if err := store.MoveFile(ctx, key, key, false); err != nil {
+				t.Fatalf("MoveFile(same key, overwrite=false): %v", err)
+			}
+			if got := readStorageFile(t, ctx, store, key); got != "preserve-content" {
+				t.Fatalf("file content changed after moving to same key without overwrite: got %q, want %q", got, "preserve-content")
+			}
 		})
 	}
 }
