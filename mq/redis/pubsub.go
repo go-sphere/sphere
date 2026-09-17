@@ -48,6 +48,13 @@ func (s *subscription[T]) requestStop() error {
 
 // PubSub implements typed best-effort delivery over Redis Pub/Sub. The Redis
 // client is injected and remains owned by the caller.
+//
+// A subscription's Handler runs inline on its receive goroutine, so a slow
+// Handler delays that subscription's own delivery and its Done (Stop and the
+// task lifecycle both wait for running handlers). If the Handler stalls long
+// enough for go-redis' per-subscription buffer to fill, that subscription's
+// messages are dropped, as best-effort delivery allows; other subscriptions
+// have their own receive goroutines and are unaffected.
 type PubSub[T any] struct {
 	identifier string
 	client     *redis.Client
@@ -231,14 +238,12 @@ func (p *PubSub[T]) remove(target *subscription[T]) {
 }
 
 // StopTopic requests cancellation of the topic's current subscriptions and
-// returns a channel that closes after their handlers return.
+// returns a channel that closes after their handlers return. It stays scoped to
+// the topic after RequestStop as well: the subscriptions remain in the map
+// until their consumer goroutine returns, so this does not report whole-
+// instance quiescence like p.done does.
 func (p *PubSub[T]) StopTopic(topic string) (<-chan struct{}, error) {
 	p.mu.Lock()
-	if p.closed {
-		done := p.done
-		p.mu.Unlock()
-		return done, nil
-	}
 	subs := p.subscriptions[topic]
 	delete(p.subscriptions, topic)
 	p.mu.Unlock()
@@ -261,7 +266,10 @@ func (p *PubSub[T]) RequestStop() error {
 		for _, topicSubs := range p.subscriptions {
 			subs = append(subs, topicSubs...)
 		}
-		clear(p.subscriptions)
+		// The entries are deliberately left in place rather than cleared: each
+		// subscription's consumer goroutine removes its own entry when it returns,
+		// and until then StopTopic can still resolve a topic-scoped completion
+		// channel instead of falling back to whole-instance quiescence.
 		p.mu.Unlock()
 
 		for _, sub := range subs {

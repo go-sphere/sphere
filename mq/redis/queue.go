@@ -47,6 +47,12 @@ func (e *DecodeError) Unwrap() error { return e.Err }
 // anything shorter up to 1s. Abandoning an in-flight BLPOP instead would return
 // sooner but drop the element it had already popped, so waiting it out is what
 // keeps a shutdown from eating a message.
+//
+// That last guarantee assumes the caller-supplied client does not derive its
+// read deadline from the context (the default, ContextTimeoutEnabled=false).
+// With ContextTimeoutEnabled and a deadline on ctx, the poll is cut short at
+// the deadline after the server may already have popped an element, and that
+// element is lost.
 const blockingConsumePoll = time.Second
 
 // Queue implements a Redis-backed point-to-point message queue with typed message support.

@@ -602,6 +602,74 @@ func TestPubSubStopTopicWaitsOnlyForThatTopic(t *testing.T) {
 	}
 }
 
+// TestPubSubStopTopicAfterRequestStopStaysTopicScoped pins that StopTopic still
+// reports quiescence for the requested topic once RequestStop has run, instead
+// of falling back to whole-instance Done and being blocked by handlers of
+// unrelated topics.
+func TestPubSubStopTopicAfterRequestStopStaysTopicScoped(t *testing.T) {
+	for _, factory := range pubSubFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			ps := factory.newInt(t)
+			enteredA := make(chan struct{})
+			enteredB := make(chan struct{})
+			releaseA := make(chan struct{})
+			releaseB := make(chan struct{})
+			var releaseAOnce sync.Once
+			var releaseBOnce sync.Once
+			defer releaseAOnce.Do(func() { close(releaseA) })
+			defer releaseBOnce.Do(func() { close(releaseB) })
+
+			if _, err := ps.Subscribe(t.Context(), "a", func(context.Context, int) error {
+				close(enteredA)
+				<-releaseA
+				return nil
+			}); err != nil {
+				t.Fatalf("Subscribe a: %v", err)
+			}
+			if _, err := ps.Subscribe(t.Context(), "b", func(context.Context, int) error {
+				close(enteredB)
+				<-releaseB
+				return nil
+			}); err != nil {
+				t.Fatalf("Subscribe b: %v", err)
+			}
+			if err := ps.Broadcast(t.Context(), "a", 1); err != nil {
+				t.Fatalf("Broadcast a: %v", err)
+			}
+			if err := ps.Broadcast(t.Context(), "b", 1); err != nil {
+				t.Fatalf("Broadcast b: %v", err)
+			}
+			for _, entered := range []chan struct{}{enteredA, enteredB} {
+				select {
+				case <-entered:
+				case <-time.After(2 * time.Second):
+					t.Fatal("handler did not start")
+				}
+			}
+
+			if err := ps.RequestStop(); err != nil {
+				t.Fatalf("RequestStop: %v", err)
+			}
+			done, err := ps.StopTopic("a")
+			if err != nil {
+				t.Fatalf("StopTopic a after RequestStop: %v", err)
+			}
+			select {
+			case <-done:
+				t.Fatal("topic a reported quiescence before its handler returned")
+			case <-time.After(50 * time.Millisecond):
+			}
+			releaseAOnce.Do(func() { close(releaseA) })
+			select {
+			case <-done:
+			case <-time.After(2 * time.Second):
+				t.Fatal("topic a waited for unrelated topic b")
+			}
+			releaseBOnce.Do(func() { close(releaseB) })
+		})
+	}
+}
+
 func TestPubSubTaskLifecycle(t *testing.T) {
 	for _, factory := range pubSubFactories() {
 		t.Run(factory.name, func(t *testing.T) {

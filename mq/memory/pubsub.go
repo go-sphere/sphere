@@ -170,19 +170,19 @@ func (p *PubSub[T]) run(sub *subscription[T]) {
 			if sub.ctx.Err() != nil {
 				return
 			}
-			p.dispatch(sub.ctx, sub.handler, data)
+			p.dispatch(sub.ctx, sub.topic, sub.handler, data)
 		}
 	}
 }
 
-func (p *PubSub[T]) dispatch(ctx context.Context, handler mq.Handler[T], data T) {
+func (p *PubSub[T]) dispatch(ctx context.Context, topic string, handler mq.Handler[T], data T) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			log.Error("recovered from panic in subscription handler", log.Any("error", recovered))
+			log.Error("recovered from panic in subscription handler", log.Any("error", recovered), log.String("topic", topic))
 		}
 	}()
 	if err := handler(ctx, data); err != nil {
-		log.Error("subscription handler error", log.Err(err))
+		log.Error("subscription handler error", log.Err(err), log.String("topic", topic))
 	}
 }
 
@@ -205,14 +205,12 @@ func (p *PubSub[T]) remove(target *subscription[T]) {
 }
 
 // StopTopic requests cancellation of the topic's current subscriptions and
-// returns a channel that closes after their handlers return.
+// returns a channel that closes after their handlers return. It stays scoped to
+// the topic after RequestStop as well: the subscriptions remain in the map
+// until their consumer goroutine returns, so this does not report whole-
+// instance quiescence like p.done does.
 func (p *PubSub[T]) StopTopic(topic string) (<-chan struct{}, error) {
 	p.mu.Lock()
-	if p.closed {
-		done := p.done
-		p.mu.Unlock()
-		return done, nil
-	}
 	subs := p.topics[topic]
 	delete(p.topics, topic)
 	p.mu.Unlock()
@@ -234,7 +232,10 @@ func (p *PubSub[T]) RequestStop() error {
 		for _, topicSubs := range p.topics {
 			subs = append(subs, topicSubs...)
 		}
-		clear(p.topics)
+		// The entries are deliberately left in place rather than cleared: each
+		// subscription's consumer goroutine removes its own entry when it returns,
+		// and until then StopTopic can still resolve a topic-scoped completion
+		// channel instead of falling back to whole-instance quiescence.
 		p.mu.Unlock()
 
 		for _, sub := range subs {

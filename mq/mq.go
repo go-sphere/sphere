@@ -8,7 +8,8 @@
 //
 // Publish delivers to exactly one consumer, FIFO. memory Publish blocks when
 // the per-topic buffer is full; redis RPUSH is unbounded. TryConsume: check
-// the error first — a non-nil error means the bool carries no meaning.
+// the error first — a non-nil error means the message was not delivered, and
+// the bool must not be read as "nothing was waiting".
 //
 // Close is driver-split. memory Close stops the queue and drains remaining
 // messages, then Consume/TryConsume return ErrQueueClosed. redis Close is a
@@ -52,10 +53,13 @@ type Queue[T any] interface {
 
 	// TryConsume retrieves the next available message from the specified topic queue without blocking.
 	//
-	// Check the error first. A non-nil error means the attempt failed — the queue
-	// is closed, the context was cancelled, the transport broke — and the bool
-	// carries no meaning. Only when the error is nil does the bool report whether
-	// a message was taken, with false meaning the queue was empty.
+	// Check the error first. A non-nil error means the message was not delivered
+	// — the queue is closed, the context was cancelled, the transport broke —
+	// and the bool must not be read as "nothing was waiting". A driver that
+	// already took an element off the queue before failing to decode it reports
+	// the error together with ok=true so the loss is not misreported as an empty
+	// queue (see redis.DecodeError). Only when the error is nil does the bool
+	// report whether a message was taken, with false meaning the queue was empty.
 	//
 	// A polling loop must therefore be written as:
 	//
@@ -81,6 +85,11 @@ type Queue[T any] interface {
 // Handler processes one PubSub message. ctx is the lifetime context of the
 // Subscription and is cancelled before the subscription begins stopping.
 // Handlers should use it to interrupt blocking work promptly.
+//
+// The returned error is logged by the driver and otherwise ignored: delivery is
+// not retried, the message is not requeued, and the subscription stays alive. A
+// panic in a Handler is recovered by the driver and likewise does not stop the
+// subscription.
 type Handler[T any] func(ctx context.Context, data T) error
 
 // Subscription is the lifecycle handle returned by PubSub.Subscribe.
@@ -88,6 +97,10 @@ type Handler[T any] func(ctx context.Context, data T) error
 // Stop requests cancellation and returns without waiting for the Handler, so
 // it is safe to call from inside that Handler. Done closes once the consumer
 // goroutine and any running Handler have returned. Stop is idempotent.
+//
+// A non-nil error from Stop reports that the underlying transport could not be
+// released (for example the Redis connection); the subscription still stops and
+// Done still closes. Implementations holding no transport resource return nil.
 type Subscription interface {
 	Stop() error
 	Done() <-chan struct{}

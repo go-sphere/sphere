@@ -147,18 +147,19 @@ func (q *Queue[T]) PurgeQueue(ctx context.Context, topic string) error {
 		return nil
 	}
 
-	for {
+	// Drain at most what the buffer can hold: a producer publishing as fast as
+	// this loop discards would otherwise keep the call alive indefinitely. The
+	// topic channels are never closed, so there is no closed-channel case.
+	for range cap(queue) {
 		select {
-		case _, ok := <-queue:
-			if !ok {
-				return ErrQueueClosed
-			}
+		case <-queue:
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 			return nil
 		}
 	}
+	return nil
 }
 
 // DeleteQueue removes the topic's queue entry so its memory can be reclaimed.

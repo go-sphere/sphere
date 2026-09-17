@@ -3,8 +3,9 @@
 //
 // Default buffer is 100; WithQueueSize below 1 is ignored. Queue Publish
 // blocks when the buffer is full; PubSub Broadcast drops and logs. Close
-// stops both halves (errors.Join). Queue Close drains remaining messages
-// then returns ErrQueueClosed. Subscribe's context owns the subscription.
+// stops both halves (errors.Join). Queue Close is idempotent and returns nil;
+// Consume and TryConsume drain remaining buffered messages and then return
+// ErrQueueClosed. Subscribe's context owns the subscription.
 // PubSub RequestStop is non-blocking; task.Task.Stop waits for handler
 // quiescence. PubSub and MessageQueue implement task.Task; use WithIdentifier
 // when a group contains more than one.
