@@ -4,16 +4,16 @@
 //
 // init reads WORKER_ID (valid 0–63). Unset defaults to 1, not 0 — so
 // StatefulSet pod-0 must set WORKER_ID=0 explicitly. Malformed values
-// panic. BaseTime is 2024-01-01 in time.Local. NextId is the process-global
-// generator; NewIdGenerator(workerID) is independent. Unique worker IDs are
-// required across processes sharing a key space.
+// panic. BaseTime is the fixed instant baseTimeMillis, never time.Local.
+// NextId is the process-global generator; NewIdGenerator(workerID) is
+// independent. Unique worker IDs are required across processes sharing a key
+// space.
 package idgenerator
 
 import (
 	"fmt"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/yitter/idgenerator-go/idgen"
 )
@@ -25,6 +25,23 @@ const defaultWorkerID uint16 = 1
 // maxWorkerID is the largest worker ID the underlying generator accepts with the
 // default WorkerIdBitLength of 6 (2^6-1). Zero is a valid worker ID.
 const maxWorkerID uint64 = 63
+
+// baseTimeMillis is the epoch IDs count ticks from: 2023-12-31T10:00:00Z, the
+// earliest instant that is 2024-01-01 anywhere on Earth (UTC+14).
+//
+// It is deliberately not time.Date(2024, 1, 1, 0, 0, 0, 0, time.Local). Which
+// zone that evaluates in is decided by import order — boot.InitTimezone assigns
+// time.Local from another package's init — and by whether the image ships
+// tzdata, so one instant maps to ticks up to 26 hours apart across processes.
+// Two processes (or one process across a restart) running the same WORKER_ID
+// then issue the same (tick, worker, sequence) triple twice, which is the one
+// thing this package promises not to do.
+//
+// Being the earliest such instant, it also keeps ticks no lower than every value the
+// zone-dependent expression could have produced, so a deployment that already
+// issued IDs advances its tick range on upgrade. Reusing a worker ID in
+// simultaneous processes or rolling back the epoch is still unsafe.
+const baseTimeMillis int64 = 1704016800000
 
 // parseWorkerID resolves the worker ID from the raw WORKER_ID value.
 //
@@ -55,7 +72,7 @@ func init() {
 		panic(err)
 	}
 	options := idgen.NewIdGeneratorOptions(workerID)
-	options.BaseTime = time.Date(2024, 1, 1, 0, 0, 0, 0, time.Local).UnixMilli()
+	options.BaseTime = baseTimeMillis
 	idgen.SetIdGenerator(options)
 }
 
@@ -69,7 +86,7 @@ func NextId() int64 {
 // IDs are required across processes sharing a key space.
 func NewIdGenerator(workerID uint16) func() int64 {
 	options := idgen.NewIdGeneratorOptions(workerID)
-	options.BaseTime = time.Date(2024, 1, 1, 0, 0, 0, 0, time.Local).UnixMilli()
+	options.BaseTime = baseTimeMillis
 	generator := idgen.NewDefaultIdGenerator(options)
 	return func() int64 {
 		return generator.NewLong()

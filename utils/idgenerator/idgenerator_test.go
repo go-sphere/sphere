@@ -3,7 +3,39 @@ package idgenerator
 import (
 	"sync"
 	"testing"
+	"time"
 )
+
+// TestBaseTimeIsAbsolute pins the epoch to a zone-independent instant, and to
+// the property that makes changing it safe.
+//
+// BaseTime used to be time.Date(2024, 1, 1, 0, 0, 0, 0, time.Local), so the tick
+// a process counted from depended on import order (boot.InitTimezone assigns
+// time.Local from another package's init) and on whether the image ships tzdata:
+// the same instant became ticks hours apart, and a restart under a different
+// zone re-issued tick ranges the same worker ID had already used. Re-deriving
+// the value from a zone would therefore fail here on any machine not running in
+// UTC+14, which is the point.
+//
+// The loop covers the other direction: a base later than an actual zone's
+// 2024-01-01 would make ticks go backwards relative to IDs already issued under
+// the old expression and could repeat them, so no zone may reach the date
+// before baseTimeMillis does.
+func TestBaseTimeIsAbsolute(t *testing.T) {
+	t.Parallel()
+
+	earliest := time.Date(2024, 1, 1, 0, 0, 0, 0, time.FixedZone("UTC+14", 14*60*60)).UnixMilli()
+	if baseTimeMillis != earliest {
+		t.Errorf("baseTimeMillis = %d, want the earliest 2024-01-01 (UTC+14) = %d", baseTimeMillis, earliest)
+	}
+
+	for _, offset := range []int{-12, -8, -5, 0, 5, 8, 9, 14} {
+		zone := time.FixedZone("test", offset*60*60)
+		if local := time.Date(2024, 1, 1, 0, 0, 0, 0, zone).UnixMilli(); local < baseTimeMillis {
+			t.Errorf("UTC%+d reaches 2024-01-01 at %d, before baseTimeMillis %d: ticks would retrace IDs issued under a zone-dependent base", offset, local, baseTimeMillis)
+		}
+	}
+}
 
 // TestParseWorkerID pins two rules that a fixed-value fallback silently broke.
 //
