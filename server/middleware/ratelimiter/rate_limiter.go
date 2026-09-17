@@ -66,6 +66,13 @@ func WithSetTimeout(timeout time.Duration) Option {
 
 // NewRateLimiter creates a new rate limiting middleware with customizable key extraction and limiter creation.
 // It uses caching to store rate limiters per key and singleflight to prevent cache stampedes.
+//
+// createLimiter runs once per key, inside a singleflight whose result every
+// concurrent waiter for that key shares, and it receives the triggering
+// request's context. It must therefore not depend on that request's
+// cancellation or deadline (values are fine): one caller disconnecting would
+// otherwise fail limiter creation for every waiter. The subsequent cache write
+// is detached from the request for the same reason.
 func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Context) (*rate.Limiter, time.Duration), options ...Option) httpx.Middleware {
 	sf := singleflight.Group{}
 	opts := newOptions(options...)
@@ -75,7 +82,10 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 		if gErr != nil {
 			return httpx.InternalServerError(gErr)
 		}
-		if exist && limiter != nil && limiter.Burst() == 0 {
+		// A JSON round-trip through a codec cache yields a zero limiter with
+		// both Limit and Burst zero; a legitimately configured limiter can
+		// have Burst()==0 alone (rate.Inf), so require both to be zero.
+		if exist && limiter != nil && limiter.Limit() == 0 && limiter.Burst() == 0 {
 			return httpx.InternalServerError(fmt.Errorf(
 				"ratelimiter: cache returned a zero limiter for key %q: "+
 					"rate.Limiter is not serializable, use an in-process cache",
@@ -84,7 +94,10 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 		if !exist || limiter == nil {
 			value, nErr, _ := sf.Do(k, func() (any, error) {
 				newLimiter, expire := createLimiter(ctx)
-				setCtx, cancel := context.WithTimeout(ctx.Context(), opts.setTimeout)
+				// Every concurrent waiter for this key shares this result, so
+				// the cache write must not inherit the triggering request's
+				// cancellation: its disconnect would fail all waiters.
+				setCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Context()), opts.setTimeout)
 				defer cancel()
 				err := opts.cache.SetWithTTL(setCtx, k, newLimiter, expire)
 				if err != nil {

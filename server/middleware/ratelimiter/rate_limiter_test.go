@@ -343,3 +343,78 @@ func TestRateLimiter_CacheExpirationRebuildsLimiter(t *testing.T) {
 		t.Fatalf("createLimiter called %d times, want 2", created)
 	}
 }
+
+// cancelAwareRateCache is a cache whose writes honor cancellation and record
+// what the write context looked like.
+type cancelAwareRateCache struct {
+	cache.Cache[*rate.Limiter]
+	seenCtxErr error
+}
+
+func (c *cancelAwareRateCache) Get(context.Context, string) (*rate.Limiter, bool, error) {
+	return nil, false, nil
+}
+
+func (c *cancelAwareRateCache) SetWithTTL(ctx context.Context, _ string, _ *rate.Limiter, _ time.Duration) error {
+	// Let the triggering request be canceled while the write is in flight,
+	// which is the situation that failed every singleflight waiter.
+	time.Sleep(20 * time.Millisecond)
+	c.seenCtxErr = ctx.Err()
+	return c.seenCtxErr
+}
+
+// TestRateLimiter_CacheWriteOutlivesCanceledRequest pins that the cache write
+// shared by all singleflight waiters does not inherit the triggering request's
+// cancellation: one client disconnecting must not turn into a 500 for every
+// other waiter on the key.
+func TestRateLimiter_CacheWriteOutlivesCanceledRequest(t *testing.T) {
+	// Not parallel: this test sleeps inside a cache write, and
+	// TestRateLimiter_ConcurrentSingleflightStampede's "exactly one creation"
+	// assertion is sensitive to scheduling pressure from concurrently running
+	// tests.
+	c := &cancelAwareRateCache{}
+	mw := NewRateLimiter(
+		func(httpx.Context) string { return "cancel-key" },
+		func(httpx.Context) (*rate.Limiter, time.Duration) {
+			return rate.NewLimiter(rate.Every(time.Minute), 1), time.Minute
+		},
+		WithCache(c),
+		WithSetTimeout(time.Second),
+	)
+
+	reqCtx, cancel := context.WithCancel(context.Background())
+	ctx := &fakeRateLimitContext{ctx: reqCtx}
+	cancel() // the triggering client is already gone
+
+	if err := mw(ctx); err != nil {
+		t.Fatalf("middleware returned %v, want the shared limiter", err)
+	}
+	if !ctx.nexted {
+		t.Fatal("request must proceed to Next()")
+	}
+	if c.seenCtxErr != nil {
+		t.Fatalf("cache write saw %v, want a context detached from the request", c.seenCtxErr)
+	}
+}
+
+// TestRateLimiter_CacheHitAcceptsInfiniteLimiterWithZeroBurst pins that the
+// zero-limiter guard does not reject a legitimately unlimited limiter:
+// rate.NewLimiter(rate.Inf, 0) has Burst()==0 but Allow() is always true.
+func TestRateLimiter_CacheHitAcceptsInfiniteLimiterWithZeroBurst(t *testing.T) {
+	mw := NewRateLimiter(
+		func(httpx.Context) string { return "inf-key" },
+		func(httpx.Context) (*rate.Limiter, time.Duration) {
+			t.Fatal("cache hit must not create a limiter")
+			return nil, 0
+		},
+		WithCache(&errCache{getVal: rate.NewLimiter(rate.Inf, 0)}),
+	)
+
+	ctx := &fakeRateLimitContext{}
+	if err := mw(ctx); err != nil {
+		t.Fatalf("middleware returned %v, want the cached infinite limiter", err)
+	}
+	if !ctx.nexted {
+		t.Fatal("request must proceed to Next()")
+	}
+}
