@@ -124,10 +124,9 @@ falls back to `code = status` when the error does not implement
 `httpx.CodeError`, so an unclassified 500 was also reported with an application
 code of 500 — conflating the transport status with the value `Code` exists to
 carry. The code is now normalized: when the error does not implement
-`httpx.CodeError`, `Code` is always 0 and only the HTTP status carries the
-transport semantics. This applies to a custom `SetDefaultErrorParser` too — a
-non-zero code for an unclassified error is normalized away regardless of which
-parser produced it. Clients that matched on status-like codes now see 0.
+`httpx.CodeError` and the parser returns `code == status`, `Code` becomes 0.
+A custom `SetDefaultErrorParser` can return a distinct application code, which
+is preserved. Clients that matched on status-like codes now see 0.
 (`server/httpz/error.go:76-79`)
 
 ### Base32 identifiers changed alphabet — old values no longer decode
@@ -157,7 +156,7 @@ When `Stop` consumes the whole `WithShutdownTimeout` budget, `afterStop` used
 to observe `context.DeadlineExceeded` on the same context. Hooks that honoured
 the context — a final flush — failed and could turn a late shutdown into a
 non-zero exit. They now get a short fresh context (2s) in that case. A hook
-that must still run longer needs its own timeout. (`core/boot/run.go`)
+that must still run longer needs its own timeout.
 
 ### `Group.Stop(ctx)` bounds member `Stop`, not only the caller's wait
 
@@ -340,6 +339,14 @@ cached under the request URI and replayed to anonymous callers. Deployments that
 intentionally cached per-user responses must supply their own
 `WithCacheKeyFunc`/`WithResponseCacheCheck`.
 
+`no-cache`, `must-revalidate` and `proxy-revalidate` are rejected as well, as is
+a `max-age`/`s-maxage` that is missing, malformed or non-positive, and a body
+carrying a `Content-Encoding`. The cache cannot revalidate, and it stores under a
+key with no encoding dimension, so a `must-revalidate` response could otherwise be
+replayed after its freshness expired and an encoded one sent to a client that
+never offered that encoding. Responses cacheable only by virtue of those headers
+are fetched from the upstream on every request instead.
+
 ### File downloads are served as attachments
 
 `fileserver`'s download endpoint now always sends
@@ -358,6 +365,19 @@ pod-1 shared a worker ID and emitted colliding snowflake IDs. Zero is now valid
 (the generator's range is `[0, 63]`), and a malformed or out-of-range value
 panics during package init instead of silently falling back — guessing an ID
 cannot preserve the uniqueness this package exists to provide.
+
+### ID generation counts from a fixed epoch
+
+`idgenerator` derived its epoch from `time.Date(2024, 1, 1, 0, 0, 0, 0,
+time.Local)`, so the tick a process counted from depended on import order
+(`boot.InitTimezone` assigns `time.Local` from another package's init) and on the
+container's tzdata: the same instant became ticks hours apart, and a restart
+under a different zone could re-issue tick ranges the same `WORKER_ID` had
+already used. The epoch is now the absolute instant `2023-12-31T10:00:00Z` — the
+earliest moment that is 2024-01-01 anywhere on Earth — which also keeps generated
+ticks no lower than the old expression at the same instant. Generated values
+change. This does not make duplicate worker IDs, clock rollback, or rolling
+back to an older epoch safe; worker IDs must remain unique across live instances.
 
 ### Captcha rejects empty codes and normalizes its config
 
@@ -427,13 +447,14 @@ never.
 
 ### `qiniu` downloads report a real size and a real 404
 
-`DownloadFile` read `ContentLength` from a field the SDK only fills after the
-body has been streamed, so it was always 0 — which the HTTP layer turns into
-`Content-Length: 0` and an empty response body for every download served
-through this driver. It now stats the object for the size, as the `s3` driver
-does, at the cost of one extra round trip. A missing key on the download path
-answers with HTTP 404 rather than Qiniu's 612, so it is now mapped to
-`storageerr.ErrorNotFound` instead of surfacing as a generic 500.
+`DownloadFile` read `ContentLength` from a field the SDK did not fill, so it was
+0 — which the HTTP layer turns into `Content-Length: 0` and an empty response
+body for every download served through this driver. It now reports the length
+the SDK reads from the HEAD it already performs before requesting the body, and
+falls back to a `Stat` only when that length is unknown (a chunked transfer) or
+the stored content type is empty. A missing key on the download path answers
+with HTTP 404 rather than Qiniu's 612, so it is now mapped to
+`storageerr.ErrNotFound` instead of surfacing as a generic 500.
 
 ## Contract and robustness fixes
 
@@ -465,6 +486,15 @@ Lower-severity than the section above, but several change what callers observe.
 - **`boot.WithShutdownTimeout` treats a non-positive duration as unbounded**,
   matching `task.WithCleanupTimeout`. It previously produced an already-expired
   context that skipped graceful shutdown entirely.
+- **`file.Web.Stop` releases the upload-token cache, and
+  `fileserver.FileServer` has a `Close`.** `NewLocalFileService` allocated an
+  in-memory cache whose only owner was the adapter, and the adapter had no
+  lifecycle hook, so each service construction left the cache's background
+  goroutine and buffers behind for the life of the process. The new
+  `fileserver.WithOwnedCache` marks a cache as the adapter's to close; without
+  it `Close` does nothing, so a `FileServer` built on a cache you supplied (a
+  shared or durable one) still leaves it open. `Close` is idempotent, and after
+  it the upload-token path reports the cache's closed error.
 
 ### Scheduler
 
@@ -509,6 +539,15 @@ Lower-severity than the section above, but several change what callers observe.
 - **`InitWithBackends` with no usable backend keeps the current one** and warns
   on stderr, instead of installing a silent logger and discarding every
   subsequent line. Pass `NewNopBackend()` to discard deliberately.
+- **The stdio line format quotes attribute keys that need it** — a key holding a
+  space, comma, brace or quote, whether it comes from `With` or from a group —
+  so a crafted key can no longer make the line ambiguous. Values were already
+  quoted on the same rule.
+- **`zapx` encodes a slog group with the same encoders as a top-level
+  attribute.** Flattening the group into a `map[string]any` first handed it to
+  zap's reflection path, which rendered a nested `time.Duration` as its
+  nanosecond count, dropped nested errors, and collapsed duplicate keys, so the
+  output depended on how deeply a value was nested.
 - **`WrapBackendWithContextMerge` forwards `Close`**, so the documented release
   pattern reaches the wrapped backend's file handle.
 - **`zapx.Sync` no longer fails because of the console sink.** Syncing stdout
@@ -528,6 +567,16 @@ Lower-severity than the section above, but several change what callers observe.
   rejected cache write cut off the client mid-body while the 200 was already
   sent. Cache saves are now bounded by `WithSaveTimeout` (30s default) and both
   `With*ErrorHandler` options ignore a nil handler and have working defaults.
+- **A slow cache no longer throttles the reverse proxy's client.** The body was
+  handed to `Cache.Save` through an `io.Pipe`, whose writes return only once the
+  reader consumes them, and `Save` reads between writes to the backend: a cache
+  that stalled — a congested link, a lock held by another writer, a backend that
+  ignored its context — parked the copy loop and with it the client's download.
+  Bodies now go through a bounded queue (16 chunks, 32 KiB each) that never
+  blocks; once it is full the cache is abandoned and the entry is not stored,
+  which the error handler reports as "reverseproxy: cache queue is full". A
+  cache backend that is persistently slower than the upstream therefore stops
+  populating the cache rather than slowing the response.
 - **`kvcache.MoveFile` onto the same key is a no-op** instead of copy-then-delete,
   which reported success while destroying the object.
 - **The one-time upload token is consumed with `GetDel`**, closing the window in
@@ -589,9 +638,15 @@ when the error is nil. No driver behaviour changed — the documentation did.
 
 `baseconv` decoding now rejects input the encoder could not have produced
 (`ErrNonCanonical`): a trailing partial group whose padding bits are not zero,
-and input long enough to carry a character that encodes nothing. `numconv`
+input long enough to carry a character that encodes nothing, and a padding
+count that is not exactly what the encoder emits — previously any run of
+trailing pad characters was stripped, so `"00"` and `"00======"` (and, for the
+mathematical path, `"1"` and `"1="`) decoded identically. `numconv`
 requires the full eight-byte form, so `Base32ToInt64`/`Base62ToInt64` no longer
-accept a value written without its leading zeros.
+accept a value written without its leading zeros. A base32 leftover-bits failure
+is wrapped so `errors.Is` matches `numconv.ErrNonCanonical` as well as
+`baseconv.ErrNonCanonical`; the error text for that case gains the `numconv:`
+prefix.
 
 Previously `"5"` and `"00000005"` both decoded to 5, and two base32 strings
 differing only in a discarded bit decoded identically — so distinct strings
@@ -718,7 +773,8 @@ no way to know it must stay silent. The fix belongs in `go-sphere/httpx`.
 - `badgerdb.MultiSet`/`MultiSetWithTTL` write every entry in one transaction and
   fail with `ErrTxnTooBig` on large batches (reproduced at 20000 x 1KiB).
 - `mcache.Map` has no size bound and no background eviction. Expired entries are
-  reclaimed only when that key is accessed again or `Count`/`Trim` is called.
+  reclaimed only by `Trim` or when that key is accessed again (`Count`
+  deliberately does not reclaim).
 - `badgerdb.Database` never runs `RunValueLogGC` and does not expose it, so the
   value log is not reclaimed.
 - `cache.GetEx`/`GetObjectEx`/`GetJsonEx` ignore the error from writing the

@@ -29,7 +29,7 @@ lint:
 	$(GOLANGCI_LINT) run --no-config
 	# Tests deliberately exercise nil inputs, which produces false positives
 	# when nilaway merges constructor summaries across call sites.
-	$(NILAWAY) -include-pkgs="$$($(GO) list -m)" -exclude-test-files ./...
+	$(NILAWAY) -include-pkgs="$$(GOWORK=off $(GO) list -m)" -exclude-test-files ./...
 
 check:
 	GOWORK=off $(GO) mod tidy -diff
@@ -44,10 +44,10 @@ api-compat:
 
 add-tags:
 	@test -n "$(TAG)" || { echo "TAG is required: make add-tags TAG=v0.0.1"; exit 1; }
-	git tag -s $(TAG) -m "$(TAG)"
-	git push origin --tags
+	git tag -s "$(TAG)" -m "$(TAG)"
+	git push origin "refs/tags/$(TAG)"
 	@echo "GOPROXY=direct GONOSUMDB=github.com/go-sphere/sphere go get github.com/go-sphere/sphere@$(TAG)"
 
 del-tags:
 	@test -n "$(TAG)" || { echo "TAG is required: make del-tags TAG=v0.0.1"; exit 1; }
-	-git tag -d $(TAG)
+	-git tag -d "$(TAG)"

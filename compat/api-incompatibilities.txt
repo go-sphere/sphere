@@ -73,3 +73,14 @@
 - ./core/task.Task.Stop: added
 - ./mq.PubSub[T any].RequestStop: added
 - ./mq.PubSub[T].RequestStop: added
+- ./log/zapx.(*Backend).ZapLogger: changed from func() *go.uber.org/zap.Logger to func(...github.com/go-sphere/sphere/log.Option) *go.uber.org/zap.Logger
+- ./storage/storageerr.ErrorDistExisted: removed
+- ./storage/storageerr.ErrorFileNameInvalid: removed
+- ./storage/storageerr.ErrorNotFound: removed
+# Semantic note: ZapLogger gained the variadic options so a caller can derive a
+# logger (log.WithAttrs and friends) without mutating the backend; the parameter
+# is additive, but apidiff reports the signature as incompatible because a
+# variadic change rewrites the exported type of the method. The three storageerr
+# names were the backwards-compatible aliases and alternate spellings dropped by
+# "chore: Remove deprecated storageerr aliases" in favour of ErrNotFound,
+# ErrDestExists and ErrFileNameInvalid; callers should use those.

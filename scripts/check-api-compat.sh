@@ -35,16 +35,34 @@ mkdir -p "$BASELINE_DIR"
 		-m -w "$OLD_API" "$MODULE_PATH"
 )
 
+if [[ ! -s "$OLD_API" ]]; then
+	echo "Baseline API snapshot is empty; $MODULE_PATH@$BASELINE_VERSION was not inspected" >&2
+	exit 1
+fi
+
 (
 	cd "$ROOT_DIR"
 	go run "golang.org/x/exp/cmd/apidiff@$APIDIFF_VERSION" \
 		-m -w "$NEW_API" "$MODULE_PATH"
 )
 
-CHANGES=$(
-	go run "golang.org/x/exp/cmd/apidiff@$APIDIFF_VERSION" \
-		-m -incompatible "$OLD_API" "$NEW_API"
-)
+if [[ ! -s "$NEW_API" ]]; then
+	echo "Current API snapshot is empty; $MODULE_PATH was not inspected" >&2
+	exit 1
+fi
+
+# The report goes to a file rather than a command substitution: a tool or
+# module-resolution failure there would abort under set -e with the same exit
+# status as "incompatible changes found", leaving CI unable to tell a broken
+# check from a real API break. A non-zero status here is always the tool
+# failing — apidiff reports changes on stdout and still exits 0.
+CHANGES_FILE="$TEMP_DIR/changes.txt"
+if ! go run "golang.org/x/exp/cmd/apidiff@$APIDIFF_VERSION" \
+	-m -incompatible "$OLD_API" "$NEW_API" >"$CHANGES_FILE"; then
+	echo "apidiff failed to compare the API snapshots (tool or module resolution error)" >&2
+	exit 1
+fi
+CHANGES=$(<"$CHANGES_FILE")
 
 : >"$UNEXPECTED"
 while IFS= read -r change; do

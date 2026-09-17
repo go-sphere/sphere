@@ -165,3 +165,11 @@ fabric.properties
 .agents
 /code_review
 skills-lock.json
+.ocr-result.json
+
+# Local secrets. Applications built on sphere keep connection strings and API
+# tokens in .env files; nothing here is tracked today, so an accidental `git add`
+# is the only way one could be committed.
+.env
+.env.*
+!.env.example
