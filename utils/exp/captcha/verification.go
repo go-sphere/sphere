@@ -162,6 +162,11 @@ func (s *VerificationSystem) SaveCode(number string, code string, expiresIn time
 	if code == "" {
 		return errors.New("captcha: refusing to store an empty code")
 	}
+	// A non-positive window would store an already-expired code while still
+	// consuming the caller's minute/day quota — fail loudly instead.
+	if expiresIn <= 0 {
+		return errors.New("captcha: refusing to store a code with non-positive expiry")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
