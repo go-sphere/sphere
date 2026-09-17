@@ -189,6 +189,12 @@ func (r *groupRun) runStage(stageIdx int, stage []Task, ctxDone *<-chan struct{}
 			r.beginStop(shutdownParentCancel, stageIdx)
 		case <-startDeadline:
 			startDeadline = nil
+			if r.stopping {
+				// Teardown is already in progress; members are expected to be
+				// blocked in Start until their Stop completes, so the timeout
+				// would misreport a clean shutdown as ErrStartTimeout.
+				continue
+			}
 			var stuck []string
 			for i, id := range startedIDs {
 				if !finished[i] {

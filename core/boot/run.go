@@ -184,6 +184,10 @@ func joinStartResult(startErr <-chan error, shutdownCtx context.Context) error {
 		}
 		return nil
 	case <-waitCtx.Done():
+		// Start is being abandoned rather than joined. Any error it reports from
+		// here on is lost, so say so: otherwise a task that failed during a
+		// shutdown that Stop did not report as failed leaves Run returning nil.
+		log.Warn("task start result unavailable after shutdown; abandoning wait")
 		return nil
 	}
 }

@@ -100,15 +100,18 @@ func mustNewTask(t *testing.T, newTask func() task.Task) task.Task {
 }
 
 // startInBackground calls Start in a goroutine. Start may block until the task's
-// context is cancelled, so completion is reported through the returned channel.
-// A panic in Start is surfaced as a test failure rather than crashing the binary.
-func startInBackground(t *testing.T, ctx context.Context, tk task.Task) <-chan struct{} {
-	done := make(chan struct{})
+// context is cancelled, so completion is reported through the returned channel:
+// a recovered panic value is sent before the channel is closed. The goroutine
+// must not touch t itself — testing.T panics on Log/Error after the test has
+// returned, which is reachable when an earlier step already called t.Fatal.
+func startInBackground(t *testing.T, ctx context.Context, tk task.Task) <-chan any {
+	t.Helper()
+	done := make(chan any, 1)
 	go func() {
 		defer close(done)
 		defer func() {
 			if r := recover(); r != nil {
-				t.Errorf("tasktest: Start panicked: %v", r)
+				done <- r
 			}
 		}()
 		_ = tk.Start(ctx)
@@ -117,11 +120,15 @@ func startInBackground(t *testing.T, ctx context.Context, tk task.Task) <-chan s
 }
 
 // awaitStart waits for a backgrounded Start to return once its context has been
-// cancelled, failing if it never unblocks.
-func awaitStart(t *testing.T, done <-chan struct{}) {
+// cancelled, failing if it never unblocks. A panic recovered in the background
+// goroutine is reported here, from the test goroutine.
+func awaitStart(t *testing.T, done <-chan any) {
 	t.Helper()
 	select {
-	case <-done:
+	case r, ok := <-done:
+		if ok && r != nil {
+			t.Errorf("tasktest: Start panicked: %v", r)
+		}
 	case <-time.After(contractTimeout):
 		t.Fatal("tasktest: Start did not return after context cancellation; possible deadlock")
 	}

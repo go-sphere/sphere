@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"syscall"
 	"time"
 
@@ -80,7 +81,10 @@ func WithShutdownTimeout(d time.Duration) Option {
 // arguments would, including SIGURG used by the Go runtime.
 func WithShutdownSignals(sigs ...os.Signal) Option {
 	return func(o *options) {
-		o.signals = sigs
+		// A variadic call forwarding the caller's slice would alias it, so a
+		// caller that reuses or appends to that slice later would silently change
+		// what signal.Notify subscribes to.
+		o.signals = slices.Clone(sigs)
 	}
 }
 
@@ -155,7 +159,13 @@ func runHooks(ctx context.Context, hooks []Hook, hookType string) error {
 			defer func() {
 				if rec := recover(); rec != nil {
 					safe.LogRecovered(fmt.Sprintf("hook %s[%d]", hookType, i), rec)
-					err = fmt.Errorf("panic: %v", rec)
+					// Preserve error identity like the task-panic path in
+					// run.go, so errors.Is/As keep working through Run.
+					if recErr, ok := rec.(error); ok {
+						err = fmt.Errorf("panic: %w", recErr)
+					} else {
+						err = fmt.Errorf("panic: %v", rec)
+					}
 				}
 			}()
 			return f(ctx)

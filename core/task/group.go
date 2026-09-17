@@ -329,9 +329,22 @@ func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error, upToWav
 	}
 
 	finished := make(chan struct{})
-	defer close(finished)
+	reporterDone := make(chan struct{})
+	hasReporter := false
+	// The reporter is joined, not just signalled: it appends to stopErrs, and a
+	// report that landed after the caller read the collector would be silently
+	// dropped whenever the deadline fires while the last member Stop is
+	// returning.
+	defer func() {
+		close(finished)
+		if hasReporter {
+			<-reporterDone
+		}
+	}()
 	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		hasReporter = true
 		go func() {
+			defer close(reporterDone)
 			select {
 			case <-ctx.Done():
 				if !errors.Is(ctx.Err(), context.DeadlineExceeded) {

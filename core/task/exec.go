@@ -12,7 +12,11 @@ import (
 func execute(ctx context.Context, name string, task Task, run func(ctx context.Context, task Task) error) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			safe.LogRecovered(task.Identifier(), r)
+			// Use the runner-supplied name, not task.Identifier(): the panic
+			// being handled may have come from the task itself (e.g. a typed
+			// nil), and re-entering its methods here would panic again with
+			// no recover left to catch it.
+			safe.LogRecovered(name, r)
 			err = fmt.Errorf("%s panic: %v", name, r)
 		}
 	}()

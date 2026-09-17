@@ -321,6 +321,11 @@ func (m *Manager) StopTask(ctx context.Context, name string) error {
 // The provided context only bounds the caller's wait; task Stop calls use the
 // cleanup context configured by WithManagerCleanupTimeout.
 // Returns any errors encountered during shutdown and previously collected task run errors.
+//
+// StopAll holds the registration lock for its entire duration, so a task whose
+// Stop calls StartTask deadlocks the drain when ctx is unbounded: the Stop
+// blocks on the lock, and StopAll waits on the Stop. Do not register tasks
+// from Stop paths (mirroring the reentrancy restriction documented on Wait).
 func (m *Manager) StopAll(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()

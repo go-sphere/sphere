@@ -14,7 +14,12 @@ var versionPrinter = func(version string) {
 }
 
 func init() {
-	_ = InitTimezone(DefaultTimezone)
+	if err := InitTimezone(DefaultTimezone); err != nil {
+		// tzdata-less environments (scratch/distroless images) fail the zone
+		// lookup and silently keep the host default otherwise; say so once.
+		// Embed time/tzdata or set the zone explicitly to silence this.
+		fmt.Fprintf(os.Stderr, "boot: cannot load timezone %s, keeping host default: %v\n", DefaultTimezone, err)
+	}
 }
 
 // InitTimezone loads zone, assigns it to time.Local, and sets TZ. Package init

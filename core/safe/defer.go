@@ -8,6 +8,11 @@ import (
 
 // ErrorHandler handles an error reported by IfErrorPresent or IfErrorXPresent.
 // It takes only the error; there is no label argument.
+//
+// The swap of the active handler is atomic, but the handler itself is not: it
+// can be running in any number of goroutines at once (including the previous
+// handler, which may still be in flight), so an implementation must be safe for
+// concurrent use and must not mutate captured state unguarded.
 type ErrorHandler func(error)
 
 // defaultErrorHandler reports errors through the framework logger.

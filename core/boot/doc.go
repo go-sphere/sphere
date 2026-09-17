@@ -26,7 +26,8 @@
 //	    return boot.NewApplication(httpTask, consumerTask), nil
 //	}, boot.WithLoggerBackend(backend))
 //
-// Run waits for SIGINT/SIGTERM, then Stop. Concurrent stop of HTTP and a
+// Run waits for SIGTERM, SIGQUIT, or SIGINT (the WithShutdownSignals
+// default), then Stop. Concurrent stop of HTTP and a
 // consumer is fine while sql.DB stays open. Close Wire-owned clients after
 // every Task.Stop: either AddAfterStop, or:
 //

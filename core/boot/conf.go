@@ -28,7 +28,7 @@ func DefaultConfigParser[T any](ver string, parser func(string) (*T, error)) *T 
 
 	conf, err := parser(*path)
 	if err != nil {
-		fmt.Println("load config error: ", err)
+		fmt.Fprintln(os.Stderr, "load config error:", err)
 		os.Exit(1)
 	}
 	return conf
