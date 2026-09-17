@@ -1,6 +1,12 @@
 package httpz
 
-// DataResponse is the success envelope written by WithJson.
+// DataResponse is the success envelope written by WithJson, which sets Success
+// explicitly.
+//
+// The default tags are metadata for documentation generators; encoding/json
+// ignores them, so a DataResponse built by hand must set Success itself
+// (a zero value serializes as "success":false). Data is not omitempty, so a
+// nil pointer/map/slice still appears as "data":null.
 type DataResponse[T any] struct {
 	Success bool `json:"success" default:"true"`
 	Code    int  `json:"code,omitempty" default:"0"`

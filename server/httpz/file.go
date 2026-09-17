@@ -32,7 +32,9 @@ func newWithFormOptions(opts ...WithFormOption) *WithFormOptions {
 }
 
 // WithFormMaxSize sets the maximum file size allowed for uploads.
-// The size is specified in bytes.
+// The size is specified in bytes. A non-positive value disables the limit;
+// combined with WithFormFileBytes that means an unbounded in-memory read, so
+// only use it when the body is otherwise bounded.
 func WithFormMaxSize(maxSize int64) WithFormOption {
 	return func(options *WithFormOptions) {
 		options.maxSize = maxSize
@@ -75,12 +77,16 @@ func WithFormAllowExtensions(extensions ...string) WithFormOption {
 // The inner handler receives an io.ReadSeekCloser (closed after return) and
 // the original filename. Default max size is 10MiB; default form key is "file".
 func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekCloser, filename string) (T, error), options ...WithFormOption) httpx.Handler {
+	// The options are fixed once the handler is built, so resolve them here
+	// rather than allocating a fresh set on every request.
+	opts := newWithFormOptions(options...)
 	return WithJson(func(ctx httpx.Context) (T, error) {
 		var zero T
-		opts := newWithFormOptions(options...)
 		file, err := ctx.FormFile(opts.fileFormKey)
 		if err != nil {
-			return zero, err
+			// A missing field or malformed multipart body is the client's
+			// fault; unclassified errors would render as 500.
+			return zero, httpx.BadRequestError(err, "invalid multipart file upload")
 		}
 		if opts.maxSize > 0 && file.Size > opts.maxSize {
 			return zero, httpx.BadRequestError(

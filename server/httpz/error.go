@@ -77,13 +77,11 @@ func buildErrorResponse(err error) (int, ErrorResponse) {
 		status = http.StatusInternalServerError
 	}
 	// Unify the semantics of ErrorResponse.Code: it carries an application
-	// specific error code and is 0 when the error is unclassified. The default
-	// parser (httpx.ParseError) falls back to code=status for errors that do not
-	// implement httpx.CodeError, which conflates the HTTP status with the
-	// application code. Normalize that here so unclassified errors always report
-	// 0 and let the HTTP status carry the transport-level semantics.
-	var ce httpx.CodeError
-	if !errors.As(err, &ce) {
+	// specific error code and is 0 when the error is unclassified, so the HTTP
+	// status alone carries the transport-level semantics. A parser that reports
+	// code == status has conflated the two and is normalized to 0; any other
+	// code is taken as the parser's deliberate application code.
+	if _, ok := errors.AsType[httpx.CodeError](err); !ok && code == status {
 		code = 0
 	}
 	// Message is user-facing. Prefer an explicit MessageError. Otherwise keep a
@@ -92,8 +90,7 @@ func buildErrorResponse(err error) (int, ErrorResponse) {
 	// wrapping. httpx.ParseError falls back to err.Error() for unclassified
 	// errors, which would leak driver and database strings; those degrade to
 	// the generic status text.
-	var me httpx.MessageError
-	if errors.As(err, &me) && me.GetMessage() != "" {
+	if me, ok := errors.AsType[httpx.MessageError](err); ok && me.GetMessage() != "" {
 		message = me.GetMessage()
 	} else if message == "" || message == err.Error() {
 		message = http.StatusText(int(status))

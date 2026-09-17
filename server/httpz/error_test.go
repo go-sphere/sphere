@@ -111,6 +111,23 @@ func TestAbortWithJsonError_EmptyMessageFallsBackToStatusText(t *testing.T) {
 	}
 }
 
+func TestAbortWithJsonError_CustomParserPreservesMessageAndCode(t *testing.T) {
+	t.Cleanup(func() { SetDefaultErrorParser(httpx.ParseError) })
+	SetDefaultErrorParser(func(error) (int32, int32, string) {
+		return 1001, http.StatusNotFound, "user not found"
+	})
+
+	ctx := &fakeContext{}
+	AbortWithJsonError(ctx, errors.New("not found"))
+	if ctx.status != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", ctx.status)
+	}
+	resp := ctx.body.(ErrorResponse)
+	if resp.Message != "user not found" || resp.Code != 1001 {
+		t.Fatalf("response = %+v, want custom message and code", resp)
+	}
+}
+
 func TestAbortWithJsonError_DebugModeExposesError(t *testing.T) {
 	prev := DebugMode()
 	SetDebugMode(true)

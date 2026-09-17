@@ -67,12 +67,12 @@ func TestWithFormFileReader(t *testing.T) {
 		})
 
 		// The wrapper renders the error through the standard error response
-		// path instead of returning it.
+		// path instead of returning it, classified as a client error.
 		if err := handler(ctx); err != nil {
 			t.Fatalf("handler: %v", err)
 		}
-		if ctx.status != http.StatusInternalServerError {
-			t.Fatalf("status = %d, want %d", ctx.status, http.StatusInternalServerError)
+		if ctx.status != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d", ctx.status, http.StatusBadRequest)
 		}
 	})
 
@@ -212,4 +212,5 @@ func TestWithFormOptionsDefaults(t *testing.T) {
 	if _, ok := custom.allowExtensions[".png"]; !ok {
 		t.Errorf("extensions must be lowercased: %v", custom.allowExtensions)
 	}
+
 }
