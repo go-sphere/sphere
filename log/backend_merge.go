@@ -42,6 +42,14 @@ func MergeAttrs(base []Attr, explicit []Attr) []Attr {
 	out := make([]Attr, 0, len(base)+len(explicit))
 	index := make(map[string]int, len(base)+len(explicit))
 	for _, a := range base {
+		// A repeated key in base overwrites its earlier slot instead of
+		// appending: two attrs under one key are what the merge exists to
+		// avoid, and leaving both would let a later explicit override patch
+		// only the last one.
+		if i, ok := index[a.Key]; ok {
+			out[i] = a
+			continue
+		}
 		index[a.Key] = len(out)
 		out = append(out, a)
 	}

@@ -71,6 +71,15 @@ func (b *StdioBackend) Log(_ context.Context, level Level, msg string, attrs ...
 func (b *StdioBackend) buildLineSafely(level Level, msg, caller string, attrs []Attr) (line string) {
 	defer func() {
 		if r := recover(); r != nil {
+			// The fallback still renders backend-level attrs (and formats r
+			// itself), either of which can be the very value that panicked —
+			// guard it too, degrading to a minimal line instead of letting a
+			// second panic escape past the consumed recover.
+			defer func() {
+				if recover() != nil {
+					line = "level=" + levelString(level) + " msg=" + quoteIfNeeded(msg) + " attr_error=unprintable\n"
+				}
+			}()
 			line = b.buildLine(level, msg, caller, []Attr{
 				String("attr_error", fmt.Sprint(r)),
 			})
@@ -160,14 +169,14 @@ func (b *StdioBackend) buildLine(level Level, msg string, caller string, attrs [
 		keys := slices.Sorted(maps.Keys(b.attrs))
 		for _, k := range keys {
 			sb.WriteByte(' ')
-			sb.WriteString(k)
+			sb.WriteString(quoteIfNeeded(k))
 			sb.WriteByte('=')
 			sb.WriteString(formatAny(b.attrs[k]))
 		}
 	}
 	for _, a := range attrs {
 		sb.WriteByte(' ')
-		sb.WriteString(a.Key)
+		sb.WriteString(quoteIfNeeded(a.Key))
 		sb.WriteByte('=')
 		sb.WriteString(formatSlogValue(a.Value))
 	}

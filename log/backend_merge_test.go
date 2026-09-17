@@ -74,6 +74,13 @@ func TestMergeAttrs(t *testing.T) {
 			want:     map[string]string{"trace": "t2", "route": "/x"},
 		},
 		{
+			name:     "duplicate base keys collapse before the override",
+			base:     []Attr{String("trace", "t1"), String("trace", "t0")},
+			explicit: []Attr{String("trace", "t9")},
+			wantKeys: []string{"trace"},
+			want:     map[string]string{"trace": "t9"},
+		},
+		{
 			name:     "both empty",
 			wantKeys: []string{},
 		},

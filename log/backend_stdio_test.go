@@ -94,6 +94,27 @@ func TestLogSurvivesPanickingAttr(t *testing.T) {
 	backend.Log(context.Background(), LevelError, "request failed", Any("payload", panicMarshaler{}))
 }
 
+// TestLogSurvivesPanickingBackendAttr pins that the recovery path is itself
+// safe: the fallback re-renders the backend-level attrs (and formats the panic
+// value), so when one of those is the value that panicked, a second panic must
+// not escape past the consumed recover.
+func TestLogSurvivesPanickingBackendAttr(t *testing.T) {
+	b := NewStdioBackend(WithAttrs(map[string]any{"broken": panicMarshaler{}}))
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("a panicking backend-level attr escaped the backend: %v", r)
+		}
+	}()
+
+	out := captureStderr(t, func() {
+		b.Log(context.Background(), LevelError, "request failed")
+	})
+	if out == "" {
+		t.Fatal("a diagnostic line must still be emitted")
+	}
+}
+
 // TestLogSurvivesSelfReferentialValue pins the case that cannot be recovered at
 // all: fmt.Sprint has no cycle detection, so a self-referential container
 // recurses until the goroutine stack is exhausted, and a stack overflow is
