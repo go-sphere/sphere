@@ -3,6 +3,7 @@ package logbuffer
 import (
 	"context"
 	"log/slog"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -98,6 +99,25 @@ func TestSubscribeBackfillContinuityAndCursorState(t *testing.T) {
 		t.Fatalf("reset subscription state = truncated:%v reset:%v", reset.Truncated, reset.Reset)
 	}
 	wantSeqs(t, reset.Backfill, 5, 6)
+}
+
+// TestSubscribeCursorAtOrPastNewestDoesNotWrap pins the client-supplied cursor
+// extremes: FromSeq is opaque input, and math.MaxUint64 must not wrap FromSeq+1
+// into a false Truncated report that dumps the entire retained ring.
+func TestSubscribeCursorAtOrPastNewestDoesNotWrap(t *testing.T) {
+	b := New(4)
+	for range 3 {
+		b.Log(context.Background(), log.LevelInfo, "entry")
+	}
+
+	for _, from := range []uint64{b.LatestSeq(), math.MaxUint64} {
+		sub := b.Subscribe(SubscribeOptions{StreamID: b.ID(), FromSeq: from})
+		if sub.Truncated || len(sub.Backfill) != 0 {
+			t.Fatalf("FromSeq %d: truncated=%v backfill=%d, want an empty backfill",
+				from, sub.Truncated, len(sub.Backfill))
+		}
+		sub.Cancel()
+	}
 }
 
 func TestSubscribeMinLevelAndDropped(t *testing.T) {

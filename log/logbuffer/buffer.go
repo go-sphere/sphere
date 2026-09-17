@@ -31,6 +31,9 @@ import (
 // Entry is one captured log record. Attrs carries the resolved structured
 // fields (both preset With attrs and per-call attrs), so historical and live
 // entries are identical in shape.
+//
+// Attrs is owned by the ring: the same map is retained for History and handed
+// to every subscriber and backfill, so callers must not mutate it.
 type Entry struct {
 	Seq     uint64         `json:"seq"`
 	Time    time.Time      `json:"time"`
@@ -285,11 +288,17 @@ func (b *Buffer) Subscribe(opts SubscribeOptions) *Subscription {
 			sub.Backfill = b.collectLocked(0, opts.TailLimit, opts.MinLevel)
 		}
 	} else if opts.FromSeq > 0 {
-		oldest := b.oldestSeqLocked()
-		if oldest > opts.FromSeq+1 && b.count > 0 {
-			sub.Truncated = true
+		// A cursor at or past the newest entry has nothing to backfill. The
+		// guard also keeps a client-supplied math.MaxUint64 from wrapping in
+		// FromSeq+1 below, which would falsely report Truncated and return
+		// the entire retained ring.
+		if opts.FromSeq < b.nextSeq-1 {
+			oldest := b.oldestSeqLocked()
+			if oldest > opts.FromSeq+1 && b.count > 0 {
+				sub.Truncated = true
+			}
+			sub.Backfill = b.collectLocked(opts.FromSeq, -1, opts.MinLevel)
 		}
-		sub.Backfill = b.collectLocked(opts.FromSeq, -1, opts.MinLevel)
 	} else if opts.TailLimit != 0 {
 		sub.Backfill = b.collectLocked(0, opts.TailLimit, opts.MinLevel)
 	}
