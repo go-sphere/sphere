@@ -349,7 +349,9 @@ func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, op
 
 	info, err := s.client.EnqueueContext(ctx, sasynq.NewTask(kind, payload), asynqOpts...)
 	if errors.Is(err, sasynq.ErrDuplicateTask) {
-		return "", fmt.Errorf("%w: %v", scheduler.ErrDuplicateName, err)
+		// %w twice keeps the sentinel and the underlying asynq cause matchable;
+		// the rendered message is unchanged from %v.
+		return "", fmt.Errorf("%w: %w", scheduler.ErrDuplicateName, err)
 	}
 	if err != nil {
 		return "", err

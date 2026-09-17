@@ -2,8 +2,11 @@
 // scheduler.Scheduler: there is no Enqueue/Handle.
 //
 // Implements task.Task. Start blocks until cancel; Stop drains jobs without
-// cancelling in-flight handler ctx until drain completes. Cancelling Start's
-// ctx without Stop leaves the runtime live. Optional seconds field and
+// cancelling in-flight handler ctx until drain completes. Handler ctx is
+// detached from Start's ctx, so a runner that cancels the parent context before
+// calling Stop (task.Group does) still gets a real drain rather than an
+// immediate cancellation. Cancelling Start's ctx without Stop leaves the
+// runtime live. Optional seconds field and
 // timezone. Chain: SkipIfStillRunning + Recover. Duplicate Register returns
 // scheduler.ErrDuplicateName; Register after Start returns ErrAfterStart;
 // unknown Unregister is a no-op.
@@ -41,11 +44,12 @@ type Scheduler struct {
 	cron    *rcron.Cron
 	entries map[string]rcron.EntryID
 
-	mu       sync.Mutex
-	state    atomic.Int32
-	runCtx   context.Context
-	cancel   context.CancelFunc
-	stopDone <-chan struct{}
+	mu            sync.Mutex
+	state         atomic.Int32
+	handlerCtx    context.Context
+	cancel        context.CancelFunc
+	handlerCancel context.CancelFunc
+	stopDone      <-chan struct{}
 }
 
 // NewScheduler builds a Cron scheduler. Jobs run with SkipIfStillRunning and
@@ -157,9 +161,17 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		return scheduler.ErrAfterStart
 	}
 
+	// Handlers get a context of their own instead of runCtx. task.Group cancels
+	// the context it passes to Start before it invokes Stop, so deriving handler
+	// contexts from it handed every in-flight job a dead context the moment
+	// shutdown began and reduced the drain below to a formality. WithoutCancel
+	// keeps the parent's values but not its cancellation; cancelRun releases the
+	// handlers once the drain has finished.
 	runCtx, cancel := context.WithCancel(ctx)
-	s.runCtx = runCtx
+	handlerCtx, handlerCancel := context.WithCancel(context.WithoutCancel(ctx))
+	s.handlerCtx = handlerCtx
 	s.cancel = cancel
+	s.handlerCancel = handlerCancel
 	s.cron.Start()
 	s.mu.Unlock()
 
@@ -188,12 +200,21 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	case stateRunning:
 		// First Stop call: trigger the underlying cron shutdown exactly once and
 		// record the channel that reports when in-flight jobs have drained. The
-		// run context is deliberately NOT cancelled here — cancelling first would
-		// hand every in-flight handler a dead context and turn the drain below
-		// into a formality. It is cancelled once they finish, or when the caller
-		// stops waiting.
+		// handler context is deliberately NOT cancelled here — cancelling first
+		// would hand every in-flight handler a dead context and turn the drain
+		// below into a formality. It is cancelled by cancelRun once they finish;
+		// the watcher below does the same when a Stop caller already timed out.
 		s.state.Store(stateStopping)
-		s.stopDone = s.cron.Stop().Done()
+		stopDone := s.cron.Stop().Done()
+		s.stopDone = stopDone
+		// A dedicated watcher owns the final transition: if every Stop caller
+		// times out before the drain finishes, no one would otherwise cancel
+		// the run context, and Start would stay blocked forever.
+		go func() {
+			<-stopDone
+			s.state.Store(stateClosed)
+			s.cancelRun()
+		}()
 	case stateStopping:
 		// Shutdown already in progress; fall through to wait on the same channel.
 	}
@@ -205,28 +226,35 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	select {
 	case <-done:
 		// Handlers have drained; release Start.
-		s.cancelRun()
 		s.state.Store(stateClosed)
+		s.cancelRun()
 		return nil
 	case <-ctx.Done():
-		// This caller gave up waiting. The run context is deliberately left
-		// alone: it is shared by every in-flight handler, so cancelling it here
+		// This caller gave up waiting. Neither context is cancelled here: the
+		// handler context is shared by every in-flight handler, so cancelling it
 		// would abort work that another Stop — one with a longer budget, or the
 		// staged shutdown the group is running — is still legitimately waiting
 		// to drain. One caller's deadline is not everyone's. The drain continues
-		// in the background and whichever Stop observes it finish releases Start.
+		// in the background and the watcher goroutine releases Start when it
+		// finishes.
 		return ctx.Err()
 	}
 }
 
 // cancelRun cancels the context handed to running handlers, which also unblocks
-// Start. It is safe to call repeatedly.
+// Start. It is called once the drain finishes; handlers that have already
+// returned observe nothing, but any goroutine they spawned from the handler
+// context is released. It is safe to call repeatedly.
 func (s *Scheduler) cancelRun() {
 	s.mu.Lock()
 	cancel := s.cancel
+	handlerCancel := s.handlerCancel
 	s.mu.Unlock()
 	if cancel != nil {
 		cancel()
+	}
+	if handlerCancel != nil {
+		handlerCancel()
 	}
 }
 
@@ -255,8 +283,8 @@ func (s *Scheduler) Close() error {
 func (s *Scheduler) lifecycleContext() context.Context {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.runCtx != nil {
-		return s.runCtx
+	if s.handlerCtx != nil {
+		return s.handlerCtx
 	}
 	return context.Background()
 }

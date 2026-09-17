@@ -11,7 +11,7 @@ import (
 func RecoverHandler(handler HandlerFunc) HandlerFunc {
 	return func(ctx context.Context) (err error) {
 		defer safe.Recover(func(v any) {
-			err = fmt.Errorf("scheduler: handler panic: %v", v)
+			err = panicError(v)
 		})
 		return handler(ctx)
 	}
@@ -21,8 +21,18 @@ func RecoverHandler(handler HandlerFunc) HandlerFunc {
 func RecoverPayloadHandler(handler PayloadHandlerFunc) PayloadHandlerFunc {
 	return func(ctx context.Context, payload []byte) (err error) {
 		defer safe.Recover(func(v any) {
-			err = fmt.Errorf("scheduler: handler panic: %v", v)
+			err = panicError(v)
 		})
 		return handler(ctx, payload)
 	}
+}
+
+// panicError converts a recovered panic value into an error. An error panic
+// value is wrapped with %w so its identity survives for errors.Is/As; anything
+// else is rendered as-is.
+func panicError(v any) error {
+	if err, ok := v.(error); ok {
+		return fmt.Errorf("scheduler: handler panic: %w", err)
+	}
+	return fmt.Errorf("scheduler: handler panic: %v", v)
 }

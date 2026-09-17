@@ -3,8 +3,9 @@ package scheduler
 import "time"
 
 // EnqueueOptions is the materialized set consumed by Producer.Enqueue.
-// Drivers apply only the fields they support; asynq ignores MaxRetry <= 0
-// (asynq's own default, typically 25, remains).
+// Drivers apply only the fields they support; the asynq driver forwards only
+// MaxRetry > 0, so a value <= 0 leaves asynq's default (typically 25) in place
+// rather than disabling retries.
 type EnqueueOptions struct {
 	Delay     time.Duration
 	Deadline  time.Time
@@ -32,15 +33,18 @@ func WithDeadline(t time.Time) EnqueueOption {
 	}
 }
 
-// WithMaxRetry sets the retry budget. Values <= 0 are ignored by the asynq
-// driver, which then uses asynq's default rather than zero retries.
+// WithMaxRetry sets the retry budget. The asynq driver forwards only values
+// > 0, so WithMaxRetry(0) (or a negative value) leaves asynq's default retry
+// count in place instead of disabling retries.
 func WithMaxRetry(n int) EnqueueOption {
 	return func(o *EnqueueOptions) {
 		o.MaxRetry = n
 	}
 }
 
-// WithQueue selects the asynq queue name. Periodic tasks require "default".
+// WithQueue selects the queue used by Enqueue; it must be one of the queues
+// configured on the Scheduler. Periodic tasks are unaffected and always run on
+// the "default" queue.
 func WithQueue(name string) EnqueueOption {
 	return func(o *EnqueueOptions) {
 		o.Queue = name

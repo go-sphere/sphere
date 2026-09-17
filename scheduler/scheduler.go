@@ -46,12 +46,14 @@ type Cron interface {
 
 // Producer enqueues asynchronous tasks.
 type Producer interface {
+	// Enqueue returns the task id of the enqueued task; taskID is empty when
+	// err != nil.
 	Enqueue(ctx context.Context, kind string, payload []byte, opts ...EnqueueOption) (taskID string, err error)
 }
 
 // Consumer registers asynchronous task handlers by exact kind. Implementations
 // must reject Handle after Start with ErrAfterStart and after Close with
-// ErrClosed.
+// ErrClosed, and a duplicate kind with ErrDuplicateName.
 type Consumer interface {
 	Handle(kind string, handler PayloadHandlerFunc) error
 }
@@ -71,6 +73,7 @@ var (
 	ErrDuplicateName = errors.New("scheduler: duplicate task name")
 	// ErrAfterStart is returned by Register/Handle after Start has been called.
 	ErrAfterStart = errors.New("scheduler: cannot register after start")
-	// ErrClosed is returned by Register/Enqueue/Handle after Close.
+	// ErrClosed is returned by Register/Unregister/Enqueue/Handle after Close.
+	// Once Close has occurred, ErrClosed takes precedence over ErrAfterStart.
 	ErrClosed = errors.New("scheduler: closed")
 )

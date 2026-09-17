@@ -99,8 +99,8 @@ func TestEnqueueWithUniqueForMapsDuplicate(t *testing.T) {
 	if _, err := s.Enqueue(context.Background(), "unique", nil, scheduler.WithTaskID("unique-id"), scheduler.WithUniqueFor(time.Minute)); err != nil {
 		t.Fatalf("enqueue first: %v", err)
 	}
-	if _, err := s.Enqueue(context.Background(), "unique", nil, scheduler.WithTaskID("unique-id"), scheduler.WithUniqueFor(time.Minute)); !errors.Is(err, scheduler.ErrDuplicateName) {
-		t.Fatalf("enqueue duplicate error = %v, want %v", err, scheduler.ErrDuplicateName)
+	if _, err := s.Enqueue(context.Background(), "unique", nil, scheduler.WithTaskID("unique-id"), scheduler.WithUniqueFor(time.Minute)); !errors.Is(err, scheduler.ErrDuplicateName) || !errors.Is(err, sasynq.ErrDuplicateTask) {
+		t.Fatalf("enqueue duplicate error = %v, want %v wrapping %v", err, scheduler.ErrDuplicateName, sasynq.ErrDuplicateTask)
 	}
 }
 
