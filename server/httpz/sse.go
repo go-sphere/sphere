@@ -154,6 +154,13 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 				}
 			}()
 			send := func(msg T) error {
+				// Check for death first: after cancel the pump keeps draining
+				// frames, so both select cases can be ready at once and Go
+				// picks pseudo-randomly, letting send report nil on a dead
+				// stream about half the time.
+				if err := context.Cause(prodCtx); err != nil {
+					return err
+				}
 				select {
 				case frames <- msg:
 					return nil
@@ -275,6 +282,12 @@ func pumpSSE[T any](
 				return w.SendJSON(SSEEventDone, struct{}{})
 			}
 			if err := w.SendJSON("", msg); err != nil {
+				// Best effort terminator: the failure can be an encode error
+				// with the client still listening (only a write error means it
+				// is gone), and the documented contract is a terminal "error"
+				// event. A second failure is ignored for the same reason.
+				_, resp := buildErrorResponse(err)
+				_ = w.SendJSON(SSEEventError, resp)
 				return abort(err)
 			}
 		case <-heartbeat:
@@ -305,6 +318,10 @@ func pumpSSEEager[T any](
 	result <-chan error,
 	cancel context.CancelCauseFunc,
 ) error {
+	// Release the producer context on every exit, like pumpSSE does. cancel is
+	// idempotent and first-cause-wins, so the explicit cancel calls below (and
+	// the one pumpSSE defers after handoff) keep their cause.
+	defer cancel(errSSEStreamEnded)
 	var ticker *time.Ticker
 	var heartbeat <-chan time.Time
 	if conf.heartbeat > 0 {

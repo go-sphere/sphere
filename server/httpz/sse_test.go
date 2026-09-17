@@ -373,6 +373,41 @@ func TestWithSSEUnencodableFirstMessagePins(t *testing.T) {
 	}
 }
 
+// TestWithSSEMidStreamEncodeFailureEndsWithErrorEvent pins that a message
+// which cannot be JSON-encoded after the first one still terminates the stream
+// with an error event: without it the client sees a 200 body that just stops,
+// indistinguishable from a dropped connection.
+func TestWithSSEMidStreamEncodeFailureEndsWithErrorEvent(t *testing.T) {
+	for name, newEngine := range sseEngines() {
+		t.Run(name, func(t *testing.T) {
+			// The first message must encode, so the offending value goes in an
+			// any field: a func-typed field would fail on the first message too
+			// and be caught by the gate instead of the pump.
+			type unencodable struct {
+				Msg string `json:"msg"`
+				Fn  any    `json:"fn,omitempty"`
+			}
+			engine := newEngine()
+			engine.Group("").GET("/sse", WithSSE(func(ctx httpx.Context) (SSEStream[unencodable], error) {
+				return func(send func(unencodable) error) error {
+					if err := send(unencodable{Msg: "ok"}); err != nil {
+						return err
+					}
+					return send(unencodable{Msg: "bad", Fn: func() {}})
+				}, nil
+			}, WithSSEHeartbeat(0)))
+
+			status, _, body := sseDo(t, engine, "/sse")
+			if status != http.StatusOK {
+				t.Fatalf("status = %d, body=%q", status, body)
+			}
+			if !strings.Contains(body, "event: error") {
+				t.Fatalf("body = %q, want a terminal error event after the encode failure", body)
+			}
+		})
+	}
+}
+
 // TestWithSSEEagerCommitPreFrameErrorIsStreamEvent pins eager-commit
 // semantics: with the response committed up front, a producer failure before
 // any message is delivered as a terminal error event on the 200 stream, not
