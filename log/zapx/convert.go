@@ -23,8 +23,9 @@ func MapToZapFields(attrs map[string]any) []zap.Field {
 	return fields
 }
 
-// AttrToZapField converts attr to a zap field. An error stored under the key
-// "error" becomes zap.Error.
+// AttrToZapField converts attr to a zap field. An error stored under "error"
+// uses zap.Error even if it also implements a zap marshaling interface. Other
+// arbitrary values follow zap.Any's dispatch rules, including inside groups.
 func AttrToZapField(attr corelog.Attr) zap.Field {
 	v := attr.Value.Resolve()
 	switch v.Kind() {
@@ -43,7 +44,12 @@ func AttrToZapField(attr corelog.Attr) zap.Field {
 	case slog.KindTime:
 		return zap.Time(attr.Key, v.Time())
 	case slog.KindGroup:
-		return zap.Any(attr.Key, groupToMap(v.Group()))
+		// Encode the group through an ObjectMarshaler rather than flattening it
+		// into a map[string]any: a map goes through zap's reflection/JSON path,
+		// which renders a nested time.Duration as its nanosecond integer, loses
+		// error fields and collapses duplicate keys, making the output depend on
+		// nesting depth.
+		return zap.Object(attr.Key, groupObject(v.Group()))
 	case slog.KindAny:
 		if err, ok := v.Any().(error); ok && attr.Key == "error" {
 			return zap.Error(err)
@@ -54,6 +60,17 @@ func AttrToZapField(attr corelog.Attr) zap.Field {
 	}
 }
 
+// groupObject encodes a slog group with the same typed encoders used for
+// top-level attrs, recursively.
+type groupObject []slog.Attr
+
+func (g groupObject) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	for _, a := range g {
+		AttrToZapField(a).AddTo(enc)
+	}
+	return nil
+}
+
 func mapToSlogAttrs(attrs map[string]any) []slog.Attr {
 	keys := slices.Sorted(maps.Keys(attrs))
 
@@ -62,40 +79,6 @@ func mapToSlogAttrs(attrs map[string]any) []slog.Attr {
 		out = append(out, slog.Any(k, attrs[k]))
 	}
 	return out
-}
-
-func groupToMap(attrs []slog.Attr) map[string]any {
-	m := make(map[string]any, len(attrs))
-	for _, a := range attrs {
-		m[a.Key] = slogValueToAny(a.Value)
-	}
-	return m
-}
-
-func slogValueToAny(v slog.Value) any {
-	v = v.Resolve()
-	switch v.Kind() {
-	case slog.KindString:
-		return v.String()
-	case slog.KindInt64:
-		return v.Int64()
-	case slog.KindUint64:
-		return v.Uint64()
-	case slog.KindFloat64:
-		return v.Float64()
-	case slog.KindBool:
-		return v.Bool()
-	case slog.KindDuration:
-		return v.Duration()
-	case slog.KindTime:
-		return v.Time()
-	case slog.KindGroup:
-		return groupToMap(v.Group())
-	case slog.KindAny:
-		return v.Any()
-	default:
-		return v.Any()
-	}
 }
 
 func logLevelToZapLevel(level corelog.Level) zapcore.Level {

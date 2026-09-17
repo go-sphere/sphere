@@ -7,9 +7,21 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 func formatSlogValue(v slog.Value) string {
+	return formatSlogValueDepth(v, 0)
+}
+
+// formatSlogValueDepth bounds the group recursion the same way formatAny
+// bounds container recursion: a LogValuer can resolve to a group containing
+// itself, and that cycle runs through KindGroup, never through formattable,
+// so it must be cut here or the stack overflows.
+func formatSlogValueDepth(v slog.Value, depth int) string {
+	if depth > maxFormatDepth {
+		return quoteIfNeeded(fmt.Sprintf("<unformattable %T: cyclic or deeper than %d levels>", v.Any(), maxFormatDepth))
+	}
 	v = v.Resolve()
 	switch v.Kind() {
 	case slog.KindString:
@@ -27,7 +39,7 @@ func formatSlogValue(v slog.Value) string {
 	case slog.KindTime:
 		return quoteIfNeeded(v.Time().Format(time.RFC3339Nano))
 	case slog.KindGroup:
-		return formatGroup(v.Group())
+		return formatGroup(v.Group(), depth+1)
 	case slog.KindAny:
 		return formatAny(v.Any())
 	default:
@@ -35,13 +47,13 @@ func formatSlogValue(v slog.Value) string {
 	}
 }
 
-func formatGroup(attrs []slog.Attr) string {
+func formatGroup(attrs []slog.Attr, depth int) string {
 	if len(attrs) == 0 {
 		return "{}"
 	}
 	parts := make([]string, 0, len(attrs))
 	for _, a := range attrs {
-		parts = append(parts, a.Key+"="+formatSlogValue(a.Value))
+		parts = append(parts, quoteIfNeeded(a.Key)+"="+formatSlogValueDepth(a.Value, depth))
 	}
 	return "{" + strings.Join(parts, ",") + "}"
 }
@@ -56,17 +68,27 @@ func formatAny(v any) string {
 	// recovered — unlike a panic from a MarshalJSON, which the backend catches —
 	// so it has to be prevented rather than handled. Values that are cyclic or
 	// implausibly deep are reported instead of formatted.
-	if !formattable(reflect.ValueOf(v), 0, make(map[uintptr]struct{})) {
+	if !formattable(reflect.ValueOf(v), 0, make(map[containerKey]struct{})) {
 		return quoteIfNeeded(fmt.Sprintf("<unformattable %T: cyclic or deeper than %d levels>", v, maxFormatDepth))
 	}
 	return quoteIfNeeded(fmt.Sprint(v))
+}
+
+// containerKey identifies a container on the current traversal path. For
+// slices the length is part of the identity: rv.Pointer() is the backing
+// array's base address, which an aliasing sub-slice (s[0:1] inside s) shares
+// with its ancestor without forming a cycle, while a genuine self-reference
+// has both the same base and the same length. Non-slice containers use -1.
+type containerKey struct {
+	ptr    uintptr
+	length int
 }
 
 // formattable reports whether rv can be handed to fmt.Sprint without risking
 // unbounded recursion. seen holds the container addresses on the current path,
 // so a value reachable from itself is rejected while the same value appearing
 // twice side by side is not.
-func formattable(rv reflect.Value, depth int, seen map[uintptr]struct{}) bool {
+func formattable(rv reflect.Value, depth int, seen map[containerKey]struct{}) bool {
 	if depth > maxFormatDepth {
 		return false
 	}
@@ -82,12 +104,15 @@ func formattable(rv reflect.Value, depth int, seen map[uintptr]struct{}) bool {
 		if rv.IsNil() {
 			return true
 		}
-		addr := rv.Pointer()
-		if _, ok := seen[addr]; ok {
+		key := containerKey{ptr: rv.Pointer(), length: -1}
+		if rv.Kind() == reflect.Slice {
+			key.length = rv.Len()
+		}
+		if _, ok := seen[key]; ok {
 			return false
 		}
-		seen[addr] = struct{}{}
-		defer delete(seen, addr)
+		seen[key] = struct{}{}
+		defer delete(seen, key)
 
 		switch rv.Kind() {
 		case reflect.Pointer:
@@ -117,7 +142,7 @@ func formattable(rv reflect.Value, depth int, seen map[uintptr]struct{}) bool {
 	}
 }
 
-func formattableElems(rv reflect.Value, depth int, seen map[uintptr]struct{}) bool {
+func formattableElems(rv reflect.Value, depth int, seen map[containerKey]struct{}) bool {
 	for i := range rv.Len() {
 		if !formattable(rv.Index(i), depth+1, seen) {
 			return false
@@ -130,7 +155,10 @@ func quoteIfNeeded(v string) string {
 	if v == "" {
 		return `""`
 	}
-	if strings.ContainsAny(v, " \t\n\r\"=") {
+	// Braces and commas delimit groups, and control characters (beyond the
+	// whitespace already covered) would let logged data forge lines or inject
+	// terminal escapes; quote them all so the encoding stays unambiguous.
+	if strings.ContainsAny(v, " \t\n\r\"=,{}") || strings.ContainsFunc(v, unicode.IsControl) {
 		return strconv.Quote(v)
 	}
 	return v

@@ -44,9 +44,10 @@ type Backend struct {
 }
 
 // coreCallerOffset compensates for:
-// 1) Backend.Log itself
-// 2) core logger call sites (both package-level log.* and logger instance methods).
-const coreCallerOffset = 2
+// 1) Backend.write, which issues the actual zap call
+// 2) Backend.Log itself
+// 3) core logger call sites (both package-level log.* and logger instance methods).
+const coreCallerOffset = 3
 
 // NewBackend creates a zap-based backend.
 func NewBackend(conf Config, options ...corelog.Option) *Backend {
@@ -103,6 +104,14 @@ func (z *Backend) logEntryLogger() *zap.Logger {
 // entry is the only one emitted.
 func (z *Backend) Log(ctx context.Context, level corelog.Level, msg string, attrs ...corelog.Attr) {
 	logger := z.logEntryLogger()
+	// Match write's fallback before filtering, and avoid resolving attrs for
+	// disabled levels. In particular, LogValuer may do expensive work.
+	if level < corelog.LevelDebug || level > corelog.LevelError {
+		level = corelog.LevelInfo
+	}
+	if !logger.Core().Enabled(logLevelToZapLevel(level)) {
+		return
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			z.write(logger, level, msg, []zap.Field{zap.String("attr_error", fmt.Sprint(r))})

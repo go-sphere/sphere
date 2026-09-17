@@ -27,11 +27,14 @@ type ConsoleConfig struct {
 // disables the file sink.
 type FileConfig struct {
 	FileName string `json:"file_name" yaml:"file_name"`
-	// MaxSize is the rotation threshold in megabytes.
+	// MaxSize is the rotation threshold in megabytes; zero uses lumberjack's
+	// 100 MB default.
 	MaxSize int `json:"max_size" yaml:"max_size"`
-	// MaxBackups is the number of old log files to keep.
+	// MaxBackups is the number of old log files to keep; zero disables
+	// count-based deletion, but MaxAge still applies.
 	MaxBackups int `json:"max_backups" yaml:"max_backups"`
-	// MaxAge is the maximum age of an old log file in days.
+	// MaxAge is the maximum age of an old log file in days; zero disables
+	// age-based deletion.
 	MaxAge int `json:"max_age" yaml:"max_age"`
 }
 
