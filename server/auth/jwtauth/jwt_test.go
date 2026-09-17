@@ -162,6 +162,44 @@ func TestJwtAuth_TemporalConstraints(t *testing.T) {
 	}
 }
 
+func TestJwtAuth_RejectsExpiredTokenWithoutImplicitLeeway(t *testing.T) {
+	t.Parallel()
+
+	auth := NewJwtAuth[RBACClaims[int64]]("secret")
+
+	justExpired := RBACClaims[int64]{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   "skewed-user",
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Second)),
+			NotBefore: jwt.NewNumericDate(time.Now().Add(-time.Minute)),
+		},
+		UID: 103,
+	}
+	token, err := auth.GenerateToken(context.Background(), justExpired)
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+	if _, err := auth.ParseToken(context.Background(), token); err == nil {
+		t.Error("ParseToken accepted an expired token")
+	}
+}
+
+func TestJwtAuth_PointerClaims(t *testing.T) {
+	auth := NewJwtAuth[*RBACClaims[int64]]("secret")
+	claims := NewRBACClaims[int64](42, "alice", []string{"admin"}, time.Now().Add(time.Hour))
+	token, err := auth.GenerateToken(t.Context(), &claims)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := auth.ParseToken(t.Context(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.UID != claims.UID {
+		t.Fatalf("claims = %+v, want UID %d", got, claims.UID)
+	}
+}
+
 func TestJwtAuth_MissingUIDClaims(t *testing.T) {
 	t.Parallel()
 
@@ -197,4 +235,18 @@ func TestJwtAuth_MissingUIDClaims(t *testing.T) {
 	if _, err := parsedStr.GetUID(); !errors.Is(err, authorizer.MissingUIDError) {
 		t.Fatalf("expected MissingUIDError, got %v", err)
 	}
+}
+
+// TestNewJwtAuthRejectsEmptySecret pins the fail-fast guard: HMAC signs and
+// verifies happily with a zero-length key, so an empty secret would otherwise
+// yield tokens anyone can forge with no error anywhere.
+func TestNewJwtAuthRejectsEmptySecret(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal(`NewJwtAuth("") must panic`)
+		}
+	}()
+	NewJwtAuth[RBACClaims[int64]]("")
 }

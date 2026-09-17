@@ -48,7 +48,14 @@ type JwtAuth[T jwt.Claims] struct {
 
 // NewJwtAuth creates a new JWT authenticator with the specified secret and options.
 // The default signing method is HMAC-SHA256.
+//
+// An empty secret panics: HMAC signs and verifies happily with a zero-length
+// key, so a missing config value would otherwise produce an auth system whose
+// tokens anyone can forge, with no error surfaced anywhere.
 func NewJwtAuth[T jwt.Claims](secret string, options ...Option) *JwtAuth[T] {
+	if secret == "" {
+		panic("jwtauth: empty secret")
+	}
 	opts := newOptions(options...)
 	ja := &JwtAuth[T]{
 		secret:        []byte(secret),

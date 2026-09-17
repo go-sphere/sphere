@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"context"
+	"slices"
 )
 
 type authKey struct{}
@@ -73,11 +74,17 @@ func (c ContextUtils[I]) GetCurrentSubject(ctx context.Context) (string, error) 
 }
 
 // GetCurrentRoles returns Data.Roles, or nil when no Data[I] is present.
-// An authenticated user with no roles yields the stored slice, which may be empty.
+// An authenticated user with no roles yields a copy of the stored slice, which
+// may be empty.
+//
+// The result is a copy rather than the stored slice: the backing array is
+// shared with the identity on the context, so a caller appending to or
+// reordering the result would otherwise change the roles that every other
+// consumer of the same request — including the permission middleware — sees.
 func (c ContextUtils[I]) GetCurrentRoles(ctx context.Context) []string {
 	data, ok := GetAuthData[I](ctx)
 	if !ok {
 		return nil
 	}
-	return data.Roles
+	return slices.Clone(data.Roles)
 }
