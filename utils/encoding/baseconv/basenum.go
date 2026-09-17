@@ -21,7 +21,8 @@ var (
 	// Std62Encoding encodes with AlphabetBase62 and no padding.
 	Std62Encoding = must(NewBaseEncoding(AlphabetBase62))
 	// StdRaw62Encoding is constructed with '=' padding, but the mathematical
-	// encoder never emits padding. DecodeString still strips trailing '='.
+	// encoder never emits padding, so DecodeString rejects any trailing '='
+	// as non-canonical.
 	StdRaw62Encoding = must(NewBaseEncodingWithPadding(AlphabetBase62, '='))
 )
 

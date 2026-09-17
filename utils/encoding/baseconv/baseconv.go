@@ -179,7 +179,18 @@ func (e *BaseEncoding) DecodeString(encoded string) ([]byte, error) {
 
 	data := encoded
 	if e.padChar != 0 {
-		data = strings.TrimRight(encoded, string(e.padChar))
+		// Trim bytes, not runes: string(e.padChar) converts a byte >= 0x80
+		// into a multi-byte UTF-8 sequence that never matches the raw byte
+		// the encoder wrote.
+		for len(data) > 0 && data[len(data)-1] == e.padChar {
+			data = data[:len(data)-1]
+		}
+		// The pad count must be exactly what the encoder emits for this many
+		// characters, or decoding becomes many-to-one ("00" and "00======"
+		// naming the same bytes) — see ErrNonCanonical.
+		if padCount := len(encoded) - len(data); padCount != e.expectedPadding(len(data)) {
+			return nil, fmt.Errorf("%w: invalid padding length %d", ErrNonCanonical, padCount)
+		}
 	}
 
 	if len(data) == 0 {
@@ -198,6 +209,25 @@ func (e *BaseEncoding) DecodeString(encoded string) ([]byte, error) {
 	}
 
 	return e.decodeBitwise(data, bitsPerChar)
+}
+
+// expectedPadding returns the exact number of padding characters the encoder
+// emits after n alphabet characters: base64- and base32-style alphabets pad to
+// their block size, every other configuration — including the mathematical
+// path — emits none.
+func (e *BaseEncoding) expectedPadding(n int) int {
+	bitsPerChar, bitwise := powerOfTwoBits(e.base)
+	if !bitwise {
+		return 0
+	}
+	switch bitsPerChar {
+	case 6: // base64
+		return (4 - n%4) % 4
+	case 5: // base32
+		return (8 - n%8) % 8
+	default:
+		return 0
+	}
 }
 
 func powerOfTwoBits(base int) (int, bool) {

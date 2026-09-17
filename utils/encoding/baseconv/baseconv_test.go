@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base32"
 	"encoding/base64"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -123,5 +124,36 @@ func TestMathematicalEncodingRoundTripLongInput(t *testing.T) {
 	}
 	if !bytes.Equal(got, want) {
 		t.Fatal("long mathematical encoding did not round-trip")
+	}
+}
+
+// TestDecodeStringRejectsNonCanonicalPadding pins that decoding stays
+// one-to-one when '=' padding is configured: the pad count must be exactly
+// what the encoder emits, so a value has a single spelling.
+func TestDecodeStringRejectsNonCanonicalPadding(t *testing.T) {
+	t.Parallel()
+
+	canonical32 := StdRaw32Encoding.EncodeToString([]byte{0x00}) // two chars + six pads
+	if _, err := StdRaw32Encoding.DecodeString(canonical32); err != nil {
+		t.Fatalf("DecodeString(%q) = %v, want nil", canonical32, err)
+	}
+	for _, input := range []string{
+		strings.TrimRight(canonical32, "="), // missing padding
+		canonical32 + "=",                   // extra padding
+		strings.Repeat("=", 8),              // padding only, collides with ""
+	} {
+		if _, err := StdRaw32Encoding.DecodeString(input); !errors.Is(err, ErrNonCanonical) {
+			t.Errorf("DecodeString(%q) err = %v, want ErrNonCanonical", input, err)
+		}
+	}
+
+	// The mathematical path never emits padding, so any trailing '=' is
+	// non-canonical even though the encoding was constructed with a pad char.
+	canonical62 := StdRaw62Encoding.EncodeToString([]byte{0x01})
+	if _, err := StdRaw62Encoding.DecodeString(canonical62); err != nil {
+		t.Fatalf("DecodeString(%q) = %v, want nil", canonical62, err)
+	}
+	if _, err := StdRaw62Encoding.DecodeString(canonical62 + "="); !errors.Is(err, ErrNonCanonical) {
+		t.Errorf("DecodeString(%q+\"=\") err = %v, want ErrNonCanonical", canonical62, err)
 	}
 }

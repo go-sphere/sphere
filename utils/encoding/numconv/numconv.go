@@ -1,7 +1,8 @@
 // Package numconv encodes int64 values as 8-byte big-endian then base32 or
 // base62 (unpadded Std32 / Std62). Decode requires exactly 8 bytes or
 // returns ErrNonCanonical. A short string like "5" does not decode.
-// Base32 leftover bits fail with baseconv.ErrNonCanonical.
+// Base32 leftover bits fail with an error matching both baseconv.ErrNonCanonical
+// and ErrNonCanonical, so either sentinel classifies them.
 //
 // RandomBase32 and RandomBase62 sample the alphabet with math/rand/v2.
 // They are not encodings of int64s and are not cryptographically secure
@@ -58,6 +59,12 @@ func Int64ToBase62(n int64) string {
 func Base32ToInt64(s string) (int64, error) {
 	bytes, err := baseconv.Std32Encoding.DecodeString(s)
 	if err != nil {
+		if errors.Is(err, baseconv.ErrNonCanonical) {
+			// Leftover bits describe exactly the non-canonical input this
+			// package's ErrNonCanonical documents, so keep both sentinels
+			// matchable rather than leaking only the baseconv one.
+			return 0, fmt.Errorf("%w: %w", ErrNonCanonical, err)
+		}
 		return 0, err
 	}
 	return bytesToInt64(bytes)

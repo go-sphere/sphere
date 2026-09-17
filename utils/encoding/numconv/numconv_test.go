@@ -48,8 +48,8 @@ func TestDecodeRejectsNonCanonicalForms(t *testing.T) {
 		if alias == canonical {
 			t.Fatal("test setup: alias matches the canonical form")
 		}
-		if _, err := Base32ToInt64(alias); !errors.Is(err, baseconv.ErrNonCanonical) {
-			t.Errorf("Base32ToInt64(%q) error = %v, want ErrNonCanonical", alias, err)
+		if _, err := Base32ToInt64(alias); !errors.Is(err, baseconv.ErrNonCanonical) || !errors.Is(err, ErrNonCanonical) {
+			t.Errorf("Base32ToInt64(%q) error = %v, want both ErrNonCanonical sentinels", alias, err)
 		}
 
 		// One character longer than any value needs.
