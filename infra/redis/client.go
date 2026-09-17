@@ -6,6 +6,10 @@
 package redis
 
 import (
+	"errors"
+	"fmt"
+	"net/url"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -21,6 +25,11 @@ type Config struct {
 func NewClient(conf Config) (*redis.Client, error) {
 	options, err := redis.ParseURL(conf.URL)
 	if err != nil {
+		// A *url.Error embeds the raw URL, credentials included, and this
+		// error typically ends up in startup logs — redact before returning.
+		if uErr, ok := errors.AsType[*url.Error](err); ok {
+			return nil, fmt.Errorf("redis: invalid url: %w", uErr.Err)
+		}
 		return nil, err
 	}
 	return redis.NewClient(options), nil
