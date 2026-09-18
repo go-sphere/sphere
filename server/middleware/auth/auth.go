@@ -82,9 +82,6 @@ func newOptions(opts ...Option) *options {
 		loader: func(ctx httpx.Context) (string, error) {
 			return ctx.Header(AuthorizationHeader), nil
 		},
-		transform: func(text string) (string, error) {
-			return text, nil
-		},
 		abortOnError: true,
 	}
 	for _, opt := range opts {

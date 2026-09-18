@@ -249,11 +249,12 @@ func (g *Group) Stop(ctx context.Context) error {
 
 	switch state {
 	case groupStateRunning:
-		if stopReqCh != nil {
-			select {
-			case stopReqCh <- shutdownManualStop:
-			default:
-			}
+		// stopReqCh is non-nil whenever the state is Running: it is created in
+		// beginLifecycle and cleared in finishLifecycle, each under the same
+		// mutex this state was read under.
+		select {
+		case stopReqCh <- shutdownManualStop:
+		default:
 		}
 		return g.waitForDone(ctx, doneCh)
 	case groupStateStopping:
@@ -281,10 +282,9 @@ func (g *Group) IsStopped() bool {
 	return g.state == groupStateStopped
 }
 
+// waitForDone is only called with the doneCh captured under the same mutex as
+// a Running or Stopping state, so done is never nil here.
 func (g *Group) waitForDone(ctx context.Context, done <-chan struct{}) error {
-	if done == nil {
-		return nil
-	}
 	select {
 	case <-done:
 		g.mu.Lock()

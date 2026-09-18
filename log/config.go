@@ -98,10 +98,8 @@ func WithAttrs(attrs map[string]any) Option {
 
 func newOptions(opts ...Option) *Options {
 	defaults := &Options{
-		AddCaller:  AddCallerStatusKeep,
-		AddStackAt: nil,
-		MinLevel:   nil,
-		Attrs:      make(map[string]any),
+		AddCaller: AddCallerStatusKeep,
+		Attrs:     make(map[string]any),
 	}
 	for _, opt := range opts {
 		opt(defaults)

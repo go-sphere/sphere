@@ -275,7 +275,7 @@ func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 		if err != nil {
 			return httpx.InternalServerError(err)
 		}
-		return a.opts.uploadSuccessWithData(ctx, uploadKey, a.GenerateURL(uploadKey))
+		return defaultUploadSuccessWithData(ctx, uploadKey, a.GenerateURL(uploadKey))
 	})
 }
 

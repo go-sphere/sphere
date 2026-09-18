@@ -30,7 +30,7 @@ func execute(ctx context.Context, name string, task Task, run func(ctx context.C
 		// look like every member crashed. A Canceled that arrives while ctx
 		// is still live is a real failure (see Group's wrapped-canceled guard)
 		// and is still logged.
-		if errors.Is(err, context.Canceled) && ctx != nil && ctx.Err() != nil {
+		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 			return err
 		}
 		logTaskError(task, name, err)

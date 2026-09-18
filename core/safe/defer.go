@@ -49,9 +49,7 @@ func IfErrorPresent(fn func() error) {
 // IfErrorXPresent calls fn and discards the value on both success and failure.
 // A non-nil error is passed to the handler set by InitErrorHandler.
 func IfErrorXPresent[T any](fn func() (T, error)) {
-	_, err := fn()
-	if err != nil {
+	if _, err := fn(); err != nil {
 		(*errorHandler.Load())(err)
-		return
 	}
 }

@@ -206,9 +206,7 @@ func (r *groupRun) runStage(stageIdx int, stage []Task, ctxDone *<-chan struct{}
 			r.beginStop(shutdownTaskFailure, stageIdx)
 		case result := <-startResults:
 			remaining--
-			if result.idx >= 0 && result.idx < len(finished) {
-				finished[result.idx] = true
-			}
+			finished[result.idx] = true
 			if result.err == nil {
 				continue
 			}

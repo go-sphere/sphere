@@ -35,10 +35,8 @@ func MetaFrom(ctx context.Context) map[string]any {
 	if ctx == nil {
 		return nil
 	}
-	if v := ctx.Value(metaContextKey); v != nil {
-		if m, ok := v.(map[string]any); ok {
-			return m
-		}
+	if m, ok := ctx.Value(metaContextKey).(map[string]any); ok {
+		return m
 	}
 	return nil
 }

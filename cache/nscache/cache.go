@@ -87,13 +87,11 @@ func (n *NSCache[S]) Exists(ctx context.Context, key string) (bool, error) {
 }
 
 func (n *NSCache[S]) MultiSet(ctx context.Context, valMap map[string]S) error {
-	return n.cache.MultiSet(ctx, func() map[string]S {
-		mapped := make(map[string]S, len(valMap))
-		for k, v := range valMap {
-			mapped[n.keygen(k)] = v
-		}
-		return mapped
-	}())
+	prefixedValMap := make(map[string]S, len(valMap))
+	for k, v := range valMap {
+		prefixedValMap[n.keygen(k)] = v
+	}
+	return n.cache.MultiSet(ctx, prefixedValMap)
 }
 
 func (n *NSCache[S]) MultiGet(ctx context.Context, keys []string) (map[string]S, error) {

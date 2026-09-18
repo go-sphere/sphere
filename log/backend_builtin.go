@@ -21,7 +21,6 @@ func (nopBackend) Sync() error {
 }
 
 func (n nopBackend) With(options ...Option) Backend {
-	_ = options
 	return n
 }
 

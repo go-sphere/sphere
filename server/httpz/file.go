@@ -21,9 +21,8 @@ type WithFormOption func(*WithFormOptions)
 
 func newWithFormOptions(opts ...WithFormOption) *WithFormOptions {
 	defaults := &WithFormOptions{
-		maxSize:         10 * 1024 * 1024, // 10MB
-		fileFormKey:     "file",
-		allowExtensions: nil,
+		maxSize:     10 * 1024 * 1024, // 10MB
+		fileFormKey: "file",
 	}
 	for _, opt := range opts {
 		opt(defaults)

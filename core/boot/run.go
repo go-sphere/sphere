@@ -21,8 +21,9 @@ func run(ctx context.Context, t task.Task, options *options) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	quit := make(chan os.Signal, 1)
+	var quit chan os.Signal
 	if len(options.signals) > 0 {
+		quit = make(chan os.Signal, 1)
 		signal.Notify(quit, options.signals...)
 		defer signal.Stop(quit)
 	}

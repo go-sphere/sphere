@@ -35,9 +35,7 @@ type options struct {
 
 func newOptions(opts ...Option) *options {
 	defaults := &options{
-		hasTTL:       false,
-		expiration:   -1,
-		singleflight: nil,
+		expiration: -1,
 	}
 	for _, opt := range opts {
 		opt(defaults)

@@ -41,7 +41,7 @@ func EndpointsToMatches(base string, endpoints ...[][3]string) map[string]map[st
 		for _, route := range list {
 			key := route[1]
 			inner, ok := matches[key]
-			if !ok || inner == nil {
+			if !ok {
 				inner = make(map[string]string)
 				matches[key] = inner
 			}

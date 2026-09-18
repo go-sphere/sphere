@@ -119,8 +119,8 @@ type config struct {
 }
 
 func newConfig(options ...Option) *config {
+	// Origins default to empty, which matches nothing; configure WithAllowOrigins.
 	cfg := &config{
-		allowOrigins: []string{""},
 		allowMethods: []string{
 			http.MethodGet,
 			http.MethodPost,
@@ -140,9 +140,6 @@ func newConfig(options ...Option) *config {
 }
 
 func (c *config) compile() {
-	if len(c.allowOrigins) == 0 {
-		c.allowOrigins = []string{""}
-	}
 	if len(c.allowMethods) == 0 {
 		c.allowMethods = []string{http.MethodOptions}
 	}

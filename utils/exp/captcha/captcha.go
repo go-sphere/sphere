@@ -79,15 +79,10 @@ func NewManager(conf Config, sender Sender) *Manager {
 // Returns an error if code generation, storage, or delivery fails.
 func (m *Manager) SendCode(number string) error {
 	code := RandomCode(m.config.CodeLength)
-	err := m.verification.SaveCode(number, code, time.Duration(m.config.CodeExpiresIn)*time.Second)
-	if err != nil {
+	if err := m.verification.SaveCode(number, code, time.Duration(m.config.CodeExpiresIn)*time.Second); err != nil {
 		return err
 	}
-	err = m.sender.SendCode(number, code)
-	if err != nil {
-		return err
-	}
-	return nil
+	return m.sender.SendCode(number, code)
 }
 
 // Verify validates a verification code for the given number.

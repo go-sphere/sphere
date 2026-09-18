@@ -16,10 +16,9 @@ type UploadResult struct {
 }
 
 type options struct {
-	uploadSuccessWithData func(ctx httpx.Context, key, url string) error
-	createFileKey         func(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error)
-	downloadCacheControl  string
-	inlineDownload        bool
+	createFileKey        func(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error)
+	downloadCacheControl string
+	inlineDownload       bool
 	// ownsCache marks the cache as a resource of this FileServer rather than an
 	// injected dependency, so Close releases it.
 	ownsCache bool
@@ -79,8 +78,7 @@ func WithInlineDownload() Option {
 
 func newOptions(opts ...Option) *options {
 	opt := &options{
-		uploadSuccessWithData: defaultUploadSuccessWithData,
-		createFileKey:         defaultCreateFileKey,
+		createFileKey: defaultCreateFileKey,
 	}
 	for _, o := range opts {
 		o(opt)
