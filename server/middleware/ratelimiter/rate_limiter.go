@@ -74,51 +74,60 @@ func WithSetTimeout(timeout time.Duration) Option {
 // otherwise fail limiter creation for every waiter. The subsequent cache write
 // is detached from the request for the same reason.
 func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Context) (*rate.Limiter, time.Duration), options ...Option) httpx.Middleware {
+	return httpx.AsMiddleware(NewRateLimiterInterceptor(key, createLimiter, options...))
+}
+
+// NewRateLimiterInterceptor is NewRateLimiter as an httpx.Interceptor, for
+// routers that compose the chain at registration instead of adapting one layer
+// per middleware.
+func NewRateLimiterInterceptor(key func(httpx.Context) string, createLimiter func(httpx.Context) (*rate.Limiter, time.Duration), options ...Option) httpx.Interceptor {
 	sf := singleflight.Group{}
 	opts := newOptions(options...)
-	return func(ctx httpx.Context) error {
-		k := key(ctx)
-		limiter, exist, gErr := opts.cache.Get(ctx.Context(), k)
-		if gErr != nil {
-			return httpx.InternalServerError(gErr)
-		}
-		// A JSON round-trip through a codec cache yields a zero limiter with
-		// both Limit and Burst zero; a legitimately configured limiter can
-		// have Burst()==0 alone (rate.Inf), so require both to be zero.
-		if exist && limiter != nil && limiter.Limit() == 0 && limiter.Burst() == 0 {
-			return httpx.InternalServerError(fmt.Errorf(
-				"ratelimiter: cache returned a zero limiter for key %q: "+
-					"rate.Limiter is not serializable, use an in-process cache",
-				k))
-		}
-		if !exist || limiter == nil {
-			value, nErr, _ := sf.Do(k, func() (any, error) {
-				newLimiter, expire := createLimiter(ctx)
-				// Every concurrent waiter for this key shares this result, so
-				// the cache write must not inherit the triggering request's
-				// cancellation: its disconnect would fail all waiters.
-				setCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Context()), opts.setTimeout)
-				defer cancel()
-				err := opts.cache.SetWithTTL(setCtx, k, newLimiter, expire)
-				if err != nil {
-					return nil, err
+	return func(next httpx.Handler) httpx.Handler {
+		return func(ctx httpx.Context) error {
+			k := key(ctx)
+			limiter, exist, gErr := opts.cache.Get(ctx.Context(), k)
+			if gErr != nil {
+				return httpx.InternalServerError(gErr)
+			}
+			// A JSON round-trip through a codec cache yields a zero limiter with
+			// both Limit and Burst zero; a legitimately configured limiter can
+			// have Burst()==0 alone (rate.Inf), so require both to be zero.
+			if exist && limiter != nil && limiter.Limit() == 0 && limiter.Burst() == 0 {
+				return httpx.InternalServerError(fmt.Errorf(
+					"ratelimiter: cache returned a zero limiter for key %q: "+
+						"rate.Limiter is not serializable, use an in-process cache",
+					k))
+			}
+			if !exist || limiter == nil {
+				value, nErr, _ := sf.Do(k, func() (any, error) {
+					newLimiter, expire := createLimiter(ctx)
+					// Every concurrent waiter for this key shares this result, so
+					// the cache write must not inherit the triggering request's
+					// cancellation: its disconnect would fail all waiters.
+					setCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Context()), opts.setTimeout)
+					defer cancel()
+					err := opts.cache.SetWithTTL(setCtx, k, newLimiter, expire)
+					if err != nil {
+						return nil, err
+					}
+					return newLimiter, nil
+				})
+				if nErr != nil {
+					return httpx.InternalServerError(nErr)
 				}
-				return newLimiter, nil
-			})
-			if nErr != nil {
-				return httpx.InternalServerError(nErr)
+				typed, ok := value.(*rate.Limiter)
+				if !ok || typed == nil {
+					return httpx.InternalServerError(fmt.Errorf("ratelimiter: unexpected limiter type %T", value))
+				}
+				limiter = typed
 			}
-			typed, ok := value.(*rate.Limiter)
-			if !ok || typed == nil {
-				return httpx.InternalServerError(fmt.Errorf("ratelimiter: unexpected limiter type %T", value))
+			ok := limiter.Allow()
+			if !ok {
+				return httpx.NewWithStatus(http.StatusTooManyRequests, "rate limit exceeded")
 			}
-			limiter = typed
+			return next(ctx)
 		}
-		ok := limiter.Allow()
-		if !ok {
-			return httpx.NewWithStatus(http.StatusTooManyRequests, "rate limit exceeded")
-		}
-		return ctx.Next()
 	}
 }
 
@@ -137,7 +146,14 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 // NewRateLimiter a key drawn from something the caller cannot forge, such as an
 // authenticated user ID.
 func NewRateLimiterByClientIP(limit time.Duration, burst int, expire time.Duration, options ...Option) httpx.Middleware {
-	return NewRateLimiter(
+	return httpx.AsMiddleware(NewRateLimiterByClientIPInterceptor(limit, burst, expire, options...))
+}
+
+// NewRateLimiterByClientIPInterceptor is NewRateLimiterByClientIP as an
+// httpx.Interceptor. The caveats about ClientIP trustworthiness apply
+// unchanged.
+func NewRateLimiterByClientIPInterceptor(limit time.Duration, burst int, expire time.Duration, options ...Option) httpx.Interceptor {
+	return NewRateLimiterInterceptor(
 		func(ctx httpx.Context) string {
 			return ctx.ClientIP()
 		},

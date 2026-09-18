@@ -81,20 +81,29 @@ func NewOnline(options ...Option) *Online {
 // Middleware creates a middleware that tracks online presence.
 // It extracts a key from the request context and updates the online status with the specified TTL.
 func (l *Online) Middleware(keygen func(ctx httpx.Context) string, ttl time.Duration) httpx.Middleware {
-	return func(ctx httpx.Context) error {
-		if l.cache == nil {
-			// A zero-value Online has no backing cache; dereferencing it
-			// panics on the request path. Start already fails fast with
-			// ErrNotInitialized, so reaching a request through the zero value
-			// means the tracker was never constructed with NewOnline — fail
-			// the request with the same diagnosable error.
-			return ErrNotInitialized
+	return httpx.AsMiddleware(l.Interceptor(keygen, ttl))
+}
+
+// Interceptor is Middleware as an httpx.Interceptor, for routers that compose
+// the chain at registration instead of adapting one layer per middleware.
+func (l *Online) Interceptor(keygen func(ctx httpx.Context) string, ttl time.Duration) httpx.Interceptor {
+	return func(next httpx.Handler) httpx.Handler {
+		return func(ctx httpx.Context) error {
+			if l.cache == nil {
+				// A zero-value Online has no backing cache; dereferencing it
+				// panics on the request path. Start already fails fast with
+				// ErrNotInitialized, so reaching a request through the zero
+				// value means the tracker was never constructed with
+				// NewOnline — fail the request with the same diagnosable
+				// error.
+				return ErrNotInitialized
+			}
+			key := keygen(ctx)
+			if key != "" {
+				_ = l.cache.SetWithTTL(ctx.Context(), key, struct{}{}, ttl)
+			}
+			return next(ctx)
 		}
-		key := keygen(ctx)
-		if key != "" {
-			_ = l.cache.SetWithTTL(ctx.Context(), key, struct{}{}, ttl)
-		}
-		return ctx.Next()
 	}
 }
 

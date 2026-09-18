@@ -92,3 +92,24 @@ func NewSelectorMiddleware(matcher Matcher, middlewares ...httpx.Middleware) []h
 	}
 	return val
 }
+
+// NewSelectorInterceptor is NewSelectorMiddleware for httpx.Interceptor: each
+// wrapper runs the inner interceptor only when matcher.Match is true,
+// otherwise it continues the chain directly.
+func NewSelectorInterceptor(matcher Matcher, interceptors ...httpx.Interceptor) []httpx.Interceptor {
+	val := make([]httpx.Interceptor, 0, len(interceptors))
+	for _, i := range interceptors {
+		val = append(val, func(next httpx.Handler) httpx.Handler {
+			// Composed once at registration, so a request only pays for the
+			// match.
+			matched := i(next)
+			return func(ctx httpx.Context) error {
+				if matcher.Match(ctx) {
+					return matched(ctx)
+				}
+				return next(ctx)
+			}
+		})
+	}
+	return val
+}

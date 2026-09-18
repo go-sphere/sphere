@@ -160,16 +160,25 @@ func unauthorizedError(err error) error {
 
 // NewAuthMiddleware parses a request token with parser and stores authorizer.Data on the context.
 func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authorizer.Parser[T, C], options ...Option) httpx.Middleware {
+	return httpx.AsMiddleware(NewAuthInterceptor(parser, options...))
+}
+
+// NewAuthInterceptor is NewAuthMiddleware as an httpx.Interceptor, for routers
+// that compose the chain at registration instead of adapting one layer per
+// middleware.
+func NewAuthInterceptor[T authorizer.UID, C authorizer.Claims[T]](parser authorizer.Parser[T, C], options ...Option) httpx.Interceptor {
 	opts := newOptions(options...)
-	return func(ctx httpx.Context) error {
-		token, err := opts.loader(ctx)
-		if err != nil && opts.abortOnError {
-			return unauthorizedError(err)
+	return func(next httpx.Handler) httpx.Handler {
+		return func(ctx httpx.Context) error {
+			token, err := opts.loader(ctx)
+			if err != nil && opts.abortOnError {
+				return unauthorizedError(err)
+			}
+			err = parserToken(ctx, token, opts.transform, parser)
+			if err != nil && opts.abortOnError {
+				return unauthorizedError(err)
+			}
+			return next(ctx)
 		}
-		err = parserToken(ctx, token, opts.transform, parser)
-		if err != nil && opts.abortOnError {
-			return unauthorizedError(err)
-		}
-		return ctx.Next()
 	}
 }
