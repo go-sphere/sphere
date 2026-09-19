@@ -64,6 +64,15 @@ func WithSetTimeout(timeout time.Duration) Option {
 	}
 }
 
+// cacheCtx returns the context for a cache operation performed inside the
+// singleflight: detached from the triggering request, because one caller
+// disconnecting must not fail limiter creation for the waiters that share the
+// result, and bounded by the configured timeout so an unresponsive backend
+// cannot hang it.
+func (o *options) cacheCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), o.setTimeout)
+}
+
 // NewRateLimiter creates a new rate limiting middleware with customizable key extraction and limiter creation.
 // It uses caching to store rate limiters per key and singleflight to prevent cache stampedes.
 //
@@ -74,13 +83,6 @@ func WithSetTimeout(timeout time.Duration) Option {
 // otherwise fail limiter creation for every waiter. The subsequent cache write
 // is detached from the request for the same reason.
 func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Context) (*rate.Limiter, time.Duration), options ...Option) httpx.Middleware {
-	return httpx.AsMiddleware(NewRateLimiterInterceptor(key, createLimiter, options...))
-}
-
-// NewRateLimiterInterceptor is NewRateLimiter as an httpx.Interceptor, for
-// routers that compose the chain at registration instead of adapting one layer
-// per middleware.
-func NewRateLimiterInterceptor(key func(httpx.Context) string, createLimiter func(httpx.Context) (*rate.Limiter, time.Duration), options ...Option) httpx.Interceptor {
 	sf := singleflight.Group{}
 	opts := newOptions(options...)
 	return func(next httpx.Handler) httpx.Handler {
@@ -101,11 +103,27 @@ func NewRateLimiterInterceptor(key func(httpx.Context) string, createLimiter fun
 			}
 			if !exist || limiter == nil {
 				value, nErr, _ := sf.Do(k, func() (any, error) {
+					// Re-read under the flight. singleflight only deduplicates
+					// overlapping calls, so a caller that read the cache just
+					// before another flight's write can lead a second flight
+					// once that one finished; without this check it would
+					// create a second limiter for the key and reset its burst.
+					// A new flight starts only after the previous one's write
+					// returned, so the write is visible here.
+					readCtx, cancelRead := opts.cacheCtx(ctx.Context())
+					cached, ok, rErr := opts.cache.Get(readCtx, k)
+					cancelRead()
+					if rErr != nil {
+						return nil, rErr
+					}
+					if ok && cached != nil {
+						return cached, nil
+					}
 					newLimiter, expire := createLimiter(ctx)
 					// Every concurrent waiter for this key shares this result, so
 					// the cache write must not inherit the triggering request's
 					// cancellation: its disconnect would fail all waiters.
-					setCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Context()), opts.setTimeout)
+					setCtx, cancel := opts.cacheCtx(ctx.Context())
 					defer cancel()
 					err := opts.cache.SetWithTTL(setCtx, k, newLimiter, expire)
 					if err != nil {
@@ -136,24 +154,18 @@ func NewRateLimiterInterceptor(key func(httpx.Context) string, createLimiter fun
 //
 // The key is only as trustworthy as the engine's proxy configuration.
 // ClientIP is documented as best-effort and typically derives from
-// X-Forwarded-For, which the client sets: with the engine trusting all proxies —
-// gin's default — every request can claim a fresh IP and receive its own full
-// burst, so the limit stops applying at all. Worse, each fabricated address
-// takes a slot in the limiter cache, so the header becomes a way to grow it.
+// X-Forwarded-For, which the client sets: an adapter that trusts every peer —
+// gin, echo, and hertz do by default — lets every request claim a fresh IP and
+// receive its own full burst, so the limit stops applying at all. Worse, each
+// fabricated address takes a slot in the limiter cache, so the header becomes a
+// way to grow it.
 //
-// Configure the engine's trusted proxies before relying on this (gin
-// SetTrustedProxies, echo IPExtractor, fiber EnableTrustedProxyCheck), or pass
-// NewRateLimiter a key drawn from something the caller cannot forge, such as an
-// authenticated user ID.
+// Configure the engine's trusted proxies before relying on this
+// (WithTrustedProxies is uniform across the adapters; stdx ignores forwarding
+// headers unless it is set), or pass NewRateLimiter a key drawn from something
+// the caller cannot forge, such as an authenticated user ID.
 func NewRateLimiterByClientIP(limit time.Duration, burst int, expire time.Duration, options ...Option) httpx.Middleware {
-	return httpx.AsMiddleware(NewRateLimiterByClientIPInterceptor(limit, burst, expire, options...))
-}
-
-// NewRateLimiterByClientIPInterceptor is NewRateLimiterByClientIP as an
-// httpx.Interceptor. The caveats about ClientIP trustworthiness apply
-// unchanged.
-func NewRateLimiterByClientIPInterceptor(limit time.Duration, burst int, expire time.Duration, options ...Option) httpx.Interceptor {
-	return NewRateLimiterInterceptor(
+	return NewRateLimiter(
 		func(ctx httpx.Context) string {
 			return ctx.ClientIP()
 		},

@@ -179,9 +179,13 @@ func (f *fullFakeContext) Cookie(name string) (string, error) {
 	return val, nil
 }
 
-func (f *fullFakeContext) Next() error {
-	f.nexted = true
-	return nil
+// run drives mw with a terminal handler that records whether the chain
+// continued past the middleware.
+func run(mw httpx.Middleware, ctx *fullFakeContext) error {
+	return mw(func(httpx.Context) error {
+		ctx.nexted = true
+		return nil
+	})(ctx)
 }
 
 func TestWithPrefixTransform(t *testing.T) {
@@ -234,11 +238,11 @@ func TestNewAuthMiddleware(t *testing.T) {
 		ctx := &fullFakeContext{
 			headers: map[string]string{"X-Custom-Auth": "Token valid-token"},
 		}
-		if err := mw(ctx); err != nil {
+		if err := run(mw, ctx); err != nil {
 			t.Fatalf("mw error: %v", err)
 		}
 		if !ctx.nexted {
-			t.Fatal("Next() was not called")
+			t.Fatal("the chain did not continue")
 		}
 		data, ok := authorizer.GetAuthData[int64](ctx.Context())
 		if !ok || data.UID != 100 {
@@ -251,11 +255,11 @@ func TestNewAuthMiddleware(t *testing.T) {
 		ctx := &fullFakeContext{
 			cookies: map[string]string{"session_id": "valid-token"},
 		}
-		if err := mw(ctx); err != nil {
+		if err := run(mw, ctx); err != nil {
 			t.Fatalf("mw error: %v", err)
 		}
 		if !ctx.nexted {
-			t.Fatal("Next() was not called")
+			t.Fatal("the chain did not continue")
 		}
 	})
 
@@ -264,7 +268,7 @@ func TestNewAuthMiddleware(t *testing.T) {
 		ctx := &fullFakeContext{
 			headers: map[string]string{AuthorizationHeader: "invalid-token"},
 		}
-		err := mw(ctx)
+		err := run(mw, ctx)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -273,7 +277,7 @@ func TestNewAuthMiddleware(t *testing.T) {
 			t.Fatalf("status = %d, want 401", status)
 		}
 		if ctx.nexted {
-			t.Fatal("Next() must not be called when aborted")
+			t.Fatal("the chain continued although the request was aborted")
 		}
 	})
 
@@ -282,11 +286,11 @@ func TestNewAuthMiddleware(t *testing.T) {
 		ctx := &fullFakeContext{
 			headers: map[string]string{AuthorizationHeader: "invalid-token"},
 		}
-		if err := mw(ctx); err != nil {
+		if err := run(mw, ctx); err != nil {
 			t.Fatalf("expected nil error when abortOnError is false, got: %v", err)
 		}
 		if !ctx.nexted {
-			t.Fatal("Next() should be called when abortOnError is false")
+			t.Fatal("the chain did not continue with abortOnError false")
 		}
 	})
 }

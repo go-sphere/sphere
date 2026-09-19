@@ -494,8 +494,8 @@ func (c *miniContext) Status(code int) {
 	c.writeHeader(code)
 }
 
-// writeHeader records the status so StatusCode (httpx.ResponseInfo, part of
-// the Context contract) can report it.
+// writeHeader records the status so StatusCode (part of the httpx.Context
+// contract) can report it.
 func (c *miniContext) writeHeader(code int) {
 	c.status = code
 	c.w.WriteHeader(code)
@@ -541,11 +541,11 @@ func (c *miniContext) Bytes(code int, b []byte, contentType string) error {
 	return err
 }
 
-func (c *miniContext) DataFromReader(code int, contentType string, r io.Reader, size int) error {
+func (c *miniContext) DataFromReader(code int, contentType string, r io.Reader, size int64) error {
 	c.w.Header().Set("Content-Type", contentType)
 	c.writeHeader(code)
 	if size >= 0 {
-		_, err := io.CopyN(c.w, r, int64(size))
+		_, err := io.CopyN(c.w, r, size)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return err
 		}

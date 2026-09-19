@@ -10,22 +10,15 @@ import (
 // with the interface's own Context() method.
 type httpxContext = httpx.Context
 
-// stateFakeContext supplies the Get/Next surface the matcher and the produced
-// middleware need.
+// stateFakeContext supplies the Get surface the matcher needs.
 type stateFakeContext struct {
 	httpxContext
 	values map[string]any
-	nexted bool
 }
 
 func (s *stateFakeContext) Get(key string) (any, bool) {
 	v, ok := s.values[key]
 	return v, ok
-}
-
-func (s *stateFakeContext) Next() error {
-	s.nexted = true
-	return nil
 }
 
 // TestNewContextMatcher pins the typed lookup: the value must both be present
@@ -98,42 +91,50 @@ func TestLogicalCombinators(t *testing.T) {
 // TestNewSelectorMiddleware pins the gating contract: each middleware runs only
 // when the matcher matches, and a skipped one hands the request downstream.
 func TestNewSelectorMiddleware(t *testing.T) {
-	var ran int
-	middleware := func(ctx httpx.Context) error {
-		ran++
-		return nil
+	// terminal returns a handler that records whether the chain reached it.
+	terminal := func(nexted *bool) httpx.Handler {
+		return func(httpx.Context) error {
+			*nexted = true
+			return nil
+		}
 	}
 
 	t.Run("matching request runs the middleware", func(t *testing.T) {
-		ran = 0
-		chain := NewSelectorMiddleware(MatchFunc(func(httpx.Context) bool { return true }), middleware)
+		var ran int
+		var nexted bool
+		chain := NewSelectorMiddleware(
+			MatchFunc(func(httpx.Context) bool { return true }),
+			counting(&ran),
+		)
 		if len(chain) != 1 {
 			t.Fatalf("got %d middlewares, want 1", len(chain))
 		}
-		ctx := &stateFakeContext{}
-		if err := chain[0](ctx); err != nil {
+		if err := chain[0](terminal(&nexted))(&stateFakeContext{}); err != nil {
 			t.Fatalf("middleware: %v", err)
 		}
 		if ran != 1 {
 			t.Fatalf("middleware ran %d times, want 1", ran)
 		}
-		if ctx.nexted {
-			t.Error("Next was called although the middleware ran")
+		if !nexted {
+			t.Error("the chain did not continue past the middleware")
 		}
 	})
 
-	t.Run("non-matching request skips to Next", func(t *testing.T) {
-		ran = 0
-		chain := NewSelectorMiddleware(MatchFunc(func(httpx.Context) bool { return false }), middleware)
-		ctx := &stateFakeContext{}
-		if err := chain[0](ctx); err != nil {
+	t.Run("non-matching request skips to the rest of the chain", func(t *testing.T) {
+		var ran int
+		var nexted bool
+		chain := NewSelectorMiddleware(
+			MatchFunc(func(httpx.Context) bool { return false }),
+			counting(&ran),
+		)
+		if err := chain[0](terminal(&nexted))(&stateFakeContext{}); err != nil {
 			t.Fatalf("middleware: %v", err)
 		}
 		if ran != 0 {
 			t.Fatalf("middleware ran %d times, want 0", ran)
 		}
-		if !ctx.nexted {
-			t.Error("Next was not called for a skipped request")
+		if !nexted {
+			t.Error("the chain did not continue for a skipped request")
 		}
 	})
 
@@ -141,20 +142,42 @@ func TestNewSelectorMiddleware(t *testing.T) {
 		var order []int
 		chain := NewSelectorMiddleware(
 			MatchFunc(func(httpx.Context) bool { return true }),
-			func(httpx.Context) error { order = append(order, 1); return nil },
-			func(httpx.Context) error { order = append(order, 2); return nil },
+			counted(1, &order),
+			counted(2, &order),
 		)
 		if len(chain) != 2 {
 			t.Fatalf("got %d middlewares, want 2", len(chain))
 		}
-		if err := chain[0](&stateFakeContext{}); err != nil {
+		var nexted bool
+		handler := terminal(&nexted)
+		if err := chain[0](handler)(&stateFakeContext{}); err != nil {
 			t.Fatal(err)
 		}
-		if err := chain[1](&stateFakeContext{}); err != nil {
+		if err := chain[1](handler)(&stateFakeContext{}); err != nil {
 			t.Fatal(err)
 		}
 		if len(order) != 2 || order[0] != 1 || order[1] != 2 {
 			t.Fatalf("order = %v, want [1 2]", order)
 		}
 	})
+}
+
+// counting returns middleware that counts its runs and continues the chain.
+func counting(ran *int) httpx.Middleware {
+	return func(next httpx.Handler) httpx.Handler {
+		return func(ctx httpx.Context) error {
+			*ran++
+			return next(ctx)
+		}
+	}
+}
+
+// counted returns middleware that appends its id to order and continues.
+func counted(id int, order *[]int) httpx.Middleware {
+	return func(next httpx.Handler) httpx.Handler {
+		return func(ctx httpx.Context) error {
+			*order = append(*order, id)
+			return next(ctx)
+		}
+	}
 }

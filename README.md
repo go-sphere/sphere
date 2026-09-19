@@ -2,7 +2,7 @@
 
 **Sphere** is a thin integration layer for building Protobuf-first Go services. It is designed as a "frameworkless framework": the stable parts are contracts, adapters, generators, and project conventions; the runtime remains ordinary Go code composed from mature third-party libraries.
 
-Sphere is not meant to replace Go's standard toolchain, Makefiles, Buf, Docker, Ent, Gin, Wire, or other focused tools. Instead, it gives them a consistent place to meet.
+Sphere is not meant to replace Go's standard toolchain, Makefiles, Buf, Docker, Ent, Wire, or other focused tools. Instead, it gives them a consistent place to meet.
 
 ## Design Principles
 
@@ -23,7 +23,7 @@ Sphere is not meant to replace Go's standard toolchain, Makefiles, Buf, Docker, 
 
 ### Runtime Glue
 
-- [**`httpx`**](https://github.com/go-sphere/httpx) - A small HTTP adapter contract for Gin, Fiber, Echo, Hertz, and similar routers.
+- [**`httpx`**](https://github.com/go-sphere/httpx) - A small HTTP adapter contract with a net/http engine (`stdx`, the default) and Gin, Fiber, Echo, and Hertz adapters.
 - **`server/httpz`** - Response envelopes and handler wrappers on top of `httpx`.
 - **`server/middleware`** - Common middleware such as auth, CORS, online tracking, rate limiting, and middleware selectors.
 - **`cache`**, **`mq`**, **`scheduler`**, **`storage`** - Interfaces and default adapters for common service infrastructure.
@@ -33,7 +33,7 @@ Sphere is not meant to replace Go's standard toolchain, Makefiles, Buf, Docker, 
 ### Project Bootstrap and Templates
 
 - [**`sphere-cli`**](https://github.com/go-sphere/sphere-cli) - A small bootstrap tool for creating projects, listing templates, and doing simple generation helpers.
-- [**`sphere-layout`**](https://github.com/go-sphere/sphere-layout) - Default template using Ent, Gin, Wire, Buf, Swagger, and TypeScript client generation.
+- [**`sphere-layout`**](https://github.com/go-sphere/sphere-layout) - Default template using Ent, net/http (`stdx`), Wire, Buf, Swagger, and TypeScript client generation.
 - [**`sphere-simple-layout`**](https://github.com/go-sphere/sphere-simple-layout) - Smaller template for lightweight services.
 - [**`sphere-bun-layout`**](https://github.com/go-sphere/sphere-bun-layout) - Template using Bun instead of Ent.
 

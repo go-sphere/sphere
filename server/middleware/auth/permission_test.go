@@ -37,11 +37,11 @@ func TestNewPermissionMiddleware(t *testing.T) {
 			UID:   1,
 			Roles: []string{"user", "admin"},
 		}))
-		if err := mw(ctx); err != nil {
+		if err := run(mw, ctx); err != nil {
 			t.Fatalf("mw error: %v", err)
 		}
 		if !ctx.nexted {
-			t.Fatal("Next() must be called for authorized user")
+			t.Fatal("the chain did not continue for an authorized user")
 		}
 	})
 
@@ -51,7 +51,7 @@ func TestNewPermissionMiddleware(t *testing.T) {
 			UID:   2,
 			Roles: []string{"user"},
 		}))
-		err := mw(ctx)
+		err := run(mw, ctx)
 		if err == nil {
 			t.Fatal("expected permission error, got nil")
 		}
@@ -60,13 +60,13 @@ func TestNewPermissionMiddleware(t *testing.T) {
 			t.Fatalf("status = %d, want 403", status)
 		}
 		if ctx.nexted {
-			t.Fatal("Next() must not be called when denied")
+			t.Fatal("the chain continued although access was denied")
 		}
 	})
 
 	t.Run("no auth data in context returns forbidden", func(t *testing.T) {
 		ctx := &fullFakeContext{}
-		err := mw(ctx)
+		err := run(mw, ctx)
 		if err == nil {
 			t.Fatal("expected permission error, got nil")
 		}

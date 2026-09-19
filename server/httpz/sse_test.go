@@ -13,8 +13,7 @@ import (
 	"time"
 
 	"github.com/go-sphere/httpx"
-	"github.com/go-sphere/httpx/fiberx"
-	"github.com/go-sphere/httpx/ginx"
+	"github.com/go-sphere/httpx/stdx"
 )
 
 type sseMsg struct {
@@ -23,8 +22,7 @@ type sseMsg struct {
 
 func sseEngines() map[string]func() httpx.Engine {
 	return map[string]func() httpx.Engine{
-		"ginx":   func() httpx.Engine { return ginx.New() },
-		"fiberx": func() httpx.Engine { return fiberx.New() },
+		"stdx": func() httpx.Engine { return stdx.New() },
 	}
 }
 
@@ -260,7 +258,7 @@ func TestWithSSEHeartbeatAndRetry(t *testing.T) {
 // TestWithSSESendUnblocksWhenClientGone pins that a canceled pump unblocks a
 // blocked producer: send must return an error instead of leaking the
 // goroutine. Exercised directly through the pump cancel path via request
-// context cancellation on a live ginx server is heavyweight; instead this
+// context cancellation on a live server is heavyweight; instead this
 // relies on the abort path being triggered by a write failure, which the
 // in-process harness cannot simulate, so we test the producer contract at
 // the unit level: cancel the producer context and assert send errors.
@@ -502,7 +500,7 @@ func TestWithSSELiveDisconnectUnblocksProducer(t *testing.T) {
 	_ = ln.Close()
 
 	sendErr := make(chan error, 1)
-	engine := ginx.New(ginx.WithServerAddr(addr))
+	engine := stdx.New(stdx.WithAddr(addr))
 	engine.Group("").GET("/sse", WithSSE(func(ctx httpx.Context) (SSEStream[sseMsg], error) {
 		return func(send func(sseMsg) error) error {
 			for {

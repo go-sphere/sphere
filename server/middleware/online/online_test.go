@@ -83,7 +83,7 @@ func TestZeroValueMiddlewareAndCountDoNotPanic(t *testing.T) {
 	}
 
 	mw := o.Middleware(func(ctx httpx.Context) string { return "k" }, time.Minute)
-	err := mw(&fakeContext{})
+	err := run(mw, &fakeContext{})
 	if !errors.Is(err, ErrNotInitialized) {
 		t.Fatalf("Middleware on zero-value Online: got %v, want ErrNotInitialized", err)
 	}
@@ -130,10 +130,7 @@ func (f *fakeContext) Header(key string) string {
 	return f.headers[key]
 }
 
-func (f *fakeContext) Next() error {
-	f.nextCalled = true
-	return nil
-}
+func (f *fakeContext) markNext() { f.nextCalled = true }
 
 func TestOnline_Middleware(t *testing.T) {
 	t.Parallel()
@@ -148,11 +145,11 @@ func TestOnline_Middleware(t *testing.T) {
 	ctx1 := &fakeContext{
 		headers: map[string]string{"X-User-ID": "user-1001"},
 	}
-	if err := mw(ctx1); err != nil {
-		t.Fatalf("mw(ctx1): %v", err)
+	if err := run(mw, ctx1); err != nil {
+		t.Fatalf("run(mw, ctx1): %v", err)
 	}
 	if !ctx1.nextCalled {
-		t.Fatal("Next() should be called on valid key")
+		t.Fatal("the chain did not continue on a valid key")
 	}
 	if count := o.OnlineCount(); count != 1 {
 		t.Fatalf("OnlineCount() = %d, want 1", count)
@@ -162,11 +159,11 @@ func TestOnline_Middleware(t *testing.T) {
 	ctx2 := &fakeContext{
 		headers: map[string]string{},
 	}
-	if err := mw(ctx2); err != nil {
-		t.Fatalf("mw(ctx2): %v", err)
+	if err := run(mw, ctx2); err != nil {
+		t.Fatalf("run(mw, ctx2): %v", err)
 	}
 	if !ctx2.nextCalled {
-		t.Fatal("Next() should be called on empty key")
+		t.Fatal("the chain did not continue on an empty key")
 	}
 	if count := o.OnlineCount(); count != 1 {
 		t.Fatalf("OnlineCount() = %d, want 1 (unchanged)", count)
@@ -191,9 +188,22 @@ func (s *stressOnlineContext) Header(key string) string {
 	return s.headers[key]
 }
 
-func (s *stressOnlineContext) Next() error {
-	s.nexted.Store(true)
-	return nil
+func (s *stressOnlineContext) markNext() { s.nexted.Store(true) }
+
+// nextRecorder is what both fake contexts share: the flag the terminal handler
+// sets when the chain reaches it.
+type nextRecorder interface {
+	httpx.Context
+	markNext()
+}
+
+// run drives mw with a terminal handler that records whether the chain
+// continued past the middleware.
+func run[C nextRecorder](mw httpx.Middleware, ctx C) error {
+	return mw(func(httpx.Context) error {
+		ctx.markNext()
+		return nil
+	})(ctx)
 }
 
 // TestOnline_AdversarialConcurrentPresenceAndTrimming tests 100+ concurrent requests
@@ -237,7 +247,7 @@ func TestOnline_AdversarialConcurrentPresenceAndTrimming(t *testing.T) {
 				reqCtx := &stressOnlineContext{
 					headers: map[string]string{"X-Session-ID": key},
 				}
-				err := mw(reqCtx)
+				err := run(mw, reqCtx)
 				if err != nil {
 					t.Errorf("worker %d req %d failed: %v", workerID, r, err)
 					return

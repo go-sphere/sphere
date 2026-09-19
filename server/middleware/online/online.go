@@ -81,12 +81,6 @@ func NewOnline(options ...Option) *Online {
 // Middleware creates a middleware that tracks online presence.
 // It extracts a key from the request context and updates the online status with the specified TTL.
 func (l *Online) Middleware(keygen func(ctx httpx.Context) string, ttl time.Duration) httpx.Middleware {
-	return httpx.AsMiddleware(l.Interceptor(keygen, ttl))
-}
-
-// Interceptor is Middleware as an httpx.Interceptor, for routers that compose
-// the chain at registration instead of adapting one layer per middleware.
-func (l *Online) Interceptor(keygen func(ctx httpx.Context) string, ttl time.Duration) httpx.Interceptor {
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
 			if l.cache == nil {

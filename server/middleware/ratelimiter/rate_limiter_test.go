@@ -36,10 +36,7 @@ func (f *fakeRateLimitContext) ClientIP() string {
 	return f.clientIP
 }
 
-func (f *fakeRateLimitContext) Next() error {
-	f.nexted = true
-	return nil
-}
+func (f *fakeRateLimitContext) markNext() { f.nexted = true }
 
 func TestNewRateLimiter(t *testing.T) {
 	t.Parallel()
@@ -58,17 +55,17 @@ func TestNewRateLimiter(t *testing.T) {
 	// First 2 requests should be allowed (burst 2)
 	for i := range 2 {
 		ctx := &fakeRateLimitContext{}
-		if err := mw(ctx); err != nil {
+		if err := run(mw, ctx); err != nil {
 			t.Fatalf("request %d failed: %v", i+1, err)
 		}
 		if !ctx.nexted {
-			t.Fatalf("request %d did not proceed to Next()", i+1)
+			t.Fatalf("request %d did not proceed down the chain", i+1)
 		}
 	}
 
 	// 3rd request immediately should be rejected
 	ctx := &fakeRateLimitContext{}
-	err := mw(ctx)
+	err := run(mw, ctx)
 	if err == nil {
 		t.Fatal("expected rate limit error, got nil")
 	}
@@ -77,7 +74,7 @@ func TestNewRateLimiter(t *testing.T) {
 		t.Fatalf("status = %d, want %d (code=%d)", status, http.StatusTooManyRequests, code)
 	}
 	if ctx.nexted {
-		t.Fatal("rate limited request must not proceed to Next()")
+		t.Fatal("rate limited request must not proceed down the chain")
 	}
 }
 
@@ -88,26 +85,26 @@ func TestNewRateLimiterByClientIP(t *testing.T) {
 
 	// User from IP 1.1.1.1
 	ctx1 := &fakeRateLimitContext{clientIP: "1.1.1.1"}
-	if err := mw(ctx1); err != nil {
+	if err := run(mw, ctx1); err != nil {
 		t.Fatalf("IP 1.1.1.1 first request failed: %v", err)
 	}
 	if !ctx1.nexted {
-		t.Fatal("IP 1.1.1.1 first request did not proceed to Next()")
+		t.Fatal("IP 1.1.1.1 first request did not proceed down the chain")
 	}
 
 	// IP 1.1.1.1 second request should be rate limited
 	ctx1Second := &fakeRateLimitContext{clientIP: "1.1.1.1"}
-	if err := mw(ctx1Second); err == nil {
+	if err := run(mw, ctx1Second); err == nil {
 		t.Fatal("IP 1.1.1.1 second request should be rate limited")
 	}
 
 	// User from IP 2.2.2.2 should have independent bucket and succeed
 	ctx2 := &fakeRateLimitContext{clientIP: "2.2.2.2"}
-	if err := mw(ctx2); err != nil {
+	if err := run(mw, ctx2); err != nil {
 		t.Fatalf("IP 2.2.2.2 request failed: %v", err)
 	}
 	if !ctx2.nexted {
-		t.Fatal("IP 2.2.2.2 request did not proceed to Next()")
+		t.Fatal("IP 2.2.2.2 request did not proceed down the chain")
 	}
 }
 
@@ -149,7 +146,7 @@ func TestNewRateLimiterCacheErrors(t *testing.T) {
 		)
 
 		ctx := &fakeRateLimitContext{}
-		err := mw(ctx)
+		err := run(mw, ctx)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -170,7 +167,7 @@ func TestNewRateLimiterCacheErrors(t *testing.T) {
 		)
 
 		ctx := &fakeRateLimitContext{}
-		err := mw(ctx)
+		err := run(mw, ctx)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -194,7 +191,7 @@ func TestNewRateLimiterCacheErrors(t *testing.T) {
 		)
 
 		ctx := &fakeRateLimitContext{}
-		err := mw(ctx)
+		err := run(mw, ctx)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -206,7 +203,7 @@ func TestNewRateLimiterCacheErrors(t *testing.T) {
 			t.Fatalf("status = %d, want 500", status)
 		}
 		if ctx.nexted {
-			t.Fatal("guard-triggered request must not proceed to Next()")
+			t.Fatal("guard-triggered request must not proceed down the chain")
 		}
 	})
 }
@@ -229,9 +226,22 @@ func (s *stressRateLimitContext) ClientIP() string {
 	return s.clientIP
 }
 
-func (s *stressRateLimitContext) Next() error {
-	s.nexted.Store(true)
-	return nil
+func (s *stressRateLimitContext) markNext() { s.nexted.Store(true) }
+
+// nextRecorder is what both fake contexts share: the flag the terminal handler
+// sets when the chain reaches it.
+type nextRecorder interface {
+	httpx.Context
+	markNext()
+}
+
+// run drives mw with a terminal handler that records whether the chain
+// continued past the middleware.
+func run[C nextRecorder](mw httpx.Middleware, ctx C) error {
+	return mw(func(httpx.Context) error {
+		ctx.markNext()
+		return nil
+	})(ctx)
 }
 
 // TestRateLimiter_ConcurrentSingleflightStampede verifies that concurrent cache
@@ -272,7 +282,7 @@ func TestRateLimiter_ConcurrentSingleflightStampede(t *testing.T) {
 			<-startBarrier
 
 			ctx := &stressRateLimitContext{clientIP: "10.0.0.1"}
-			err := mw(ctx)
+			err := run(mw, ctx)
 			if err != nil {
 				_, status, _ := httpx.ParseError(err)
 				if status == http.StatusTooManyRequests {
@@ -285,7 +295,7 @@ func TestRateLimiter_ConcurrentSingleflightStampede(t *testing.T) {
 				if ctx.nexted.Load() {
 					allowedCount.Add(1)
 				} else {
-					t.Errorf("nil error but Next() not called")
+					t.Errorf("nil error but the chain did not continue")
 				}
 			}
 		})
@@ -311,6 +321,68 @@ func TestRateLimiter_ConcurrentSingleflightStampede(t *testing.T) {
 	}
 }
 
+// recheckCache scripts the reads one request makes on the miss path: the first
+// answers a miss (the request read the cache just before another flight's
+// write), every later read answers the value that write stored, which is what a
+// real cache returns once the write has landed. Writes fail the test: the
+// flight must have used the cached limiter instead of creating a second one.
+type recheckCache struct {
+	cache.Cache[*rate.Limiter]
+	reads atomic.Int64
+	hit   *rate.Limiter
+}
+
+func (c *recheckCache) Get(context.Context, string) (*rate.Limiter, bool, error) {
+	if c.reads.Add(1) == 1 {
+		return nil, false, nil
+	}
+	return c.hit, true, nil
+}
+
+func (c *recheckCache) SetWithTTL(context.Context, string, *rate.Limiter, time.Duration) error {
+	return errors.New("cache write: the flight created a limiter for a key another flight had just cached")
+}
+
+// TestRateLimiter_FlightRechecksCacheBeforeCreating pins that a singleflight
+// re-reads the cache before calling createLimiter. A caller that read the cache
+// just before another flight's write misses it, and singleflight does not
+// deduplicate against a flight that already finished, so without the re-read it
+// creates a second limiter for the key and resets its burst.
+func TestRateLimiter_FlightRechecksCacheBeforeCreating(t *testing.T) {
+	t.Parallel()
+
+	var createdCount atomic.Int64
+	c := &recheckCache{hit: rate.NewLimiter(rate.Every(time.Minute), 1)}
+	mw := NewRateLimiter(
+		func(httpx.Context) string { return "recheck-key" },
+		func(httpx.Context) (*rate.Limiter, time.Duration) {
+			createdCount.Add(1)
+			return rate.NewLimiter(rate.Every(time.Minute), 100), time.Minute
+		},
+		WithCache(c),
+	)
+
+	first := &fakeRateLimitContext{}
+	if err := run(mw, first); err != nil {
+		t.Fatalf("middleware returned %v, want the cached limiter", err)
+	}
+	if created := createdCount.Load(); created != 0 {
+		t.Fatalf("createLimiter called %d times, want 0: the flight must re-read the cache", created)
+	}
+
+	// The second request proves the burst was not reset: a freshly created
+	// limiter (burst 100) would allow it, the cached one (burst 1) does not.
+	second := &fakeRateLimitContext{}
+	err := run(mw, second)
+	if err == nil {
+		t.Fatal("second request must be rate limited by the cached limiter")
+	}
+	_, status, _ := httpx.ParseError(err)
+	if status != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want %d", status, http.StatusTooManyRequests)
+	}
+}
+
 func TestRateLimiter_CacheExpirationRebuildsLimiter(t *testing.T) {
 	t.Parallel()
 
@@ -325,18 +397,18 @@ func TestRateLimiter_CacheExpirationRebuildsLimiter(t *testing.T) {
 	)
 
 	ctx1 := &stressRateLimitContext{}
-	if err := mw(ctx1); err != nil {
+	if err := run(mw, ctx1); err != nil {
 		t.Fatalf("first request failed: %v", err)
 	}
 
 	ctx2 := &stressRateLimitContext{}
-	if err := mw(ctx2); err == nil {
+	if err := run(mw, ctx2); err == nil {
 		t.Fatal("immediate second request should be rejected")
 	}
 
 	time.Sleep(150 * time.Millisecond)
 	ctx3 := &stressRateLimitContext{}
-	if err := mw(ctx3); err != nil {
+	if err := run(mw, ctx3); err != nil {
 		t.Fatalf("post-TTL request failed: %v", err)
 	}
 	if created := createdCount.Load(); created != 2 {
@@ -368,10 +440,7 @@ func (c *cancelAwareRateCache) SetWithTTL(ctx context.Context, _ string, _ *rate
 // cancellation: one client disconnecting must not turn into a 500 for every
 // other waiter on the key.
 func TestRateLimiter_CacheWriteOutlivesCanceledRequest(t *testing.T) {
-	// Not parallel: this test sleeps inside a cache write, and
-	// TestRateLimiter_ConcurrentSingleflightStampede's "exactly one creation"
-	// assertion is sensitive to scheduling pressure from concurrently running
-	// tests.
+	// Not parallel: this test sleeps inside a cache write.
 	c := &cancelAwareRateCache{}
 	mw := NewRateLimiter(
 		func(httpx.Context) string { return "cancel-key" },
@@ -386,11 +455,11 @@ func TestRateLimiter_CacheWriteOutlivesCanceledRequest(t *testing.T) {
 	ctx := &fakeRateLimitContext{ctx: reqCtx}
 	cancel() // the triggering client is already gone
 
-	if err := mw(ctx); err != nil {
+	if err := run(mw, ctx); err != nil {
 		t.Fatalf("middleware returned %v, want the shared limiter", err)
 	}
 	if !ctx.nexted {
-		t.Fatal("request must proceed to Next()")
+		t.Fatal("request must proceed down the chain")
 	}
 	if c.seenCtxErr != nil {
 		t.Fatalf("cache write saw %v, want a context detached from the request", c.seenCtxErr)
@@ -411,10 +480,10 @@ func TestRateLimiter_CacheHitAcceptsInfiniteLimiterWithZeroBurst(t *testing.T) {
 	)
 
 	ctx := &fakeRateLimitContext{}
-	if err := mw(ctx); err != nil {
+	if err := run(mw, ctx); err != nil {
 		t.Fatalf("middleware returned %v, want the cached infinite limiter", err)
 	}
 	if !ctx.nexted {
-		t.Fatal("request must proceed to Next()")
+		t.Fatal("request must proceed down the chain")
 	}
 }

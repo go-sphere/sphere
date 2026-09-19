@@ -46,9 +46,12 @@ func TestAbortWithJsonError_NilDoesNotPanic(t *testing.T) {
 }
 
 // TestAbortWithJsonError_UnclassifiedDoesNotLeak covers BOTH outbound fields.
-// Asserting only on Error left the real leak uncovered: httpx.ParseError falls
-// back to err.Error() for anything without a MessageError, so the raw text used
-// to reach the client through Message while Error was correctly blank.
+// Asserting only on Error left the real leak uncovered: httpx.ParseError used
+// to fall back to err.Error() for anything without a MessageError, so the raw
+// text reached the client through Message while Error was correctly blank. It
+// returns an empty message instead from v0.0.5, and this test is what keeps
+// that regression from coming back through a custom parser installed as the
+// default.
 func TestAbortWithJsonError_UnclassifiedDoesNotLeak(t *testing.T) {
 	prev := DebugMode()
 	SetDebugMode(false)
@@ -246,7 +249,15 @@ func TestAbortWithJsonError_CustomParserMessageKept(t *testing.T) {
 	}
 }
 
-func TestAbortWithJsonError_ParserEchoingRawErrorIsSanitized(t *testing.T) {
+// TestAbortWithJsonError_ParserEchoingRawErrorIsKept pins the v0.0.5 contract
+// change: this package no longer second-guesses a custom parser by dropping a
+// message that equals err.Error(). That guard existed because httpx.ParseError
+// used to fall back to the raw text for an unclassified error; it returns an
+// empty message now, so the guard only fired on a parser that deliberately
+// returned the raw string — dropping the message it had just chosen. A parser
+// is trusted setup code, and leak protection belongs to the default parser
+// (TestAbortWithJsonError_UnclassifiedDoesNotLeak).
+func TestAbortWithJsonError_ParserEchoingRawErrorIsKept(t *testing.T) {
 	prev := DebugMode()
 	SetDebugMode(false)
 	t.Cleanup(func() {
@@ -262,8 +273,8 @@ func TestAbortWithJsonError_ParserEchoingRawErrorIsSanitized(t *testing.T) {
 	ctx := &fakeContext{}
 	AbortWithJsonError(ctx, raw)
 	resp := ctx.body.(ErrorResponse)
-	if resp.Message != http.StatusText(http.StatusInternalServerError) {
-		t.Fatalf("message = %q", resp.Message)
+	if resp.Message != raw.Error() {
+		t.Fatalf("message = %q, want the parser's own %q", resp.Message, raw.Error())
 	}
 }
 

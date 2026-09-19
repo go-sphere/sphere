@@ -1,16 +1,16 @@
 // Package logger is httpx request-access and panic-recovery middleware over log.BaseLogger.
 //
-// Log records one entry after the downstream chain: Info when Next succeeds,
-// Error when Next returns an error. RecoveryLog recovers a panic so the
+// Log records one entry after the downstream chain: Info when next succeeds,
+// Error when next returns an error. RecoveryLog recovers a panic so the
 // process stays up, logs it at Error, and finishes the request as HTTP 500.
 //
 // RecoveryLog deliberately returns nil after recovering (returning an error
 // would let an enclosing middleware write a second response onto the committed
-// one), so it must be the innermost recovery layer: composed as
-// Log(RecoveryLog(lg, true)) the panic is still logged at Error, with its
-// stack, by RecoveryLog — but the outer Log sees a successful chain and records
-// the request at Info with status=500 and the request fields. Do not expect
-// Log's level alone to reveal a recovered panic.
+// one), so it must be the innermost recovery layer: registered as
+// Use(Log(lg), RecoveryLog(lg, true)) the panic is still logged at Error, with
+// its stack, by RecoveryLog — but the outer Log sees a successful chain and
+// records the request at Info with status=500 and the request fields. Do not
+// expect Log's level alone to reveal a recovered panic.
 package logger
 
 import (
@@ -27,12 +27,6 @@ import (
 // and returned to the caller. Each entry includes status, method, path, query,
 // client IP, user-agent, and latency.
 func Log(lg log.BaseLogger) httpx.Middleware {
-	return httpx.AsMiddleware(LogInterceptor(lg))
-}
-
-// LogInterceptor is Log as an httpx.Interceptor, for routers that compose the
-// chain at registration instead of adapting one layer per middleware.
-func LogInterceptor(lg log.BaseLogger) httpx.Interceptor {
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
 			start := time.Now()
@@ -81,11 +75,6 @@ func responseStatus(ctx httpx.Context, err error) int {
 // The panic is logged with Error with the panic value; when stack is true
 // the entry also includes a stack trace. The request is finished as HTTP 500.
 func RecoveryLog(lg log.BaseLogger, stack bool) httpx.Middleware {
-	return httpx.AsMiddleware(RecoveryLogInterceptor(lg, stack))
-}
-
-// RecoveryLogInterceptor is RecoveryLog as an httpx.Interceptor.
-func RecoveryLogInterceptor(lg log.BaseLogger, stack bool) httpx.Interceptor {
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
 			defer func() {

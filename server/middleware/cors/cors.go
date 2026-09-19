@@ -81,17 +81,6 @@ var ErrWildcardWithCredentials = errors.New("cors: \"*\" cannot be combined with
 // origin with credentials, so the misconfiguration surfaces at startup rather
 // than becoming a runtime hole.
 func NewCORS(options ...Option) (httpx.Middleware, error) {
-	interceptor, err := NewCORSInterceptor(options...)
-	if err != nil {
-		return nil, err
-	}
-	return httpx.AsMiddleware(interceptor), nil
-}
-
-// NewCORSInterceptor is NewCORS as an httpx.Interceptor, for routers that
-// compose the chain at registration instead of adapting one layer per
-// middleware.
-func NewCORSInterceptor(options ...Option) (httpx.Interceptor, error) {
 	cfg := newConfig(options...)
 	if cfg.allowCredentials && cfg.hasWildcardOrigin() {
 		return nil, ErrWildcardWithCredentials

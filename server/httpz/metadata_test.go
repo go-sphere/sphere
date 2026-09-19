@@ -2,7 +2,11 @@ package httpz
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/stdx"
 )
 
 // matchFakeContext adds request metadata overrides used by MatchOperation.
@@ -54,10 +58,12 @@ func TestMatchOperation(t *testing.T) {
 		// Fail closed: an empty route pattern must report a hit so gated
 		// middleware still runs (audit B7).
 		{name: "indeterminate route fails closed", method: http.MethodGet, fullPath: "", want: true},
-		// echox/fiberx rewrite "/files/*name" to "/files/*" at registration
-		// time; both wildcard dialects must resolve to the operation.
+		// The registered pattern is the only key. The anonymous dialect used to
+		// match as well, for the adapters that rewrote the pattern and reported
+		// the rewrite; httpx v0.0.5 reports the registered pattern everywhere,
+		// so the anonymous form is now a miss (and cannot be registered at all).
 		{name: "named wildcard", method: http.MethodGet, fullPath: "/api/files/*name", want: true},
-		{name: "anonymous wildcard", method: http.MethodGet, fullPath: "/api/files/*", want: true},
+		{name: "anonymous wildcard", method: http.MethodGet, fullPath: "/api/files/*", want: false},
 	}
 
 	for _, tt := range tests {
@@ -100,43 +106,59 @@ func TestEndpointsToMatchesPinsJoinPaths(t *testing.T) {
 	}
 }
 
-// TestEndpointsToMatchesWildcardDualForm pins the dual indexing of trailing
-// named wildcards: both the verbatim and the anonymous dialect must resolve,
-// and non-trailing or bare asterisks must stay untouched.
-func TestEndpointsToMatchesWildcardDualForm(t *testing.T) {
+// TestEndpointsToMatchesWildcardVerbatim pins that a named wildcard is indexed
+// under the path the caller registered and nothing else. The anonymous form
+// ("/files/*") is no longer produced by any adapter's FullPath, so indexing it
+// is dead weight; the shape check below is what keeps a future rewrite from
+// sneaking back in.
+func TestEndpointsToMatchesWildcardVerbatim(t *testing.T) {
 	got := EndpointsToMatches("/api", [][3]string{
 		{"download", "GET", "/files/*name"},
 		{"static", "GET", "/assets"},
 	})
 
 	get := got["GET"]
-	if get["/api/files/*name"] != "download" || get["/api/files/*"] != "download" {
-		t.Fatalf("wildcard forms = %v, want both /api/files/*name and /api/files/*", get)
+	if get["/api/files/*name"] != "download" {
+		t.Fatalf("wildcard path = %v, want /api/files/*name -> download", get)
+	}
+	if _, ok := get["/api/files/*"]; ok {
+		t.Fatalf("anonymous wildcard indexed: %v", get)
 	}
 	if get["/api/assets"] != "static" {
 		t.Fatalf("static path missing: %v", get)
 	}
-	if len(get) != 3 {
-		t.Fatalf("got %d entries, want 3 (no spurious rewrites): %v", len(get), get)
+	if len(get) != 2 {
+		t.Fatalf("got %d entries, want 2 (no spurious rewrites): %v", len(get), get)
 	}
 }
 
-func TestAnonymousWildcardPath(t *testing.T) {
-	cases := map[string]string{
-		"/files/*name":  "/files/*",
-		"/files/*":      "/files/*",
-		"/files":        "/files",
-		"/a/*x/tail":    "/a/*x/tail", // wildcard not in final segment: untouched
-		"/foo*bar":      "/foo*bar",   // not preceded by '/': untouched
-		"*root":         "*root",
-		"/":             "/",
-		"":              "",
-		"/deep/a/*rest": "/deep/a/*",
-		"/files/*name/": "/files/*name/", // trailing slash after wildcard: untouched
-	}
-	for in, want := range cases {
-		if got := anonymousWildcardPath(in); got != want {
-			t.Fatalf("anonymousWildcardPath(%q) = %q, want %q", in, got, want)
+// TestMatchOperationWithNamedWildcard runs the matcher against a real engine
+// rather than a fake context, because what it keys on is the engine's
+// FullPath. If the router reported the wildcard in rewritten form — the leak
+// v0.0.5 fixed — the wildcard route would stop matching here instead of
+// silently dropping the middleware that MatchOperation gates (auth, rate
+// limiting).
+func TestMatchOperationWithNamedWildcard(t *testing.T) {
+	matcher := MatchOperation("/api", [][3]string{{"download", http.MethodGet, "/files/*name"}}, "download")
+
+	engine := stdx.New()
+	engine.Group("/api").GET("/files/*name", func(ctx httpx.Context) error {
+		if !matcher(ctx) {
+			t.Errorf("MatchOperation missed %q (FullPath=%q)", ctx.Path(), ctx.FullPath())
 		}
+		return ctx.NoContent(http.StatusNoContent)
+	})
+
+	tr, ok := httpx.AsTestRequester(engine)
+	if !ok {
+		t.Fatal("the engine does not support in-process requests")
+	}
+	resp, err := tr.Do(httptest.NewRequest(http.MethodGet, "http://example.com/api/files/a/b.txt", nil))
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", resp.StatusCode)
 	}
 }

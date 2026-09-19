@@ -84,15 +84,18 @@ func buildErrorResponse(err error) (int, ErrorResponse) {
 	if _, ok := errors.AsType[httpx.CodeError](err); !ok && code == status {
 		code = 0
 	}
-	// Message is user-facing. Prefer an explicit MessageError. Otherwise keep a
-	// parser-supplied message only when it is not the raw err.Error() string —
-	// that is how a custom parser maps protovalidate (or similar) without
-	// wrapping. httpx.ParseError falls back to err.Error() for unclassified
-	// errors, which would leak driver and database strings; those degrade to
-	// the generic status text.
+	// Message is user-facing. Prefer an explicit MessageError, otherwise take the
+	// parser's message and fall back to the generic status text only when it is
+	// empty. A custom parser is trusted application code and its message is
+	// authoritative: it is how protovalidate (or similar) is mapped without
+	// wrapping. The raw err.Error() no longer needs to be filtered out here —
+	// httpx.ParseError, the default, returns an empty message for an error that
+	// carries no MessageError instead of its text (v0.0.5), so driver and
+	// database strings cannot reach Message through it. Pinned by
+	// TestAbortWithJsonError_UnclassifiedDoesNotLeak.
 	if me, ok := errors.AsType[httpx.MessageError](err); ok && me.GetMessage() != "" {
 		message = me.GetMessage()
-	} else if message == "" || message == err.Error() {
+	} else if message == "" {
 		message = http.StatusText(int(status))
 	}
 	resp := ErrorResponse{

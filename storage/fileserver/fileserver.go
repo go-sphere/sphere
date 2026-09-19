@@ -197,9 +197,15 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 	// executable, and attachment disposition stops the declared type from
 	// rendering at all. See WithInlineDownload for opting out.
 	sharedHeaders["X-Content-Type-Options"] = "nosniff"
-	path, param := httpx.FixWildcardPathIfNeed(route, "/*filename")
-	route.Handle(http.MethodGet, path, func(ctx httpx.Context) error {
-		filename := normalizeWildcardParam(ctx.Param(param))
+	// The named wildcard registers as-is on every adapter: those whose router
+	// has no named wildcards rewrite it internally and keep Param("filename")
+	// resolving. Calling FixWildcardPathIfNeed here and registering its result
+	// was the old way, and is now wrong as well as redundant — the result is the
+	// anonymous form, which httpx rejects at registration from v0.0.5 because
+	// gin and hertz never accepted it and the three that did disagreed on the
+	// parameter's key.
+	route.Handle(http.MethodGet, "/*filename", func(ctx httpx.Context) error {
+		filename := normalizeWildcardParam(ctx.Param("filename"))
 		if filename == "" {
 			return httpx.NewNotFoundError("filename is required")
 		}
@@ -224,7 +230,7 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 			ctx.SetHeader(k, v)
 		}
 		// result.Reader is expected to be closed by httpx.DataFromReader, so we don't close it here.
-		return ctx.DataFromReader(200, result.MIME, result.Reader, int(result.Size))
+		return ctx.DataFromReader(200, result.MIME, result.Reader, result.Size)
 	})
 }
 
@@ -279,6 +285,13 @@ func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 	})
 }
 
+// normalizeWildcardParam strips the leading "/" a wildcard parameter can still
+// carry for a doubled separator ("//a.png" matches with "/a.png"). httpx now
+// strips it for an ordinary path on every adapter, and storage.NormalizeKey
+// trims it again, so this does not change which object is served — it keeps the
+// empty-filename guard above meaningful, which is the part that would move: a
+// key of "/" would otherwise reach the store and come back as an invalid-name
+// 400 instead of the 404 this endpoint answers when no filename was given.
 func normalizeWildcardParam(raw string) string {
 	return strings.TrimPrefix(raw, "/")
 }

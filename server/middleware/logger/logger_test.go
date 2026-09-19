@@ -26,7 +26,6 @@ type fakeContext struct {
 	ip      string
 	headers map[string]string
 	status  int
-	next    func() error
 }
 
 func (f *fakeContext) Context() context.Context {
@@ -54,13 +53,6 @@ func (f *fakeContext) Status(code int) { f.status = code }
 
 func (f *fakeContext) NoContent(code int) error {
 	f.status = code
-	return nil
-}
-
-func (f *fakeContext) Next() error {
-	if f.next != nil {
-		return f.next()
-	}
 	return nil
 }
 
@@ -165,12 +157,12 @@ func TestLogSuccess(t *testing.T) {
 	rec := &recordingLogger{}
 	req := accessRequest()
 	req.ctx = t.Context()
-	req.next = func() error {
+	next := func(httpx.Context) error {
 		req.status = http.StatusOK
 		return nil
 	}
 
-	if err := Log(rec)(req); err != nil {
+	if err := Log(rec)(next)(req); err != nil {
 		t.Fatalf("Log: %v", err)
 	}
 	if len(rec.entries) != 1 {
@@ -186,9 +178,9 @@ func TestLogSuccess(t *testing.T) {
 	}
 }
 
-// TestLogChainError pins that Next returning an error is logged with Error
-// with the same request fields plus the chain error, and that the error is
-// still returned to the caller.
+// TestLogChainError pins that an error returned by the rest of the chain is
+// logged with Error with the same request fields plus the chain error, and
+// that the error is still returned to the caller.
 func TestLogChainError(t *testing.T) {
 	t.Parallel()
 
@@ -196,12 +188,12 @@ func TestLogChainError(t *testing.T) {
 	rec := &recordingLogger{}
 	req := accessRequest()
 	req.ctx = t.Context()
-	req.next = func() error {
+	next := func(httpx.Context) error {
 		req.status = http.StatusBadRequest
 		return chainErr
 	}
 
-	err := Log(rec)(req)
+	err := Log(rec)(next)(req)
 	if !errors.Is(err, chainErr) {
 		t.Fatalf("Log() error = %v, want %v", err, chainErr)
 	}
@@ -223,8 +215,8 @@ func TestLogChainError(t *testing.T) {
 	}
 }
 
-// TestRecoveryLogPanic pins that a panic from Next is recovered, logged with
-// Error with the panic value, and finished as HTTP 500.
+// TestRecoveryLogPanic pins that a panic from the rest of the chain is
+// recovered, logged with Error with the panic value, and finished as HTTP 500.
 func TestRecoveryLogPanic(t *testing.T) {
 	t.Parallel()
 
@@ -232,11 +224,11 @@ func TestRecoveryLogPanic(t *testing.T) {
 	rec := &recordingLogger{}
 	req := accessRequest()
 	req.ctx = t.Context()
-	req.next = func() error {
+	next := func(httpx.Context) error {
 		panic(panicValue)
 	}
 
-	if err := RecoveryLog(rec, false)(req); err != nil {
+	if err := RecoveryLog(rec, false)(next)(req); err != nil {
 		t.Fatalf("RecoveryLog returned %v, want nil after recover", err)
 	}
 	if req.StatusCode() != http.StatusInternalServerError {
@@ -273,11 +265,11 @@ func TestRecoveryLogStackOption(t *testing.T) {
 			rec := &recordingLogger{}
 			req := accessRequest()
 			req.ctx = t.Context()
-			req.next = func() error {
+			next := func(httpx.Context) error {
 				panic("stack-option")
 			}
 
-			if err := RecoveryLog(rec, tt.stack)(req); err != nil {
+			if err := RecoveryLog(rec, tt.stack)(next)(req); err != nil {
 				t.Fatalf("RecoveryLog: %v", err)
 			}
 			if len(rec.entries) != 1 {

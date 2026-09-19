@@ -5,8 +5,8 @@
 // # Envelopes
 //
 // WithJson writes {"success": true, "data": T} at HTTP 200, or a status the
-// handler set via ctx.Status when httpx.ResponseInfo is available (201, 204,
-// …). Errors go through AbortWithJsonError: {"code": int, "message": string}
+// handler set via ctx.Status (201, 204, …). Errors go through
+// AbortWithJsonError: {"code": int, "message": string}
 // at the parser's HTTP status. code is 0 unless the error implements
 // httpx.CodeError. message is the generic status text unless the error
 // implements httpx.MessageError with a non-empty message. ErrorResponse.Error
@@ -18,7 +18,8 @@
 // # Wrappers
 //
 // WithRecover, WithJson, WithText, WithFormFileReader, and WithFormFileBytes
-// take and return httpx.Handler / httpx.Context, not Gin types. Panics become
+// take and return httpx.Handler / httpx.Context, not a concrete router's
+// types. Panics become
 // a 500 except http.ErrAbortHandler, which is re-panicked so net/http can
 // drop the connection.
 //
@@ -107,10 +108,10 @@ func WithJson[T any](handler func(ctx httpx.Context) (T, error)) httpx.Handler {
 			return err
 		}
 		// Respect a status code the handler may have set via ctx.Status
-		// (e.g. 201 Created). ResponseInfo is part of the httpx.Context
-		// contract; when the status is unset or out of range we fall back to
-		// 200 OK. 1xx are never final statuses, and 204/304 forbid a body, so
-		// they are written via NoContent instead of the JSON envelope.
+		// (e.g. 201 Created); StatusCode is part of the httpx.Context contract.
+		// When the status is unset or out of range we fall back to 200 OK.
+		// 1xx are never final statuses, and 204/304 forbid a body, so they are
+		// written via NoContent instead of the JSON envelope.
 		status := http.StatusOK
 		if code := ctx.StatusCode(); code >= 200 && code <= 599 {
 			status = code

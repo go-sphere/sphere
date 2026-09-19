@@ -10,8 +10,7 @@ import (
 	"testing"
 
 	"github.com/go-sphere/httpx"
-	"github.com/go-sphere/httpx/fiberx"
-	"github.com/go-sphere/httpx/ginx"
+	"github.com/go-sphere/httpx/stdx"
 	"github.com/go-sphere/sphere/core/task"
 	"github.com/go-sphere/sphere/core/task/tasktest"
 	"github.com/swaggo/swag"
@@ -170,7 +169,7 @@ func TestWithCORS(t *testing.T) {
 
 // TestEngineModeServesDocs pins the httpx-mounted mode: index, API reverse
 // proxy, and the relaxed CORS wrapper must behave like the standalone
-// http.Server mode, on both a net/http-based and a fasthttp-based adapter.
+// http.Server mode.
 func TestEngineModeServesDocs(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -178,72 +177,64 @@ func TestEngineModeServesDocs(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	engines := map[string]func() httpx.Engine{
-		"ginx":   func() httpx.Engine { return ginx.New() },
-		"fiberx": func() httpx.Engine { return fiberx.New() },
+	engine := stdx.New()
+	web, err := NewWebServerWithEngine(Config{
+		Targets: []Target{{Address: backend.URL, Spec: &swag.Spec{InfoInstanceName: "EngineV1"}}},
+	}, engine)
+	if err != nil {
+		t.Fatalf("NewWebServerWithEngine: %v", err)
 	}
-	for name, newEngine := range engines {
-		t.Run(name, func(t *testing.T) {
-			engine := newEngine()
-			web, err := NewWebServerWithEngine(Config{
-				Targets: []Target{{Address: backend.URL, Spec: &swag.Spec{InfoInstanceName: "EngineV1"}}},
-			}, engine)
-			if err != nil {
-				t.Fatalf("NewWebServerWithEngine: %v", err)
-			}
-			if web.Identifier() != "docs" {
-				t.Fatalf("Identifier = %q", web.Identifier())
-			}
+	if web.Identifier() != "docs" {
+		t.Fatalf("Identifier = %q", web.Identifier())
+	}
 
-			tr, ok := httpx.AsTestRequester(engine)
-			if !ok {
-				t.Fatalf("%s engine does not support in-process dispatch", name)
-			}
-			do := func(method, target string, origin string) *http.Response {
-				t.Helper()
-				req := httptest.NewRequest(method, "http://example.com"+target, nil)
-				if origin != "" {
-					req.Header.Set("Origin", origin)
-				}
-				resp, err := tr.Do(req)
-				if err != nil {
-					t.Fatalf("%s %s: %v", method, target, err)
-				}
-				return resp
-			}
+	tr, ok := httpx.AsTestRequester(engine)
+	if !ok {
+		t.Fatal("the engine does not support in-process dispatch")
+	}
+	do := func(method, target string, origin string) *http.Response {
+		t.Helper()
+		req := httptest.NewRequest(method, "http://example.com"+target, nil)
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		resp, err := tr.Do(req)
+		if err != nil {
+			t.Fatalf("%s %s: %v", method, target, err)
+		}
+		return resp
+	}
 
-			// Index page at "/" through the catch-all mount.
-			resp := do(http.MethodGet, "/", "")
-			body, _ := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				t.Fatalf("GET / = %d, body=%q", resp.StatusCode, body)
-			}
-			if ct := resp.Header.Get("Content-Type"); ct != "text/html" {
-				t.Fatalf("GET / Content-Type = %q", ct)
-			}
-			if !strings.Contains(string(body), "EngineV1") {
-				t.Fatalf("index does not list target: %q", body)
-			}
+	// Index page at "/" through the catch-all mount.
+	resp := do(http.MethodGet, "/", "")
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET / = %d, body=%q", resp.StatusCode, body)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "text/html" {
+		t.Fatalf("GET / Content-Type = %q", ct)
+	}
+	if !strings.Contains(string(body), "EngineV1") {
+		t.Fatalf("index does not list target: %q", body)
+	}
 
-			// API reverse proxy strips the instance prefix.
-			resp = do(http.MethodGet, "/enginev1/api/users", "")
-			body, _ = io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-			if resp.StatusCode != http.StatusOK || string(body) != "backend:/users" {
-				t.Fatalf("proxy = %d %q, want 200 backend:/users", resp.StatusCode, body)
-			}
+	// API reverse proxy strips the instance prefix.
+	resp = do(http.MethodGet, "/enginev1/api/users", "")
+	body, _ = io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || string(body) != "backend:/users" {
+		t.Fatalf("proxy = %d %q, want 200 backend:/users", resp.StatusCode, body)
+	}
 
-			// CORS preflight is handled by the docs wrapper.
-			resp = do(http.MethodOptions, "/enginev1/api/users", "http://localhost:3000")
-			_ = resp.Body.Close()
-			if resp.StatusCode != http.StatusNoContent {
-				t.Fatalf("OPTIONS preflight = %d, want 204", resp.StatusCode)
-			}
-			if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "*" {
-				t.Fatalf("Allow-Origin = %q, want *", got)
-			}
-		})
+	// CORS preflight is handled by the docs wrapper.
+	resp = do(http.MethodOptions, "/enginev1/api/users", "http://localhost:3000")
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("OPTIONS preflight = %d, want 204", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("Allow-Origin = %q, want *", got)
 	}
 }
 

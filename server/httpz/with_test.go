@@ -45,8 +45,8 @@ func (f *withFakeContext) Get(key string) (any, bool) {
 	return v, ok
 }
 
-// StatusCode implements httpx.ResponseInfo so the wrappers can observe a status
-// buffered by the handler.
+// StatusCode is part of httpx.Context; the wrappers observe the status a
+// handler buffered through it.
 func (f *withFakeContext) StatusCode() int { return f.status }
 
 // TestWithJsonSuccessEnvelope pins the shape of a successful response: the
@@ -77,7 +77,7 @@ func TestWithJsonSuccessEnvelope(t *testing.T) {
 }
 
 // TestWithJsonRespectsBufferedStatus pins that a status the handler buffered via
-// ResponseInfo (e.g. 201 Created) is kept instead of being flattened to 200, and
+// ctx.Status (e.g. 201 Created) is kept instead of being flattened to 200, and
 // that an out-of-range value is rejected rather than written as an invalid code.
 func TestWithJsonRespectsBufferedStatus(t *testing.T) {
 	t.Run("buffered 201", func(t *testing.T) {

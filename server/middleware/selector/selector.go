@@ -1,6 +1,6 @@
 // Package selector applies httpx middleware only when Matcher.Match is true;
-// otherwise it calls ctx.Next(). Compose with httpz.MatchOperation to run
-// auth only on generated private routes.
+// otherwise it continues the chain directly. Compose with httpz.MatchOperation
+// to run auth only on generated private routes.
 //
 // NewSelectorMiddleware returns one wrapper per input middleware, not a
 // single middleware. Empty AND matcher is true; empty OR matcher is false.
@@ -78,31 +78,16 @@ func NewLogicalAndMatcher(matchers ...Matcher) Matcher {
 	})
 }
 
-// NewSelectorMiddleware returns one wrapper per input middleware.
-// Each wrapper runs the inner middleware only when matcher.Match is true; otherwise it calls ctx.Next().
+// NewSelectorMiddleware returns one wrapper per input middleware: each wrapper
+// runs the inner middleware only when matcher.Match is true, and otherwise
+// continues the chain directly.
 func NewSelectorMiddleware(matcher Matcher, middlewares ...httpx.Middleware) []httpx.Middleware {
 	val := make([]httpx.Middleware, 0, len(middlewares))
 	for _, m := range middlewares {
-		val = append(val, func(ctx httpx.Context) error {
-			if matcher.Match(ctx) {
-				return m(ctx)
-			}
-			return ctx.Next()
-		})
-	}
-	return val
-}
-
-// NewSelectorInterceptor is NewSelectorMiddleware for httpx.Interceptor: each
-// wrapper runs the inner interceptor only when matcher.Match is true,
-// otherwise it continues the chain directly.
-func NewSelectorInterceptor(matcher Matcher, interceptors ...httpx.Interceptor) []httpx.Interceptor {
-	val := make([]httpx.Interceptor, 0, len(interceptors))
-	for _, i := range interceptors {
 		val = append(val, func(next httpx.Handler) httpx.Handler {
 			// Composed once at registration, so a request only pays for the
 			// match.
-			matched := i(next)
+			matched := m(next)
 			return func(ctx httpx.Context) error {
 				if matcher.Match(ctx) {
 					return matched(ctx)

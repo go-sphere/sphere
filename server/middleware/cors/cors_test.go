@@ -130,9 +130,13 @@ func (f *fakeContext) NoContent(code int) error {
 	return nil
 }
 
-func (f *fakeContext) Next() error {
-	f.nextCalled = true
-	return nil
+// run drives mw with a terminal handler that records whether the chain
+// continued past the middleware.
+func run(mw httpx.Middleware, ctx *fakeContext) error {
+	return mw(func(httpx.Context) error {
+		ctx.nextCalled = true
+		return nil
+	})(ctx)
 }
 
 func TestCORS_OptionsPreflight(t *testing.T) {
@@ -154,15 +158,15 @@ func TestCORS_OptionsPreflight(t *testing.T) {
 		"Access-Control-Request-Headers": "X-Custom-Header",
 	})
 
-	if err := mw(ctx); err != nil {
-		t.Fatalf("mw(ctx): %v", err)
+	if err := run(mw, ctx); err != nil {
+		t.Fatalf("run(mw, ctx): %v", err)
 	}
 
 	if ctx.status != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", ctx.status)
 	}
 	if ctx.nextCalled {
-		t.Fatal("Next() should not be called on OPTIONS preflight")
+		t.Fatal("the chain must not continue on an OPTIONS preflight")
 	}
 	if got := ctx.respHeaders["Access-Control-Allow-Origin"]; got != "https://example.com" {
 		t.Fatalf("Allow-Origin = %q, want https://example.com", got)
@@ -201,12 +205,12 @@ func TestCORS_ActualGetRequest(t *testing.T) {
 		"Origin": "https://example.com",
 	})
 
-	if err := mw(ctx); err != nil {
-		t.Fatalf("mw(ctx): %v", err)
+	if err := run(mw, ctx); err != nil {
+		t.Fatalf("run(mw, ctx): %v", err)
 	}
 
 	if !ctx.nextCalled {
-		t.Fatal("Next() should be called on GET request")
+		t.Fatal("the chain must continue on a GET request")
 	}
 	if got := ctx.respHeaders["Access-Control-Allow-Origin"]; got != "https://example.com" {
 		t.Fatalf("Allow-Origin = %q, want https://example.com", got)
@@ -235,8 +239,8 @@ func TestCORS_RequestHeadersFallback(t *testing.T) {
 		"Origin":                         "https://example.com",
 		"Access-Control-Request-Headers": "X-Custom-1,X-Custom-2",
 	})
-	if err := mw(ctx1); err != nil {
-		t.Fatalf("mw(ctx1): %v", err)
+	if err := run(mw, ctx1); err != nil {
+		t.Fatalf("run(mw, ctx1): %v", err)
 	}
 	if got := ctx1.respHeaders["Access-Control-Allow-Headers"]; got != "X-Custom-1,X-Custom-2" {
 		t.Fatalf("Allow-Headers = %q, want X-Custom-1,X-Custom-2", got)
@@ -246,8 +250,8 @@ func TestCORS_RequestHeadersFallback(t *testing.T) {
 	ctx2 := newFakeContext(http.MethodOptions, map[string]string{
 		"Origin": "https://example.com",
 	})
-	if err := mw(ctx2); err != nil {
-		t.Fatalf("mw(ctx2): %v", err)
+	if err := run(mw, ctx2); err != nil {
+		t.Fatalf("run(mw, ctx2): %v", err)
 	}
 	if got := ctx2.respHeaders["Access-Control-Allow-Headers"]; got != defaultAllowHeaders {
 		t.Fatalf("Allow-Headers = %q, want default %q", got, defaultAllowHeaders)
@@ -266,12 +270,12 @@ func TestCORS_UnmatchedOrigin(t *testing.T) {
 		"Origin": "https://unauthorized.com",
 	})
 
-	if err := mw(ctx); err != nil {
-		t.Fatalf("mw(ctx): %v", err)
+	if err := run(mw, ctx); err != nil {
+		t.Fatalf("run(mw, ctx): %v", err)
 	}
 
 	if !ctx.nextCalled {
-		t.Fatal("Next() should be called on GET request")
+		t.Fatal("the chain must continue on a GET request")
 	}
 	if got := ctx.respHeaders["Access-Control-Allow-Origin"]; got != "" {
 		t.Fatalf("Allow-Origin = %q, want empty", got)

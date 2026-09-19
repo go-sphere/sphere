@@ -2,7 +2,6 @@ package httpz
 
 import (
 	"path"
-	"strings"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/log"
@@ -30,11 +29,13 @@ func joinPaths(absolutePath, relativePath string) string {
 // Each route is [3]string{operation, method, path}; path is joined onto base,
 // preserving a trailing slash.
 //
-// Named-wildcard routes ("/files/*name") are indexed twice: once verbatim and
-// once in anonymous form ("/files/*"). Adapters without named wildcards
-// (echox, fiberx) rewrite the pattern at registration time and report the
-// anonymous form from FullPath, so both dialects must resolve to the
-// operation.
+// The registered path is the only key. Named-wildcard routes used to be indexed
+// a second time in anonymous form ("/files/*") because echox and fiberx
+// rewrote "/files/*name" at registration and leaked the rewritten pattern from
+// FullPath; httpx v0.0.5 reports the pattern the caller registered on all five
+// adapters, so that second dialect cannot be produced any more — and the
+// anonymous form is rejected at registration. Pinned against real adapters by
+// TestMatchOperationWithNamedWildcard.
 func EndpointsToMatches(base string, endpoints ...[][3]string) map[string]map[string]string {
 	matches := make(map[string]map[string]string)
 	for _, list := range endpoints {
@@ -45,26 +46,10 @@ func EndpointsToMatches(base string, endpoints ...[][3]string) map[string]map[st
 				inner = make(map[string]string)
 				matches[key] = inner
 			}
-			full := joinPaths(base, route[2])
-			inner[full] = route[0]
-			if anon := anonymousWildcardPath(full); anon != full {
-				inner[anon] = route[0]
-			}
+			inner[joinPaths(base, route[2])] = route[0]
 		}
 	}
 	return matches
-}
-
-// anonymousWildcardPath rewrites a trailing named wildcard to its anonymous
-// form ("/files/*name" -> "/files/*"), mirroring the registration-time
-// rewrite httpx.FixWildcardPathIfNeed applies on adapters without named
-// wildcards. Paths without a trailing single wildcard are returned unchanged.
-func anonymousWildcardPath(p string) string {
-	i := strings.LastIndexByte(p, '*')
-	if i <= 0 || p[i-1] != '/' || strings.ContainsRune(p[i+1:], '/') {
-		return p
-	}
-	return p[:i+1]
 }
 
 // MatchOperation returns a predicate that is true when the request's method

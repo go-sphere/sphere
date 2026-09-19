@@ -1,8 +1,10 @@
 // Package middleware holds a benchmark over the real middleware stack a
-// service registers, comparing httpx.Middleware (one adapter layer per
-// middleware, chain driven by ctx.Next) with httpx.Interceptor (one chain
-// composed into the route). Both run the same middlewares and produce the same
-// response.
+// service registers: access log and panic recovery at the engine, authentication
+// on one nested group, permission on the next, then the route. Since httpx
+// v0.0.5 there is a single middleware form, so there is no second form left to
+// compare against; "none" is the same route with no middleware registered, so
+// the work the middlewares do themselves can be told apart from the cost of the
+// chain.
 package middleware
 
 import (
@@ -12,9 +14,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/go-sphere/httpx"
-	"github.com/go-sphere/httpx/ginx"
+	"github.com/go-sphere/httpx/stdx"
 	"github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/server/auth/authorizer"
 	"github.com/go-sphere/sphere/server/middleware/auth"
@@ -59,41 +60,28 @@ func (w *discardWriter) Write(p []byte) (int, error) { return len(p), nil }
 // panic recovery at the engine, authentication on one nested group, permission
 // on the next, then the route.
 func BenchmarkRealStack(b *testing.B) {
-	gin.SetMode(gin.ReleaseMode)
 	lg := discardLogger{}
 	parser := benchParser()
 	acl := allowAll{}
 	leaf := func(ctx httpx.Context) error { return ctx.NoContent(http.StatusNoContent) }
 
-	// "none" is the same route with no middleware at all, so the work the
-	// middlewares do themselves can be told apart from the cost of the form.
-	for _, mode := range []string{"none", "middleware", "interceptor"} {
+	for _, mode := range []string{"none", "middleware"} {
 		b.Run(fmt.Sprintf("form=%s", mode), func(b *testing.B) {
-			ge := gin.New()
-			app := ginx.New(ginx.WithEngine(ge))
-			switch mode {
-			case "none":
-				app.Group("/api").Group("/admin").GET("/route", leaf)
-			case "middleware":
+			app := stdx.New()
+			if mode == "middleware" {
 				app.Use(logger.Log(lg), logger.RecoveryLog(lg, true))
 				authed := app.Group("/api", auth.NewAuthMiddleware(parser))
 				admin := authed.Group("/admin", auth.NewPermissionMiddleware[int64]("bench", acl))
 				admin.GET("/route", leaf)
-			default:
-				if !httpx.UseInterceptor(app, logger.LogInterceptor(lg), logger.RecoveryLogInterceptor(lg, true)) {
-					b.Fatal("engine did not register interceptors natively")
-				}
-				authed := app.Group("/api")
-				httpx.UseInterceptor(authed, auth.NewAuthInterceptor(parser))
-				admin := authed.Group("/admin")
-				httpx.UseInterceptor(admin, auth.NewPermissionInterceptor[int64]("bench", acl))
-				admin.GET("/route", leaf)
+			} else {
+				app.Group("/api").Group("/admin").GET("/route", leaf)
 			}
+			handler := app.(http.Handler)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/admin/route", nil)
 			req.Header.Set(auth.AuthorizationHeader, "token")
 			w := &discardWriter{header: make(http.Header)}
-			ge.ServeHTTP(w, req)
+			handler.ServeHTTP(w, req)
 			if w.status != http.StatusNoContent {
 				b.Fatalf("status = %d, want %d", w.status, http.StatusNoContent)
 			}
@@ -101,7 +89,7 @@ func BenchmarkRealStack(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
 				clear(w.header)
-				ge.ServeHTTP(w, req)
+				handler.ServeHTTP(w, req)
 			}
 		})
 	}
