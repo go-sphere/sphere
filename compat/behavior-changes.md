@@ -11,6 +11,118 @@ correctness fixes listed under "Security and correctness fixes" and the
 confirmed silent changes under "Silent changes outside `cache/`" change
 observable behaviour outside `cache/` and are recorded there.
 
+Everything is measured from `v0.0.3` except "The `httpx` v0.0.5 upgrade", which
+is measured from `v0.0.5`.
+
+## The `httpx` v0.0.5 upgrade
+
+`apidiff` reports no incompatibility for anything in this section, including the
+change that stops dependent code from compiling. The blind spot is a second one,
+distinct from the "same signature, different behaviour" case the rest of this
+file records: the type that changed is defined in another module. Every sphere
+signature still reads `httpx.Middleware`, and the tool matches external types by
+name, so it sees an unchanged API.
+
+Sphere's own module graph also stopped carrying `httpx/ginx` and `httpx/fiberx`.
+Those were test-only dependencies — no released sphere package ever imported an
+adapter — so this narrows what a consumer downloads and does not choose an
+engine for anyone. `httpx/stdx`, the net/http engine, takes their place in the
+tests and in the layout templates.
+
+### `httpx.Middleware` changed shape, so middleware must be rewritten
+
+```
+v0.0.4:  type Middleware func(Context) error
+v0.0.5:  type Middleware func(next Handler) Handler
+```
+
+A middleware no longer receives the request and calls `ctx.Next()`; it receives
+the next handler and returns its replacement. `auth.NewAuthMiddleware`,
+`auth.NewPermissionMiddleware`, `cors.NewCORS`, `logger.Log`,
+`logger.RecoveryLog`, `online.NewOnline`, `ratelimiter.NewRateLimiter`,
+`ratelimiter.NewRateLimiterByClientIP` and `selector.NewSelectorMiddleware` all
+return the new form under sphere-side signatures that are textually unchanged.
+Middleware written against the old shape does not compile, and nothing bridges
+the two — move the body into an inner closure and return `next(ctx)` where it
+used to return `ctx.Next()`:
+
+```go
+// before
+func mw(ctx httpx.Context) error {
+	// ...
+	return ctx.Next()
+}
+
+// after
+func mw(next httpx.Handler) httpx.Handler {
+	return func(ctx httpx.Context) error {
+		// ...
+		return next(ctx)
+	}
+}
+```
+
+The wrappers `selector.NewSelectorMiddleware` returns now compose the inner
+middleware once at registration instead of once per request, so a request that
+does not match pays only for `Matcher.Match`.
+
+### A custom error parser's message is no longer second-guessed
+
+`httpz.AbortWithJsonError` used to drop a parser-supplied message when it was
+byte-identical to `err.Error()`, falling back to the generic status text. That
+filter existed because `httpx.ParseError` returned `err.Error()` for an
+unclassified error, which would have put driver and database strings in front of
+clients — see "Responses no longer leak raw error text" below. From httpx
+v0.0.5 `ParseError` returns an empty message for an error carrying no
+`httpx.MessageError`, so the leak is closed at the source and the filter is
+gone: a message from `SetDefaultErrorParser` is now treated as authoritative and
+reaches `ErrorResponse.Message` verbatim.
+
+The default parser is unaffected. A **custom** parser that returns `err.Error()`
+as the message changes direction: what used to be replaced by the status text is
+now returned to the client. Audit any custom parser for errors it does not
+classify, and return an empty message for those.
+
+### `EndpointsToMatches` indexes only the registered path
+
+Named-wildcard routes used to be indexed twice, verbatim (`/files/*name`) and in
+anonymous form (`/files/*`), because echox and fiberx rewrote the pattern at
+registration and reported the rewritten form from `FullPath`. All five adapters
+now report what the caller registered, so the anonymous key is no longer
+produced — and no longer matches. Code that read the returned map directly and
+looked up the anonymous spelling gets nothing back; `MatchOperation` is
+unaffected.
+
+### The anonymous wildcard is rejected at registration
+
+`httpx.FixWildcardPathIfNeed` produced the anonymous form, which httpx now
+refuses: gin and hertz never accepted it, and the three adapters that did
+disagreed on the parameter's key. `fileserver.RegisterFileDownloader` registers
+`/*filename` as-is. A caller that ran the same fix-then-register dance on its own
+routes now fails at registration rather than silently binding a pattern the
+adapters read differently; register the named form and drop the call.
+
+### A rate-limiter key no longer loses its burst to a race
+
+`ratelimiter.NewRateLimiter` re-reads the cache inside the singleflight before
+building a limiter. `singleflight` only deduplicates *overlapping* calls, so a
+request that missed the cache just before another flight's write could lead a
+second flight once that one finished, create a second limiter for the same key,
+and hand the caller a fresh full burst. The re-read closes that window; a cache
+error raised by it now fails the request instead of being skipped.
+
+### `ClientIP` on `stdx` ignores forwarding headers until proxies are trusted
+
+This is a property of the engine, not of sphere, and it matters for
+`NewRateLimiterByClientIP`. `stdx` uses the direct peer address and ignores
+`X-Forwarded-For` and `X-Real-IP` unless `stdx.WithTrustedProxies` is set; gin,
+echo and hertz trust every peer by default. Moving from one of those to `stdx`
+therefore *tightens* rate limiting — a client can no longer mint a fresh bucket
+per forged header — but behind a real reverse proxy, and without
+`WithTrustedProxies`, every request now shares the proxy's address and so shares
+one bucket. Configure the trusted proxies, or key the limiter on something the
+caller cannot forge.
+
 ## Read this first — silent changes
 
 These compile cleanly, raise no error at runtime, and change what ends up
@@ -767,6 +879,8 @@ replaces, leaving a 200 with a concatenated payload. This cannot be fixed here.
 `httpx.Responder` documents that a response becomes committed once written, but
 `httpx.Context` exposes no way to query that state, so `AbortWithJsonError` has
 no way to know it must stay silent. The fix belongs in `go-sphere/httpx`.
+Re-checked against httpx v0.0.5: still open, the contract is documented on
+`Context` but there is still no accessor for it.
 
 ## Known limitations (unchanged since v0.0.3, not regressions)
 
