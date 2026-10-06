@@ -60,8 +60,10 @@ func Log(lg log.BaseLogger) httpx.Middleware {
 // already written the recorded status is authoritative; when the chain failed
 // before anything was written — which is the normal case in a composed chain,
 // where the error is rendered at the route rather than at the failing layer —
-// the status the default parser (httpz.ParseError) maps the error to is what
-// the client will get.
+// the status httpz.ParseError maps the error to is what the client will get.
+// That is the default parser's mapping; a parser installed with
+// httpz.SetDefaultErrorParser is not consulted, so a status only it assigns is
+// logged as ParseError's.
 func responseStatus(ctx httpx.Context, err error) int {
 	status := ctx.StatusCode()
 	if err == nil || status >= http.StatusBadRequest {
