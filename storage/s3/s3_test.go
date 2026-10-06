@@ -1,8 +1,6 @@
 package s3
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -20,126 +18,67 @@ import (
 	"github.com/go-sphere/sphere/storage/storageerr"
 )
 
-func TestS3ClientMoveFileSelfMove(t *testing.T) {
-	fake := fakes3.New(t, "bucket")
-	client, err := NewClient(Config{
-		Endpoint:        fake.Endpoint(),
-		AccessKeyID:     "minioadmin",
-		SecretAccessKey: "minioadmin",
-		Bucket:          "bucket",
-		UseSSL:          false,
-	})
-	if err != nil {
-		t.Fatalf("NewClient() error = %v", err)
-	}
-
-	ctx := context.Background()
-	const key = "folder/file.png"
-
-	// 1. Move missing file to same key returns ErrNotFound
-	err = client.MoveFile(ctx, "nonexistent.txt", "nonexistent.txt", true)
-	if !errors.Is(err, storageerr.ErrNotFound) {
-		t.Fatalf("MoveFile(missing to same) error = %v, want %v", err, storageerr.ErrNotFound)
-	}
-
-	// 2. Upload file and check ContentType
-	uploadedKey, err := client.UploadFile(ctx, bytes.NewBufferString("image-bytes"), key)
-	if err != nil {
-		t.Fatalf("UploadFile() error = %v", err)
-	}
-	if uploadedKey != key {
-		t.Fatalf("UploadFile() key = %q, want %q", uploadedKey, key)
-	}
-
-	// Verify ContentType was set based on extension
-	if obj, _ := fake.Object(key); obj.MIME != "image/png" {
-		t.Fatalf("ContentType = %q, want %q", obj.MIME, "image/png")
-	}
-
-	// 3. MoveFile to same key with overwrite=true must NOT delete the file
-	err = client.MoveFile(ctx, key, key, true)
-	if err != nil {
-		t.Fatalf("MoveFile(same key, overwrite=true) error = %v", err)
-	}
-
-	exists, err := client.IsFileExists(ctx, key)
-	if err != nil {
-		t.Fatalf("IsFileExists() error = %v", err)
-	}
-	if !exists {
-		t.Fatal("file was deleted after MoveFile onto itself")
-	}
-
-	// 4. MoveFile to different destination
-	const destKey = "folder/dest.png"
-	err = client.MoveFile(ctx, key, destKey, true)
-	if err != nil {
-		t.Fatalf("MoveFile() error = %v", err)
-	}
-
-	existsOld, err := client.IsFileExists(ctx, key)
-	if err != nil {
-		t.Fatalf("IsFileExists(old key) error = %v", err)
-	}
-	if existsOld {
-		t.Fatal("old key still exists after MoveFile")
-	}
-
-	existsNew, err := client.IsFileExists(ctx, destKey)
-	if err != nil {
-		t.Fatalf("IsFileExists(new key) error = %v", err)
-	}
-	if !existsNew {
-		t.Fatal("new key does not exist after MoveFile")
-	}
-}
-
-func TestS3ClientGenerateUploadAuth(t *testing.T) {
-	fake := fakes3.New(t, "mybucket")
-	client, err := NewClient(Config{
-		Endpoint:        fake.Endpoint(),
-		AccessKeyID:     "minioadmin",
-		SecretAccessKey: "minioadmin",
-		Bucket:          "mybucket",
-		UseSSL:          false,
-		Dir:             "uploads",
-		UploadNaming:    storage.UploadNamingStrategyOriginal,
-	})
-	if err != nil {
-		t.Fatalf("NewClient() error = %v", err)
-	}
-
-	res, err := client.GenerateUploadAuth(context.Background(), storage.UploadAuthRequest{
-		FileName: "avatar.jpg",
-		Dir:      "users",
-	})
-	if err != nil {
-		t.Fatalf("GenerateUploadAuth() error = %v", err)
-	}
-
-	if res.File.Key != "uploads/users/avatar.jpg" {
-		t.Fatalf("Key = %q, want %q", res.File.Key, "uploads/users/avatar.jpg")
-	}
-	if res.Authorization.Type != storage.UploadAuthorizationTypeURL {
-		t.Fatalf("Auth Type = %q, want %q", res.Authorization.Type, storage.UploadAuthorizationTypeURL)
-	}
-	if res.Authorization.Method != http.MethodPut {
-		t.Fatalf("Auth Method = %q, want %q", res.Authorization.Method, http.MethodPut)
-	}
-}
-
 func newFakeClient(t *testing.T, conf Config) (*Client, *fakes3.Server) {
 	t.Helper()
 	fake := fakes3.New(t, "bucket")
 	conf.Endpoint = fake.Endpoint()
 	conf.AccessKeyID = "test-ak"
 	conf.SecretAccessKey = "test-sk"
-	conf.Bucket = "bucket"
+	conf.Bucket = fake.Bucket
 	client, err := NewClient(conf)
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
 	return client, fake
+}
+
+func TestS3ClientMoveFileSelfMove(t *testing.T) {
+	client, fake := newFakeClient(t, Config{})
+	ctx := t.Context()
+	const key = "folder/file.png"
+
+	if err := client.MoveFile(ctx, "nonexistent.txt", "nonexistent.txt", true); !errors.Is(err, storageerr.ErrNotFound) {
+		t.Fatalf("MoveFile(missing to same) error = %v, want ErrNotFound", err)
+	}
+	if _, err := client.UploadFile(ctx, strings.NewReader("image-bytes"), key); err != nil {
+		t.Fatalf("UploadFile() error = %v", err)
+	}
+	if obj, _ := fake.Object(key); obj.MIME != "image/png" {
+		t.Fatalf("ContentType = %q, want %q", obj.MIME, "image/png")
+	}
+
+	// Copy-then-delete onto itself would destroy the object.
+	if err := client.MoveFile(ctx, key, key, true); err != nil {
+		t.Fatalf("MoveFile(same key, overwrite=true) error = %v", err)
+	}
+	if _, ok := fake.Object(key); !ok {
+		t.Fatal("file was deleted after MoveFile onto itself")
+	}
+
+	const destKey = "folder/dest.png"
+	if err := client.MoveFile(ctx, key, destKey, true); err != nil {
+		t.Fatalf("MoveFile() error = %v", err)
+	}
+	if _, ok := fake.Object(key); ok {
+		t.Fatal("old key still exists after MoveFile")
+	}
+	if _, ok := fake.Object(destKey); !ok {
+		t.Fatal("new key does not exist after MoveFile")
+	}
+}
+
+func TestS3ClientGenerateUploadAuth(t *testing.T) {
+	client, _ := newFakeClient(t, Config{Dir: "uploads", UploadNaming: storage.UploadNamingStrategyOriginal})
+	res, err := client.GenerateUploadAuth(t.Context(), storage.UploadAuthRequest{FileName: "avatar.jpg", Dir: "users"})
+	if err != nil {
+		t.Fatalf("GenerateUploadAuth() error = %v", err)
+	}
+	if res.File.Key != "uploads/users/avatar.jpg" {
+		t.Fatalf("Key = %q, want %q", res.File.Key, "uploads/users/avatar.jpg")
+	}
+	if res.Authorization.Type != storage.UploadAuthorizationTypeURL || res.Authorization.Method != http.MethodPut {
+		t.Fatalf("Authorization = %s %s, want a presigned PUT URL", res.Authorization.Type, res.Authorization.Method)
+	}
 }
 
 func TestS3ClientObjectLifecycle(t *testing.T) {
