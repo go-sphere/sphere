@@ -1,6 +1,7 @@
 package captcha
 
 import (
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -234,5 +235,59 @@ func TestCleanExpiredReleasesIdleNumbers(t *testing.T) {
 		if size != 0 {
 			t.Errorf("%s retained %d entries for an idle number", name, size)
 		}
+	}
+}
+
+// TestNonPositiveLimitsTakeDefaults pins that a negative limit falls back to
+// its default like a zero one does. Only exactly-zero limits used to be
+// normalized, so a negative value from configuration rejected every send.
+func TestNonPositiveLimitsTakeDefaults(t *testing.T) {
+	for _, limit := range []int{0, -1} {
+		s := NewVerificationSystem(VerificationConfig{MinuteLimit: limit, DailyLimit: limit})
+		if s.config.MinuteLimit != DefaultMinuteLimit {
+			t.Errorf("MinuteLimit %d: got %d, want %d", limit, s.config.MinuteLimit, DefaultMinuteLimit)
+		}
+		if s.config.DailyLimit != DefaultDailyLimit {
+			t.Errorf("DailyLimit %d: got %d, want %d", limit, s.config.DailyLimit, DefaultDailyLimit)
+		}
+		if err := s.SaveCode("13800000010", "123456", time.Minute); err != nil {
+			t.Errorf("limit %d: first SaveCode must succeed: %v", limit, err)
+		}
+	}
+}
+
+// TestRateLimitErrorsAreSentinels pins that callers can tell the two rate-limit
+// rejections apart with errors.Is, and that the message text is unchanged.
+func TestRateLimitErrorsAreSentinels(t *testing.T) {
+	const number = "13800000011"
+	s := NewVerificationSystem(VerificationConfig{MinuteLimit: 1, DailyLimit: 1})
+
+	if err := s.SaveCode(number, "123456", time.Minute); err != nil {
+		t.Fatalf("SaveCode: %v", err)
+	}
+	err := s.SaveCode(number, "123456", time.Minute)
+	if !errors.Is(err, ErrMinuteLimitExceeded) {
+		t.Fatalf("got %v, want ErrMinuteLimitExceeded", err)
+	}
+	if got := ErrMinuteLimitExceeded.Error(); got != "minute limit exceeded" {
+		t.Errorf("message changed to %q", got)
+	}
+
+	s.store.MinuteTimestamps[number] = time.Now().Add(-2 * time.Minute)
+	err = s.SaveCode(number, "123456", time.Minute)
+	if !errors.Is(err, ErrDailyLimitExceeded) {
+		t.Fatalf("got %v, want ErrDailyLimitExceeded", err)
+	}
+	if got := ErrDailyLimitExceeded.Error(); got != "daily limit exceeded" {
+		t.Errorf("message changed to %q", got)
+	}
+
+	// Manager.SendCode surfaces the same sentinel.
+	m := NewManager(Config{}, noopSender{})
+	if err := m.SendCode(number); err != nil {
+		t.Fatalf("SendCode: %v", err)
+	}
+	if err := m.SendCode(number); !errors.Is(err, ErrMinuteLimitExceeded) {
+		t.Fatalf("Manager.SendCode: got %v, want ErrMinuteLimitExceeded", err)
 	}
 }

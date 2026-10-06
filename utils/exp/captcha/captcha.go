@@ -1,14 +1,3 @@
-// Package captcha issues one-time verification codes with per-number rate
-// limits and lockout. Storage is in-process maps; there is no persistence.
-//
-// Manager implements task.Task: Start runs a 1-minute CleanExpired loop so
-// maps do not grow without bound. Return it from a boot builder. Defaults:
-// length 6, expire 300s, 1/minute, 100/day, 5 failures then 15m freeze.
-// Verify consumes a matching code. After DefaultMaxAttempts failures,
-// LockedUntil freezes verification and outstanding codes are KEPT (not
-// invalidated). Empty codes are refused. RandomCode uses crypto/rand and
-// panics on entropy failure. SaveCode success then SendCode failure still
-// leaves the code stored and increments quota.
 package captcha
 
 import (
@@ -19,15 +8,18 @@ import (
 
 // Sender defines the interface for sending verification codes to recipients.
 // Implementations should handle the actual delivery mechanism (SMS, email, etc.).
+// Manager calls SendCode synchronously from Manager.SendCode, possibly from
+// several goroutines at once; a returned error is passed back to the caller.
 type Sender interface {
 	SendCode(number string, code string) error
 }
 
 // Config holds the configuration parameters for the verification code system.
+// Non-positive CodeLength and CodeExpiresIn take their defaults.
 type Config struct {
-	CodeLength    int                `json:"code_length"`     // Length of generated verification codes
-	CodeExpiresIn int                `json:"code_expires_in"` // Code expiration time in seconds
-	RateLimit     VerificationConfig `json:"rate_limit"`      // Rate limiting configuration
+	CodeLength    int                `json:"code_length"`     // Number of digits in generated codes (default 6)
+	CodeExpiresIn int                `json:"code_expires_in"` // Code expiration time in seconds (default 300)
+	RateLimit     VerificationConfig `json:"rate_limit"`      // Per-number send limits
 }
 
 // Defaults applied by NewManager to a Config field left at its zero value.
@@ -43,6 +35,8 @@ const (
 
 // Manager provides verification code generation, sending, and validation capabilities.
 // It combines code generation, delivery, and rate limiting in a single component.
+// Create it with NewManager. It implements task.Task (Identifier, Start, Stop)
+// and is safe for concurrent use.
 type Manager struct {
 	done         chan struct{}       // Channel for graceful shutdown signaling
 	stopOnce     sync.Once           // Guards done channel close for idempotent Stop
@@ -77,6 +71,9 @@ func NewManager(conf Config, sender Sender) *Manager {
 // SendCode generates and sends a verification code to the specified number.
 // It creates a random code, saves it with expiration, and delivers it using the configured sender.
 // Returns an error if code generation, storage, or delivery fails.
+// Rate-limit rejections are ErrMinuteLimitExceeded and ErrDailyLimitExceeded;
+// match them with errors.Is. When delivery fails, the stored code and the
+// consumed quota are not rolled back.
 func (m *Manager) SendCode(number string) error {
 	code := RandomCode(m.config.CodeLength)
 	if err := m.verification.SaveCode(number, code, time.Duration(m.config.CodeExpiresIn)*time.Second); err != nil {
@@ -87,6 +84,7 @@ func (m *Manager) SendCode(number string) error {
 
 // Verify validates a verification code for the given number.
 // Returns true if the code is valid and not expired, false otherwise.
+// A matching code is consumed. See VerificationSystem.Verify for lockout rules.
 func (m *Manager) Verify(number, code string) bool {
 	return m.verification.Verify(number, code)
 }
@@ -100,6 +98,9 @@ func (m *Manager) Identifier() string {
 // Start begins the captcha manager's background cleanup routine.
 // It runs a ticker that periodically cleans expired verification codes to prevent memory leaks.
 // This implements the Task interface for lifecycle management integration.
+// Start blocks: it returns ctx.Err() when ctx ends, or nil once Stop has been
+// called (immediately, if Stop already ran). SendCode and Verify work whether
+// or not Start is running.
 func (m *Manager) Start(ctx context.Context) error {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
@@ -117,6 +118,7 @@ func (m *Manager) Start(ctx context.Context) error {
 
 // Stop gracefully shuts down the captcha manager by closing the done channel.
 // This signals the cleanup routine to exit and implements the Task interface.
+// Stop is idempotent, does not wait for Start to return, and always returns nil.
 func (m *Manager) Stop(ctx context.Context) error {
 	m.stopOnce.Do(func() {
 		close(m.done)

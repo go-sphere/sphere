@@ -23,10 +23,19 @@ const (
 	DefaultLockoutWindow = 15 * time.Minute
 )
 
+// Sentinel errors returned by SaveCode (and so Manager.SendCode) when a send
+// would exceed a per-number rate limit. Match them with errors.Is.
+var (
+	ErrMinuteLimitExceeded = errors.New("minute limit exceeded")
+	ErrDailyLimitExceeded  = errors.New("daily limit exceeded")
+)
+
 // VerificationConfig holds the rate limiting configuration for verification code generation.
+// Limits count codes stored per number in rolling windows anchored at the
+// first send of each window. A non-positive value takes the default.
 type VerificationConfig struct {
-	MinuteLimit int `json:"minute_limit"`
-	DailyLimit  int `json:"daily_limit"`
+	MinuteLimit int `json:"minute_limit"` // Codes per number per minute (default DefaultMinuteLimit)
+	DailyLimit  int `json:"daily_limit"`  // Codes per number per 24 hours (default DefaultDailyLimit)
 }
 
 // VerificationCode represents a verification code with its expiration time.
@@ -123,6 +132,8 @@ func (s *VerificationStorage) rollWindow(number string, now time.Time, window ti
 
 // VerificationSystem provides thread-safe verification code management with rate limiting.
 // It handles code storage, expiration cleanup, and enforces sending limits per phone number.
+// Create it with NewVerificationSystem. Several codes may be outstanding for a
+// number at once; any unexpired one verifies.
 type VerificationSystem struct {
 	mu     sync.RWMutex
 	config VerificationConfig
@@ -130,12 +141,13 @@ type VerificationSystem struct {
 }
 
 // NewVerificationSystem creates a new verification system with the provided configuration.
-// If configuration fields are zero, it uses default values for rate limiting and storage capacity.
+// Non-positive MinuteLimit and DailyLimit values fall back to their defaults,
+// since a negative limit would otherwise reject every send.
 func NewVerificationSystem(conf VerificationConfig) *VerificationSystem {
-	if conf.MinuteLimit == 0 {
+	if conf.MinuteLimit <= 0 {
 		conf.MinuteLimit = DefaultMinuteLimit
 	}
-	if conf.DailyLimit == 0 {
+	if conf.DailyLimit <= 0 {
 		conf.DailyLimit = DefaultDailyLimit
 	}
 	return &VerificationSystem{
@@ -155,6 +167,8 @@ func NewVerificationSystem(conf VerificationConfig) *VerificationSystem {
 // SaveCode stores a verification code for the given number with rate limiting enforcement.
 // It checks both minute and daily limits before saving the code and returns an error
 // if the limits are exceeded. The code will expire after the specified duration.
+// An empty code or a non-positive expiresIn is rejected without consuming
+// quota. Storing a code resets the number's failure count and lifts any freeze.
 func (s *VerificationSystem) SaveCode(number string, code string, expiresIn time.Duration) error {
 	// An empty code would be matched by an empty submission, turning verification
 	// into a no-op for this number. Refuse to store one so a misconfigured
@@ -176,10 +190,10 @@ func (s *VerificationSystem) SaveCode(number string, code string, expiresIn time
 	s.store.rollWindow(number, now, 24*time.Hour, s.store.DailyCounts, s.store.DailyTimestamps)
 
 	if s.store.MinuteCounts[number] >= s.config.MinuteLimit {
-		return errors.New("minute limit exceeded")
+		return ErrMinuteLimitExceeded
 	}
 	if s.store.DailyCounts[number] >= s.config.DailyLimit {
-		return errors.New("daily limit exceeded")
+		return ErrDailyLimitExceeded
 	}
 
 	s.store.MinuteCounts[number]++
