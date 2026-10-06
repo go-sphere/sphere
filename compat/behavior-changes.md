@@ -568,6 +568,39 @@ the stored content type is empty. A missing key on the download path answers
 with HTTP 404 rather than Qiniu's 612, so it is now mapped to
 `storageerr.ErrNotFound` instead of surfacing as a generic 500.
 
+### `qiniu` server-side uploads overwrite existing keys
+
+`UploadFile` and `UploadLocalFile` signed upload tokens scoped to the bucket
+alone, which Kodo treats as insert-only: re-uploading an existing key with
+different content failed with 614 instead of replacing the object as `local`,
+`kvcache` and `s3` do. Tokens are now scoped to the target key, so an upload
+replaces whatever was stored there. Client upload tokens from
+`GenerateUploadAuth` are unchanged.
+
+### `qiniu` reports a truncated download as `io.ErrUnexpectedEOF`
+
+The SDK closes its download pipe without an error before it records a failure
+(an ETag mismatch, a failed ranged GET), so a broken download used to read as a
+short body followed by a clean `io.EOF` — a download racing an overwrite could
+return an empty file and no error. The reader now returns an error wrapping
+`io.ErrUnexpectedEOF` when the body ends before the reported `Size`.
+
+### `qiniu` `MoveFile` onto itself is a no-op
+
+`MoveFile(k, k, false)` reached Kodo, which refused it because the
+"destination" exists, so the driver returned `ErrDestExists`. A self-move now
+returns nil when the key exists and `storageerr.ErrNotFound` when it does not,
+as `s3` already did.
+
+### `s3` downloads fetch body and metadata in one request
+
+`DownloadFile` issued a HEAD and returned a lazy `minio.Object` whose body GET
+ran on the first `Read`, pinned to the HEAD's ETag; an overwrite in between
+failed the read mid-stream with 412 after `Size` and `MIME` had already been
+reported for the old version. A single GET now supplies both, which also drops
+a round trip. The returned `Reader` is a plain `io.ReadCloser` and no longer
+implements `io.Seeker`; type-assert callers must buffer instead.
+
 ## Contract and robustness fixes
 
 Lower-severity than the section above, but several change what callers observe.
@@ -581,9 +614,10 @@ Lower-severity than the section above, but several change what callers observe.
   now copy `[]byte`; `Core` documents the rule, and it applies only to byte
   slices — values of other types are still stored as given.
 - **`CodecCache.MultiGet` no longer fails a whole batch** because one entry
-  cannot be decoded. The bad entry is logged, deleted so the next read rebuilds
-  it, and skipped. Previously a single value written under an older schema
-  discarded every other result, and one stored without a TTL did so
+  cannot be decoded. The bad entry is logged and skipped but left in place:
+  deleting it could race a concurrent write of a good value, and `Get` likewise
+  returns the decode error without deleting. Previously a single value
+  written under an older schema discarded every other result, and one stored without a TTL did so
   permanently, since the loader only rebuilds on a miss.
 - **`nocache` implements `KeyLister`**, so `nscache.NSCache.DelAll` works over
   it instead of returning `ErrNotSupported`. Turning caching off by
