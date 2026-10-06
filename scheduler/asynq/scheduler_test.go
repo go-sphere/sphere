@@ -3,6 +3,9 @@ package asynq
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -104,6 +107,19 @@ func TestEnqueueWithUniqueForMapsDuplicate(t *testing.T) {
 	}
 }
 
+// TestEnqueueWithTaskIDConflictMapsDuplicate pins that WithTaskID behaves as
+// the idempotency key it is documented to be: a conflict matches
+// scheduler.ErrDuplicateName and still matches asynq.ErrTaskIDConflict.
+func TestEnqueueWithTaskIDConflictMapsDuplicate(t *testing.T) {
+	s := newTestScheduler(t)
+	if _, err := s.Enqueue(context.Background(), "idem", nil, scheduler.WithTaskID("idem-id")); err != nil {
+		t.Fatalf("enqueue first: %v", err)
+	}
+	if _, err := s.Enqueue(context.Background(), "idem", nil, scheduler.WithTaskID("idem-id")); !errors.Is(err, scheduler.ErrDuplicateName) || !errors.Is(err, sasynq.ErrTaskIDConflict) {
+		t.Fatalf("enqueue conflict error = %v, want %v wrapping %v", err, scheduler.ErrDuplicateName, sasynq.ErrTaskIDConflict)
+	}
+}
+
 func TestHandleAfterStartReturnsErrAfterStart(t *testing.T) {
 	s := newTestScheduler(t)
 	startTestScheduler(t, s)
@@ -133,6 +149,62 @@ func TestWithClientDoesNotCloseRedisClient(t *testing.T) {
 	}
 	if err := s.Close(); err != nil {
 		t.Fatalf("close scheduler: %v", err)
+	}
+	if err := client.Ping(context.Background()).Err(); err != nil {
+		t.Fatalf("shared redis client was closed: %v", err)
+	}
+}
+
+// recordingLogger is an asynq Logger that records error-level messages.
+type recordingLogger struct {
+	mu     sync.Mutex
+	errors []string
+}
+
+func (*recordingLogger) Debug(...any) {}
+func (*recordingLogger) Info(...any)  {}
+func (*recordingLogger) Warn(...any)  {}
+func (l *recordingLogger) Error(args ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.errors = append(l.errors, fmt.Sprint(args...))
+}
+func (l *recordingLogger) Fatal(args ...any) { l.Error(args...) }
+
+func (l *recordingLogger) errorMessages() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.errors)
+}
+
+// TestStopDoesNotLogSharedClientCloseError pins that a clean Start/Stop logs
+// no errors (asynq's scheduler used to report that it could not close the
+// shared Redis client) and that the injected client stays open afterwards.
+func TestStopDoesNotLogSharedClientCloseError(t *testing.T) {
+	client := redistest.NewTestRedisClient(t)
+	logger := &recordingLogger{}
+	s, err := NewScheduler(Config{ShutdownTimeout: time.Second}, WithClient(client), WithLogger(logger))
+	if err != nil {
+		t.Fatalf("create scheduler: %v", err)
+	}
+	if err := s.Register("tick", "@every 1h", func(context.Context) error { return nil }); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- s.Start(context.Background())
+	}()
+	waitFor(t, time.Second, func() bool { return s.state.Load() == stateRunning })
+	if err := s.Stop(context.Background()); err != nil {
+		t.Fatalf("stop: %v", err)
+	}
+	select {
+	case <-startDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("start did not return after stop")
+	}
+	if msgs := logger.errorMessages(); len(msgs) > 0 {
+		t.Fatalf("stop logged errors: %q", msgs)
 	}
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		t.Fatalf("shared redis client was closed: %v", err)

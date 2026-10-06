@@ -1,12 +1,3 @@
-// Package asynq is a scheduler.Scheduler on hibiken/asynq over an injected
-// *redis.Client (WithClient is required; Redis is never closed here).
-//
-// Periodic tasks require the "default" queue. Register stores cron jobs
-// under mux kind scheduler.cron:<name>. Handle routes by exact task.Type(),
-// not mux prefix: user.email does not receive user.email.welcome.
-// Unregistered kinds error so asynq retries/archives. Mux entries are not
-// unmounted. Implements task.Task. Stop returning ctx.Err() does not mean
-// asynq is idle — wait for Stop/Close to return nil before closing Redis.
 package asynq
 
 import (
@@ -22,6 +13,7 @@ import (
 	"github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/scheduler"
 	sasynq "github.com/hibiken/asynq"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -51,7 +43,8 @@ type Config struct {
 
 // Scheduler is a scheduler.Scheduler backed by hibiken/asynq. It also
 // implements task.Task. WithClient is required; the Redis client is never
-// closed here.
+// closed here. Create it with NewScheduler; the zero value is not usable.
+// Methods are safe for concurrent use.
 type Scheduler struct {
 	conf    Config
 	client  *sasynq.Client
@@ -73,10 +66,15 @@ type Scheduler struct {
 	state    atomic.Int32
 	cancel   context.CancelFunc
 	stopDone <-chan struct{}
+	// stopPending records a Stop that arrived before Start; Start then returns
+	// nil without starting the runtime.
+	stopPending bool
 }
 
-// NewScheduler builds a Scheduler. WithClient is required. Queues must
-// include "default". The injected Redis client is not closed by Close.
+// NewScheduler builds a Scheduler after applying Config defaults. It returns
+// an error when WithClient was not supplied, when Queues does not include
+// "default", or when Timezone cannot be loaded. Nil options are ignored. It
+// does not contact Redis. The injected Redis client is not closed by Close.
 func NewScheduler(conf Config, opts ...Option) (*Scheduler, error) {
 	conf = applyDefaults(conf)
 	if _, ok := conf.Queues[defaultQueue]; !ok {
@@ -147,8 +145,31 @@ func newAsynqRuntime(cfg Config, applied options) (*sasynq.Client, *sasynq.Serve
 
 	return sasynq.NewClientFromRedisClient(applied.client),
 		sasynq.NewServerFromRedisClient(applied.client, serverCfg),
-		sasynq.NewSchedulerFromRedisClient(applied.client, schedulerOpts),
+		sasynq.NewScheduler(sharedRedisConnOpt{client: applied.client}, schedulerOpts),
 		nil
+}
+
+// sharedRedisConnOpt hands asynq's Scheduler a client it may close. asynq's
+// NewSchedulerFromRedisClient marks the connection shared and then, on every
+// Shutdown, still tries to close it and logs the refusal at error level.
+// Treating the connection as owned lets that Close succeed, while
+// sharedRedisClient keeps it from reaching the caller's client.
+type sharedRedisConnOpt struct {
+	client *redis.Client
+}
+
+func (o sharedRedisConnOpt) MakeRedisClient() any {
+	return sharedRedisClient{UniversalClient: o.client}
+}
+
+// sharedRedisClient is the injected client with Close disabled; the caller
+// owns the connection pool (see WithClient).
+type sharedRedisClient struct {
+	redis.UniversalClient
+}
+
+func (sharedRedisClient) Close() error {
+	return nil
 }
 
 // Identifier returns "scheduler/asynq".
@@ -157,9 +178,11 @@ func (s *Scheduler) Identifier() string {
 }
 
 // Register schedules a periodic job named name with cron spec. The job is
-// stored under mux kind scheduler.cron:<name>. Duplicate names, collisions
-// with Handle kinds, and Register after Start are errors. A nil handler is
-// rejected.
+// stored under mux kind scheduler.cron:<name> and enqueued on the "default"
+// queue with no retries. Duplicate names and collisions with Handle kinds
+// return scheduler.ErrDuplicateName; Register after Start returns
+// scheduler.ErrAfterStart and after Close scheduler.ErrClosed. A nil handler
+// or an invalid spec is rejected with an error.
 func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) error {
 	if handler == nil {
 		return fmt.Errorf("scheduler/asynq: nil handler")
@@ -198,6 +221,7 @@ func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) e
 
 // Unregister drops the periodic job named name. An unknown name is a no-op.
 // The ServeMux entry is left mounted; the kind is inert until registered again.
+// It returns scheduler.ErrClosed after Close or a completed Stop.
 func (s *Scheduler) Unregister(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -221,9 +245,12 @@ func (s *Scheduler) Unregister(name string) error {
 }
 
 // Handle binds handler to an exact task kind. asynq prefix matching is not
-// used: user.email does not receive user.email.welcome. Empty kind, duplicate
-// kind, and Handle after Start are errors. Unregistered kinds error at
-// dispatch so asynq retries or archives.
+// used: user.email does not receive user.email.welcome. A nil handler or
+// blank kind is an error; a duplicate kind (including a Register kind) returns
+// scheduler.ErrDuplicateName; Handle after Start returns
+// scheduler.ErrAfterStart and after Close scheduler.ErrClosed. Unregistered
+// kinds error at dispatch so asynq retries or archives. A handler panic is
+// recovered and reported to asynq as an error.
 func (s *Scheduler) Handle(kind string, handler scheduler.PayloadHandlerFunc) error {
 	if handler == nil {
 		return fmt.Errorf("scheduler/asynq: nil handler")
@@ -307,7 +334,12 @@ func (s *Scheduler) dispatch(ctx context.Context, task *sasynq.Task) error {
 }
 
 // Enqueue publishes a task of kind with payload and returns the asynq task
-// ID. Unique collisions are wrapped as scheduler.ErrDuplicateName.
+// ID. It may be called before Start and from processes that never Start; it
+// returns scheduler.ErrClosed after Close or a completed Stop. A WithUniqueFor
+// collision or a WithTaskID conflict matches scheduler.ErrDuplicateName via
+// errors.Is, and still matches asynq's own error (asynq.ErrDuplicateTask or
+// asynq.ErrTaskIDConflict respectively). WithDelay is rounded up to whole
+// seconds because asynq stores Unix-second timestamps.
 func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, opts ...scheduler.EnqueueOption) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -348,7 +380,7 @@ func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, op
 	}
 
 	info, err := s.client.EnqueueContext(ctx, sasynq.NewTask(kind, payload), asynqOpts...)
-	if errors.Is(err, sasynq.ErrDuplicateTask) {
+	if errors.Is(err, sasynq.ErrDuplicateTask) || errors.Is(err, sasynq.ErrTaskIDConflict) {
 		// %w twice keeps the sentinel and the underlying asynq cause matchable;
 		// the rendered message is unchanged from %v.
 		return "", fmt.Errorf("%w: %w", scheduler.ErrDuplicateName, err)
@@ -364,7 +396,10 @@ func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, op
 
 // Start starts the asynq server and cron scheduler, then blocks until ctx is
 // cancelled. The return is ctx.Err(); it does not mean asynq has drained.
-// Cancelling ctx without Stop leaves the runtime live — call Stop or Close.
+// Start after a Stop that came first returns nil without starting the runtime;
+// a second Start returns scheduler.ErrAfterStart and Start after Close
+// scheduler.ErrClosed. Cancelling ctx without Stop leaves the runtime live —
+// call Stop or Close.
 func (s *Scheduler) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -379,7 +414,11 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Lock()
 	if !s.state.CompareAndSwap(stateInit, stateRunning) {
 		state := s.state.Load()
+		stopPending := s.stopPending
 		s.mu.Unlock()
+		if stopPending {
+			return nil
+		}
 		if state == stateClosed {
 			return scheduler.ErrClosed
 		}
@@ -423,7 +462,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 // WithClient), callers must not close that client until a Stop returns nil or
 // Close returns: asynq's subscriber goroutine is still using it, and closing it
 // underneath asynq panics inside the library. Retrying Stop with a longer budget
-// waits on the same shutdown.
+// waits on the same shutdown. Stop before Start returns nil and closes the
+// scheduler, so a later or racing Start returns nil without starting the
+// runtime (as with task.Group).
 func (s *Scheduler) Stop(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -434,7 +475,16 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	// all observe and wait on the same underlying shutdown signal.
 	s.mu.Lock()
 	switch s.state.Load() {
-	case stateInit, stateClosed:
+	case stateInit:
+		// Nothing is running yet. Record the request under the same lock Start
+		// uses for its transition so that a later (or racing) Start returns
+		// without bringing the runtime up, as task.Group does. Dropping it left
+		// a runtime that nobody would stop.
+		s.state.Store(stateClosed)
+		s.stopPending = true
+		s.mu.Unlock()
+		return nil
+	case stateClosed:
 		s.mu.Unlock()
 		return nil
 	case stateRunning:
@@ -472,8 +522,7 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 
 // Close shuts the scheduler down, waiting for an in-flight drain to finish. The
 // Redis client is injected and not owned (see WithClient), so it is deliberately
-// left open for its owner to close; asynq refuses to close a shared connection
-// anyway.
+// left open for its owner to close.
 func (s *Scheduler) Close() error {
 	// The state is read and written under the same mutex Start uses for its own
 	// transition. Reading it unlocked let a Close that observed stateInit race a

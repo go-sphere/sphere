@@ -7,7 +7,9 @@ import (
 	"github.com/go-sphere/sphere/core/safe"
 )
 
-// RecoverHandler wraps a HandlerFunc and converts panics into errors.
+// RecoverHandler wraps a HandlerFunc and converts panics into errors. The
+// panic and its stack are logged through core/safe; an error panic value is
+// wrapped with %w so errors.Is and errors.As still match it.
 func RecoverHandler(handler HandlerFunc) HandlerFunc {
 	return func(ctx context.Context) (err error) {
 		defer safe.Recover(func(v any) {
@@ -17,7 +19,8 @@ func RecoverHandler(handler HandlerFunc) HandlerFunc {
 	}
 }
 
-// RecoverPayloadHandler wraps a PayloadHandlerFunc and converts panics into errors.
+// RecoverPayloadHandler wraps a PayloadHandlerFunc and converts panics into
+// errors, with the same logging and wrapping as RecoverHandler.
 func RecoverPayloadHandler(handler PayloadHandlerFunc) PayloadHandlerFunc {
 	return func(ctx context.Context, payload []byte) (err error) {
 		defer safe.Recover(func(v any) {

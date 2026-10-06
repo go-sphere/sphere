@@ -1,15 +1,3 @@
-// Package cron is a scheduler.Cron on robfig/cron/v3. It is not a full
-// scheduler.Scheduler: there is no Enqueue/Handle.
-//
-// Implements task.Task. Start blocks until cancel; Stop drains jobs without
-// cancelling in-flight handler ctx until drain completes. Handler ctx is
-// detached from Start's ctx, so a runner that cancels the parent context before
-// calling Stop (task.Group does) still gets a real drain rather than an
-// immediate cancellation. Cancelling Start's ctx without Stop leaves the
-// runtime live. Optional seconds field and
-// timezone. Chain: SkipIfStillRunning + Recover. Duplicate Register returns
-// scheduler.ErrDuplicateName; Register after Start returns ErrAfterStart;
-// unknown Unregister is a no-op.
 package cron
 
 import (
@@ -32,14 +20,21 @@ const (
 )
 
 // Config selects an optional seconds field in cron specs and a timezone
-// location. Empty Timezone uses the process local zone.
+// location. The zero value uses standard five-field specs in the process
+// local zone.
 type Config struct {
-	Seconds  bool   `json:"seconds" yaml:"seconds"`
+	// Seconds requires a leading seconds field in every spec
+	// ("0 */5 * * * *" instead of "*/5 * * * *").
+	Seconds bool `json:"seconds" yaml:"seconds"`
+	// Timezone is an IANA location name such as "UTC" or "Asia/Shanghai".
+	// Empty uses time.Local.
 	Timezone string `json:"timezone" yaml:"timezone"`
 }
 
 // Scheduler is a scheduler.Cron on robfig/cron/v3. It is not a
 // scheduler.Scheduler: there is no Enqueue or Handle. It implements task.Task.
+// Create it with NewScheduler; the zero value is not usable. Methods are safe
+// for concurrent use.
 type Scheduler struct {
 	cron    *rcron.Cron
 	entries map[string]rcron.EntryID
@@ -50,10 +45,14 @@ type Scheduler struct {
 	cancel        context.CancelFunc
 	handlerCancel context.CancelFunc
 	stopDone      <-chan struct{}
+	// stopPending records a Stop that arrived before Start; Start then returns
+	// nil without starting the cron.
+	stopPending bool
 }
 
 // NewScheduler builds a Cron scheduler. Jobs run with SkipIfStillRunning and
-// Recover. conf.Seconds enables a seconds field in cron specs.
+// Recover. conf.Seconds enables a seconds field in cron specs. It returns an
+// error only when conf.Timezone cannot be loaded. Nil options are ignored.
 func NewScheduler(conf Config, opts ...Option) (*Scheduler, error) {
 	applied := options{logger: cronLogger{}}
 	for _, opt := range opts {
@@ -92,7 +91,10 @@ func (s *Scheduler) Identifier() string {
 
 // Register adds a periodic job named name with cron spec. Duplicate names
 // return scheduler.ErrDuplicateName. Register after Start returns
-// ErrAfterStart. A nil handler is rejected.
+// scheduler.ErrAfterStart and after Close returns scheduler.ErrClosed. A nil
+// handler or an invalid spec is rejected with an error. The handler receives a
+// context that stays live until Stop has drained running jobs; a returned
+// error or panic is logged and does not unschedule the job.
 func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) error {
 	if handler == nil {
 		return fmt.Errorf("scheduler/cron: nil handler")
@@ -126,7 +128,8 @@ func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) e
 	return nil
 }
 
-// Unregister removes the job named name. An unknown name is a no-op.
+// Unregister removes the job named name. An unknown name is a no-op. It
+// returns scheduler.ErrClosed after Close or a completed Stop.
 func (s *Scheduler) Unregister(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -143,6 +146,12 @@ func (s *Scheduler) Unregister(name string) error {
 	return nil
 }
 
+// Start starts the cron and blocks until ctx is cancelled or Stop has
+// drained running jobs, returning context.Canceled in the latter case and
+// ctx.Err() in the former. A second Start returns scheduler.ErrAfterStart and
+// Start after Close returns scheduler.ErrClosed. Start after a Stop that came
+// first returns nil without starting the cron. Cancelling ctx without Stop
+// leaves the cron running; the owner must call Stop or Close.
 func (s *Scheduler) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -154,7 +163,11 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Lock()
 	if !s.state.CompareAndSwap(stateInit, stateRunning) {
 		state := s.state.Load()
+		stopPending := s.stopPending
 		s.mu.Unlock()
+		if stopPending {
+			return nil
+		}
 		if state == stateClosed {
 			return scheduler.ErrClosed
 		}
@@ -184,6 +197,13 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	return runCtx.Err()
 }
 
+// Stop stops scheduling new runs and waits for in-flight jobs to return or
+// ctx to expire. Handler contexts are cancelled only after the drain
+// completes. If ctx expires first Stop returns ctx.Err() and the drain
+// continues in the background; a later Stop waits on the same drain. Stop
+// before Start returns nil and closes the scheduler, so a later or racing
+// Start returns nil without starting the cron (as with task.Group). Stop after
+// the scheduler is closed returns nil.
 func (s *Scheduler) Stop(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -194,7 +214,16 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	// all observe and wait on the same underlying shutdown signal.
 	s.mu.Lock()
 	switch s.state.Load() {
-	case stateInit, stateClosed:
+	case stateInit:
+		// Nothing is running yet. Record the request under the same lock Start
+		// uses for its transition so that a later (or racing) Start returns
+		// without bringing the runtime up, as task.Group does. Dropping it left
+		// a runtime that nobody would stop.
+		s.state.Store(stateClosed)
+		s.stopPending = true
+		s.mu.Unlock()
+		return nil
+	case stateClosed:
 		s.mu.Unlock()
 		return nil
 	case stateRunning:
@@ -258,6 +287,9 @@ func (s *Scheduler) cancelRun() {
 	}
 }
 
+// Close closes a scheduler that was never started, or calls Stop with an
+// unbounded context when it is running. A second Close (or Close after a
+// completed Stop) returns scheduler.ErrClosed.
 func (s *Scheduler) Close() error {
 	// The state is read and written under the same mutex Start uses for its own
 	// transition. Reading it unlocked let a Close that observed stateInit race a

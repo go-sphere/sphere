@@ -1,25 +1,3 @@
-// Package scheduler is the contract for periodic jobs and asynchronous task
-// queues. Drivers expose only the capabilities they support.
-//
-//   - Cron: Register/Unregister periodic jobs by name and cron spec.
-//   - Producer: Enqueue named payloads.
-//   - Consumer: Handle payloads by exact kind.
-//   - Scheduler: Cron + Producer + Consumer + io.Closer.
-//
-// Drivers: scheduler/cron wraps robfig/cron (Cron only). scheduler/asynq
-// wraps hibiken/asynq (full Scheduler). Both also implement task.Task, so
-// they belong in a boot.Run builder. Start blocks until Stop; cancelling
-// Start's context without Stop leaves the runtime live.
-//
-// Neither driver coordinates periodic jobs across processes. N replicas run
-// each periodic job N times per tick. Run the scheduler as a single replica,
-// or make handlers idempotent. Enqueue/Handle have no such restriction: the
-// queue delivers each task to one consumer.
-//
-// Handlers are routed by exact kind, not prefix. A kind with no handler is
-// a failure so asynq can retry/archive. Register after Start returns
-// ErrAfterStart. Duplicate names return ErrDuplicateName. Unknown
-// Unregister is a no-op.
 package scheduler
 
 import (

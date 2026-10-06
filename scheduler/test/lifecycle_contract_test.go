@@ -111,3 +111,62 @@ func TestSchedulerTightShutdownTimeoutAndRecovery(t *testing.T) {
 		})
 	}
 }
+
+// TestSchedulerStopBeforeStartIsHonoured pins that a Stop arriving before Start
+// is recorded rather than dropped, matching task.Group: the later Start returns
+// nil promptly without bringing up a runtime, and the scheduler is closed.
+func TestSchedulerStopBeforeStartIsHonoured(t *testing.T) {
+	for _, factory := range cronFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			s := factory.new(t)
+			if err := s.Stop(context.Background()); err != nil {
+				t.Fatalf("stop before start: %v", err)
+			}
+
+			startDone := make(chan error, 1)
+			go func() {
+				startDone <- s.Start(context.Background())
+			}()
+			select {
+			case err := <-startDone:
+				if err != nil {
+					t.Fatalf("start after stop = %v, want nil", err)
+				}
+			case <-time.After(2 * time.Second):
+				_ = s.Close()
+				t.Fatal("start after stop stayed blocked: the early Stop was dropped")
+			}
+			if err := s.Register("late", "@every 1s", func(context.Context) error { return nil }); !errors.Is(err, scheduler.ErrClosed) {
+				t.Fatalf("register after stop error = %v, want %v", err, scheduler.ErrClosed)
+			}
+		})
+	}
+}
+
+// TestSchedulerStopRacingStartIsHonoured runs Start and Stop concurrently with
+// no ordering. Whichever wins, Start must return once Stop has returned.
+func TestSchedulerStopRacingStartIsHonoured(t *testing.T) {
+	for _, factory := range cronFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			for range 10 {
+				s := factory.new(t)
+				startDone := make(chan error, 1)
+				go func() {
+					startDone <- s.Start(context.Background())
+				}()
+				if err := s.Stop(context.Background()); err != nil {
+					t.Fatalf("stop: %v", err)
+				}
+				select {
+				case err := <-startDone:
+					if err != nil && !errors.Is(err, context.Canceled) {
+						t.Fatalf("start = %v, want nil or context.Canceled", err)
+					}
+				case <-time.After(2 * time.Second):
+					_ = s.Close()
+					t.Fatal("start stayed blocked after a concurrent Stop returned")
+				}
+			}
+		})
+	}
+}
