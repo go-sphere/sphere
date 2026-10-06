@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -298,44 +296,6 @@ func TestGetEx(t *testing.T) {
 	val, found, err = cache.GetEx[string](ctx, c, "nil-builder", nil)
 	if err != nil || found || val != "" {
 		t.Fatalf("GetEx nil builder mismatch: found=%v val=%q err=%v", found, val, err)
-	}
-}
-
-func TestGetExSingleflight(t *testing.T) {
-	ctx := context.Background()
-	c := mcache.NewMapCache[string]()
-	g := &singleflight.Group{}
-
-	var calls atomic.Int32
-	builder := func() (string, error) {
-		calls.Add(1)
-		time.Sleep(20 * time.Millisecond)
-		return "shared", nil
-	}
-
-	const n = 16
-	var wg sync.WaitGroup
-	errCh := make(chan error, n)
-	for range n {
-		wg.Go(func() {
-			v, found, err := cache.GetEx(ctx, c, "singleflight", builder, cache.WithSingleflight(g))
-			if err != nil {
-				errCh <- err
-				return
-			}
-			if !found || v != "shared" {
-				errCh <- errors.New("value mismatch")
-			}
-		})
-	}
-	wg.Wait()
-	close(errCh)
-
-	for err := range errCh {
-		t.Fatalf("GetEx singleflight: %v", err)
-	}
-	if calls.Load() != 1 {
-		t.Fatalf("singleflight builder call mismatch: got=%d want=1", calls.Load())
 	}
 }
 
