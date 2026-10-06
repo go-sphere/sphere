@@ -73,10 +73,12 @@ func parseWorkerID(raw string) (uint16, error) {
 	return uint16(workerID), nil
 }
 
-// ErrAlreadyInitialized is returned by Init and InitFromEnv when the global
-// generator has already been built, by an earlier Init/InitFromEnv or lazily by
-// NextId. The worker ID of a running generator cannot change: IDs it already
-// issued would no longer be guaranteed unique against the new one.
+// ErrAlreadyInitialized is returned by Init and InitFromEnv when the one-time
+// initialization of the global generator already ran — by an earlier
+// Init/InitFromEnv or lazily by NextId — whether or not it succeeded. The
+// worker ID of a running generator cannot change: IDs it already issued would
+// no longer be guaranteed unique against the new one; and a failed attempt is
+// not retried, so NextId keeps reporting the original error.
 var ErrAlreadyInitialized = errors.New("idgenerator: global generator already initialized")
 
 var (

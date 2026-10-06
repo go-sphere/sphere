@@ -293,3 +293,35 @@ func TestInvalidWorkerID(t *testing.T) {
 		}
 	})
 }
+
+// TestInitRacesLazyNextId checks that an explicit Init racing the first NextId
+// builds exactly one generator: either Init wins and every ID carries its
+// worker ID, or NextId wins, Init reports ErrAlreadyInitialized and every ID
+// carries WORKER_ID's.
+func TestInitRacesLazyNextId(t *testing.T) {
+	resetGlobal(t)
+	t.Setenv("WORKER_ID", "5")
+
+	var (
+		wg      sync.WaitGroup
+		initErr error
+		workers [8]int64
+	)
+	wg.Go(func() { initErr = Init(7) })
+	for i := range workers {
+		wg.Go(func() { workers[i] = workerOf(NextId()) })
+	}
+	wg.Wait()
+
+	want := int64(7)
+	if errors.Is(initErr, ErrAlreadyInitialized) {
+		want = 5
+	} else if initErr != nil {
+		t.Fatalf("Init(7) = %v", initErr)
+	}
+	for i, got := range workers {
+		if got != want {
+			t.Fatalf("NextId #%d worker = %d, want %d (Init returned %v)", i, got, want, initErr)
+		}
+	}
+}

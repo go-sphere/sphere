@@ -180,9 +180,9 @@ built exactly once, by whichever comes first:
 - the first `NextId()` — reads `WORKER_ID` lazily. A malformed value panics
   there, and on every later call, never falling back to some worker ID.
 
-Calling `Init`/`InitFromEnv` after the generator exists — including after a
-`NextId` already built it lazily — returns `idgenerator.ErrAlreadyInitialized`
-and leaves the running generator unchanged. Generated IDs are unchanged for the
+Calling `Init`/`InitFromEnv` once initialization has run — including a lazy
+`NextId`, and including an attempt that failed — returns
+`idgenerator.ErrAlreadyInitialized` and leaves the outcome unchanged. Generated IDs are unchanged for the
 same worker ID: the epoch and bit layout are the same.
 
 What moves is *when* a bad `WORKER_ID` fails. It used to fail at process start;
