@@ -1,8 +1,8 @@
 // Package boot runs a task.Task as a process: OS signals, lifecycle hooks,
 // and a shutdown deadline.
 //
-// Importing this package sets time.Local and TZ to Asia/Shanghai in init.
-// Call InitTimezone again before Run to override.
+// Importing this package has no side effects. The process timezone is the
+// host's unless main calls InitTimezone, e.g. InitTimezone(DefaultTimezone).
 //
 // Lifecycle is split on purpose. task.Group starts and stops members; Run
 // decides when to ask the application to stop (signal or task exit) and runs

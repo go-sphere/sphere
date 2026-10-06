@@ -113,4 +113,4 @@ Tests are co-located with source as `_test.go` files. Cross-driver contract test
 - Constructors are `New<Type>`; context is always the first parameter on context-aware funcs.
 - Imports are managed by `goimports` via `make fmt` — do not hand-order them.
 - Commit subjects follow `<type>: <imperative summary>` (`feat`, `fix`, `refactor`, `chore`, …) and stay under ~70 chars. PRs should include the `go test ./...` evidence and call out which top-level packages were touched.
-- Timezone defaults to `Asia/Shanghai` via `boot.InitTimezone` in `core/boot/init.go`'s package init; override by calling `InitTimezone` again before `Run`.
+- `core/boot` has no package init side effects: the process timezone is the host's unless `main` calls `boot.InitTimezone` (templates call `boot.InitTimezone(boot.DefaultTimezone)`, i.e. `Asia/Shanghai`, first thing in `main`).

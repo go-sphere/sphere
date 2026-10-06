@@ -30,9 +30,11 @@ const maxWorkerID uint64 = 63
 // earliest instant that is 2024-01-01 anywhere on Earth (UTC+14).
 //
 // It is deliberately not time.Date(2024, 1, 1, 0, 0, 0, 0, time.Local). Which
-// zone that evaluates in is decided by import order — boot.InitTimezone assigns
-// time.Local from another package's init — and by whether the image ships
-// tzdata, so one instant maps to ticks up to 26 hours apart across processes.
+// zone that evaluates in is decided by the host's TZ, by whether the image ships
+// tzdata, and by whether main has called boot.InitTimezone by the time it is
+// evaluated (before v0.0.7 boot also assigned time.Local from its own package
+// init, so import order decided it too), so one instant maps to ticks up to 26
+// hours apart across processes.
 // Two processes (or one process across a restart) running the same WORKER_ID
 // then issue the same (tick, worker, sequence) triple twice, which is the one
 // thing this package promises not to do.

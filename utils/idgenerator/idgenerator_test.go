@@ -10,8 +10,9 @@ import (
 // the property that makes changing it safe.
 //
 // BaseTime used to be time.Date(2024, 1, 1, 0, 0, 0, 0, time.Local), so the tick
-// a process counted from depended on import order (boot.InitTimezone assigns
-// time.Local from another package's init) and on whether the image ships tzdata:
+// a process counted from depended on the zone time.Local held when the epoch was
+// evaluated (boot used to assign it from its package init; main may still call
+// boot.InitTimezone) and on whether the image ships tzdata:
 // the same instant became ticks hours apart, and a restart under a different
 // zone re-issued tick ranges the same worker ID had already used. Re-deriving
 // the value from a zone would therefore fail here on any machine not running in

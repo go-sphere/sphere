@@ -123,6 +123,46 @@ per forged header — but behind a real reverse proxy, and without
 one bucket. Configure the trusted proxies, or key the limiter on something the
 caller cannot forge.
 
+## The v0.0.7 breaking release
+
+Measured from v0.0.6. These remove process-global side effects from package
+init and stop the storage layer from carrying HTTP semantics. Several are
+silent: the code compiles unchanged and the difference shows up at runtime.
+Signature removals are in `api-incompatibilities.txt`; the upgrade steps are
+summarized in `CHANGELOG.md`.
+
+### Importing `core/boot` no longer sets the timezone
+
+`core/boot` used to run `InitTimezone(DefaultTimezone)` from its package init,
+so every binary that linked it — directly or through any package that imports
+boot — had `time.Local` set to `Asia/Shanghai` and `TZ=Asia/Shanghai` exported
+before `main` ran, whatever the host was configured with. The init is gone.
+`InitTimezone` and `DefaultTimezone` are unchanged and still exported, but
+nothing calls them for you: without an explicit call the process runs in the
+host's zone (`TZ`, or `/etc/localtime`; UTC in most container images).
+
+This is silent. Anything that formats or interprets wall-clock time through
+`time.Local` shifts — log timestamps, `time.Now().Format(...)`, date
+truncation, `cron`/`asynq` schedulers whose `Timezone` is empty (they use the
+process local zone), and database drivers configured with `loc=Local`. To keep
+the old behaviour, call it first thing in `main`, before anything else reads
+`time.Local`:
+
+```go
+func main() {
+	if err := boot.InitTimezone(boot.DefaultTimezone); err != nil {
+		// tzdata-less image: embed time/tzdata or keep the host default.
+		fmt.Fprintf(os.Stderr, "cannot load timezone %s: %v\n", boot.DefaultTimezone, err)
+	}
+	// ...
+}
+```
+
+The old init printed `boot: cannot load timezone ...` to stderr when the lookup
+failed; that message is gone with it — the error is now returned to the caller.
+`idgenerator`'s epoch is a fixed instant and never read `time.Local`, so
+generated IDs are unaffected.
+
 ## Read this first — silent changes
 
 These compile cleanly, raise no error at runtime, and change what ends up
