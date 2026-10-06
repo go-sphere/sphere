@@ -62,6 +62,7 @@ type Server struct {
 	mu      sync.Mutex
 	objects map[string]Object
 	now     func() time.Time
+	ioHook  func(*http.Request)
 }
 
 var (
@@ -117,6 +118,14 @@ func (s *Server) Put(key string, data []byte, mimeType string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.objects[key] = Object{Data: bytes.Clone(data), MIME: mimeType, PutTime: s.now().UnixNano() / 100}
+}
+
+// SetIOHook installs fn to run before every download (io) request is served,
+// e.g. to replace an object between the SDK's HEAD and its ranged GET.
+func (s *Server) SetIOHook(fn func(*http.Request)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ioHook = fn
 }
 
 // UploadURL is the form-upload endpoint, for posting a client-side upload
@@ -386,6 +395,12 @@ func (s *Server) serveUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveIO(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	hook := s.ioHook
+	s.mu.Unlock()
+	if hook != nil {
+		hook(r)
+	}
 	key, err := url.PathUnescape(strings.TrimPrefix(r.URL.EscapedPath(), "/"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "bad path")

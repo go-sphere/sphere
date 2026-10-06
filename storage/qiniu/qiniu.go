@@ -7,7 +7,8 @@
 // PutPolicy.Expires is relative seconds (sub-second rounded up to 1).
 // Delete of miss is idempotent. Download Size comes from the length the
 // SDK read off its own HEAD, falling back to Stat only when that length is
-// unknown or the stored content type is empty.
+// unknown or the stored content type is empty; a body that ends short of
+// that Size reads as io.ErrUnexpectedEOF.
 //
 // Stat, IsFileExists, DeleteFile, MoveFile and CopyFile ignore the context
 // they are given: the SDK's BucketManager methods for these hardcode
@@ -322,10 +323,30 @@ func (n *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 		}
 	}
 	return storage.DownloadResult{
-		Reader: object.Body,
+		Reader: &sizeCheckedReader{ReadCloser: object.Body, key: key, remaining: size},
 		MIME:   mime,
 		Size:   size,
 	}, nil
+}
+
+// sizeCheckedReader turns a body that ends before the reported size into
+// io.ErrUnexpectedEOF. The SDK streams downloads through a pipe that it closes
+// with a nil error before reporting a failure (ETag mismatch, a failed ranged
+// GET), so without this check a broken download reads as a short body
+// followed by a clean EOF.
+type sizeCheckedReader struct {
+	io.ReadCloser
+	key       string
+	remaining int64
+}
+
+func (r *sizeCheckedReader) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	r.remaining -= int64(n)
+	if errors.Is(err, io.EOF) && r.remaining > 0 {
+		return n, fmt.Errorf("qiniu: download of %q ended %d bytes short: %w", r.key, r.remaining, io.ErrUnexpectedEOF)
+	}
+	return n, err
 }
 
 // DeleteFile removes a file from the Qiniu Cloud Object Storage bucket.

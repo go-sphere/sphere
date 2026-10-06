@@ -361,3 +361,28 @@ func TestClientMoveToSameKey(t *testing.T) {
 		}
 	}
 }
+
+// TestClientDownloadReportsTruncation pins that a download failing after its
+// headers surfaces as a read error. The SDK closes its pipe with a nil error
+// before reporting the real one, so without a length check the caller saw a
+// clean EOF on a short (here: empty) body. Replacing the object between the
+// SDK's HEAD and its GET makes the GET fail with an ETag mismatch.
+func TestClientDownloadReportsTruncation(t *testing.T) {
+	client, fake := newFakeClient(t, Config{})
+	fake.Put("doc.txt", []byte("0123456789"), "text/plain")
+	fake.SetIOHook(func(r *http.Request) {
+		if r.Method == http.MethodGet {
+			fake.Put("doc.txt", []byte("abcdefghij"), "text/plain")
+		}
+	})
+
+	result, err := client.DownloadFile(t.Context(), "doc.txt")
+	if err != nil {
+		t.Fatalf("DownloadFile() error = %v", err)
+	}
+	defer func() { _ = result.Reader.Close() }()
+	body, err := io.ReadAll(result.Reader)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("ReadAll() = %q, %v; want io.ErrUnexpectedEOF for a body short of Size %d", body, err, result.Size)
+	}
+}
