@@ -73,7 +73,7 @@ This is the `github.com/go-sphere/sphere` Go module — a library-only collectio
 - `make test` — run the full test suite.
 - `make check` — the standard green gate: verify dependencies, lint, and test.
 - `make verify` — run `make check` plus race-enabled tests.
-- `make cover` — coverage with `-coverpkg`, writing `coverage.out` and a `go tool cover -func` summary. Driver behavior is mostly tested by the shared contract suites in `cache/test`, `mq/test`, `scheduler/test` and `storage/test`, which are separate packages, so plain `go test -cover` reports drivers such as `scheduler/cron` or `mq/redis` at 0%. That in-package 0% only means no tests live next to the driver; use `make cover` for the real figure. Informational only, not a CI gate.
+- `make cover` — coverage via `-coverpkg`, so drivers exercised only by the `<pkg>/test` contract suites are credited (plain `go test -cover` shows them at 0%). Writes `coverage.out`; informational, not a CI gate.
 - `TAG=v0.0.1 make add-tags` / `make del-tags` — release tag management (signed tags pushed to origin).
 
 `nilaway` is part of the lint gate; new code must keep nil-handling explicit or it will fail there.
