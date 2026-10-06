@@ -65,6 +65,11 @@ func WithNeverExpire() Option {
 
 // WithSingleflight enables singleflight to prevent duplicate concurrent cache loads for the same key.
 // This helps reduce redundant work when multiple goroutines request the same uncached data simultaneously.
+//
+// Calls are deduplicated by cache key alone, so a group must not be shared
+// between loads of different value types (the merged result is asserted to T
+// and panics on mismatch) or between different caches (a value built for one
+// cache would be returned for the other). Use one group per cache and type.
 func WithSingleflight(single *singleflight.Group) Option {
 	return func(o *options) {
 		o.singleflight = single
