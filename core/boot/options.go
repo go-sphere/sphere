@@ -12,7 +12,6 @@ import (
 
 	"github.com/go-sphere/sphere/core/safe"
 	"github.com/go-sphere/sphere/log"
-	"github.com/go-sphere/sphere/log/zapx"
 )
 
 // afterStopFallbackTimeout is used when Stop consumed the whole shutdown
@@ -139,17 +138,6 @@ func WithLoggerBackend(backend log.Backend) Option {
 		o.afterBuildFail = append(o.afterBuildFail, syncHook)
 		o.afterStop = append(o.afterStop, syncHook)
 	}
-}
-
-// WithLoggerInit configures the legacy zap logger integration. The version is
-// attached to every log entry as a fixed "version" attribute.
-//
-// Deprecated: use WithLoggerBackend with an explicitly constructed backend.
-func WithLoggerInit(version string, conf zapx.Config) Option {
-	return WithLoggerBackend(zapx.NewBackend(
-		conf,
-		log.WithAttrs(map[string]any{"version": version}),
-	))
 }
 
 func runHooks(ctx context.Context, hooks []Hook, hookType string) error {

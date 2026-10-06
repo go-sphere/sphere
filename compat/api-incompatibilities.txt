@@ -84,3 +84,9 @@
 # names were the backwards-compatible aliases and alternate spellings dropped by
 # "chore: Remove deprecated storageerr aliases" in favour of ErrNotFound,
 # ErrDestExists and ErrFileNameInvalid; callers should use those.
+- ./core/boot.WithLoggerInit: removed
+# Semantic note: WithLoggerInit was the Deprecated zap-specific shortcut; it was the only reason
+# core/boot imported log/zapx (and through it zap and lumberjack). Replace
+# boot.WithLoggerInit(version, conf) with
+# boot.WithLoggerBackend(zapx.NewBackend(conf, log.WithAttrs(map[string]any{"version": version}))),
+# which is exactly what it did. No caller existed in the go-sphere organization at removal (v0.0.7).

@@ -2,15 +2,11 @@ package boot
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 
 	"github.com/go-sphere/sphere/log"
-	"github.com/go-sphere/sphere/log/zapx"
 )
 
 type syncTrackingBackend struct {
@@ -26,43 +22,6 @@ func (b *syncTrackingBackend) Sync() error {
 
 func (b *syncTrackingBackend) With(...log.Option) log.Backend {
 	return b
-}
-
-func TestWithLoggerInitAddsVersionAttribute(t *testing.T) {
-	originalBackend := log.With().Backend()
-	cleanedUp := false
-	logFile := filepath.Join(t.TempDir(), "app.log")
-	conf := zapx.NewDefaultConfig()
-	conf.Console.Disable = true
-	conf.File.FileName = logFile
-
-	opts := newOptions(WithLoggerInit("v1.2.3", conf))
-	t.Cleanup(func() {
-		if !cleanedUp {
-			_ = runHooks(context.Background(), opts.afterStop, "afterStop")
-		}
-		log.InitWithBackends(originalBackend)
-	})
-	if err := runHooks(context.Background(), opts.beforeBuild, "beforeBuild"); err != nil {
-		t.Fatalf("run before-build hooks: %v", err)
-	}
-	log.Info("versioned log entry")
-	if err := runHooks(context.Background(), opts.afterStop, "afterStop"); err != nil {
-		t.Fatalf("run after-stop hooks: %v", err)
-	}
-	cleanedUp = true
-
-	raw, err := os.ReadFile(logFile)
-	if err != nil {
-		t.Fatalf("read log file: %v", err)
-	}
-	var entry map[string]any
-	if err := json.Unmarshal(raw, &entry); err != nil {
-		t.Fatalf("decode log entry %q: %v", raw, err)
-	}
-	if got := entry["version"]; got != "v1.2.3" {
-		t.Fatalf("version attribute = %v, want v1.2.3", got)
-	}
 }
 
 func TestWithLoggerBackendIsInstalledBeforeBuilder(t *testing.T) {
