@@ -8,8 +8,10 @@
 // is process-global (qiniuStorage.SetUcHosts). A single shared uc server is
 // therefore started on first use and routes each query to the fake registered
 // for the access key in it; every fake gets a unique random access key, so
-// fakes can be used from parallel tests and never collide with the SDK's
-// on-disk region cache.
+// fakes can be used from parallel tests and never collide in the SDK's
+// in-memory region cache. The same first use also turns off the SDK's other
+// process-global side effects: usage logging (buffered under $TMPDIR and
+// uploaded to Qiniu) and the region cache it persists under $TMPDIR.
 //
 // Emulated semantics (per the Kodo API documentation): rs errors use Qiniu's
 // own status codes (612 missing key, 614 destination exists); downloads of a
@@ -32,7 +34,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,6 +45,7 @@ import (
 	"time"
 
 	qiniuStorage "github.com/qiniu/go-sdk/v7/storage"
+	"github.com/qiniu/go-sdk/v7/storagev2/uplog"
 )
 
 // Object is a stored object as seen by the fake.
@@ -72,6 +77,10 @@ var (
 	// ucServer is shared by every fake in the process because the SDK reads the
 	// uc host list from a package-level variable.
 	ucServer = sync.OnceValue(func() *httptest.Server {
+		uplog.DisableUplog()
+		// The SDK silently skips persistence when it cannot create the
+		// cache directory, which a path under the null device guarantees.
+		qiniuStorage.SetRegionCachePath(filepath.Join(os.DevNull, "region.cache.json"))
 		srv := httptest.NewServer(http.HandlerFunc(serveUC))
 		qiniuStorage.SetUcHosts(srv.URL)
 		return srv
