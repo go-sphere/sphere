@@ -163,6 +163,44 @@ failed; that message is gone with it — the error is now returned to the caller
 `idgenerator`'s epoch is a fixed instant and never read `time.Local`, so
 generated IDs are unaffected.
 
+### `idgenerator` builds its global generator on first use
+
+The package init used to read `WORKER_ID`, panic on a malformed or out-of-range
+value, and register a process-global generator in yitter's package
+(`idgen.SetIdGenerator`). Any binary that linked the package — whether or not it
+ever generated an ID — therefore crashed at startup on a bad `WORKER_ID`.
+
+Importing the package now does nothing. The global generator behind `NextId` is
+built exactly once, by whichever comes first:
+
+- `idgenerator.InitFromEnv()` — reads `WORKER_ID` with the same rules as before
+  (unset means 1, `[0, 63]`, anything else is an error) and **returns** the
+  error instead of panicking;
+- `idgenerator.Init(workerID)` — uses an explicit worker ID in `[0, 63]`;
+- the first `NextId()` — reads `WORKER_ID` lazily. A malformed value panics
+  there, and on every later call, never falling back to some worker ID.
+
+Calling `Init`/`InitFromEnv` after the generator exists — including after a
+`NextId` already built it lazily — returns `idgenerator.ErrAlreadyInitialized`
+and leaves the running generator unchanged. Generated IDs are unchanged for the
+same worker ID: the epoch and bit layout are the same.
+
+What moves is *when* a bad `WORKER_ID` fails. It used to fail at process start;
+without an explicit call it now fails at the first insert that needs an ID —
+typically an ent `DefaultFunc(idgenerator.NextId)` — as a panic on a request
+path. To keep failing at boot, call `InitFromEnv` early in `main` and exit on
+its error:
+
+```go
+if err := idgenerator.InitFromEnv(); err != nil {
+	log.Fatalf("idgenerator: %v", err)
+}
+```
+
+The package also stopped writing yitter's own global, so code calling
+`github.com/yitter/idgenerator-go/idgen.NextId` directly no longer gets the
+generator sphere configured (no caller exists in the go-sphere organization).
+
 ## Read this first — silent changes
 
 These compile cleanly, raise no error at runtime, and change what ends up
@@ -516,7 +554,9 @@ standard StatefulSet pattern of deriving the value from a pod ordinal, pod-0 and
 pod-1 shared a worker ID and emitted colliding snowflake IDs. Zero is now valid
 (the generator's range is `[0, 63]`), and a malformed or out-of-range value
 panics during package init instead of silently falling back — guessing an ID
-cannot preserve the uniqueness this package exists to provide.
+cannot preserve the uniqueness this package exists to provide. (From v0.0.7 the
+panic moves to the first `NextId`, or becomes an error from `InitFromEnv`; see
+"`idgenerator` builds its global generator on first use".)
 
 ### ID generation counts from a fixed epoch
 

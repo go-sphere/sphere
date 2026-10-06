@@ -1,6 +1,9 @@
 package idgenerator
 
 import (
+	"errors"
+	"os"
+	"os/exec"
 	"sync"
 	"testing"
 	"time"
@@ -152,4 +155,141 @@ func TestConcurrentIDGeneration(t *testing.T) {
 	if len(seen) != totalExpected {
 		t.Fatalf("Total unique IDs = %d, expected %d", len(seen), totalExpected)
 	}
+}
+
+// resetGlobal forgets the process-global generator so a test can exercise its
+// one-time initialization. Tests that call it must not run in parallel.
+func resetGlobal(t *testing.T) {
+	t.Helper()
+	reset := func() {
+		globalOnce = sync.Once{}
+		global = nil
+		globalErr = nil
+	}
+	reset()
+	t.Cleanup(reset)
+}
+
+// workerOf extracts the worker ID from an ID built with the default layout
+// (6 worker bits above 6 sequence bits).
+func workerOf(id int64) int64 {
+	return (id >> 6) & 63
+}
+
+func mustPanic(t *testing.T, name string, f func()) {
+	t.Helper()
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("%s did not panic", name)
+		}
+	}()
+	f()
+}
+
+// TestImportHasNoSideEffects pins that a malformed WORKER_ID no longer takes
+// down every binary that merely links the package: the package init used to
+// parse it and panic. Checked in a child process, because this one's init has
+// already run.
+func TestImportHasNoSideEffects(t *testing.T) {
+	if os.Getenv("IDGEN_IMPORT_CHILD") == "1" {
+		os.Exit(0)
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestImportHasNoSideEffects$")
+	cmd.Env = append(os.Environ(), "IDGEN_IMPORT_CHILD=1", "WORKER_ID=not-a-number")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("process with a malformed WORKER_ID failed before using the package: %v\n%s", err, out)
+	}
+}
+
+func TestNextIdLazilyInitializesFromEnv(t *testing.T) {
+	t.Run("WORKER_ID is used", func(t *testing.T) {
+		resetGlobal(t)
+		t.Setenv("WORKER_ID", "5")
+		if got := workerOf(NextId()); got != 5 {
+			t.Fatalf("worker of NextId() = %d, want 5", got)
+		}
+	})
+	t.Run("unset WORKER_ID defaults to 1", func(t *testing.T) {
+		resetGlobal(t)
+		t.Setenv("WORKER_ID", "")
+		if got := workerOf(NextId()); got != int64(defaultWorkerID) {
+			t.Fatalf("worker of NextId() = %d, want %d", got, defaultWorkerID)
+		}
+	})
+	t.Run("explicit init after lazy init is rejected", func(t *testing.T) {
+		resetGlobal(t)
+		t.Setenv("WORKER_ID", "5")
+		NextId()
+		if err := Init(7); !errors.Is(err, ErrAlreadyInitialized) {
+			t.Fatalf("Init after NextId = %v, want ErrAlreadyInitialized", err)
+		}
+		if err := InitFromEnv(); !errors.Is(err, ErrAlreadyInitialized) {
+			t.Fatalf("InitFromEnv after NextId = %v, want ErrAlreadyInitialized", err)
+		}
+		if got := workerOf(NextId()); got != 5 {
+			t.Fatalf("worker after rejected Init = %d, want 5", got)
+		}
+	})
+}
+
+func TestInit(t *testing.T) {
+	t.Run("explicit worker ID wins over WORKER_ID", func(t *testing.T) {
+		resetGlobal(t)
+		t.Setenv("WORKER_ID", "9")
+		if err := Init(0); err != nil {
+			t.Fatalf("Init(0) = %v", err)
+		}
+		if got := workerOf(NextId()); got != 0 {
+			t.Fatalf("worker of NextId() = %d, want 0", got)
+		}
+		if err := Init(3); !errors.Is(err, ErrAlreadyInitialized) {
+			t.Fatalf("second Init = %v, want ErrAlreadyInitialized", err)
+		}
+	})
+	t.Run("out of range worker ID is rejected without consuming the init", func(t *testing.T) {
+		resetGlobal(t)
+		if err := Init(64); err == nil || errors.Is(err, ErrAlreadyInitialized) {
+			t.Fatalf("Init(64) = %v, want a range error", err)
+		}
+		if err := Init(63); err != nil {
+			t.Fatalf("Init(63) after a rejected Init = %v", err)
+		}
+		if got := workerOf(NextId()); got != 63 {
+			t.Fatalf("worker of NextId() = %d, want 63", got)
+		}
+	})
+	t.Run("InitFromEnv reads WORKER_ID", func(t *testing.T) {
+		resetGlobal(t)
+		t.Setenv("WORKER_ID", "12")
+		if err := InitFromEnv(); err != nil {
+			t.Fatalf("InitFromEnv() = %v", err)
+		}
+		if got := workerOf(NextId()); got != 12 {
+			t.Fatalf("worker of NextId() = %d, want 12", got)
+		}
+	})
+}
+
+// TestInvalidWorkerID pins where a malformed WORKER_ID fails now that package
+// init no longer panics: InitFromEnv returns the error, and NextId panics on
+// every call rather than once — a recovered first panic must not leave a
+// generator running on some fallback worker ID.
+func TestInvalidWorkerID(t *testing.T) {
+	t.Run("InitFromEnv returns the error", func(t *testing.T) {
+		resetGlobal(t)
+		t.Setenv("WORKER_ID", "abc")
+		if err := InitFromEnv(); err == nil {
+			t.Fatal("InitFromEnv() with WORKER_ID=abc returned nil")
+		}
+		mustPanic(t, "NextId after failed InitFromEnv", func() { NextId() })
+	})
+	t.Run("lazy NextId panics on every call", func(t *testing.T) {
+		resetGlobal(t)
+		t.Setenv("WORKER_ID", "64")
+		mustPanic(t, "first NextId", func() { NextId() })
+		mustPanic(t, "second NextId", func() { NextId() })
+		if err := Init(1); !errors.Is(err, ErrAlreadyInitialized) {
+			t.Fatalf("Init after failed lazy init = %v, want ErrAlreadyInitialized", err)
+		}
+	})
 }

@@ -2,18 +2,23 @@
 // yitter/idgenerator-go. It is not Twitter Snowflake (no datacenter bits,
 // different layout).
 //
-// init reads WORKER_ID (valid 0–63). Unset defaults to 1, not 0 — so
-// StatefulSet pod-0 must set WORKER_ID=0 explicitly. Malformed values
-// panic. BaseTime is the fixed instant baseTimeMillis, never time.Local.
-// NextId is the process-global generator; NewIdGenerator(workerID) is
-// independent. Unique worker IDs are required across processes sharing a key
-// space.
+// NextId is the process-global generator. Importing the package has no side
+// effects: the generator is built on first use, either explicitly by Init or
+// InitFromEnv, or lazily by the first NextId from WORKER_ID (valid 0–63).
+// Unset defaults to 1, not 0 — so StatefulSet pod-0 must set WORKER_ID=0
+// explicitly. A malformed WORKER_ID makes every NextId panic, so call
+// InitFromEnv (or Init) early in main to fail at boot instead of at the first
+// insert. BaseTime is the fixed instant baseTimeMillis, never time.Local.
+// NewIdGenerator(workerID) is independent of the global. Unique worker IDs are
+// required across processes sharing a key space.
 package idgenerator
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/yitter/idgenerator-go/idgen"
 )
@@ -68,28 +73,89 @@ func parseWorkerID(raw string) (uint16, error) {
 	return uint16(workerID), nil
 }
 
-func init() {
-	workerID, err := parseWorkerID(os.Getenv("WORKER_ID"))
-	if err != nil {
-		panic(err)
+// ErrAlreadyInitialized is returned by Init and InitFromEnv when the global
+// generator has already been built, by an earlier Init/InitFromEnv or lazily by
+// NextId. The worker ID of a running generator cannot change: IDs it already
+// issued would no longer be guaranteed unique against the new one.
+var ErrAlreadyInitialized = errors.New("idgenerator: global generator already initialized")
+
+var (
+	globalOnce sync.Once
+	global     *idgen.DefaultIdGenerator
+	globalErr  error
+)
+
+// Init builds the global generator with workerID, which must be in [0, 63].
+// It returns ErrAlreadyInitialized if the generator was already built,
+// including lazily by an earlier NextId, so call it from main before anything
+// can generate an ID.
+func Init(workerID uint16) error {
+	if uint64(workerID) > maxWorkerID {
+		return fmt.Errorf("idgenerator: invalid worker ID %d: must be in [0, %d]", workerID, maxWorkerID)
 	}
-	options := idgen.NewIdGeneratorOptions(workerID)
-	options.BaseTime = baseTimeMillis
-	idgen.SetIdGenerator(options)
+	return initOnce(func() { install(workerID, nil) })
 }
 
-// NextId returns the next ID from the process-global generator configured in
-// init from WORKER_ID.
+// InitFromEnv builds the global generator from WORKER_ID with the same rules
+// NextId applies lazily (unset means 1). It returns the parse error for a
+// malformed value, so main can fail at boot, and ErrAlreadyInitialized if the
+// generator was already built.
+func InitFromEnv() error {
+	return initOnce(initFromEnv)
+}
+
+// NextId returns the next ID from the process-global generator. Its signature
+// fits ent's DefaultFunc. If neither Init nor InitFromEnv ran, the first call
+// builds the generator from WORKER_ID; when that value is malformed this and
+// every later call panics, since no fallback worker ID can keep IDs unique.
 func NextId() int64 {
-	return idgen.NextId()
+	globalOnce.Do(initFromEnv)
+	g := global
+	if g == nil {
+		// install leaves global nil only when it recorded globalErr.
+		panic(globalErr)
+	}
+	return g.NewLong()
+}
+
+// initOnce runs f as the one-time initialization of the global generator and
+// reports ErrAlreadyInitialized when that already happened.
+func initOnce(f func()) error {
+	ran := false
+	globalOnce.Do(func() {
+		ran = true
+		f()
+	})
+	if !ran {
+		return ErrAlreadyInitialized
+	}
+	return globalErr
+}
+
+func initFromEnv() {
+	install(parseWorkerID(os.Getenv("WORKER_ID")))
+}
+
+// install records the outcome of initialization. An error is kept rather than
+// replaced by a fallback worker ID, so every later NextId reports it.
+func install(workerID uint16, err error) {
+	if err != nil {
+		globalErr = err
+		return
+	}
+	global = newDefaultIdGenerator(workerID)
+}
+
+func newDefaultIdGenerator(workerID uint16) *idgen.DefaultIdGenerator {
+	options := idgen.NewIdGeneratorOptions(workerID)
+	options.BaseTime = baseTimeMillis
+	return idgen.NewDefaultIdGenerator(options)
 }
 
 // NewIdGenerator returns an independent generator for workerID. Unique worker
 // IDs are required across processes sharing a key space.
 func NewIdGenerator(workerID uint16) func() int64 {
-	options := idgen.NewIdGeneratorOptions(workerID)
-	options.BaseTime = baseTimeMillis
-	generator := idgen.NewDefaultIdGenerator(options)
+	generator := newDefaultIdGenerator(workerID)
 	return func() int64 {
 		return generator.NewLong()
 	}
