@@ -26,8 +26,8 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -66,7 +66,6 @@ type Server struct {
 
 	mu      sync.Mutex
 	objects map[string]Object
-	now     func() time.Time
 	ioHook  func(*http.Request)
 }
 
@@ -81,7 +80,7 @@ var (
 		// The SDK silently skips persistence when it cannot create the
 		// cache directory, which a path under the null device guarantees.
 		qiniuStorage.SetRegionCachePath(filepath.Join(os.DevNull, "region.cache.json"))
-		srv := httptest.NewServer(http.HandlerFunc(serveUC))
+		srv := httptest.NewServer(withReqID(http.HandlerFunc(serveUC)))
 		qiniuStorage.SetUcHosts(srv.URL)
 		return srv
 	})
@@ -92,11 +91,10 @@ func New(tb testing.TB, bucket string) *Server {
 	tb.Helper()
 	ucServer()
 	s := &Server{
-		AccessKey: "fake-ak-" + randomHex(8),
-		SecretKey: "fake-sk-" + randomHex(8),
+		AccessKey: "fake-ak-" + rand.Text(),
+		SecretKey: "fake-sk-" + rand.Text(),
 		Bucket:    bucket,
 		objects:   map[string]Object{},
-		now:       time.Now,
 	}
 	s.api = httptest.NewServer(withReqID(http.HandlerFunc(s.serveAPI)))
 	s.io = httptest.NewServer(withReqID(http.HandlerFunc(s.serveIO)))
@@ -126,7 +124,7 @@ func (s *Server) Object(key string) (Object, bool) {
 func (s *Server) Put(key string, data []byte, mimeType string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.objects[key] = Object{Data: bytes.Clone(data), MIME: mimeType, PutTime: s.now().UnixNano() / 100}
+	s.objects[key] = Object{Data: bytes.Clone(data), MIME: mimeType, PutTime: time.Now().UnixNano() / 100}
 }
 
 // SetIOHook installs fn to run before every download (io) request is served,
@@ -154,7 +152,7 @@ type Policy struct {
 func (s *Server) VerifyUploadToken(token string) (Policy, error) {
 	parts := strings.Split(token, ":")
 	if len(parts) != 3 {
-		return Policy{}, fmt.Errorf("malformed upload token")
+		return Policy{}, errors.New("malformed upload token")
 	}
 	if parts[0] != s.AccessKey {
 		return Policy{}, fmt.Errorf("unknown access key %q", parts[0])
@@ -162,7 +160,7 @@ func (s *Server) VerifyUploadToken(token string) (Policy, error) {
 	mac := hmac.New(sha1.New, []byte(s.SecretKey))
 	mac.Write([]byte(parts[2]))
 	if want := base64.URLEncoding.EncodeToString(mac.Sum(nil)); !hmac.Equal([]byte(want), []byte(parts[1])) {
-		return Policy{}, fmt.Errorf("bad upload token signature")
+		return Policy{}, errors.New("bad upload token signature")
 	}
 	raw, err := base64.URLEncoding.DecodeString(parts[2])
 	if err != nil {
@@ -176,7 +174,6 @@ func (s *Server) VerifyUploadToken(token string) (Policy, error) {
 }
 
 func serveUC(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("X-Reqid", randomHex(8))
 	q := r.URL.Query()
 	registryMu.RLock()
 	s := registry[q.Get("ak")]
@@ -353,7 +350,7 @@ func (s *Server) serveUpload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	if s.now().Unix() > policy.Deadline {
+	if time.Now().Unix() > policy.Deadline {
 		writeError(w, http.StatusUnauthorized, "expired token")
 		return
 	}
@@ -399,7 +396,7 @@ func (s *Server) serveUpload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.objects[key] = Object{Data: data, MIME: mimeType, PutTime: s.now().UnixNano() / 100}
+	s.objects[key] = Object{Data: data, MIME: mimeType, PutTime: time.Now().UnixNano() / 100}
 	writeJSON(w, http.StatusOK, map[string]any{"key": key, "hash": etag(data)})
 }
 
@@ -446,7 +443,7 @@ func mimeAllowed(limit, mimeType string) bool {
 func withReqID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The SDK's anti-hijacking interceptor rejects responses without one.
-		w.Header().Set("X-Reqid", randomHex(8))
+		w.Header().Set("X-Reqid", rand.Text())
 		next.ServeHTTP(w, r)
 	})
 }
@@ -464,10 +461,4 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 func etag(data []byte) string {
 	sum := sha1.Sum(data)
 	return base64.URLEncoding.EncodeToString(sum[:])
-}
-
-func randomHex(n int) string {
-	b := make([]byte, n)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
 }
