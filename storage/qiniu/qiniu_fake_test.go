@@ -318,3 +318,27 @@ func TestClientRejectsInvalidKeys(t *testing.T) {
 		t.Error("GenerateUploadAuth(dir escaping the root) succeeded, want an error")
 	}
 }
+
+// TestClientUploadOverwrites pins that server-side uploads replace an existing
+// key. With a bucket-only token scope Kodo treats the upload as insert-only and
+// rejects different content for an existing key with 614.
+func TestClientUploadOverwrites(t *testing.T) {
+	client, fake := newFakeClient(t, Config{})
+	ctx := t.Context()
+	if _, err := client.UploadFile(ctx, strings.NewReader("v1"), "doc.txt"); err != nil {
+		t.Fatalf("UploadFile(v1) error = %v", err)
+	}
+	if _, err := client.UploadFile(ctx, strings.NewReader("v2"), "doc.txt"); err != nil {
+		t.Fatalf("UploadFile(v2 over v1) error = %v", err)
+	}
+	src := filepath.Join(t.TempDir(), "v3.txt")
+	if err := os.WriteFile(src, []byte("v3"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.UploadLocalFile(ctx, src, "doc.txt"); err != nil {
+		t.Fatalf("UploadLocalFile(v3 over v2) error = %v", err)
+	}
+	if obj, _ := fake.Object("doc.txt"); string(obj.Data) != "v3" {
+		t.Fatalf("stored = %q, want %q", obj.Data, "v3")
+	}
+}

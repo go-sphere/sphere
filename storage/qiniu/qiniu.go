@@ -3,8 +3,9 @@
 //
 // Upload tokens use InsertOnly: 1. MimeLimit applies to the token path
 // (declared Content-Type), not byte sniffing, and not server-side
-// UploadFile. PutPolicy.Expires is relative seconds (sub-second rounded up
-// to 1). Delete of miss is idempotent. Download Size comes from the length the
+// UploadFile, which uses a key-scoped token and overwrites.
+// PutPolicy.Expires is relative seconds (sub-second rounded up to 1).
+// Delete of miss is idempotent. Download Size comes from the length the
 // SDK read off its own HEAD, falling back to Stat only when that length is
 // unknown or the stored content type is empty.
 //
@@ -163,16 +164,24 @@ func (n *Client) GenerateUploadAuth(_ context.Context, req storage.UploadAuthReq
 	}, nil
 }
 
+// serverUploadToken signs a token for a server-side upload of key. The scope
+// names the key: a bucket-only scope is insert-only on Kodo, so re-uploading an
+// existing key with different content would fail with 614 instead of
+// replacing it as every other driver does.
+func (n *Client) serverUploadToken(key string) string {
+	put := &qiniuStorage.PutPolicy{
+		Scope: n.config.Bucket + ":" + key,
+	}
+	return put.UploadToken(n.mac)
+}
+
 // UploadFile uploads data from a reader to Qiniu Cloud Object Storage with the specified key.
 func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
 	}
-	put := &qiniuStorage.PutPolicy{
-		Scope: n.config.Bucket,
-	}
-	upToken := put.UploadToken(n.mac)
+	upToken := n.serverUploadToken(key)
 	cfg := qiniuStorage.Config{}
 	ret := qiniuStorage.PutRet{}
 	formUploader := qiniuStorage.NewFormUploader(&cfg)
@@ -189,10 +198,7 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 	if err != nil {
 		return "", err
 	}
-	put := &qiniuStorage.PutPolicy{
-		Scope: n.config.Bucket,
-	}
-	upToken := put.UploadToken(n.mac)
+	upToken := n.serverUploadToken(key)
 	cfg := qiniuStorage.Config{}
 	ret := qiniuStorage.PutRet{}
 	formUploader := qiniuStorage.NewFormUploader(&cfg)
