@@ -627,9 +627,9 @@ Lower-severity than the section above, but several change what callers observe.
 - **`Close` takes the same lock `Start` uses**, and a `Stop` that times out no
   longer cancels the shared run context, which used to abort handlers another
   concurrent `Stop` was still legitimately draining.
-- `docs/scheduler.md` now states that periodic jobs require a single instance.
-  Neither driver coordinates across processes, so N replicas run each job N
-  times per tick.
+- The `scheduler` package documentation (`scheduler/scheduler.go`) now states
+  that periodic jobs require a single instance. Neither driver coordinates
+  across processes, so N replicas run each job N times per tick.
 
 ### Messaging
 
