@@ -1,29 +1,3 @@
-// Package reverseproxy is a cached reverse proxy: response headers in
-// cache.ByteCache, bodies in storage.Storage.
-//
-// CreateCacheReverseProxy tees the upstream body to the client and the
-// cache. ServeCacheReverseProxy serves a cache hit then falls through.
-// Defaults are conservative for a shared cache: no credentialed, private,
-// no-store, no-cache, immediately stale, Set-Cookie, or unsupported Vary
-// responses. The backing ByteCache options govern stored response lifetime;
-// this proxy does not revalidate with the upstream. Default cache key is GET
-// RequestURI(); non-GET is not cached. The default key does not include the
-// Host, so multi-vhost deployments need WithCacheKeyFunc.
-//
-// Cache save runs on a context detached from the request (default 30s).
-// Save failure does not affect the client stream, and neither does a save that
-// is merely slow: the body is handed to Save through a bounded queue, and the
-// cache is abandoned rather than the client throttled when it cannot keep up.
-// Load errors other than miss are logged and the request goes upstream.
-//
-// To mount the proxy on an httpx engine, adapt it as a net/http handler and
-// register it through httpz.MountStdAll:
-//
-//	proxy, err := reverseproxy.CreateCacheReverseProxy(cache,
-//		reverseproxy.WithTargetURL(target))
-//	if err != nil { ... }
-//	handler := http.HandlerFunc(reverseproxy.ServeCacheReverseProxy(cache, proxy))
-//	err = httpz.MountStdAll(engine.Group(""), "/proxy/*filepath", handler, http.MethodGet)
 package reverseproxy
 
 import (
@@ -76,6 +50,7 @@ func inboundRequest(req *http.Request) *http.Request {
 const defaultSaveTimeout = 30 * time.Second
 
 // Options holds CreateCacheReverseProxy configuration filled by Option values.
+// Its fields are unexported; use the With* options.
 type Options struct {
 	target       *url.URL
 	director     func(*http.Request)
@@ -278,6 +253,15 @@ func ignoreCloseError(closer func() error) {
 // CreateCacheReverseProxy returns a ReverseProxy that tees an eligible upstream
 // body to the client and the cache. cache and WithTargetURL are required. It
 // returns an error when a required dependency or callback is nil.
+//
+// The proxy forwards every request to the target, preserving the inbound Host
+// and setting X-Forwarded-* headers, then lets the director rewrite the
+// outbound request. Cache key and eligibility are computed from the inbound
+// request, so they match the lookup in ServeCacheReverseProxy. For an eligible
+// response the body is streamed to the client and, in the background, saved
+// with cache.Save; at most one save per key runs at a time, and save failures
+// go to WithErrorHandler. The proxy never reads the cache itself: wrap it with
+// ServeCacheReverseProxy to serve hits. Use the same key function for both.
 func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProxy, error) {
 	conf := newOptions(opts...)
 	if cache == nil {
@@ -423,6 +407,7 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 }
 
 // ServeOptions holds ServeCacheReverseProxy configuration filled by ServeOption values.
+// Its fields are unexported; use WithServeCacheKeyFunc and WithServeErrorHandler.
 type ServeOptions struct {
 	keygen       RequestCacheKeyFunc
 	errorHandler func(http.ResponseWriter, *http.Request, error)
@@ -470,6 +455,11 @@ func WithServeCacheKeyFunc(keygen RequestCacheKeyFunc) ServeOption {
 
 // ServeCacheReverseProxy serves a cache hit and otherwise forwards to proxy.
 // Load errors other than ErrCacheNotFound are logged and the request goes upstream.
+//
+// A hit replays the stored headers and the original upstream status (200 when
+// the stored status is missing or invalid) and copies the body; a copy failure,
+// usually a client disconnect, goes to WithServeErrorHandler. An empty key from
+// the key function skips the cache.
 func ServeCacheReverseProxy(cache Cache, proxy *httputil.ReverseProxy, opts ...ServeOption) func(http.ResponseWriter, *http.Request) {
 	conf := newServeOptions(opts...)
 	return func(w http.ResponseWriter, r *http.Request) {

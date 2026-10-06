@@ -1,16 +1,3 @@
-// Package auth is httpx middleware that loads a token, parses it with
-// authorizer.Parser, and stores authorizer.Data on the request context.
-//
-// It is parser-agnostic; JWT is one implementation (jwtauth). Defaults:
-// load the Authorization header, no prefix strip, abortOnError=true.
-// AuthorizationPrefixBearer is not applied unless
-// WithPrefixTransform(AuthorizationPrefixBearer) is set — missing Bearer
-// does not fail, the raw string is parsed.
-//
-// NewPermissionMiddleware checks roles against AccessControl (acl.ACL
-// matches). No auth data or no matching role is denied via
-// httpx.NewForbiddenError (English), not authorizer.PermissionError.
-// Compose: cors, then selector+auth+permission, then httpz.WithJson handlers.
 package auth
 
 import (
@@ -94,6 +81,8 @@ func newOptions(opts ...Option) *options {
 type Option func(*options)
 
 // WithLoader replaces the default loader that reads the Authorization header.
+// A loader error rejects the request with 401 unless WithAbortOnError(false)
+// is set; an empty token is treated as missing. The last loader option wins.
 func WithLoader(f func(ctx httpx.Context) (string, error)) Option {
 	return func(opts *options) {
 		opts.loader = f
@@ -118,7 +107,9 @@ func WithCookieLoader(cookieName string) Option {
 	})
 }
 
-// WithTransform rewrites the loaded token before ParseToken.
+// WithTransform rewrites the loaded token before ParseToken. A transform error
+// rejects the request, and an empty result is treated as a missing token. It
+// replaces any earlier WithTransform or WithPrefixTransform.
 func WithTransform(f func(text string) (string, error)) Option {
 	return func(opts *options) {
 		opts.transform = f
@@ -144,6 +135,9 @@ func WithPrefixTransform(prefix string) Option {
 
 // WithAbortOnError controls whether authentication failures should abort the request.
 // When set to false, authentication errors are ignored and the request continues.
+// Requests with a valid token still get auth data; others continue without it, so
+// handlers must check for it (authorizer.ContextUtils reports NeedLoginError).
+// The default is true.
 func WithAbortOnError(abort bool) Option {
 	return func(opts *options) {
 		opts.abortOnError = abort
@@ -159,6 +153,17 @@ func unauthorizedError(err error) error {
 }
 
 // NewAuthMiddleware parses a request token with parser and stores authorizer.Data on the context.
+//
+// For each request it loads the token (Authorization header by default), applies
+// the configured transform, calls parser.ParseToken with the request context,
+// and stores UID, Subject, and Roles. The request is rejected with a 401 error
+// (keeping the underlying error's user-facing message) when loading fails, the
+// token is empty (authorizer.TokenNotFoundError), parsing fails, or GetUID
+// fails or yields a zero UID (authorizer.MissingUIDError). GetSubject and
+// GetRoles errors leave those fields empty instead.
+//
+// With WithAbortOnError(false), every failure is ignored and the request
+// continues without auth data. The parser must be safe for concurrent use.
 func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authorizer.Parser[T, C], options ...Option) httpx.Middleware {
 	opts := newOptions(options...)
 	return func(next httpx.Handler) httpx.Handler {

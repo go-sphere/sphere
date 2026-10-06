@@ -1,17 +1,3 @@
-// Package authorizer is the identity contract used by HTTP auth middleware.
-// Token format is out of scope; jwtauth is the JWT implementation.
-//
-// UID is integer or string (database primary-key shapes). uuid.UUID and
-// similar types should be stored as their String() form.
-//
-// Parser parses a token into Claims. GetUID error rejects the request;
-// GetSubject and GetRoles errors are ignored by the middleware (zero
-// values). ContextUtils[I] reads Data[I] stored on context.Context via a
-// private key — use WithAuthData / GetAuthData, not context.Value.
-//
-// Sentinel errors carry HTTP status and a Chinese user-facing message:
-// TokenNotFoundError and NeedLoginError are 401, PermissionError is 403,
-// MissingUIDError is 401 (zero UID must never authenticate).
 package authorizer
 
 import (
@@ -46,6 +32,11 @@ type Claims[T UID] interface {
 }
 
 // Parser defines the interface for parsing authentication tokens into claims.
+//
+// ParseToken receives the token with any transport prefix (such as "Bearer ")
+// already removed by the caller. Auth middleware treats claims returned with a
+// nil error as authenticated, so an implementation must return an error for
+// any token it does not trust (malformed, wrongly signed, or expired).
 type Parser[I UID, T Claims[I]] interface {
 	ParseToken(ctx context.Context, token string) (T, error)
 }

@@ -55,3 +55,16 @@ func TestAllowIsIdempotent(t *testing.T) {
 		t.Fatal("the grant was lost on re-allow")
 	}
 }
+
+// TestZeroValueACL pins that the zero ACL is usable: Allow must not panic on
+// the nil permission map, and the grant must take effect.
+func TestZeroValueACL(t *testing.T) {
+	var a ACL
+	if a.IsAllowed("alice", "users") {
+		t.Fatal("a zero ACL must deny everything")
+	}
+	a.Allow("alice", "users")
+	if !a.IsAllowed("alice", "users") {
+		t.Fatal("a grant on a zero ACL was lost")
+	}
+}

@@ -1,15 +1,3 @@
-// Package selector applies httpx middleware only when Matcher.Match is true;
-// otherwise it continues the chain directly. Compose with httpz.MatchOperation
-// to run auth only on generated private routes.
-//
-// NewSelectorMiddleware returns one wrapper per input middleware, not a
-// single middleware. Empty AND matcher is true; empty OR matcher is false.
-//
-// Composition warning: httpz.MatchOperation fails closed — it reports true
-// when the route pattern is indeterminate. Wrapping it in
-// NewLogicalNotMatcher inverts that into "skip the middleware", which is the
-// unsafe direction. To express "everything except X", select X positively
-// and attach the middleware to the outer group instead of using Not.
 package selector
 
 import (
@@ -18,6 +6,8 @@ import (
 
 // Matcher defines the interface for request matching logic.
 // Implementations determine whether a given request context matches specific criteria.
+// Match runs on the request path, possibly concurrently, and should not write
+// the response.
 type Matcher interface {
 	Match(ctx httpx.Context) bool
 }
@@ -80,7 +70,11 @@ func NewLogicalAndMatcher(matchers ...Matcher) Matcher {
 
 // NewSelectorMiddleware returns one wrapper per input middleware: each wrapper
 // runs the inner middleware only when matcher.Match is true, and otherwise
-// continues the chain directly.
+// continues the chain directly. Each wrapper evaluates matcher independently,
+// so matcher runs once per wrapped middleware per request. Pass the result to
+// Use with the spread operator:
+//
+//	router.Use(selector.NewSelectorMiddleware(matcher, authMiddleware, permissionMiddleware)...)
 func NewSelectorMiddleware(matcher Matcher, middlewares ...httpx.Middleware) []httpx.Middleware {
 	val := make([]httpx.Middleware, 0, len(middlewares))
 	for _, m := range middlewares {

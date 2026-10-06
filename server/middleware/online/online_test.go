@@ -247,3 +247,16 @@ func TestOnline_AdversarialConcurrentPresenceAndTrimming(t *testing.T) {
 		t.Fatalf("tracker.Start did not stop after tracker.Stop()")
 	}
 }
+
+// TestZeroValueStopDoesNotPanic pins that Stop on a zero-value Online is safe.
+// The task contract requires Stop to be safe when Start failed, and Start on
+// the zero value fails with ErrNotInitialized; Stop previously closed the nil
+// done channel and panicked.
+func TestZeroValueStopDoesNotPanic(t *testing.T) {
+	var o Online
+	for range 2 {
+		if err := o.Stop(context.Background()); err != nil {
+			t.Fatalf("Stop on zero-value Online = %v, want nil", err)
+		}
+	}
+}

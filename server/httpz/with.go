@@ -1,40 +1,3 @@
-// Package httpz is the HTTP convention layer on top of github.com/go-sphere/httpx.
-// Handlers return (T, error) or (string, error); wrappers recover panics, map
-// errors to a JSON envelope, and wrap success in DataResponse[T].
-//
-// # Envelopes
-//
-// WithJson writes {"success": true, "data": T} at HTTP 200, or a status the
-// handler set via ctx.Status (201, 204, …). Errors go through
-// AbortWithJsonError: {"code": int, "message": string}
-// at the parser's HTTP status. code is 0 unless the error implements
-// httpx.CodeError. message is the generic status text unless the error
-// implements httpx.MessageError with a non-empty message. ErrorResponse.Error
-// is err.Error() only when SetDebugMode(true).
-//
-// The default parser is ParseError: httpx.ParseError plus the HTTP status of
-// the storage sentinels (storageerr.ErrNotFound → 404, ErrDestExists and
-// ErrFileNameInvalid → 400). SetDefaultErrorParser swaps it atomically; a nil
-// parser is ignored. A custom parser should fall back to ParseError.
-//
-// # Wrappers
-//
-// WithRecover, WithJson, WithText, WithFormFileReader, and WithFormFileBytes
-// take and return httpx.Handler / httpx.Context, not a concrete router's
-// types. Panics become
-// a 500 except http.ErrAbortHandler, which is re-panicked so net/http can
-// drop the connection.
-//
-// EndpointsToMatches / MatchOperation turn generated [operation, method, path]
-// routes into a matcher for middleware/selector.
-//
-// # Streaming
-//
-// WithSSE wraps two-phase server-streaming handlers as Server-Sent Events
-// responses with lazy commit: prepare/bind errors and stream errors before
-// the first message render as regular JSON error statuses, later failures
-// arrive in-stream as a terminal "error" event, and successful streams end
-// with a "done" event. See sse.go for the full contract.
 package httpz
 
 import (
@@ -50,8 +13,9 @@ var (
 	errInternalServerPanic = errors.New("ServerError:PANIC")
 )
 
-// Value retrieves a typed value from the httpx context.
-// It returns the value and whether the key exists and the type matches.
+// Value retrieves a typed value stored under key in the request-scoped
+// httpx context store (ctx.Set / ctx.Get). It returns the zero value and false
+// when the key is missing or the stored value is not a T.
 func Value[T any](ctx httpx.Context, key string) (T, bool) {
 	v, exists := ctx.Get(key)
 	var zero T
@@ -64,9 +28,12 @@ func Value[T any](ctx httpx.Context, key string) (T, bool) {
 	return zero, false
 }
 
-// WithRecover wraps an httpx handler with panic recovery.
-// A panic is logged and turned into a JSON 500 except http.ErrAbortHandler,
-// which is re-panicked so net/http can drop the connection.
+// WithRecover wraps an httpx handler with panic recovery and error rendering.
+// A non-nil error from handler is written with AbortWithJsonError. A panic is
+// logged at Error level under message, with the panic value and stack, and
+// written as a JSON 500 — except http.ErrAbortHandler, which is re-panicked so
+// net/http can drop the connection. The returned handler always returns nil,
+// so the engine's error handler never sees errors that WithRecover rendered.
 func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Handler {
 	return func(ctx httpx.Context) error {
 		defer func() {
@@ -102,7 +69,12 @@ func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Ha
 }
 
 // WithJson wraps a (T, error) handler as an httpx handler that writes
-// DataResponse[T] on success and AbortWithJsonError on failure.
+// DataResponse[T] with Success set on success and AbortWithJsonError on
+// failure. Panics are handled as described on WithRecover.
+//
+// The success status is 200 unless the handler set a status in the 200–599
+// range through ctx.Status (for example 201). A status of 204 or 304 is
+// written with no body instead of the envelope.
 func WithJson[T any](handler func(ctx httpx.Context) (T, error)) httpx.Handler {
 	return WithRecover("WithJson panic", func(ctx httpx.Context) error {
 		data, err := handler(ctx)
@@ -129,7 +101,9 @@ func WithJson[T any](handler func(ctx httpx.Context) (T, error)) httpx.Handler {
 }
 
 // WithText wraps a (string, error) handler as an httpx handler that writes
-// the string as text/plain on success and AbortWithJsonError on failure.
+// the string as a text response with status 200 on success and
+// AbortWithJsonError on failure. Unlike WithJson it does not honor a status set
+// through ctx.Status. Panics are handled as described on WithRecover.
 func WithText(handler func(ctx httpx.Context) (string, error)) httpx.Handler {
 	return WithRecover("WithText panic", func(ctx httpx.Context) error {
 		data, err := handler(ctx)

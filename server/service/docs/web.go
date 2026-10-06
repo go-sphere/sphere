@@ -1,10 +1,3 @@
-// Package docs is a task.Task HTTP server that serves an HTML index of
-// Swagger targets, Swagger UI per spec, and reverse-proxies
-// /{instanceName}/api to each target.
-//
-// CORS here echoes the request Origin with credentials (dev-oriented). That
-// is the combination middleware/cors.NewCORS rejects. Identifier is "docs".
-// Start after Stop returns nil without listening.
 package docs
 
 import (
@@ -29,18 +22,30 @@ import (
 )
 
 // Target represents a documentation target with its address and Swagger specification.
+//
+// Address is the base URL of the running API service and must have the form
+// http(s)://host[:port]. Spec is required and is only read, never modified; its
+// InstanceName (lowercased) becomes the route prefix and must be unique among
+// the targets, ignoring case. The UI's doc.json is read from the process-wide
+// swag registry under that instance name, which the swag-generated package
+// fills in its init function.
 type Target struct {
 	Address string
 	Spec    *swag.Spec
 }
 
 // Config contains the configuration for the documentation web service.
+// Address is the listen address of the standalone server (for example ":9999");
+// NewWebServerWithEngine ignores it. Targets are validated when the handlers
+// are built (Start, Register, or NewWebServerWithEngine).
 type Config struct {
 	Address string
 	Targets []Target
 }
 
 // Web provides a documentation web server that aggregates multiple Swagger specifications.
+// Construct it with NewWebServer or NewWebServerWithEngine. It implements
+// core/task.Task with identifier "docs".
 type Web struct {
 	config  Config
 	server  *http.Server
@@ -113,6 +118,7 @@ func resolveTarget(spec *swag.Spec, address string) (name, description string) {
 }
 
 // NewWebServer creates a new documentation web server with the given configuration.
+// It does not validate conf or listen; Start does both.
 func NewWebServer(conf Config) *Web {
 	return &Web{
 		config: conf,
@@ -167,6 +173,10 @@ func (w *Web) Identifier() string {
 // In standalone mode a Start after Stop returns nil without listening; in
 // engine mode (NewWebServerWithEngine) lifecycle is delegated to the engine,
 // so a restart returns httpx.ErrEngineClosed instead.
+//
+// In standalone mode Start validates the targets (returning an error for a nil
+// spec, a malformed address, or colliding instance names), then blocks serving
+// Config.Address until Stop. ctx is not used; stop the server with Stop.
 func (w *Web) Start(ctx context.Context) error {
 	if w.engine != nil {
 		return w.engine.Start()
@@ -192,6 +202,10 @@ func (w *Web) Start(ctx context.Context) error {
 }
 
 // Stop gracefully shuts down the documentation web server.
+// In standalone mode it waits for in-flight requests until ctx is done and then
+// force-closes the server (see httpz.StopServer); Stop before Start makes a
+// later Start return nil without listening. In engine mode it delegates to the
+// engine's Stop.
 func (w *Web) Stop(ctx context.Context) error {
 	if w.engine != nil {
 		return w.engine.Stop(ctx)

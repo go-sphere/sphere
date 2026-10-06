@@ -16,6 +16,11 @@ import (
 // handlers that can finish in time are allowed to. A force-close resolves the
 // stop successfully (the degradation is logged), so a nil result does not
 // always mean the drain completed gracefully.
+//
+// A nil server returns nil, and a nil ctx is treated as
+// context.Background (wait without a deadline). When Shutdown fails for a
+// reason other than ctx, the server is still closed and that failure is
+// returned.
 func StopServer(ctx context.Context, server *http.Server) error {
 	if server == nil {
 		return nil

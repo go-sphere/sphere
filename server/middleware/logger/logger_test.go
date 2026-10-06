@@ -12,6 +12,7 @@ import (
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/httpx/httpxmock"
 	"github.com/go-sphere/sphere/log"
+	"github.com/go-sphere/sphere/server/httpz"
 )
 
 // The request accessRequest stands for, stated once so the attr assertions do
@@ -252,5 +253,58 @@ func TestRecoveryLogStackOption(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestRecoveryLogRepanicsErrAbortHandler pins that RecoveryLog, like
+// httpz.WithRecover, lets http.ErrAbortHandler propagate so net/http can drop
+// the connection, and does not log it or write a 500.
+func TestRecoveryLogRepanicsErrAbortHandler(t *testing.T) {
+	t.Parallel()
+
+	rec := &recordingLogger{}
+	ctx := accessRequest(t.Context())
+	next := func(httpx.Context) error {
+		panic(http.ErrAbortHandler)
+	}
+
+	defer func() {
+		if got := recover(); got != http.ErrAbortHandler {
+			t.Fatalf("recovered %v, want http.ErrAbortHandler", got)
+		}
+		if len(rec.entries) != 0 {
+			t.Fatalf("entries = %d, want 0 for an aborted handler", len(rec.entries))
+		}
+		if ctx.StatusCode() == http.StatusInternalServerError {
+			t.Fatal("an aborted handler must not be finished as 500")
+		}
+	}()
+	_ = httpxmock.Run(ctx, next, RecoveryLog(rec, false))
+	t.Fatal("RecoveryLog swallowed http.ErrAbortHandler")
+}
+
+// TestLogUsesInstalledErrorParser pins that the logged status for a chain
+// error that wrote no status comes from the parser installed with
+// httpz.SetDefaultErrorParser, i.e. the status the client is sent. Not
+// parallel: it swaps the process-wide parser.
+func TestLogUsesInstalledErrorParser(t *testing.T) {
+	t.Cleanup(func() { httpz.SetDefaultErrorParser(httpz.ParseError) })
+	httpz.SetDefaultErrorParser(func(error) (int32, int32, string) {
+		return 0, http.StatusTeapot, "teapot"
+	})
+
+	rec := &recordingLogger{}
+	ctx := accessRequest(t.Context())
+	chainErr := errors.New("unclassified")
+	next := func(httpx.Context) error { return chainErr }
+
+	if err := httpxmock.Run(ctx, next, Log(rec)); !errors.Is(err, chainErr) {
+		t.Fatalf("Log() error = %v, want %v", err, chainErr)
+	}
+	if len(rec.entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(rec.entries))
+	}
+	if got := requireAttr(t, rec.entries[0].attrs, "status").Int64(); got != http.StatusTeapot {
+		t.Fatalf("logged status = %d, want %d from the installed parser", got, http.StatusTeapot)
 	}
 }

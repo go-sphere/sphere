@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/go-sphere/httpx"
@@ -69,11 +70,57 @@ func TestWeb_Identifier(t *testing.T) {
 	}
 }
 
+// TestWebStartNilFileServer pins that Start reports a nil FileServer as an
+// error instead of panicking on the nil receiver.
+func TestWebStartNilFileServer(t *testing.T) {
+	t.Parallel()
+	engine := newStubEngine()
+	web := NewWebServer(engine, nil)
+	if err := web.Start(context.Background()); err == nil {
+		t.Fatal("Start with a nil FileServer = nil, want an error")
+	}
+	if n := engine.groups.Load(); n != 0 {
+		t.Fatalf("Start with a nil FileServer registered %d route groups, want 0", n)
+	}
+	if err := web.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop after failed Start: %v", err)
+	}
+}
+
+// TestWebStartRegistersRoutesOnce pins that a repeated Start does not
+// register the upload and download routes a second time (most routers panic
+// on a duplicate route).
+func TestWebStartRegistersRoutesOnce(t *testing.T) {
+	t.Parallel()
+	adapter, err := NewLocalFileService(LocalFileServiceConfig{
+		RootDir:    t.TempDir(),
+		PublicBase: "http://127.0.0.1/",
+	})
+	if err != nil {
+		t.Fatalf("NewLocalFileService: %v", err)
+	}
+	engine := newStubEngine()
+	web := NewWebServer(engine, adapter)
+	// Stop first so each Start returns immediately from the stub engine.
+	if err := web.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	for range 2 {
+		if err := web.Start(context.Background()); err != nil {
+			t.Fatalf("Start: %v", err)
+		}
+	}
+	if n := engine.groups.Load(); n != 2 {
+		t.Fatalf("route groups after two Starts = %d, want 2 (uploader + downloader once)", n)
+	}
+}
+
 // stubEngine is an HTTP-style Engine: Start ignores context and only returns
 // after Stop, matching ListenAndServe. Stop is idempotent and safe before Start.
 type stubEngine struct {
 	stopOnce sync.Once
 	stopped  chan struct{}
+	groups   atomic.Int32 // Group calls, i.e. route registrations by Start
 }
 
 func newStubEngine() *stubEngine {
@@ -83,6 +130,7 @@ func newStubEngine() *stubEngine {
 func (e *stubEngine) Use(...httpx.Middleware) {}
 
 func (e *stubEngine) Group(string, ...httpx.Middleware) httpx.Router {
+	e.groups.Add(1)
 	return stubRouter{}
 }
 

@@ -10,6 +10,8 @@ import (
 )
 
 // WithFormOptions contains configuration for file upload handling via multipart forms.
+// Its fields are unexported; configure it only through WithFormOption values
+// passed to WithFormFileReader or WithFormFileBytes.
 type WithFormOptions struct {
 	maxSize         int64
 	fileFormKey     string
@@ -75,6 +77,12 @@ func WithFormAllowExtensions(extensions ...string) WithFormOption {
 // WithFormFileReader wraps a multipart-upload handler as an httpx JSON handler.
 // The inner handler receives an io.ReadSeekCloser (closed after return) and
 // the original filename. Default max size is 10MiB; default form key is "file".
+// Options are resolved once, when the handler is built.
+//
+// A missing form field or malformed multipart body, a file larger than the
+// maximum size (as reported by the multipart header), and a disallowed
+// extension are rejected with 400 before the inner handler runs. The inner
+// handler's result is rendered as described on WithJson.
 func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekCloser, filename string) (T, error), options ...WithFormOption) httpx.Handler {
 	// The options are fixed once the handler is built, so resolve them here
 	// rather than allocating a fresh set on every request.
@@ -115,6 +123,7 @@ func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekC
 
 // WithFormFileBytes is WithFormFileReader that reads the whole file into memory
 // before calling the inner handler. Prefer WithFormFileReader for large files.
+// The same options, defaults, and 400 rejections apply.
 func WithFormFileBytes[T any](handler func(ctx httpx.Context, file []byte, filename string) (T, error), options ...WithFormOption) httpx.Handler {
 	return WithFormFileReader(func(ctx httpx.Context, file io.ReadSeekCloser, filename string) (T, error) {
 		var zero T

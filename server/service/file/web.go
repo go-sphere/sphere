@@ -1,15 +1,9 @@
-// Package file is a task.Task wrapping an httpx.Engine and
-// fileserver.FileServer. It is not an S3 API.
-//
-// PUT /:key uploads (one-time cache token). GET /*filename downloads.
-// NewLocalFileService builds a local-disk CDN adapter with an in-memory byte
-// cache and 3600s Cache-Control. Identifier is "file". Start does not
-// configure CORS — it only registers upload/download and engine.Start.
 package file
 
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/cache/memory"
@@ -17,13 +11,22 @@ import (
 	"github.com/go-sphere/sphere/storage/local"
 )
 
+var errNilFileServer = errors.New("file: Web has a nil FileServer: pass one to NewWebServer")
+
 // Web is a task.Task wrapping an httpx.Engine and a fileserver.FileServer.
+// Construct it with NewWebServer. It takes ownership of both: Stop stops the
+// engine and closes the FileServer.
 type Web struct {
 	engine  httpx.Engine
 	storage *fileserver.FileServer
+
+	registerOnce sync.Once
 }
 
-// NewWebServer wraps engine and storage as a task.Task.
+// NewWebServer wraps engine and storage as a task.Task. Routes are registered
+// on engine when Start runs, not here. Start fails if storage is nil; the
+// engine's address and options decide where the service listens. The URLs the
+// FileServer issues (its PutBase and GetBase) must point at this engine's root.
 func NewWebServer(engine httpx.Engine, storage *fileserver.FileServer) *Web {
 	return &Web{
 		engine:  engine,
@@ -33,6 +36,8 @@ func NewWebServer(engine httpx.Engine, storage *fileserver.FileServer) *Web {
 
 // LocalFileServiceConfig configures a local-disk fileserver adapter.
 // RootDir is the filesystem root; PublicBase is the public URL prefix for both upload and download.
+// RootDir is required and is created if missing. PublicBase must be an absolute
+// URL of the Web engine's root, such as "https://files.example.com/".
 type LocalFileServiceConfig struct {
 	RootDir    string `json:"root_dir" yaml:"root_dir"`
 	PublicBase string `json:"public_base" yaml:"public_base"`
@@ -75,9 +80,19 @@ func (w *Web) Identifier() string {
 }
 
 // Start registers upload and download handlers and starts the engine. It does not configure CORS.
+// It blocks for as long as engine.Start does and returns its result; ctx is not
+// used, so stop the service with Stop. A nil FileServer fails with an error.
+// Routes are registered on the first Start only; a later Start just calls
+// engine.Start again, whose result decides whether that is a restart (for
+// example httpx.ErrEngineClosed after Stop).
 func (w *Web) Start(ctx context.Context) error {
-	w.storage.RegisterFileUploader(w.engine.Group("/"))
-	w.storage.RegisterFileDownloader(w.engine.Group("/"))
+	if w.storage == nil {
+		return errNilFileServer
+	}
+	w.registerOnce.Do(func() {
+		w.storage.RegisterFileUploader(w.engine.Group("/"))
+		w.storage.RegisterFileDownloader(w.engine.Group("/"))
+	})
 	return w.engine.Start()
 }
 

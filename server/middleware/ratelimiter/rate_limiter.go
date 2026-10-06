@@ -1,10 +1,3 @@
-// Package ratelimiter is per-key golang.org/x/time/rate.Limiter middleware
-// stored in a cache.Cache, with singleflight on miss. Deny is HTTP 429.
-//
-// NewRateLimiterByClientIP keys on httpx.Context.ClientIP, which is only as
-// trustworthy as the engine's proxy configuration. Prefer an authenticated
-// user ID when possible. createLimiter's expire is the cache TTL of the
-// limiter object, not the rate window.
 package ratelimiter
 
 import (
@@ -56,6 +49,9 @@ func WithCache(cache cache.Cache[*rate.Limiter]) Option {
 
 // WithSetTimeout sets the timeout for cache set operations.
 // This prevents hanging when the cache backend is unresponsive.
+// It bounds the cache re-read and write performed when a limiter is created;
+// the first per-request read uses the request context. A non-positive timeout
+// keeps the default of 5 seconds.
 func WithSetTimeout(timeout time.Duration) Option {
 	return func(opts *options) {
 		if timeout > 0 {
@@ -75,6 +71,12 @@ func (o *options) cacheCtx(ctx context.Context) (context.Context, context.Cancel
 
 // NewRateLimiter creates a new rate limiting middleware with customizable key extraction and limiter creation.
 // It uses caching to store rate limiters per key and singleflight to prevent cache stampedes.
+//
+// key maps a request to its bucket. createLimiter returns the limiter for a new
+// key and the cache TTL for that limiter (not the rate window; with the default
+// cache, zero means no expiry). A request whose limiter has no token left fails
+// with HTTP 429; a cache read or write failure fails it with HTTP 500. The
+// middleware never closes the cache.
 //
 // createLimiter runs once per key, inside a singleflight whose result every
 // concurrent waiter for that key shares, and it receives the triggering
@@ -151,6 +153,11 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 
 // NewRateLimiterByClientIP rate limits per client IP, keyed on
 // httpx.Context.ClientIP.
+//
+// Each IP gets rate.NewLimiter(rate.Every(limit), burst): one token is added
+// every limit (for example time.Second/10 allows 10 requests per second on
+// average) and up to burst requests may pass at once. expire is the cache TTL
+// of each IP's limiter, as described on NewRateLimiter.
 //
 // The key is only as trustworthy as the engine's proxy configuration.
 // ClientIP is documented as best-effort and typically derives from

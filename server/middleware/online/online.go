@@ -1,10 +1,3 @@
-// Package online is a TTL presence tracker, httpx middleware, and task.Task
-// sweeper.
-//
-// The backing store is mcache (lazy TTL, no janitor). The middleware only
-// writes, so without Start the map grows without bound. Return it from the
-// boot builder alongside the HTTP server. Construct with NewOnline; the zero
-// value's Start returns ErrNotInitialized. Identifier is "online".
 package online
 
 import (
@@ -37,10 +30,12 @@ var ErrNotInitialized = errors.New("online: uninitialized Online: use NewOnline"
 // alongside the server:
 //
 //	tracker := online.NewOnline()
-//	return []task.Task{tracker, httpServer}, nil
+//	return boot.NewApplication(httpServer, tracker), nil
 //
-// Online must be constructed with NewOnline; the zero value is unsupported and
-// Start fails with ErrNotInitialized instead of panicking.
+// Online must be constructed with NewOnline; the zero value is unsupported:
+// Start fails with ErrNotInitialized, the middleware fails requests with
+// ErrNotInitialized, and Stop is a no-op that returns nil. Middleware and OnlineCount are safe for
+// concurrent use.
 type Online struct {
 	cache        *mcache.Map[string, struct{}]
 	trimInterval time.Duration
@@ -80,6 +75,11 @@ func NewOnline(options ...Option) *Online {
 
 // Middleware creates a middleware that tracks online presence.
 // It extracts a key from the request context and updates the online status with the specified TTL.
+// keygen runs before the downstream handler, so it sees only what earlier
+// middleware stored (for example auth data). An empty key is not recorded. Each
+// request refreshes its key's TTL; the request continues even if recording
+// fails. Use a positive ttl: zero keeps keys until they are overwritten (never
+// swept) and a negative ttl records nothing.
 func (l *Online) Middleware(keygen func(ctx httpx.Context) string, ttl time.Duration) httpx.Middleware {
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
@@ -120,6 +120,10 @@ func (l *Online) Identifier() string {
 // Start runs the periodic sweep that reclaims expired entries. Reclaiming on a
 // timer rather than inside the middleware keeps the sweep — which scans every
 // key under the cache's write lock — off the request path.
+//
+// Start blocks until ctx is canceled (returning ctx.Err()) or Stop is called
+// (returning nil). After Stop, Start returns nil immediately, so a tracker
+// cannot be restarted.
 func (l *Online) Start(ctx context.Context) error {
 	if l.trimInterval <= 0 {
 		return ErrNotInitialized
@@ -138,8 +142,16 @@ func (l *Online) Start(ctx context.Context) error {
 	}
 }
 
-// Stop ends the periodic sweep. It is idempotent.
+// Stop ends the periodic sweep. It is idempotent, always returns nil, and may be
+// called before Start or on a zero-value Online, whose Start already failed.
+// Tracked keys stay readable after Stop, but expired keys are no longer
+// reclaimed.
 func (l *Online) Stop(ctx context.Context) error {
+	if l.done == nil {
+		// Zero value: Start returned ErrNotInitialized, so there is no sweep
+		// to end, and closing the nil channel would panic.
+		return nil
+	}
 	l.stopOnce.Do(func() {
 		close(l.done)
 	})

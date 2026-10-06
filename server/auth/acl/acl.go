@@ -1,9 +1,3 @@
-// Package acl is a static in-memory allow-list: subject → resource → true.
-// Fail-closed: missing subject or resource is denied. There is no deny API.
-//
-// Write-once at startup; concurrent Allow+IsAllowed is racy. Matches
-// middleware/auth.AccessControl (IsAllowed(role, resource)). The ACL
-// subject is used as the role by permission middleware.
 package acl
 
 // ACL represents an Access Control List that manages permissions between subjects and resources.
@@ -12,6 +6,7 @@ package acl
 // Note: ACL is designed for static configuration during startup (write-once, read-only
 // at runtime). If dynamic permission updates are required concurrently at runtime,
 // external synchronization or specialized permission management libraries should be used.
+// The zero value is an empty ACL ready to use; NewACL is equivalent.
 type ACL struct {
 	permissions map[string]map[string]bool
 }
@@ -24,8 +19,13 @@ func NewACL() *ACL {
 }
 
 // Allow grants permission for a subject to access a specific resource.
-// It creates the subject's permission map if it doesn't exist.
+// It creates the permission maps if they don't exist. Granting the
+// same pair again is a no-op. Matching is exact and case-sensitive; there are
+// no wildcards.
 func (a *ACL) Allow(subject, resource string) {
+	if a.permissions == nil {
+		a.permissions = make(map[string]map[string]bool)
+	}
 	if _, ok := a.permissions[subject]; !ok {
 		a.permissions[subject] = make(map[string]bool)
 	}

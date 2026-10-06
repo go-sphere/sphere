@@ -8,6 +8,19 @@ import (
 
 // Fs returns a fs.FS from a local directory if it exists, otherwise from
 // fs.Sub(files, emPath). It errors when neither source is usable.
+//
+// local is ignored when empty, missing, or not a directory. The usual pattern
+// serves an embedded asset tree in production and lets a developer override it
+// with a checked-out directory:
+//
+//	//go:embed dist
+//	var assets embed.FS
+//
+//	files, err := httpz.Fs("./dist", assets, "dist")
+//	if err != nil {
+//		return err
+//	}
+//	router.StaticFS("/", files)
 func Fs(local string, files fs.FS, emPath string) (fs.FS, error) {
 	// 1. Try the local directory first
 	if local != "" {

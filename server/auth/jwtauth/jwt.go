@@ -1,10 +1,3 @@
-// Package jwtauth is HMAC JWT parse/sign that satisfies authorizer.Parser
-// and authorizer.Generator when T is both jwt.Claims and authorizer.Claims.
-//
-// Default alg is HS256. RBACClaims[T] embeds jwt.RegisteredClaims and
-// implements authorizer.Claims: GetUID rejects a zero UID with
-// authorizer.MissingUIDError (the uid field is omitempty). GetSubject is
-// promoted from RegisteredClaims; GetRoles returns the Roles slice.
 package jwtauth
 
 import (
@@ -23,6 +16,10 @@ type options struct {
 type Option func(*options)
 
 // WithSigningMethod sets the JWT signing method for token generation and verification.
+// The key is always the secret bytes passed to NewJwtAuth, so only HMAC methods
+// (jwt.SigningMethodHS256, HS384, HS512) work; asymmetric methods fail when a
+// token is generated or parsed. Tokens signed with any other algorithm are
+// rejected by ParseToken.
 func WithSigningMethod(method jwt.SigningMethod) Option {
 	return func(opts *options) {
 		opts.signingMethod = method
@@ -41,6 +38,9 @@ func newOptions(opts ...Option) options {
 
 // JwtAuth provides JWT token generation and verification functionality.
 // It is parameterized by the claims type for type safety.
+//
+// Construct it with NewJwtAuth; the zero value has no secret and must not be
+// used. A JwtAuth is immutable after construction and safe for concurrent use.
 type JwtAuth[T jwt.Claims] struct {
 	secret        []byte
 	signingMethod jwt.SigningMethod
@@ -73,6 +73,8 @@ func (g *JwtAuth[T]) keyFunc(token *jwt.Token) (any, error) {
 }
 
 // GenerateToken creates a signed JWT token from the provided claims.
+// It does not set or check expiry; put ExpiresAt in claims (NewRBACClaims does).
+// ctx is currently unused.
 func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims T) (string, error) {
 	token, err := jwt.NewWithClaims(g.signingMethod, claims).SignedString(g.secret)
 	if err != nil {
@@ -84,6 +86,12 @@ func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims T) (string, error
 // ParseToken parses and validates a signed JWT token, returning the claims.
 // It handles both direct jwt.Claims types and custom structs, using JSON
 // marshaling/unmarshaling for struct conversion when necessary.
+//
+// It returns a golang-jwt error, testable with errors.Is against values such
+// as jwt.ErrTokenExpired, jwt.ErrTokenNotValidYet, jwt.ErrTokenMalformed, and
+// jwt.ErrTokenSignatureInvalid, when the token is malformed, signed with a
+// different algorithm or secret, or outside its exp/nbf window. The returned
+// claims must not be trusted when err is non-nil. ctx is currently unused.
 func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (T, error) {
 	var claims T
 	// Although the second parameter in jwt.ParseWithClaims requires a jwt.Claims type,

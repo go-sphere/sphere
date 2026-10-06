@@ -1,16 +1,3 @@
-// Package logger is httpx request-access and panic-recovery middleware over log.BaseLogger.
-//
-// Log records one entry after the downstream chain: Info when next succeeds,
-// Error when next returns an error. RecoveryLog recovers a panic so the
-// process stays up, logs it at Error, and finishes the request as HTTP 500.
-//
-// RecoveryLog deliberately returns nil after recovering (returning an error
-// would let an enclosing middleware write a second response onto the committed
-// one), so it must be the innermost recovery layer: registered as
-// Use(Log(lg), RecoveryLog(lg, true)) the panic is still logged at Error, with
-// its stack, by RecoveryLog — but the outer Log sees a successful chain and
-// records the request at Info with status=500 and the request fields. Do not
-// expect Log's level alone to reveal a recovered panic.
 package logger
 
 import (
@@ -26,7 +13,10 @@ import (
 // Log returns middleware that writes one access log after the downstream chain.
 // Successful requests are logged with Info; a chain error is logged with Error
 // and returned to the caller. Each entry includes status, method, path, query,
-// client IP, user-agent, and latency.
+// client IP, user-agent, and latency; the message is the request path. Path and
+// query are captured before the chain runs. When the chain returns an error
+// before a status was written, the status logged is the one httpz.ErrorStatus
+// resolves, which consults a parser installed with httpz.SetDefaultErrorParser.
 func Log(lg log.BaseLogger) httpx.Middleware {
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
@@ -60,24 +50,22 @@ func Log(lg log.BaseLogger) httpx.Middleware {
 // already written the recorded status is authoritative; when the chain failed
 // before anything was written — which is the normal case in a composed chain,
 // where the error is rendered at the route rather than at the failing layer —
-// the status httpz.ParseError maps the error to is what the client will get.
-// That is the default parser's mapping; a parser installed with
-// httpz.SetDefaultErrorParser is not consulted, so a status only it assigns is
-// logged as ParseError's.
+// the status httpz.ErrorStatus resolves — the one httpz.AbortWithJsonError
+// writes with the installed error parser — is what the client will get.
 func responseStatus(ctx httpx.Context, err error) int {
 	status := ctx.StatusCode()
 	if err == nil || status >= http.StatusBadRequest {
 		return status
 	}
-	if _, errStatus, _ := httpz.ParseError(err); errStatus != 0 {
-		return int(errStatus)
-	}
-	return status
+	return httpz.ErrorStatus(err)
 }
 
 // RecoveryLog returns middleware that recovers panics from the downstream chain.
 // The panic is logged with Error with the panic value; when stack is true
-// the entry also includes a stack trace. The request is finished as HTTP 500.
+// the entry also includes a stack trace. The request is finished as HTTP 500
+// with no body, and the middleware returns nil, so enclosing middleware sees a
+// successful chain. Like httpz.WithRecover, it re-panics http.ErrAbortHandler
+// without logging it, so net/http can drop the connection.
 func RecoveryLog(lg log.BaseLogger, stack bool) httpx.Middleware {
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
@@ -85,6 +73,12 @@ func RecoveryLog(lg log.BaseLogger, stack bool) httpx.Middleware {
 				rec := recover()
 				if rec == nil {
 					return
+				}
+				// http.ErrAbortHandler is net/http's signal to abandon the
+				// request (usually a client gone mid-response); see
+				// httpz.WithRecover.
+				if rec == http.ErrAbortHandler {
+					panic(rec)
 				}
 				attrs := []log.Attr{log.Any("error", rec)}
 				if stack {

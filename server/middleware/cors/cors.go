@@ -1,10 +1,3 @@
-// Package cors is configurable CORS middleware for httpx.
-//
-// OPTIONS is always treated as preflight (204). NewCORS rejects a bare "*"
-// origin together with credentials (ErrWildcardWithCredentials) at
-// construction. Default origins are empty and match nothing — configure
-// WithAllowOrigins. Per-origin globs like "https://*.example.com" are valid
-// with credentials. Default methods: GET POST PUT DELETE PATCH OPTIONS.
 package cors
 
 import (
@@ -25,6 +18,13 @@ const defaultAllowHeaders = "Origin,Content-Type,Accept,Authorization"
 type Option func(*config)
 
 // WithAllowOrigins sets the list of allowed origins. Use "*" to allow any origin.
+//
+// An entry containing "://" is compared with the full request origin; any
+// other entry is compared with the origin's host (including port). Matching is
+// case-insensitive, and "*" inside an entry matches any run of characters, as
+// in "https://*.example.com". A matching origin is echoed in
+// Access-Control-Allow-Origin. The default is no origins. A later call replaces
+// the list.
 func WithAllowOrigins(origins ...string) Option {
 	return func(cfg *config) {
 		cfg.allowOrigins = copyStrings(origins)
@@ -32,6 +32,8 @@ func WithAllowOrigins(origins ...string) Option {
 }
 
 // WithAllowMethods sets the HTTP methods that are allowed for CORS requests.
+// It replaces the default GET, POST, PUT, DELETE, PATCH, OPTIONS; an empty list
+// advertises OPTIONS only.
 func WithAllowMethods(methods ...string) Option {
 	return func(cfg *config) {
 		cfg.allowMethods = copyStrings(methods)
@@ -39,6 +41,8 @@ func WithAllowMethods(methods ...string) Option {
 }
 
 // WithAllowHeaders sets the allowed request headers for preflight requests.
+// Without it the middleware echoes Access-Control-Request-Headers, or sends
+// "Origin,Content-Type,Accept,Authorization" when the request names none.
 func WithAllowHeaders(headers ...string) Option {
 	return func(cfg *config) {
 		cfg.allowHeaders = copyStrings(headers)
@@ -60,6 +64,8 @@ func WithAllowCredentials(enabled bool) Option {
 }
 
 // WithMaxAge sets how long the results of a preflight request can be cached.
+// It is sent as whole seconds (fractions are truncated). Zero or negative
+// omits Access-Control-Max-Age.
 func WithMaxAge(ttl time.Duration) Option {
 	return func(cfg *config) {
 		cfg.maxAge = ttl
@@ -80,6 +86,10 @@ var ErrWildcardWithCredentials = errors.New("cors: \"*\" cannot be combined with
 // It returns ErrWildcardWithCredentials when the configuration pairs a bare "*"
 // origin with credentials, so the misconfiguration surfaces at startup rather
 // than becoming a runtime hole.
+//
+// Options are applied in order (nil options are skipped) and copied at
+// construction. Every OPTIONS request is answered with 204 without calling
+// the next handler; other requests get the CORS headers and continue.
 func NewCORS(options ...Option) (httpx.Middleware, error) {
 	cfg := newConfig(options...)
 	if cfg.allowCredentials && cfg.hasWildcardOrigin() {
