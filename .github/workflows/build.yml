@@ -27,3 +27,7 @@ jobs:
         run: make build
       - name: Test
         run: make test
+      # apidiff is fetched with `go run`; the baseline release is resolved
+      # through the module proxy, so no extra tool install is needed.
+      - name: API compatibility
+        run: make api-compat
