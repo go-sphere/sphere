@@ -356,3 +356,28 @@ func TestS3ClientRejectsInvalidKeys(t *testing.T) {
 		}
 	}
 }
+
+// TestS3ClientDownloadSurvivesOverwrite pins that the body and metadata of a
+// download come from one response. Overwriting the key after DownloadFile
+// returns must not break the read: the lazy minio.Object used to fetch the
+// body only on first Read, with If-Match on the earlier HEAD's ETag, so it
+// failed with a 412 precondition error.
+func TestS3ClientDownloadSurvivesOverwrite(t *testing.T) {
+	client, fake := newFakeClient(t, Config{})
+	fake.Put("doc.txt", []byte("old version"), "text/plain")
+
+	result, err := client.DownloadFile(t.Context(), "doc.txt")
+	if err != nil {
+		t.Fatalf("DownloadFile() error = %v", err)
+	}
+	defer func() { _ = result.Reader.Close() }()
+	fake.Put("doc.txt", []byte("new"), "text/plain")
+
+	body, err := io.ReadAll(result.Reader)
+	if err != nil {
+		t.Fatalf("read after overwrite: %v", err)
+	}
+	if string(body) != "old version" || result.Size != int64(len(body)) {
+		t.Fatalf("body = %q size = %d, want the version the metadata described", body, result.Size)
+	}
+}

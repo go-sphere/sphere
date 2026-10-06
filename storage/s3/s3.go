@@ -233,23 +233,19 @@ func (s *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 	if err != nil {
 		return storage.DownloadResult{}, err
 	}
-	object, err := s.client.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
+	// A single GET supplies both the body and its metadata. minio's lazy
+	// Object would HEAD first and then fetch the body with If-Match on the
+	// HEAD's ETag, so an overwrite in between failed the read mid-stream with
+	// 412 after Size and MIME had already been reported for the old version.
+	body, info, _, err := minio.Core{Client: s.client}.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
 	if err != nil {
-		if isNoSuchKeyError(err) {
-			return storage.DownloadResult{}, storageerr.ErrNotFound
-		}
-		return storage.DownloadResult{}, err
-	}
-	info, err := object.Stat()
-	if err != nil {
-		_ = object.Close()
 		if isNoSuchKeyError(err) {
 			return storage.DownloadResult{}, storageerr.ErrNotFound
 		}
 		return storage.DownloadResult{}, err
 	}
 	return storage.DownloadResult{
-		Reader: object,
+		Reader: body,
 		MIME:   info.ContentType,
 		Size:   info.Size,
 	}, nil
