@@ -358,6 +358,19 @@ func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return err
 	}
+	// A move onto itself is a no-op whatever overwrite says. Without this,
+	// overwrite=false reached Kodo, which answers 614 because the
+	// "destination" (the source itself) exists.
+	if sourceKey == destinationKey {
+		exists, err := n.IsFileExists(ctx, sourceKey)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return storageerr.ErrNotFound
+		}
+		return nil
+	}
 	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
 	err = manager.Move(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {

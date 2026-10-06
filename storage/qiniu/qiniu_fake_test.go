@@ -342,3 +342,22 @@ func TestClientUploadOverwrites(t *testing.T) {
 		t.Fatalf("stored = %q, want %q", obj.Data, "v3")
 	}
 }
+
+// TestClientMoveToSameKey pins that moving a key onto itself is a no-op for
+// both overwrite values, and reports ErrNotFound for a missing key.
+func TestClientMoveToSameKey(t *testing.T) {
+	client, fake := newFakeClient(t, Config{})
+	ctx := t.Context()
+	if err := client.MoveFile(ctx, "missing.txt", "missing.txt", false); !errors.Is(err, storageerr.ErrNotFound) {
+		t.Fatalf("MoveFile(missing onto itself) error = %v, want ErrNotFound", err)
+	}
+	fake.Put("self.txt", []byte("keep"), "text/plain")
+	for _, overwrite := range []bool{false, true} {
+		if err := client.MoveFile(ctx, "self.txt", "/self.txt", overwrite); err != nil {
+			t.Fatalf("MoveFile(onto itself, overwrite=%v) error = %v", overwrite, err)
+		}
+		if obj, ok := fake.Object("self.txt"); !ok || string(obj.Data) != "keep" {
+			t.Fatalf("object changed after self-move (overwrite=%v): %q exists=%v", overwrite, obj.Data, ok)
+		}
+	}
+}
