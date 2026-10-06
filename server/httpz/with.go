@@ -12,8 +12,10 @@
 // implements httpx.MessageError with a non-empty message. ErrorResponse.Error
 // is err.Error() only when SetDebugMode(true).
 //
-// The default parser is httpx.ParseError. SetDefaultErrorParser swaps it
-// atomically; a nil parser is ignored.
+// The default parser is ParseError: httpx.ParseError plus the HTTP status of
+// the storage sentinels (storageerr.ErrNotFound → 404, ErrDestExists and
+// ErrFileNameInvalid → 400). SetDefaultErrorParser swaps it atomically; a nil
+// parser is ignored. A custom parser should fall back to ParseError.
 //
 // # Wrappers
 //

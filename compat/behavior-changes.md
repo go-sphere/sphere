@@ -201,6 +201,43 @@ The package also stopped writing yitter's own global, so code calling
 `github.com/yitter/idgenerator-go/idgen.NextId` directly no longer gets the
 generator sphere configured (no caller exists in the go-sphere organization).
 
+### Storage sentinels no longer carry an HTTP status
+
+`storageerr.ErrNotFound`, `ErrDestExists` and `ErrFileNameInvalid` used to be
+`httpx.NotFoundError(...)`/`httpx.BadRequestError(...)` values, so the storage
+contract package imported the HTTP transport and any code path that returned
+one of them to a handler rendered as 404/400 through `httpx.ParseError`. They
+are now plain `errors.New` sentinels: `errors.Is` matches exactly as before,
+but they no longer implement `httpx.StatusError`/`httpx.Error`.
+
+The status mapping moved to the server side, into the new `httpz.ParseError`,
+which is now the default error parser: it is `httpx.ParseError` plus
+`errors.Is` mapping of `ErrNotFound` to 404 and `ErrDestExists`/
+`ErrFileNameInvalid` to 400 (an explicit `httpx.StatusError` anywhere in the
+chain still wins). With the default parser the rendered response — status,
+`Code` 0, `Message` the status text — is unchanged. `fileserver`'s download
+endpoint already mapped the sentinels explicitly and is unaffected;
+`logger.Log` now derives the status it logs for an unwritten error from
+`httpz.ParseError`, so it keeps logging 404/400 for these.
+
+**This is silent for custom error parsers.** A parser installed with
+`httpz.SetDefaultErrorParser` that falls back to `httpx.ParseError` — the shape
+every layout template used — no longer sees a status on these errors, so a
+missing storage key, a name collision or an invalid upload file name (for
+example from `fileserver.GenerateUploadAuth`) now renders as **500** instead of
+404/400. Fall back to `httpz.ParseError` instead:
+
+```go
+httpz.SetDefaultErrorParser(func(err error) (int32, int32, string) {
+	// ... application-specific mappings ...
+	return httpz.ParseError(err) // was: httpx.ParseError(err)
+})
+```
+
+Likewise, code that read the status off a storage error directly
+(`errors.As(err, &statusErr)` or `httpx.ParseError(err)`) gets nothing / 500
+now; use `httpz.ParseError` or `errors.Is` against the sentinels.
+
 ## Read this first — silent changes
 
 These compile cleanly, raise no error at runtime, and change what ends up

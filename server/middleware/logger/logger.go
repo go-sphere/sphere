@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/log"
+	"github.com/go-sphere/sphere/server/httpz"
 )
 
 // Log returns middleware that writes one access log after the downstream chain.
@@ -59,13 +60,14 @@ func Log(lg log.BaseLogger) httpx.Middleware {
 // already written the recorded status is authoritative; when the chain failed
 // before anything was written — which is the normal case in a composed chain,
 // where the error is rendered at the route rather than at the failing layer —
-// the status carried by the error is what the client will get.
+// the status the default parser (httpz.ParseError) maps the error to is what
+// the client will get.
 func responseStatus(ctx httpx.Context, err error) int {
 	status := ctx.StatusCode()
 	if err == nil || status >= http.StatusBadRequest {
 		return status
 	}
-	if _, errStatus, _ := httpx.ParseError(err); errStatus != 0 {
+	if _, errStatus, _ := httpz.ParseError(err); errStatus != 0 {
 		return int(errStatus)
 	}
 	return status

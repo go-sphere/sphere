@@ -273,10 +273,10 @@ func TestValue(t *testing.T) {
 func TestStressNoLeakageUnderNonDebug(t *testing.T) {
 	prevDebug := DebugMode()
 	SetDebugMode(false)
-	SetDefaultErrorParser(httpx.ParseError)
+	SetDefaultErrorParser(ParseError)
 	t.Cleanup(func() {
 		SetDebugMode(prevDebug)
-		SetDefaultErrorParser(httpx.ParseError)
+		SetDefaultErrorParser(ParseError)
 	})
 
 	leakPatterns := []string{

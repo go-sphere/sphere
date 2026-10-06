@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/log"
+	"github.com/go-sphere/sphere/storage/storageerr"
 )
 
 // ErrorParser is a function type that extracts error information for HTTP responses.
@@ -22,13 +23,48 @@ var (
 )
 
 func init() {
-	var parser ErrorParser = httpx.ParseError
+	var parser ErrorParser = ParseError
 	defaultErrorParser.Store(&parser)
+}
+
+// ParseError is the default ErrorParser: httpx.ParseError plus the HTTP
+// status of sentinel errors defined below the transport layer, which carry no
+// status of their own. It maps (via errors.Is):
+//
+//   - storageerr.ErrNotFound to 404;
+//   - storageerr.ErrDestExists and storageerr.ErrFileNameInvalid to 400.
+//
+// An httpx.StatusError anywhere in err's chain takes precedence, so a handler
+// that wraps a storage error with an explicit status keeps that status.
+//
+// A custom parser installed with SetDefaultErrorParser replaces this one
+// entirely. It must fall back to ParseError, not httpx.ParseError, for errors
+// it does not handle itself — otherwise a missing storage key renders as 500:
+//
+//	httpz.SetDefaultErrorParser(func(err error) (int32, int32, string) {
+//		if ve, ok := errors.AsType[*protovalidate.ValidationError](err); ok {
+//			return 0, http.StatusBadRequest, ve.Error()
+//		}
+//		return httpz.ParseError(err)
+//	})
+func ParseError(err error) (code int32, status int32, message string) {
+	code, status, message = httpx.ParseError(err)
+	if _, ok := errors.AsType[httpx.StatusError](err); ok {
+		return code, status, message
+	}
+	switch {
+	case errors.Is(err, storageerr.ErrNotFound):
+		status = http.StatusNotFound
+	case errors.Is(err, storageerr.ErrDestExists), errors.Is(err, storageerr.ErrFileNameInvalid):
+		status = http.StatusBadRequest
+	}
+	return code, status, message
 }
 
 // SetDefaultErrorParser sets the global error parser function for the package.
 // This parser will be used by AbortWithJsonError when no specific parser is provided.
-// A nil parser is ignored, leaving the current one in place.
+// A nil parser is ignored, leaving the current one in place. The parser
+// replaces ParseError entirely; fall back to ParseError for unhandled errors.
 func SetDefaultErrorParser(parser ErrorParser) {
 	if parser == nil {
 		return
@@ -89,9 +125,10 @@ func buildErrorResponse(err error) (int, ErrorResponse) {
 	// empty. A custom parser is trusted application code and its message is
 	// authoritative: it is how protovalidate (or similar) is mapped without
 	// wrapping. The raw err.Error() no longer needs to be filtered out here —
-	// httpx.ParseError, the default, returns an empty message for an error that
-	// carries no MessageError instead of its text (v0.0.5), so driver and
-	// database strings cannot reach Message through it. Pinned by
+	// httpx.ParseError, which the default ParseError builds on, returns an
+	// empty message for an error that carries no MessageError instead of its
+	// text (httpx v0.0.5), so driver and database strings cannot reach Message
+	// through it. Pinned by
 	// TestAbortWithJsonError_UnclassifiedDoesNotLeak.
 	if me, ok := errors.AsType[httpx.MessageError](err); ok && me.GetMessage() != "" {
 		message = me.GetMessage()

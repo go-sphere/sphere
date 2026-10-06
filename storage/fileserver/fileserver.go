@@ -215,8 +215,9 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 				return httpx.NotFoundError(err)
 			}
 			// A traversal-shaped or otherwise invalid key is the client's
-			// fault; wrapping it in InternalServerError would mask the 400
-			// the sentinel already carries.
+			// fault. The storage sentinels carry no HTTP status, so both
+			// cases are mapped here explicitly rather than left to the
+			// application's error parser.
 			if errors.Is(err, storageerr.ErrFileNameInvalid) {
 				return httpx.BadRequestError(err)
 			}

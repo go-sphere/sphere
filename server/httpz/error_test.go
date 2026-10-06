@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/httpx/httpxmock"
+	"github.com/go-sphere/sphere/storage/storageerr"
 )
 
 // errorBody returns the envelope AbortWithJsonError handed to JSON. It asserts
@@ -111,7 +112,7 @@ func TestAbortWithJsonError_EmptyMessageFallsBackToStatusText(t *testing.T) {
 }
 
 func TestAbortWithJsonError_CustomParserPreservesMessageAndCode(t *testing.T) {
-	t.Cleanup(func() { SetDefaultErrorParser(httpx.ParseError) })
+	t.Cleanup(func() { SetDefaultErrorParser(ParseError) })
 	SetDefaultErrorParser(func(error) (int32, int32, string) {
 		return 1001, http.StatusNotFound, "user not found"
 	})
@@ -168,7 +169,7 @@ func TestAbortWithJsonErrorConcurrentConfig(t *testing.T) {
 	prevDebug := DebugMode()
 	t.Cleanup(func() {
 		SetDebugMode(prevDebug)
-		SetDefaultErrorParser(httpx.ParseError)
+		SetDefaultErrorParser(ParseError)
 	})
 
 	var wg sync.WaitGroup
@@ -178,7 +179,7 @@ func TestAbortWithJsonErrorConcurrentConfig(t *testing.T) {
 		<-start
 		for i := range 1_000 {
 			SetDebugMode(i%2 == 0)
-			SetDefaultErrorParser(httpx.ParseError)
+			SetDefaultErrorParser(ParseError)
 		}
 	})
 	for range 4 {
@@ -206,7 +207,7 @@ func TestAbortWithJsonErrorConcurrentConfig(t *testing.T) {
 // TestSetDefaultErrorParserIgnoresNil pins that a nil parser cannot be installed,
 // which would otherwise panic on the next request.
 func TestSetDefaultErrorParserIgnoresNil(t *testing.T) {
-	t.Cleanup(func() { SetDefaultErrorParser(httpx.ParseError) })
+	t.Cleanup(func() { SetDefaultErrorParser(ParseError) })
 
 	SetDefaultErrorParser(nil)
 	ctx := httpxmock.New(nil)
@@ -221,7 +222,7 @@ func TestAbortWithJsonError_CustomParserMessageKept(t *testing.T) {
 	SetDebugMode(false)
 	t.Cleanup(func() {
 		SetDebugMode(prev)
-		SetDefaultErrorParser(httpx.ParseError)
+		SetDefaultErrorParser(ParseError)
 	})
 
 	const userMsg = "name is required"
@@ -260,7 +261,7 @@ func TestAbortWithJsonError_ParserEchoingRawErrorIsKept(t *testing.T) {
 	SetDebugMode(false)
 	t.Cleanup(func() {
 		SetDebugMode(prev)
-		SetDefaultErrorParser(httpx.ParseError)
+		SetDefaultErrorParser(ParseError)
 	})
 
 	raw := errors.New("pq: password authentication failed")
@@ -278,7 +279,7 @@ func TestAbortWithJsonError_ParserEchoingRawErrorIsKept(t *testing.T) {
 
 func TestAbortWithJsonError_OutOfRangeStatusClamped(t *testing.T) {
 	t.Cleanup(func() {
-		SetDefaultErrorParser(httpx.ParseError)
+		SetDefaultErrorParser(ParseError)
 	})
 
 	for _, invalidStatus := range []int32{0, -1, 50, 99, 600, 700, 1000} {
@@ -292,3 +293,70 @@ func TestAbortWithJsonError_OutOfRangeStatusClamped(t *testing.T) {
 		}
 	}
 }
+
+// TestStorageSentinelsRenderWithHTTPStatus is the contract that replaced the
+// HTTP status the storage sentinels used to carry themselves (they were
+// httpx.NotFoundError/BadRequestError values until v0.0.7). A storage error
+// returned straight from a handler must still render as 404/400 through the
+// default parser, through ParseError called directly, and through a custom
+// parser that delegates to ParseError — the shape the layout templates use.
+// A regression here turns a missing file into a 500.
+func TestStorageSentinelsRenderWithHTTPStatus(t *testing.T) {
+	prevDebug := DebugMode()
+	SetDebugMode(false)
+	t.Cleanup(func() {
+		SetDebugMode(prevDebug)
+		SetDefaultErrorParser(ParseError)
+	})
+
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+	}{
+		{"not found", storageerr.ErrNotFound, http.StatusNotFound},
+		{"wrapped not found", fmt.Errorf("download avatar: %w", storageerr.ErrNotFound), http.StatusNotFound},
+		{"dest exists", storageerr.ErrDestExists, http.StatusBadRequest},
+		{"file name invalid", storageerr.ErrFileNameInvalid, http.StatusBadRequest},
+		{"joined file name invalid", errors.Join(errors.New("driver detail"), storageerr.ErrFileNameInvalid), http.StatusBadRequest},
+		{"explicit status wins", httpx.InternalServerError(storageerr.ErrNotFound), http.StatusInternalServerError},
+	}
+
+	parsers := []struct {
+		name   string
+		parser ErrorParser
+	}{
+		{"default parser", ParseError},
+		{"custom parser delegating to ParseError", func(err error) (int32, int32, string) {
+			if errors.Is(err, errCustomOnly) {
+				return 0, http.StatusTeapot, ""
+			}
+			return ParseError(err)
+		}},
+	}
+
+	for _, p := range parsers {
+		for _, tt := range tests {
+			t.Run(p.name+"/"+tt.name, func(t *testing.T) {
+				SetDefaultErrorParser(p.parser)
+
+				code, status, _ := ParseError(tt.err)
+				if int(status) != tt.wantStatus || code != 0 {
+					t.Fatalf("ParseError() = (code %d, status %d), want (0, %d)", code, status, tt.wantStatus)
+				}
+
+				ctx := httpxmock.New(nil)
+				AbortWithJsonError(ctx, tt.err)
+				if ctx.StatusCode() != tt.wantStatus {
+					t.Fatalf("rendered status = %d, want %d", ctx.StatusCode(), tt.wantStatus)
+				}
+				resp := errorBody(t, ctx)
+				if resp.Code != 0 || resp.Message != http.StatusText(tt.wantStatus) {
+					t.Fatalf("response = %+v, want code 0 and message %q", resp, http.StatusText(tt.wantStatus))
+				}
+			})
+		}
+	}
+}
+
+var errCustomOnly = errors.New("handled by the custom parser only")
