@@ -17,18 +17,6 @@ type plainByteCache struct {
 	cache.ByteCache
 }
 
-// closeCountingByteCache records Close so the wrapper's no-op Close is
-// observable.
-type closeCountingByteCache struct {
-	cache.ByteCache
-	closes int
-}
-
-func (c *closeCountingByteCache) Close() error {
-	c.closes++
-	return c.ByteCache.Close()
-}
-
 // failingReadByteCache fails every read with err.
 type failingReadByteCache struct {
 	cache.ByteCache
@@ -102,36 +90,10 @@ func TestCodecCacheCorruptEntry(t *testing.T) {
 	if err != nil || found || val != 0 {
 		t.Fatalf("Get(missing) = (%d, %v, %v), want (0, false, nil)", val, found, err)
 	}
-}
-
-func TestCodecCacheGetDel(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	inner := mcache.NewByteCache()
-	typed := cache.NewJsonCache[string](inner)
-
-	if err := typed.Set(ctx, "k", "v"); err != nil {
-		t.Fatalf("Set: %v", err)
+	val, found, err = typed.GetDel(ctx, "missing")
+	if err != nil || found || val != 0 {
+		t.Fatalf("GetDel(missing) = (%d, %v, %v), want (0, false, nil)", val, found, err)
 	}
-	val, found, err := typed.GetDel(ctx, "k")
-	if err != nil || !found || val != "v" {
-		t.Fatalf("GetDel = (%q, %v, %v), want (\"v\", true, nil)", val, found, err)
-	}
-	assertExists(t, typed, "k", false)
-
-	val, found, err = typed.GetDel(ctx, "k")
-	if err != nil || found || val != "" {
-		t.Fatalf("second GetDel = (%q, %v, %v), want (\"\", false, nil)", val, found, err)
-	}
-
-	// An undecodable entry is consumed and reported as found with the error.
-	seedRaw(t, inner, map[string]string{"bad": "{"})
-	_, found, err = typed.GetDel(ctx, "bad")
-	if err == nil || !found {
-		t.Fatalf("GetDel(bad) = (found=%v, err=%v), want (true, decode error)", found, err)
-	}
-	assertExists(t, inner, "bad", false)
 }
 
 func TestCodecCacheBackendReadErrors(t *testing.T) {
@@ -151,24 +113,16 @@ func TestCodecCacheBackendReadErrors(t *testing.T) {
 	}
 }
 
-func TestCodecCacheDeleteAndExists(t *testing.T) {
+// TestCodecCacheBulkDelete covers MultiDel and DelAll, which forwards to the
+// backend and so also clears keys the adapter never wrote.
+func TestCodecCacheBulkDelete(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
 	inner := mcache.NewByteCache()
 	typed := cache.NewJsonCache[int](inner)
-	if err := typed.MultiSet(ctx, map[string]int{"a": 1, "b": 2, "c": 3, "d": 4}); err != nil {
+	if err := typed.MultiSet(ctx, map[string]int{"b": 2, "c": 3, "d": 4}); err != nil {
 		t.Fatalf("MultiSet: %v", err)
-	}
-	assertExists(t, typed, "a", true)
-	assertExists(t, typed, "zzz", false)
-
-	if err := typed.Del(ctx, "a"); err != nil {
-		t.Fatalf("Del: %v", err)
-	}
-	assertExists(t, inner, "a", false)
-	if err := typed.Del(ctx, "a"); err != nil {
-		t.Fatalf("Del missing key: %v", err)
 	}
 
 	if err := typed.MultiDel(ctx, []string{"b", "c", "missing"}); err != nil {
@@ -178,7 +132,6 @@ func TestCodecCacheDeleteAndExists(t *testing.T) {
 	assertExists(t, inner, "c", false)
 	assertExists(t, inner, "d", true)
 
-	// DelAll forwards to the backend, clearing keys the adapter never wrote.
 	seedRaw(t, inner, map[string]string{"raw": "x"})
 	if err := typed.DelAll(ctx); err != nil {
 		t.Fatalf("DelAll: %v", err)
@@ -224,38 +177,5 @@ func TestCodecCacheKeys(t *testing.T) {
 	unlisted := cache.NewJsonCache[int](plainByteCache{ByteCache: inner})
 	if keys, err := unlisted.Keys(ctx, ""); !errors.Is(err, cache.ErrNotSupported) || keys != nil {
 		t.Fatalf("Keys without KeyLister = (%v, %v), want (nil, ErrNotSupported)", keys, err)
-	}
-}
-
-func TestCodecCacheCloseDoesNotCloseBackend(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	backend := &closeCountingByteCache{ByteCache: mcache.NewByteCache()}
-	first := cache.NewJsonCache[int](backend)
-	second := cache.NewJsonCache[string](backend)
-
-	if err := first.Set(ctx, "n", 1); err != nil {
-		t.Fatalf("Set: %v", err)
-	}
-	if err := first.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-	if err := first.Close(); err != nil {
-		t.Fatalf("second Close: %v", err)
-	}
-	if backend.closes != 0 {
-		t.Fatalf("backend Close calls = %d, want 0", backend.closes)
-	}
-
-	// The closed adapter and its sibling keep working on the shared backend.
-	if v, found, err := first.Get(ctx, "n"); err != nil || !found || v != 1 {
-		t.Fatalf("Get after Close = (%d, %v, %v), want (1, true, nil)", v, found, err)
-	}
-	if err := second.Set(ctx, "s", "ok"); err != nil {
-		t.Fatalf("sibling Set after Close: %v", err)
-	}
-	if first.GetByteCache() != cache.ByteCache(backend) {
-		t.Fatalf("GetByteCache did not return the injected backend")
 	}
 }

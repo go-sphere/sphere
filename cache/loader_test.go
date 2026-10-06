@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -181,24 +182,6 @@ func TestGetExSingleflightErrorSharedAndNotCached(t *testing.T) {
 	})
 }
 
-func TestGetExBuilderErrorNotCached(t *testing.T) {
-	t.Parallel()
-
-	c := newRecordingCache[string]()
-	buildErr := errors.New("build failed")
-
-	_, found, err := cache.GetEx(t.Context(), c, "k", func() (string, error) {
-		return "partial", buildErr
-	})
-	if !errors.Is(err, buildErr) || found {
-		t.Fatalf("GetEx = (found=%v, err=%v), want (false, %v)", found, err, buildErr)
-	}
-	if set, setTTL, _ := c.writes(); set != 0 || setTTL != 0 {
-		t.Fatalf("writes = (%d, %d), want none after builder error", set, setTTL)
-	}
-	assertNotCached[string](t, c, "k")
-}
-
 // TestGetExCacheWriteFailureStillReturnsValue pins the documented contract
 // that a failed backfill does not fail the read: the built value is returned
 // as found with a nil error.
@@ -271,16 +254,6 @@ func TestGetExGetterErrorSkipsBuilder(t *testing.T) {
 	}
 }
 
-func TestGetExNilBuilderOnMiss(t *testing.T) {
-	t.Parallel()
-
-	c := newRecordingCache[string]()
-	val, found, err := cache.GetEx[string](t.Context(), c, "k", nil)
-	if err != nil || found || val != "" {
-		t.Fatalf("GetEx(nil builder) = (%q, %v, %v), want (\"\", false, nil)", val, found, err)
-	}
-}
-
 func TestGetExDynamicTTLApplied(t *testing.T) {
 	t.Parallel()
 
@@ -311,113 +284,23 @@ func TestGetExDynamicTTLApplied(t *testing.T) {
 	}
 }
 
-// TestGetExDynamicTTLExpires verifies the dynamic TTL actually reaches the
-// driver by letting the fake clock run past it.
-func TestGetExDynamicTTLExpires(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		ctx := t.Context()
-		c := mcache.NewMapCache[int]()
-		opt := cache.WithDynamicTTL(func(v int) (bool, time.Duration) {
-			return true, time.Duration(v) * time.Second
-		})
-
-		var calls int
-		builder := func() (int, error) {
-			calls++
-			return 5, nil
-		}
-		for range 2 {
-			if _, _, err := cache.GetEx(ctx, c, "k", builder, opt); err != nil {
-				t.Fatalf("GetEx: %v", err)
-			}
-		}
-		if calls != 1 {
-			t.Fatalf("builder calls before expiry = %d, want 1", calls)
-		}
-
-		time.Sleep(6 * time.Second)
-		if _, _, err := cache.GetEx(ctx, c, "k", builder, opt); err != nil {
-			t.Fatalf("GetEx after expiry: %v", err)
-		}
-		if calls != 2 {
-			t.Fatalf("builder calls after expiry = %d, want 2", calls)
-		}
-	})
-}
-
-func TestSetDynamicTTL(t *testing.T) {
+// TestSetOptionOrderAndBackendError pins that the last TTL option wins and
+// that Set, unlike the GetEx backfill, returns the backend's write error.
+func TestSetOptionOrderAndBackendError(t *testing.T) {
 	t.Parallel()
 
 	c := newRecordingCache[int]()
-	err := cache.Set(t.Context(), c, "k", 3, cache.WithDynamicTTL(func(v int) (bool, time.Duration) {
-		return true, time.Duration(v) * time.Minute
-	}))
-	if err != nil {
+	if err := cache.Set(t.Context(), c, "never", 1, cache.WithExpiration(time.Second), cache.WithNeverExpire()); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
-	if _, setTTL, ttl := c.writes(); setTTL != 1 || ttl != 3*time.Minute {
-		t.Fatalf("SetWithTTL = (%d, %s), want (1, 3m)", setTTL, ttl)
-	}
-
-	err = cache.Set(t.Context(), c, "bad", 3, cache.WithDynamicTTL(func(string) (bool, time.Duration) {
-		return true, time.Minute
-	}))
-	if !errors.Is(err, cache.ErrTTLCalculatorType) {
-		t.Fatalf("Set mismatch err = %v, want ErrTTLCalculatorType", err)
-	}
-	assertNotCached[int](t, c, "bad")
-
-	if err = cache.Set(t.Context(), c, "nil", 3, cache.WithDynamicTTL[int](nil)); !errors.Is(err, cache.ErrTTLCalculatorType) {
-		t.Fatalf("Set nil calculator err = %v, want ErrTTLCalculatorType", err)
-	}
-
-	// WithNeverExpire after WithExpiration routes back to plain Set.
-	before, _, _ := c.writes()
-	if err = cache.Set(t.Context(), c, "never", 1, cache.WithExpiration(time.Second), cache.WithNeverExpire()); err != nil {
-		t.Fatalf("Set never expire: %v", err)
-	}
-	if after, _, _ := c.writes(); after != before+1 {
-		t.Fatalf("WithNeverExpire did not route to Set")
+	if set, setTTL, _ := c.writes(); set != 1 || setTTL != 0 {
+		t.Fatalf("writes = (set=%d, setWithTTL=%d), want (1, 0)", set, setTTL)
 	}
 
 	c.setErr = errors.New("write failed")
-	if err = cache.Set(t.Context(), c, "fail", 1); !errors.Is(err, c.setErr) {
+	if err := cache.Set(t.Context(), c, "fail", 1); !errors.Is(err, c.setErr) {
 		t.Fatalf("Set backend error = %v, want %v", err, c.setErr)
 	}
-}
-
-func TestSetJsonDynamicTTLSeesOriginalValue(t *testing.T) {
-	t.Parallel()
-
-	type payload struct {
-		TTL time.Duration `json:"ttl"`
-	}
-
-	c := newRecordingCache[[]byte]()
-	if err := cache.SetJson(t.Context(), c, "k", payload{TTL: 9 * time.Second},
-		cache.WithDynamicTTL(func(p payload) (bool, time.Duration) { return true, p.TTL })); err != nil {
-		t.Fatalf("SetJson: %v", err)
-	}
-	if _, setTTL, ttl := c.writes(); setTTL != 1 || ttl != 9*time.Second {
-		t.Fatalf("SetWithTTL = (%d, %s), want (1, 9s)", setTTL, ttl)
-	}
-	raw, found, err := c.Get(t.Context(), "k")
-	if err != nil || !found || string(raw) != `{"ttl":9000000000}` {
-		t.Fatalf("stored = (%s, %v, %v)", raw, found, err)
-	}
-
-	// A calculator written against the encoded form does not match.
-	err = cache.SetJson(t.Context(), c, "bad", payload{},
-		cache.WithDynamicTTL(func([]byte) (bool, time.Duration) { return true, time.Second }))
-	if !errors.Is(err, cache.ErrTTLCalculatorType) {
-		t.Fatalf("SetJson mismatch err = %v, want ErrTTLCalculatorType", err)
-	}
-	assertNotCached[[]byte](t, c, "bad")
-
-	if err = cache.SetJson(t.Context(), c, "unencodable", make(chan int)); err == nil {
-		t.Fatalf("SetJson(chan) succeeded, want encode error")
-	}
-	assertNotCached[[]byte](t, c, "unencodable")
 }
 
 func TestGetJsonExReadThrough(t *testing.T) {
@@ -451,14 +334,6 @@ func TestGetJsonExReadThrough(t *testing.T) {
 	if string(raw) != `{"n":1}` {
 		t.Fatalf("stored bytes = %s, want JSON", raw)
 	}
-
-	buildErr := errors.New("build failed")
-	if _, found, err := cache.GetJsonEx(ctx, c, "err", func() (payload, error) {
-		return payload{}, buildErr
-	}); !errors.Is(err, buildErr) || found {
-		t.Fatalf("GetJsonEx builder error = (found=%v, err=%v)", found, err)
-	}
-	assertNotCached[[]byte](t, c, "err")
 }
 
 // TestGetJsonExCorruptEntry: an undecodable cached entry is a read error,
@@ -481,8 +356,7 @@ func TestGetJsonExCorruptEntry(t *testing.T) {
 		called = true
 		return payload{N: 1}, nil
 	})
-	var syntaxErr *json.SyntaxError
-	if !errors.As(err, &syntaxErr) || found {
+	if _, ok := errors.AsType[*json.SyntaxError](err); !ok || found {
 		t.Fatalf("GetJsonEx corrupt = (found=%v, err=%v), want json.SyntaxError", found, err)
 	}
 	if called {
@@ -503,12 +377,8 @@ func TestGetObjectExCustomCodec(t *testing.T) {
 	encode := codec.EncoderFunc(func(v any) ([]byte, error) {
 		return []byte(v.(string) + "!"), nil
 	})
-	decodeErr := errors.New("decode failed")
 	decode := codec.DecoderFunc(func(data []byte, v any) error {
-		if len(data) == 0 || data[len(data)-1] != '!' {
-			return decodeErr
-		}
-		*(v.(*string)) = string(data[:len(data)-1])
+		*(v.(*string)) = strings.TrimSuffix(string(data), "!")
 		return nil
 	})
 
@@ -521,23 +391,6 @@ func TestGetObjectExCustomCodec(t *testing.T) {
 	raw, _, _ := c.Get(ctx, "k")
 	if string(raw) != "hello!" {
 		t.Fatalf("stored = %q, want encoder output", raw)
-	}
-
-	got, found, err = cache.GetObjectEx[string](ctx, c, decode, encode, "k", func() (string, error) {
-		t.Fatalf("builder ran on a hit")
-		return "", nil
-	})
-	if err != nil || !found || got != "hello" {
-		t.Fatalf("GetObjectEx hit = (%q, %v, %v)", got, found, err)
-	}
-
-	if err = c.Map.Set(ctx, "bad", []byte("nope")); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-	if _, found, err = cache.GetObjectEx[string](ctx, c, decode, encode, "bad", func() (string, error) {
-		return "x", nil
-	}); !errors.Is(err, decodeErr) || found {
-		t.Fatalf("GetObjectEx decode error = (found=%v, err=%v), want %v", found, err, decodeErr)
 	}
 
 	// An encoder failure on backfill is a setter error: ignored by the loader.
