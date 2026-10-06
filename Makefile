@@ -10,7 +10,7 @@ DIRECT_ORIGIN := GOPRIVATE=github.com/go-sphere/*
 
 .DEFAULT_GOAL := check
 
-.PHONY: deps-update tidy tidy-check fmt build test lint check verify api-compat add-tags del-tags
+.PHONY: deps-update tidy tidy-check fmt build test lint check verify cover api-compat add-tags del-tags
 
 deps-update:
 	@GOWORK=off $(DIRECT_ORIGIN) $(GO) mod tidy; \
@@ -50,6 +50,18 @@ check: tidy-check
 
 verify: check
 	$(GO) test -race ./...
+
+# Contract suites live in separate packages (cache/test, mq/test,
+# scheduler/test, storage/test), so plain `go test -cover` reports the drivers
+# they exercise at 0%. -coverpkg credits every test binary's hits to the
+# library packages; test-support packages are excluded so they do not dilute
+# the total.
+COVER_PROFILE ?= coverage.out
+COVER_PKGS = $(shell $(GO) list ./... | grep -Ev '/test(/|$$)|/tasktest$$|/internal/compatconsumer$$' | paste -sd, -)
+
+cover:
+	$(GO) test -coverpkg=$(COVER_PKGS) -coverprofile=$(COVER_PROFILE) ./...
+	$(GO) tool cover -func=$(COVER_PROFILE)
 
 api-compat:
 	./scripts/check-api-compat.sh
