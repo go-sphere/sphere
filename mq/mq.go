@@ -1,31 +1,3 @@
-// Package mq is the typed messaging contract: point-to-point Queue and
-// best-effort PubSub, plus MessageQueue that combines both.
-//
-// Drivers live in subpackages: memory (process-local channels, default buffer
-// 100) and redis (lists + Redis pub/sub, JSON by default).
-//
-// # Queue
-//
-// Publish delivers to exactly one consumer, FIFO. memory Publish blocks when
-// the per-topic buffer is full; redis RPUSH is unbounded. TryConsume: check
-// the error first — a non-nil error means the message was not delivered, and
-// the bool must not be read as "nothing was waiting".
-//
-// Close is driver-split. memory Close stops the queue and drains remaining
-// messages, then Consume/TryConsume return ErrQueueClosed. redis Close is a
-// no-op: the caller owns the *redis.Client.
-//
-// # PubSub
-//
-// Broadcast is best-effort: a slow subscriber may miss messages. Subscribe's
-// ctx owns the returned Subscription: cancellation stops it and is propagated
-// to its Handler. PubSub shutdown is deliberately two-phase. RequestStop and
-// StopTopic only request cancellation and are safe to call from inside a
-// Handler; Done closes after every Handler has returned. PubSub implements
-// task.Task, whose Stop performs a context-bounded wait for that quiescence.
-//
-// Share a Redis client with cache only if you never call cache.DelAll
-// (FlushDB) on that database.
 package mq
 
 import (

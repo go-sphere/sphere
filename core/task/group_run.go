@@ -22,6 +22,12 @@ import (
 // Long-running servers: the last stage blocks inside Start until Stop or the
 // parent context is cancelled; the group then stops started stages in reverse
 // order and Start returns.
+//
+// Start returns the member Start and Stop errors joined with errors.Join, or
+// nil when there were none. context.Canceled results provoked by the group's
+// own teardown (Stop or parent ctx cancellation) are not counted as errors. A nil member yields an error
+// before anything starts. A Group runs once: a second Start returns
+// ErrGroupAlreadyStarted while running and ErrGroupAlreadyStopped afterwards.
 func (g *Group) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()

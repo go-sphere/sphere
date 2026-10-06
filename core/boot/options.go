@@ -121,7 +121,8 @@ func AddAfterStop(f Hook) Option {
 // runs and syncs it after stop (or after a build failure).
 // The caller constructs the backend (for example zapx.NewBackend(conf)), so the
 // lifecycle implementation works with any logging driver. When the backend also
-// implements SlogLogger, it is registered as the default slog handler.
+// implements log.SlogBackend, its SlogLogger() is installed with slog.SetDefault.
+// The global logger stays installed after Run returns.
 func WithLoggerBackend(backend log.Backend) Option {
 	return func(o *options) {
 		o.beforeBuild = append(o.beforeBuild, func(context.Context) error {

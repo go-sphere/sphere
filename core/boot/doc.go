@@ -1,6 +1,33 @@
 // Package boot runs a task.Task as a process: OS signals, lifecycle hooks,
 // and a shutdown deadline.
 //
+// Entry points: [Run] drives an [Application] built by [NewApplication],
+// [NewStagedApplication], or [NewApplicationFromGroup]; [Option] values such
+// as [WithShutdownTimeout], [WithLoggerBackend], and [AddAfterStop] customize
+// it. [DefaultConfigParser] and [InitTimezone] are optional main helpers.
+//
+// # Usage
+//
+//	import (
+//		"context"
+//		"os"
+//
+//		"github.com/go-sphere/sphere/core/boot"
+//	)
+//
+//	func main() {
+//		conf := &Config{}
+//		err := boot.Run(conf, func(c *Config) (*boot.Application, error) {
+//			httpSrv := newHTTPTask(c) // any task.Task
+//			return boot.NewApplication(httpSrv), nil
+//		}, boot.AddAfterStop(func(ctx context.Context) error {
+//			return db.Close() // clients that are not Tasks close after Stop
+//		}))
+//		if err != nil {
+//			os.Exit(1)
+//		}
+//	}
+//
 // Importing this package has no side effects. The process timezone is the
 // host's unless main calls InitTimezone, e.g. InitTimezone(DefaultTimezone).
 //

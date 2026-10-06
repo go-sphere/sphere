@@ -1,15 +1,3 @@
-// Package memory is the ristretto-backed in-process cache.Cache driver.
-//
-// High throughput, no KeyLister (NSCache.DelAll returns ErrNotSupported
-// unless another lister is in the stack). Writes Wait() unless
-// SetAllowAsyncWrites(true). Ristretto may drop writes under load; that is
-// reported as success. Same-key mutations and GetDel use 128 FNV-striped
-// mutexes. After Close, this is the only driver that returns cache.ErrClosed.
-//
-// NewMemoryCache and NewMemoryCacheWithCost own the ristretto instance and
-// Close it. NewMemoryCacheWithRistretto does not. NewByteCache uses
-// cost=len(bytes); NewMemoryCache[[]byte] uses cost=1 per item. ctx on CRUD
-// methods is unused. UpdateMaxCost on a closed cache is a silent no-op.
 package memory
 
 import (
@@ -30,8 +18,11 @@ const (
 	numGetDelShards    = 128
 )
 
-// Cache is the ristretto-backed cache.Cache. See the package comment for
-// ownership, dropped writes, GetDel sharding, and ErrClosed.
+// Cache is the ristretto-backed cache.Cache. It is safe for concurrent use,
+// including Close concurrently with other methods. Build one with
+// NewMemoryCache, NewMemoryCacheWithCost, NewByteCache, or
+// NewMemoryCacheWithRistretto; the zero value is not usable. See the package
+// comment for ownership, dropped writes, GetDel sharding, and ErrClosed.
 type Cache[T any] struct {
 	calculateCost    bool
 	allowAsyncWrites atomic.Bool
@@ -111,12 +102,11 @@ func NewMemoryCacheWithRistretto[T any](cache *ristretto.Cache[string, T], calcu
 	return c
 }
 
-// UpdateMaxCost updates the maximum cost allowed for the cache.
-// In memory.Cache, by default, `calculateCost` is False, so `cost` will be 1.
-// It doesn't care about the size of the item.
-// Calculating cost is too complex and not necessary for most use cases.
-// If you want to limit the number of items in the cache, you use this method to set the maximum number of items.
-// If you want to limit the size of the items in the cache, you can use NewMemoryCacheWithCost
+// UpdateMaxCost updates the maximum total cost allowed for the cache.
+// Caches built by NewMemoryCache cost every item as 1, so maxItem is then
+// the maximum number of items; caches built by NewByteCache or
+// NewMemoryCacheWithCost measure cost with their cost function. Values <= 0
+// are ignored, and so is a call on a closed cache.
 func (m *Cache[T]) UpdateMaxCost(maxItem int64) {
 	m.closeMu.RLock()
 	defer m.closeMu.RUnlock()
@@ -137,13 +127,16 @@ func (m *Cache[T]) SetAllowAsyncWrites(allow bool) {
 	m.allowAsyncWrites.Store(allow)
 }
 
+// Set stores val under key without expiration. Unless async writes are
+// enabled, it waits until ristretto has applied the write.
+//
 // A false return from ristretto's Set/SetWithTTL does not signal a hard
 // failure: under load the entry may be dropped when the internal setBuf is
 // full. Cache semantics allow such losses, so a dropped write is reported as
 // success (return nil) rather than a non-deterministic error that would push
 // callers into retry storms. A ristretto ttl of 0 means "never expire", which
-// matches the cache TTL contract; negative TTLs are rejected up front.
-
+// matches the cache TTL contract; negative TTLs are rejected up front. After
+// Close, Set returns cache.ErrClosed.
 func (m *Cache[T]) Set(ctx context.Context, key string, val T) error {
 	m.closeMu.RLock()
 	defer m.closeMu.RUnlock()

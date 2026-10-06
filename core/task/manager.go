@@ -117,6 +117,10 @@ func (t *managedTask) getStopErr() error {
 // Start and then exited early never got the chance to release. Task
 // implementations must therefore tolerate Stop after Start has already returned,
 // as the Task interface requires.
+//
+// Create a Manager with NewManager; the zero value is not usable. Its methods
+// are safe for concurrent use, subject to the reentrancy limits documented on
+// Wait and StopAll.
 type Manager struct {
 	opts managerOptions
 
@@ -192,6 +196,12 @@ func NewManager(options ...ManagerOption) *Manager {
 // Returns ErrTaskAlreadyExists if a task with the same name is already running.
 // The task runs in its own goroutine and can be stopped individually using StopTask.
 // The provided ctx becomes the parent context of this task's run context.
+//
+// StartTask returns once the task's goroutine is launched; it does not wait
+// for Start. A nil task or empty name returns an error without starting
+// anything. When Start returns on its own, the manager calls Stop and retires
+// the entry; a Start failure is reported later through GetTaskResult, Wait,
+// and StopAll, not by StartTask.
 func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 	if task == nil {
 		return errors.New("task is nil")

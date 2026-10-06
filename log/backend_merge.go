@@ -12,7 +12,8 @@ type ContextAttrExtractor func(ctx context.Context) []Attr
 // ContextMapExtractor extracts key-value pairs from context for logging.
 type ContextMapExtractor func(ctx context.Context) map[string]any
 
-// MapContextAttrExtractor adapts map extractors into attr extractors.
+// MapContextAttrExtractor adapts a map extractor into an attr extractor that
+// emits Any attrs in sorted key order. A nil extractor yields nil.
 func MapContextAttrExtractor(extractor ContextMapExtractor) ContextAttrExtractor {
 	if extractor == nil {
 		return nil
@@ -31,7 +32,9 @@ func MapContextAttrExtractor(extractor ContextMapExtractor) ContextAttrExtractor
 	}
 }
 
-// MergeAttrs merges base attrs with explicit attrs. Explicit attrs override same-key values from base.
+// MergeAttrs merges base attrs with explicit attrs. Explicit attrs override
+// same-key values from base in place, keeping the first position of each key.
+// When either slice is empty the other is returned unchanged (not copied).
 func MergeAttrs(base []Attr, explicit []Attr) []Attr {
 	if len(base) == 0 {
 		return explicit
@@ -64,7 +67,13 @@ func MergeAttrs(base []Attr, explicit []Attr) []Attr {
 	return out
 }
 
-// WrapBackendWithContextMerge returns a backend that merges attrs extracted from context.
+// WrapBackendWithContextMerge returns a backend that calls extractor on the
+// Log context and merges the result before the explicit attrs, which win on
+// key collisions (see MergeAttrs). If backend or extractor is nil it returns
+// backend unchanged. The wrapper keeps the extractor across With, forwards
+// Sync, and implements Close by forwarding to the wrapped backend when it has
+// one. Only the Context logging methods carry a caller context; the others
+// pass context.Background to the extractor.
 func WrapBackendWithContextMerge(backend Backend, extractor ContextAttrExtractor) Backend {
 	if backend == nil || extractor == nil {
 		return backend
@@ -72,7 +81,8 @@ func WrapBackendWithContextMerge(backend Backend, extractor ContextAttrExtractor
 	return &contextMergeBackend{next: backend, extractor: extractor}
 }
 
-// WrapBackendWithContextMapMerge returns a backend wrapper using a map-based context extractor.
+// WrapBackendWithContextMapMerge is WrapBackendWithContextMerge with a
+// map-based extractor; map entries become attrs in sorted key order.
 func WrapBackendWithContextMapMerge(backend Backend, extractor ContextMapExtractor) Backend {
 	return WrapBackendWithContextMerge(backend, MapContextAttrExtractor(extractor))
 }

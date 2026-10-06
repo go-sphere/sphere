@@ -1,10 +1,3 @@
-// Package badgerdb is a persistent cache.ByteCache driver on BadgerDB.
-//
-// []byte only. DelAll enumerates keys and MultiDel; it does not call DropAll
-// (unsafe against concurrent reads). The scan+delete is not atomic. GetDel
-// retries ErrConflict until success, miss, or ctx.Err(). Keys honours ctx
-// per key; most other methods ignore ctx. NewDatabase and
-// NewDatabaseWithOptions own the DB; NewDatabaseWithBadger does not.
 package badgerdb
 
 import (
@@ -19,11 +12,16 @@ import (
 
 // Config holds configuration options for BadgerDB.
 type Config struct {
+	// Path is the directory BadgerDB stores its files in. It is created if
+	// missing.
 	Path string `json:"path"`
 }
 
 // Database is a BadgerDB-backed cache implementation that provides persistent key-value storage.
 // It implements the ByteCache interface using BadgerDB as the underlying storage engine.
+//
+// Database also implements cache.KeyLister and is safe for concurrent use.
+// Build one with NewDatabase, NewDatabaseWithOptions, or NewDatabaseWithBadger.
 type Database struct {
 	db *badger.DB
 	// owned reports whether this Database opened the underlying BadgerDB

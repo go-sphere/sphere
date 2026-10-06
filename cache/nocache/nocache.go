@@ -1,9 +1,3 @@
-// Package nocache is an always-miss cache.Cache that stores nothing.
-//
-// Sets succeed. Gets return (zero, false, nil). Negative TTL is still
-// rejected as cache.ErrInvalidTTL so swapping this in does not hide caller
-// bugs. Implements KeyLister with an empty keyspace so NSCache.DelAll keeps
-// working when caching is turned off.
 package nocache
 
 import (
@@ -94,6 +88,7 @@ func (n *NoCache[T]) Keys(ctx context.Context, prefix string) ([]string, error) 
 	return nil, nil
 }
 
+// Close is a no-op.
 func (n *NoCache[T]) Close() error {
 	return nil
 }

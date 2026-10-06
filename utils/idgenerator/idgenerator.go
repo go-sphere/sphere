@@ -1,16 +1,3 @@
-// Package idgenerator produces process-unique int64 IDs via
-// yitter/idgenerator-go. It is not Twitter Snowflake (no datacenter bits,
-// different layout).
-//
-// NextId is the process-global generator. Importing the package has no side
-// effects: the generator is built on first use, either explicitly by Init or
-// InitFromEnv, or lazily by the first NextId from WORKER_ID (valid 0–63).
-// Unset defaults to 1, not 0 — so StatefulSet pod-0 must set WORKER_ID=0
-// explicitly. A malformed WORKER_ID makes every NextId panic, so call
-// InitFromEnv (or Init) early in main to fail at boot instead of at the first
-// insert. BaseTime is the fixed instant baseTimeMillis, never time.Local.
-// NewIdGenerator(workerID) is independent of the global. Unique worker IDs are
-// required across processes sharing a key space.
 package idgenerator
 
 import (
@@ -155,7 +142,10 @@ func newDefaultIdGenerator(workerID uint16) *idgen.DefaultIdGenerator {
 }
 
 // NewIdGenerator returns an independent generator for workerID. Unique worker
-// IDs are required across processes sharing a key space.
+// IDs are required across processes sharing a key space, and across
+// generators within one process, including the global one. workerID must be
+// in [0, 63]; unlike Init, NewIdGenerator panics instead of returning an error
+// for a larger value. The returned function is safe for concurrent use.
 func NewIdGenerator(workerID uint16) func() int64 {
 	generator := newDefaultIdGenerator(workerID)
 	return func() int64 {

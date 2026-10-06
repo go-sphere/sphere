@@ -1,10 +1,3 @@
-// Package nscache prefixes every key with "<namespace>:" so several logical
-// caches can share one cache.Cache.
-//
-// DelAll/Keys are namespace-scoped and need cache.KeyLister on the inner
-// cache (mcache, badgerdb, redis, nocache, CodecCache if the inner is a
-// lister). The ristretto memory driver is not a lister. Close is a no-op.
-// Namespaces must not contain ":": "a" and "a:b" overlap under prefix "a:".
 package nscache
 
 import (

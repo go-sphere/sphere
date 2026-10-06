@@ -1,15 +1,3 @@
-// Package redis is the Redis-backed mq.MessageQueue: lists for Queue
-// (RPUSH/BLPOP/LPOP) and Redis pub/sub for PubSub.
-//
-// WithClient is required and the client is never closed here. Default codec
-// is JSON. Queue Close is a no-op. Consume cancellation is observed within
-// about 1s (BLPOP poll). Decode failures after pop return DecodeError with
-// the raw bytes; TryConsume still reports found=true — check err first.
-// PubSub RequestStop cancels subscriptions but never closes the injected client;
-// Broadcast and Subscribe then return mq.ErrPubSubClosed. Topic names are
-// Redis keys: they collide with cache keys on the same DB. PubSub and
-// MessageQueue implement task.Task; use WithIdentifier when a group contains
-// more than one.
 package redis
 
 import (

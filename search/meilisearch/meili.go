@@ -1,9 +1,3 @@
-// Package meilisearch is the search.Searcher driver on meilisearch-go.
-//
-// Connection is lazy; construction does not health-check. Index/Delete wait
-// for the Meilisearch task (WaitForTaskWithContext, 1s poll) and are not
-// fire-and-forget. Search maps Result.Total from EstimatedTotalHits, not
-// TotalHits. Filter is a passthrough Meilisearch DSL string.
 package meilisearch
 
 import (
@@ -21,12 +15,15 @@ type Config struct {
 	APIKey string `json:"api_key" yaml:"api_key"` // API key for authentication
 }
 
-// ServiceManager wraps the Meilisearch service manager to provide connection management.
+// ServiceManager wraps the Meilisearch client shared by every Searcher built
+// from it. Create it with NewServiceManager; it is safe to share and has no
+// Close.
 type ServiceManager struct {
 	service meilisearch.ServiceManager
 }
 
 // NewServiceManager creates a new ServiceManager instance with the given configuration.
+// It currently never returns an error.
 // It only builds the Meilisearch client; the connection is established lazily, so connectivity
 // errors surface when the service is actually used rather than at construction time. Callers that
 // need an eager readiness check should perform it explicitly after construction.
@@ -38,7 +35,8 @@ func NewServiceManager(conf Config) (*ServiceManager, error) {
 }
 
 // Searcher implements the search.Searcher interface for Meilisearch backend.
-// It provides type-safe search operations for documents of type T.
+// It provides type-safe search operations for documents of type T, which are
+// encoded to and decoded from JSON. Create it with NewSearcher.
 type Searcher[T any] struct {
 	service    *ServiceManager
 	index      meilisearch.IndexManager
@@ -46,7 +44,10 @@ type Searcher[T any] struct {
 }
 
 // NewSearcher creates a new Searcher instance for the specified index and document type.
-// The primaryKey parameter is optional and can be nil if not needed.
+// The primaryKey parameter is optional and can be nil, in which case
+// Meilisearch infers the primary key on the first Index call. NewSearcher does
+// not contact the server or create the index; Meilisearch creates a missing
+// index when documents are first added. It currently never returns an error.
 func NewSearcher[T any](service *ServiceManager, indexName string, primaryKey *string) (*Searcher[T], error) {
 	index := service.service.Index(indexName)
 	return &Searcher[T]{
@@ -65,8 +66,10 @@ func PrimaryKey(value string) *string {
 	return &value
 }
 
-// Index adds or updates documents and waits for the Meilisearch task
-// (WaitForTaskWithContext, 1s poll). It is not fire-and-forget.
+// Index adds or replaces documents and waits for the Meilisearch task
+// (WaitForTaskWithContext, 1s poll). It is not fire-and-forget. A task that
+// ends failed or canceled is returned as an error. If ctx ends while waiting,
+// the ctx error is returned but the task may still complete on the server.
 func (s *Searcher[T]) Index(ctx context.Context, docs ...T) error {
 	task, err := s.index.AddDocumentsWithContext(ctx, docs, &meilisearch.DocumentOptions{
 		PrimaryKey: s.primaryKey,
@@ -82,7 +85,8 @@ func (s *Searcher[T]) Index(ctx context.Context, docs ...T) error {
 }
 
 // Delete removes documents by ID and waits for the Meilisearch task
-// (WaitForTaskWithContext, 1s poll). It is not fire-and-forget.
+// (WaitForTaskWithContext, 1s poll). It is not fire-and-forget. Unknown IDs
+// are not an error. Task failure and ctx behavior match Index.
 func (s *Searcher[T]) Delete(ctx context.Context, ids ...string) error {
 	task, err := s.index.DeleteDocumentsWithContext(ctx, ids, &meilisearch.DocumentOptions{})
 	if err != nil {
@@ -109,7 +113,9 @@ func taskError(task *meilisearch.Task) error {
 }
 
 // Search runs a query against the index. Result.Total is EstimatedTotalHits,
-// not TotalHits. Filter is a passthrough Meilisearch DSL string.
+// not TotalHits. Filter is a passthrough Meilisearch DSL string. A zero Limit
+// uses Meilisearch's default (20). Hits is nil when nothing matches. A hit
+// that cannot be decoded into T fails the whole call.
 func (s *Searcher[T]) Search(ctx context.Context, params search.Params) (search.Result[T], error) {
 	resp, err := s.index.SearchWithContext(ctx, params.Query, &meilisearch.SearchRequest{
 		Offset: int64(params.Offset),

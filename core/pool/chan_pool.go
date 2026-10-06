@@ -6,7 +6,12 @@ import (
 )
 
 // ChanPool is a bounded channel-backed pool. Objects stay reachable until Get
-// or Close; overflow Puts drop the object without calling Close.
+// or Close; overflow Puts drop the object without calling Close, so the caller
+// still owns (and must release) an object for which Put returned false.
+//
+// Create it with NewChanPool; the zero value is not usable. Get, Put,
+// GetContext, Len, Cap, Close, and IsClosed are safe for concurrent use. The
+// owner calls Close when the pool is no longer needed.
 type ChanPool[T any] struct {
 	ch          chan T
 	newFn       func() T
@@ -18,7 +23,8 @@ type ChanPool[T any] struct {
 	closed      bool
 }
 
-// NewChanPool creates a ChanPool of the given capacity. A size of 0 becomes 1.
+// NewChanPool creates a ChanPool of the given capacity. A size <= 0 becomes 1.
+// The caller owns the pool and should call Close when done with it.
 func NewChanPool[T any](size int, opts ...Option[T]) *ChanPool[T] {
 	if size <= 0 {
 		size = 1
@@ -35,7 +41,7 @@ func NewChanPool[T any](size int, opts ...Option[T]) *ChanPool[T] {
 }
 
 // Get takes an object if one is immediately available; otherwise it calls New
-// or returns the zero value. After Close, leftover items can still be received
+// or returns the zero value. Get never blocks; use GetContext to wait. After Close, leftover items can still be received
 // when no Close callback was set to drain them.
 func (cp *ChanPool[T]) Get() T {
 	select {

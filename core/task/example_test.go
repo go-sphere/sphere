@@ -2,6 +2,7 @@ package task_test
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-sphere/sphere/core/task"
 )
@@ -33,4 +34,23 @@ func ExampleNewFunc() {
 		return nil
 	}, nil)
 	_ = task.NewGroup(migrate).Start(context.Background())
+}
+
+// Supervise a worker added at runtime, then stop everything with a bounded
+// wait. The worker's Start blocks until the manager cancels its context.
+func ExampleManager() {
+	ctx := context.Background()
+	m := task.NewManager(task.WithManagerCleanupTimeout(5 * time.Second))
+
+	worker := task.NewFunc("sync", func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}, nil)
+	if err := m.StartTask(ctx, "sync", worker); err != nil {
+		return // ErrTaskAlreadyExists when "sync" is still running
+	}
+
+	stopCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	_ = m.StopAll(stopCtx)
 }

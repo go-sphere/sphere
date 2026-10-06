@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// UploadResult is the data payload of a successful upload response from the
+// RegisterFileUploader endpoint.
 type UploadResult struct {
 	Key string `json:"key"`
 	URL string `json:"url"`
@@ -28,9 +30,12 @@ type options struct {
 type Option func(*options)
 
 // WithCreateFileKey customizes temporary upload key generation behavior.
-// The ttl argument is the resolved token validity (request TTL when provided,
-// otherwise the configured KeyTTL); custom implementations should honor it when
-// persisting the token.
+// fn must store a token that maps to filename in the cache passed to
+// NewCDNAdapter (the uploader endpoint redeems it with GetDel) and return that
+// token, which becomes the last path segment of the upload URL. The ttl
+// argument is the resolved token validity (Config.KeyTTL, or the request TTL
+// when shorter); fn should apply it when persisting the token. A nil fn keeps
+// the default: a random UUID stored with SetWithTTL.
 func WithCreateFileKey(fn func(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error)) Option {
 	return func(options *options) {
 		if fn == nil {
@@ -40,7 +45,9 @@ func WithCreateFileKey(fn func(ctx context.Context, server *FileServer, filename
 	}
 }
 
-// WithCacheControl sets the Cache-Control header for downloaded files.
+// WithCacheControl sets the Cache-Control header for downloaded files to
+// "max-age=<maxAge>", with maxAge in seconds. Without it no Cache-Control
+// header is set.
 func WithCacheControl(maxAge uint64) Option {
 	return func(o *options) {
 		o.downloadCacheControl = "max-age=" + strconv.FormatUint(maxAge, 10)

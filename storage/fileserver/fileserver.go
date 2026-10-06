@@ -1,11 +1,3 @@
-// Package fileserver is an HTTP adapter over any storage.Storage plus a
-// cache.ByteCache of one-time PUT tokens (UUID → key, GetDel). It is not
-// an S3 driver.
-//
-// PutBase and GetBase are required. KeyTTL of 0 becomes 5 minutes and is
-// also the ceiling for UploadAuthRequest.TTL. Downloads set nosniff and
-// Content-Disposition: attachment unless WithInlineDownload. Does not
-// implement FileStater or FileLister.
 package fileserver
 
 import (
@@ -32,12 +24,19 @@ import (
 // KeyTTL of 0 becomes 5 minutes and is also the ceiling for
 // UploadAuthRequest.TTL.
 type Config struct {
+	// PutBase is the absolute URL where RegisterFileUploader's router is
+	// mounted; upload URLs are PutBase joined with a one-time token.
 	PutBase string `json:"put_base" yaml:"put_base"`
+	// GetBase is the public base URL where RegisterFileDownloader's router is
+	// mounted; GenerateURL joins keys onto it.
 	GetBase string `json:"get_base" yaml:"get_base"`
 	// KeyTTL is how long a one-time upload token stays valid, and also the
 	// ceiling for UploadAuthRequest.TTL. A zero value falls back to defaultKeyTTL.
-	KeyTTL       time.Duration                `json:"key_ttl" yaml:"key_ttl"`
-	Dir          string                       `json:"dir" yaml:"dir"`
+	KeyTTL time.Duration `json:"key_ttl" yaml:"key_ttl"`
+	// Dir is the prefix directory for keys created by GenerateUploadAuth.
+	Dir string `json:"dir" yaml:"dir"`
+	// UploadNaming selects how GenerateUploadAuth names files; empty means
+	// storage.UploadNamingStrategyRandomExt.
 	UploadNaming storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"`
 }
 
@@ -47,6 +46,12 @@ const defaultKeyTTL = 5 * time.Minute
 
 // FileServer is an HTTP adapter over any storage.Storage plus a
 // cache.ByteCache of one-time PUT tokens. It is not an S3 driver.
+//
+// It implements storage.CDNStorage: the Storage methods delegate to the
+// wrapped store unchanged, the URLHandler methods use Config.GetBase, and
+// GenerateUploadAuth issues one-time upload URLs under Config.PutBase. It
+// does not implement storage.FileStater or storage.FileLister even when the
+// wrapped store does. Create it with NewCDNAdapter.
 type FileServer struct {
 	opts    *options
 	config  Config
@@ -59,8 +64,10 @@ type FileServer struct {
 }
 
 // NewCDNAdapter constructs a FileServer that wraps store with one-time PUT
-// tokens stored in cache. PutBase, GetBase, cache, and store are required.
-// It is not a CDN or S3 driver; the name is historical.
+// tokens stored in cache. PutBase, GetBase, cache, and store are required;
+// a missing one, or an unparsable GetBase, is an error. A zero KeyTTL becomes
+// 5 minutes. The cache stays owned by the caller unless WithOwnedCache is
+// given. It is not a CDN or S3 driver; the name is historical.
 func NewCDNAdapter(conf Config, cache cache.ByteCache, store storage.Storage, options ...Option) (*FileServer, error) {
 	if cache == nil {
 		return nil, errors.New("cache is required")
@@ -108,51 +115,72 @@ func (a *FileServer) Close() error {
 	return a.closeErr
 }
 
+// GenerateURL returns the public download URL for key under Config.GetBase;
+// see urlhandler.Handler.GenerateURL. params are ignored.
 func (a *FileServer) GenerateURL(key string, params ...url.Values) string {
 	return a.handler.GenerateURL(key, params...)
 }
 
+// GenerateURLs returns GenerateURL for each key, in order.
 func (a *FileServer) GenerateURLs(keys []string, params ...url.Values) []string {
 	return a.handler.GenerateURLs(keys, params...)
 }
 
+// ExtractKeyFromURL extracts the key from a URL under Config.GetBase, or ""
+// when the URL does not match; see urlhandler.Handler.ExtractKeyFromURL.
 func (a *FileServer) ExtractKeyFromURL(uri string) string {
 	return a.handler.ExtractKeyFromURL(uri)
 }
 
+// ExtractKeyFromURLWithMode is urlhandler.Handler.ExtractKeyFromURLWithMode
+// against Config.GetBase.
 func (a *FileServer) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
 	return a.handler.ExtractKeyFromURLWithMode(uri, strict)
 }
 
+// UploadFile delegates to the wrapped store's UploadFile.
 func (a *FileServer) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	return a.store.UploadFile(ctx, file, key)
 }
 
+// UploadLocalFile delegates to the wrapped store's UploadLocalFile.
 func (a *FileServer) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
 	return a.store.UploadLocalFile(ctx, file, key)
 }
 
+// IsFileExists delegates to the wrapped store's IsFileExists.
 func (a *FileServer) IsFileExists(ctx context.Context, key string) (bool, error) {
 	return a.store.IsFileExists(ctx, key)
 }
 
+// DownloadFile delegates to the wrapped store's DownloadFile; the caller
+// closes the returned reader.
 func (a *FileServer) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
 	return a.store.DownloadFile(ctx, key)
 }
 
+// DeleteFile delegates to the wrapped store's DeleteFile.
 func (a *FileServer) DeleteFile(ctx context.Context, key string) error {
 	return a.store.DeleteFile(ctx, key)
 }
 
+// MoveFile delegates to the wrapped store's MoveFile.
 func (a *FileServer) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	return a.store.MoveFile(ctx, sourceKey, destinationKey, overwrite)
 }
 
+// CopyFile delegates to the wrapped store's CopyFile.
 func (a *FileServer) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	return a.store.CopyFile(ctx, sourceKey, destinationKey, overwrite)
 }
 
 // GenerateUploadAuth creates temporary upload authorization for client-side uploads.
+// It derives the key from req (Config.Dir, req.Dir, and the naming strategy),
+// stores a one-time token for it in the cache, and returns
+// Authorization{Type: URL, Method: PUT, Value: PutBase/<token>} plus the key
+// and its GetBase URL. The token expires after Config.KeyTTL, or req.TTL if
+// shorter. The client must then send the raw body to that URL, which only
+// works once RegisterFileUploader is mounted at PutBase.
 func (a *FileServer) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthRequest) (storage.UploadAuthResult, error) {
 	fileName, err := storage.BuildUploadFileName(req.FileName, a.config.UploadNaming)
 	if err != nil {
@@ -185,6 +213,12 @@ func (a *FileServer) GenerateUploadAuth(ctx context.Context, req storage.UploadA
 	}, nil
 }
 
+// RegisterFileDownloader registers GET /*filename on route, serving
+// DownloadFile(filename) with its MIME type and size. Mount route at the path
+// of Config.GetBase. Responses carry X-Content-Type-Options: nosniff and,
+// unless WithInlineDownload is set, Content-Disposition: attachment; with
+// WithCacheControl they also carry Cache-Control. A missing object answers
+// 404 and an invalid key 400.
 func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 	sharedHeaders := map[string]string{}
 	if a.opts.downloadCacheControl != "" {
@@ -251,6 +285,12 @@ func contentDisposition(key string) string {
 	return "attachment"
 }
 
+// RegisterFileUploader registers PUT /:key on route, where key is a token
+// issued by GenerateUploadAuth. Mount route at the path of Config.PutBase.
+// The token is consumed on first use, even if the upload then fails; an
+// unknown or expired token answers 400. On success the raw request body is
+// stored under the authorized key and the response is a
+// httpz.DataResponse[UploadResult] JSON envelope.
 func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 	route.Handle(http.MethodPut, "/:key", func(ctx httpx.Context) error {
 		key := ctx.Param("key")

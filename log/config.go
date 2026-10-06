@@ -15,15 +15,27 @@ const (
 )
 
 // Options is the materialized option set consumed by backend adapters.
+// Obtain it from NewOptions; backend implementers read it, callers pass
+// Option values instead.
 type Options struct {
-	Name       string
-	AddCaller  AddCallerStatus
+	// Name is the logger name; empty means unchanged. Built-in backends join
+	// nested names with ".".
+	Name string
+	// AddCaller enables, disables, or keeps caller reporting.
+	AddCaller AddCallerStatus
+	// AddStackAt is the level at and above which a stack is attached; nil
+	// means unchanged.
 	AddStackAt *Level
-	MinLevel   *Level
-	Attrs      map[string]any
+	// MinLevel is the minimum emitted level; nil means unchanged. Not every
+	// backend honors it (zapx ignores it).
+	MinLevel *Level
+	// Attrs are preset fields added to every entry; later options win on
+	// key collisions.
+	Attrs map[string]any
 }
 
-// Option is a function type for configuring logger options.
+// Option configures a backend at construction or through With. Options are
+// applied in order; for scalar settings the last one wins.
 type Option = func(*Options)
 
 // WithName sets the logger name for identification purposes.
@@ -84,7 +96,7 @@ func WithMinLevel(level Level) Option {
 }
 
 // WithAttrs adds structured attributes to all log messages from this logger.
-// These attributes provide consistent context across all log entries.
+// The map is copied when the option is applied; a nil map is ignored.
 func WithAttrs(attrs map[string]any) Option {
 	return func(o *Options) {
 		if attrs != nil {
@@ -107,7 +119,9 @@ func newOptions(opts ...Option) *Options {
 	return defaults
 }
 
-// NewOptions materializes options so backend adapters can consume them.
+// NewOptions applies opts to the defaults (AddCallerStatusKeep, no name,
+// no level settings, empty Attrs) and returns a copy that shares no mutable
+// state with the options, so backend adapters can retain it.
 func NewOptions(opts ...Option) Options {
 	o := newOptions(opts...)
 	attrs := make(map[string]any, len(o.Attrs))

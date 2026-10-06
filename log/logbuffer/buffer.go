@@ -1,17 +1,3 @@
-// Package logbuffer is an in-memory, cursor-addressable log tail. Buffer is a
-// log.Backend: mounted via log.InitWithBackends it captures every entry into a
-// fixed-size ring with a monotonically increasing sequence number, and fans
-// entries out to subscribers for live streaming (e.g. SSE).
-//
-// The sequence number is the correctness anchor. Subscribe atomically returns
-// the backfill after a cursor together with the live channel, so there is no
-// loss window between "history" and "live". A cursor that has fallen out of
-// the ring, or entries dropped on a slow subscriber, are reported explicitly
-// (Truncated, Dropped) instead of being silently lost.
-//
-// Sequence numbers restart at 1 on process restart. Pair resume cursors with
-// Buffer.ID; Subscribe reports Reset when a cursor belongs to an earlier
-// Buffer instance.
 package logbuffer
 
 import (
@@ -111,7 +97,9 @@ type SubscribeOptions struct {
 }
 
 // Buffer is the ring plus its subscriber set. It implements log.Backend; use
-// New and pass it to log.InitWithBackends alongside the output backends.
+// New and pass it to log.InitWithBackends alongside the output backends. The
+// zero value is not usable. A Buffer is safe for concurrent use and owns no
+// external resources, so it needs no Close.
 type Buffer struct {
 	mu      sync.Mutex
 	id      string

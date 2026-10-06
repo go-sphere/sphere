@@ -1,11 +1,3 @@
-// Package search is a small typed full-text search port: Index, Delete, and
-// Search with offset/limit pagination.
-//
-// The only driver is search/meilisearch. Params.Filter is passed through as
-// a backend DSL string (Meilisearch filter syntax). Result.Total is an
-// estimate, not an exact count — Meilisearch reports EstimatedTotalHits and
-// may clamp it to pagination.maxTotalHits (1000 by default). Do not paginate
-// solely on Total.
 package search
 
 import "context"
@@ -13,10 +5,10 @@ import "context"
 // Params defines the parameters for search operations.
 // It includes query string, pagination, and filtering capabilities.
 type Params struct {
-	Query  string // The search query string
-	Offset int    // Number of results to skip for pagination
-	Limit  int    // Maximum number of results to return
-	Filter string // Additional filter criteria
+	Query  string // The search query string; empty matches every document
+	Offset int    // Number of results to skip for pagination; 0 starts at the first hit
+	Limit  int    // Maximum number of results to return; 0 uses the backend default (20 for Meilisearch)
+	Filter string // Backend filter expression passed through verbatim (Meilisearch filter syntax); empty means none
 }
 
 // Result represents the response from a search operation with typed documents.
@@ -36,14 +28,18 @@ type Result[T any] struct {
 
 // Searcher provides full-text search capabilities for typed documents.
 // It supports indexing, deletion, and search operations with pagination and filtering.
+// T is the document type; implementations encode and decode it (as JSON for
+// Meilisearch), so its fields must carry the index's primary key.
 type Searcher[T any] interface {
-	// Index adds or updates documents in the search index.
+	// Index adds or updates documents in the search index. Documents whose
+	// primary key already exists are replaced.
 	Index(ctx context.Context, docs ...T) error
 
-	// Delete removes documents from the search index by their IDs.
+	// Delete removes documents from the search index by their primary-key IDs.
 	Delete(ctx context.Context, ids ...string) error
 
 	// Search performs a search operation with the given parameters.
-	// Returns matching results with pagination and metadata.
+	// Returns matching results with pagination and metadata. No match is a
+	// successful empty result, not an error.
 	Search(ctx context.Context, params Params) (Result[T], error)
 }

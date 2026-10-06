@@ -1,10 +1,3 @@
-// Package safe is panic recovery and deferred-error reporting used by boot
-// and task. Library code should use Go or Run instead of a bare go func().
-//
-// Go and Run never re-panic: they log via LogRecovered then continue.
-// Recover is for defer. InitErrorHandler replaces the handler used by
-// IfErrorPresent / IfErrorXPresent (signature func(error), no label); it is
-// unrelated to Recover's onError callbacks.
 package safe
 
 import (
@@ -13,9 +6,11 @@ import (
 	"github.com/go-sphere/sphere/log"
 )
 
-// LogRecovered reports a recovered panic value using a unified structured
-// format. It is the single panic-to-log entry point shared across the core
-// packages so that the field names (module, error, stack) stay consistent.
+// LogRecovered reports a recovered panic value r at error level through the
+// package-level logger of github.com/go-sphere/sphere/log, with the fields
+// module, error, and stack (the current goroutine's stack). It is the single
+// panic-to-log entry point shared across the core packages so that the field
+// names stay consistent.
 func LogRecovered(module string, r any) {
 	log.Error(
 		"panic recovered",
@@ -37,12 +32,17 @@ func Recover(onError ...func(err any)) {
 	}
 }
 
-// Go runs fn in a new goroutine with Recover. A panic is logged, not re-raised.
+// Go runs fn in a new goroutine with Recover and returns immediately. A panic
+// in fn is logged, not re-raised. Go does not wait for fn; callers that need
+// completion must synchronize on their own (for example a channel or
+// sync.WaitGroup).
 func Go(fn func()) {
 	go Run(fn)
 }
 
-// Run calls fn with Recover on the current goroutine.
+// Run calls fn with Recover on the current goroutine. It returns when fn
+// returns or panics; a panic is logged and swallowed, so the caller cannot
+// tell the two apart from Run itself.
 func Run(fn func()) {
 	defer Recover()
 	fn()

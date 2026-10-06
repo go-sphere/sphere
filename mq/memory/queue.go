@@ -15,7 +15,9 @@ var (
 )
 
 // Queue implements an in-memory point-to-point message queue with typed message support.
-// It provides FIFO message delivery to exactly one consumer per topic.
+// It provides FIFO message delivery to exactly one consumer per topic. Topics
+// are created on first use. Create it with NewQueue; the zero value is not
+// usable. Methods are safe for concurrent use.
 type Queue[T any] struct {
 	queueSize int
 	queues    map[string]chan T

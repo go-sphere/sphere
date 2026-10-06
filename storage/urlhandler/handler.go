@@ -1,10 +1,3 @@
-// Package urlhandler joins object keys onto a public base URL and extracts
-// keys back. GenerateURL ignores params (the URLHandler interface accepts
-// them). Keys that already look like http:// or https:// are returned
-// unchanged. ExtractKeyFromURL is strict about host/path. Keys containing a
-// ".." path segment are refused on both sides: drivers reject them, so a
-// stored key could never address an object, and JoinPath would silently fold
-// such a key outside the public base when rendering it.
 package urlhandler
 
 import (
@@ -13,7 +6,9 @@ import (
 	"strings"
 )
 
-// ErrHostVerificationFailed is returned when URL host verification fails in strict mode.
+// ErrHostVerificationFailed is returned in strict mode when a URL's host
+// (with default ports for http/https considered equal) or path prefix does not
+// match the public base.
 var ErrHostVerificationFailed = fmt.Errorf("not verify host")
 
 // ErrorNotVerifyHost is an alias for ErrHostVerificationFailed for backwards compatibility.
@@ -26,14 +21,19 @@ var ErrInvalidKeyPath = fmt.Errorf("invalid key path")
 
 // Handler provides URL generation and key extraction for storage backends.
 // It manages the relationship between storage keys and their public URLs.
+// Create it with NewHandler. A Handler is immutable after construction and
+// safe for concurrent use; s3, qiniu, and fileserver embed or wrap it to
+// implement storage.URLHandler.
 type Handler struct {
 	publicURLBase string
 	basePath      string
 	publicURL     *url.URL
 }
 
-// NewHandler creates a new URL handler with the specified public base URL.
-// The public base URL is used to generate full URLs for storage keys.
+// NewHandler creates a new URL handler with the specified public base URL,
+// such as "https://cdn.example.com/assets". A trailing slash is ignored.
+// It returns an error only when public cannot be parsed by url.Parse; it does
+// not require a scheme or host.
 func NewHandler(public string) (*Handler, error) {
 	base, err := url.Parse(public)
 	if err != nil {
@@ -50,15 +50,17 @@ func NewHandler(public string) (*Handler, error) {
 	}, nil
 }
 
-// GenerateURL creates a public URL for the given storage key.
-// Keys that already look like http:// or https:// are returned unchanged.
-// The default handler ignores params.
+// GenerateURL creates a public URL for the given storage key by joining it
+// onto the public base. Keys that already look like http:// or https:// are
+// returned unchanged. It returns "" for an empty key, for a key containing a
+// ".." segment, and when joining fails. The handler ignores params.
 func (n *Handler) GenerateURL(key string, params ...url.Values) string {
 	return n.generateURL(key)
 }
 
-// GenerateURLs creates public URLs for multiple storage keys in batch.
-// The default handler ignores params.
+// GenerateURLs creates public URLs for multiple storage keys in batch, with
+// the same rules as GenerateURL; the result has one entry per key in order.
+// The handler ignores params.
 func (n *Handler) GenerateURLs(keys []string, params ...url.Values) []string {
 	urls := make([]string, len(keys))
 	for i, key := range keys {
@@ -89,8 +91,15 @@ func (n *Handler) generateURL(key string) string {
 }
 
 // ExtractKeyFromURLWithMode extracts the storage key from a URL.
-// When strict is true, the URL host must match the public base and the path
-// must be under that base; otherwise ErrHostVerificationFailed is returned.
+// An empty uri yields "". A value without an http:// or https:// scheme is
+// treated as a key: its leading "/" is dropped and it is returned as is.
+// For a URL, the public base path is stripped and the remainder is
+// path-unescaped. When strict is true, the URL host must match the public base
+// and the path must be under that base; otherwise ErrHostVerificationFailed is
+// returned. When strict is false, any host is accepted, the base path is
+// stripped when the path starts with it, and otherwise the whole path becomes
+// the key. A key with a ".." segment fails with
+// ErrInvalidKeyPath.
 func (n *Handler) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
 	if uri == "" {
 		return "", nil
@@ -154,6 +163,7 @@ func containsDotDot(key string) bool {
 
 // ExtractKeyFromURL extracts the storage key from a URL with strict host verification enabled.
 // Returns an empty string if host verification fails or if there's a parsing error.
+// Use ExtractKeyFromURLWithMode to distinguish those failures.
 func (n *Handler) ExtractKeyFromURL(uri string) string {
 	key, err := n.ExtractKeyFromURLWithMode(uri, true)
 	if err != nil {

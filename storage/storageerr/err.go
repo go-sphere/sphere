@@ -1,11 +1,3 @@
-// Package storageerr is the shared sentinel errors for storage drivers.
-//
-// The sentinels are plain errors with no transport semantics: they carry no
-// HTTP status. The HTTP mapping (ErrNotFound → 404, ErrDestExists and
-// ErrFileNameInvalid → 400) lives in server/httpz.ParseError, the default
-// error parser.
-//
-// Use errors.Is to compare against these sentinels.
 package storageerr
 
 import "errors"
@@ -13,6 +5,8 @@ import "errors"
 // Common storage operation errors.
 var (
 	// ErrNotFound indicates that the requested storage key does not exist.
+	// DeleteFile never returns it (deletion of a missing key succeeds), and
+	// IsFileExists reports a missing key as false rather than as this error.
 	ErrNotFound = errors.New("key not found")
 
 	// ErrDestExists indicates that the destination key already exists when overwrite is disabled.

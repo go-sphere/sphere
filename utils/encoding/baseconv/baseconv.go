@@ -1,14 +1,3 @@
-// Package baseconv encodes and decodes byte slices with a caller-chosen
-// alphabet.
-//
-// Power-of-two alphabets use a bitwise path (a 32-character set interops
-// with encoding/base32). Other lengths (base62) use a big-integer path.
-// Bitwise decode rejects non-canonical leftover bits (ErrNonCanonical);
-// the math path has no equivalent check.
-//
-// AlphabetBase32 is Crockford's set without I, L, O, or U (32 characters).
-// StdRaw32Encoding / StdRaw62Encoding use '=' padding. That is the opposite
-// of encoding/base32.Raw*, which means unpadded.
 package baseconv
 
 import (
@@ -27,6 +16,8 @@ var ErrNonCanonical = errors.New("baseconv: non-canonical encoding")
 
 // BaseEncoding provides customizable base encoding/decoding functionality.
 // It supports arbitrary alphabets and optional padding characters for flexible encoding schemes.
+// Create it with NewBaseEncoding or NewBaseEncodingWithPadding; the zero value
+// is not usable. It is immutable and safe for concurrent use.
 type BaseEncoding struct {
 	alphabet  string
 	base      int
@@ -36,12 +27,16 @@ type BaseEncoding struct {
 
 // NewBaseEncoding creates a new base encoding instance with the specified alphabet.
 // The alphabet defines the character set used for encoding and must contain at least 2 unique characters.
+// Characters are bytes, so the alphabet should be ASCII. It returns an error
+// for a too-short alphabet or duplicate characters.
 func NewBaseEncoding(alphabet string) (*BaseEncoding, error) {
 	return NewBaseEncodingWithPadding(alphabet, 0)
 }
 
 // NewBaseEncodingWithPadding creates a new base encoding instance with alphabet and padding character.
 // The padding character is used to align encoded output and must not conflict with alphabet characters.
+// A padChar of 0 means no padding. Padding is only emitted for 32- and
+// 64-character alphabets; see EncodeToString.
 func NewBaseEncodingWithPadding(alphabet string, padChar byte) (*BaseEncoding, error) {
 	if len(alphabet) < 2 {
 		return nil, errors.New("alphabet must have at least 2 characters")
@@ -70,6 +65,10 @@ func NewBaseEncodingWithPadding(alphabet string, padChar byte) (*BaseEncoding, e
 
 // EncodeToString encodes binary data to a string using the configured base encoding.
 // It automatically selects the most efficient encoding method based on the alphabet size.
+// Empty or nil data encodes to "". Power-of-two alphabets use the bitwise
+// method (padded to 8 or 4 characters for 32- or 64-character alphabets when
+// a padding character is set); other sizes use base conversion, where each
+// leading zero byte becomes one leading alphabet[0] character.
 func (e *BaseEncoding) EncodeToString(data []byte) string {
 	if len(data) == 0 {
 		return ""
@@ -172,6 +171,9 @@ func (e *BaseEncoding) encodeMathematical(data []byte) string {
 // DecodeString decodes a base-encoded string back to binary data.
 // It automatically handles padding removal and selects the appropriate decoding method
 // based on the alphabet size. Returns an error if the input contains invalid characters.
+// An empty string decodes to an empty, non-nil slice. Input whose padding
+// length, leftover bits, or trailing characters differ from what
+// EncodeToString would produce fails with an error matching ErrNonCanonical.
 func (e *BaseEncoding) DecodeString(encoded string) ([]byte, error) {
 	if len(encoded) == 0 {
 		return []byte{}, nil

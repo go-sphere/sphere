@@ -71,7 +71,15 @@ func KeepFileNameKeyBuilder() func(fileName string, dir ...string) string {
 	}
 }
 
-// BuildUploadFileName builds the upload file name by strategy.
+// BuildUploadFileName builds the stored file name for a client-supplied
+// fileName according to strategy; an empty strategy means
+// UploadNamingStrategyRandomExt. The result is a single name, not a key: pass
+// it to JoinUploadKey.
+//
+// It returns an error when fileName is blank, when strategy is unknown, or
+// when UploadNamingStrategyOriginal is used with a name whose base is not a
+// usable file name. UploadNamingStrategyRandomExt output differs on every
+// call; the other strategies are deterministic.
 func BuildUploadFileName(fileName string, strategy UploadNamingStrategy) (string, error) {
 	if strings.TrimSpace(fileName) == "" {
 		return "", errors.New("file_name is required")
@@ -99,6 +107,13 @@ func BuildUploadFileName(fileName string, strategy UploadNamingStrategy) (string
 }
 
 // JoinUploadKey joins configured prefix dir, business dir and file name into a safe key.
+//
+// prefixDir is the deployment-configured directory (leading slashes are
+// dropped); bizDir is a caller-chosen subdirectory and must be relative. Both
+// may be empty. fileName must be a non-empty relative path. Any component that
+// would climb out with ".." is rejected, so the result always stays under
+// prefixDir. Separators are cleaned, for example
+// JoinUploadKey("/uploads/", "avatars", "a.png") returns "uploads/avatars/a.png".
 func JoinUploadKey(prefixDir string, bizDir string, fileName string) (string, error) {
 	fileName = strings.TrimSpace(fileName)
 	if fileName == "" {
@@ -160,12 +175,7 @@ func normalizeUploadDir(raw string, rejectAbs bool, field string) (string, error
 //
 // Every driver applies this at its entry points, and UploadFile returns the
 // normalized key, so a key persisted by one backend addresses the same object on
-// another. Without a shared rule the drivers disagreed: the local driver folded
-// "a/" and "d//x" through filepath.Clean but returned the caller's original
-// string from UploadFile, so a key stored in a database resolved on local — which
-// folded it again on the way back in — and 404'd on s3 or kvcache, which keep
-// keys verbatim. An empty key was rejected by local while kvcache stored an
-// object reachable only by the empty string.
+// another. Invalid keys fail with storageerr.ErrFileNameInvalid.
 //
 // The rules are:
 //   - a leading "/" is dropped, so "/a" and "a" are the same object

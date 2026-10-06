@@ -1,12 +1,3 @@
-// Package numconv encodes int64 values as 8-byte big-endian then base32 or
-// base62 (unpadded Std32 / Std62). Decode requires exactly 8 bytes or
-// returns ErrNonCanonical. A short string like "5" does not decode.
-// Base32 leftover bits fail with an error matching both baseconv.ErrNonCanonical
-// and ErrNonCanonical, so either sentinel classifies them.
-//
-// RandomBase32 and RandomBase62 sample the alphabet with math/rand/v2.
-// They are not encodings of int64s and are not cryptographically secure
-// (use secure.RandString for secrets).
 package numconv
 
 import (
@@ -43,19 +34,24 @@ func bytesToInt64(b []byte) (int64, error) {
 }
 
 // Int64ToBase32 converts a 64-bit integer to its base32 string representation.
-// It uses the standard base32 encoding with Crockford's alphabet.
+// It uses the standard base32 encoding with Crockford's alphabet. The result
+// always has 13 characters; Base32ToInt64 reverses it.
 func Int64ToBase32(n int64) string {
 	return baseconv.Std32Encoding.EncodeToString(int64ToBytes(n))
 }
 
 // Int64ToBase62 converts a 64-bit integer to its base62 string representation.
-// It uses the standard base62 encoding with alphanumeric characters.
+// It uses the standard base62 encoding with alphanumeric characters. The
+// length varies with the value (small values keep leading "0" characters for
+// their zero bytes); Base62ToInt64 reverses it.
 func Int64ToBase62(n int64) string {
 	return baseconv.Std62Encoding.EncodeToString(int64ToBytes(n))
 }
 
 // Base32ToInt64 converts a base32 encoded string back to a 64-bit integer.
 // Returns an error if the string contains invalid base32 characters or cannot be decoded.
+// Non-canonical input, including any string Int64ToBase32 would not produce,
+// fails with an error matching ErrNonCanonical.
 func Base32ToInt64(s string) (int64, error) {
 	bytes, err := baseconv.Std32Encoding.DecodeString(s)
 	if err != nil {
@@ -72,6 +68,8 @@ func Base32ToInt64(s string) (int64, error) {
 
 // Base62ToInt64 converts a base62 encoded string back to a 64-bit integer.
 // Returns an error if the string contains invalid base62 characters or cannot be decoded.
+// Input that does not decode to exactly 8 bytes fails with an error matching
+// ErrNonCanonical.
 func Base62ToInt64(s string) (int64, error) {
 	bytes, err := baseconv.Std62Encoding.DecodeString(s)
 	if err != nil {
@@ -81,12 +79,14 @@ func Base62ToInt64(s string) (int64, error) {
 }
 
 // RandomBase32 generates a random base32 string of the specified length.
+// It uses math/rand/v2 and is not suitable for secrets.
 // Returns an empty string if length is non-positive.
 func RandomBase32(length int) string {
 	return randomBase(baseconv.AlphabetBase32, length)
 }
 
 // RandomBase62 generates a random base62 string of the specified length.
+// It uses math/rand/v2 and is not suitable for secrets.
 // Returns an empty string if length is non-positive.
 func RandomBase62(length int) string {
 	return randomBase(baseconv.AlphabetBase62, length)

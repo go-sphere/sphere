@@ -1,11 +1,3 @@
-// Package local is a filesystem storage.Storage under RootDir.
-//
-// Writes are temp+rename+syncDir. Keys are confined lexically; existing
-// symlinks are followed (not a symlink-safe jail). ListFiles walks and
-// sorts the whole prefix per page (not O(page) like S3) and skips
-// .sphere-tmp-* and non-regular files. New files 0o644, dirs 0o750. ctx is
-// not honored mid-copy. UploadLocalFile copies; it does not rename the
-// source. Delete of a missing key succeeds.
 package local
 
 import (
@@ -110,14 +102,16 @@ func syncDir(dir string) error {
 }
 
 // Client is a filesystem storage.Storage under Config.RootDir. It also
-// implements FileStater and FileLister.
+// implements storage.FileStater and storage.FileLister. Create it with
+// NewClient; the zero value is not usable. Client holds no mutable state and
+// may be used concurrently; it owns no resources that need closing.
 type Client struct {
 	config Config
 }
 
 // NewClient creates a new local storage client with the provided configuration.
-// It validates the root directory and creates it if it doesn't exist.
-// Returns an error if the root directory cannot be created or is invalid.
+// It creates Config.RootDir (and parents, mode 0o750) if it does not exist.
+// It returns an error if RootDir is empty or cannot be created.
 func NewClient(conf Config) (*Client, error) {
 	if conf.RootDir == "" {
 		return nil, errors.New("root_dir is required")
@@ -216,6 +210,8 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 }
 
 // IsFileExists checks whether a file exists in the local filesystem storage.
+// A missing key or a directory reports (false, nil); an invalid key fails with
+// storageerr.ErrFileNameInvalid.
 func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
@@ -236,7 +232,9 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 }
 
 // StatFile returns lightweight metadata for a file without opening its contents.
-// It implements storage.FileStater by reusing the filesystem stat call.
+// It implements storage.FileStater. MIME comes from the key's extension and is
+// empty when unknown. A missing key or a directory fails with
+// storageerr.ErrNotFound.
 func (c *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, error) {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
@@ -260,6 +258,8 @@ func (c *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 }
 
 // ListFiles enumerates stored keys under prefix with cursor-based pagination.
+// A non-positive limit means 1000. prefix is a plain string prefix of the key
+// (a leading "/" is ignored), not a directory boundary.
 // It implements storage.FileLister by walking the root directory; keys use
 // forward slashes and are returned in lexical order. The cursor is exclusive:
 // pass the previous next value to resume after the last returned key.
@@ -342,7 +342,9 @@ func (c *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 }
 
 // DownloadFile retrieves a file from local filesystem storage.
-// Returns the file reader, MIME type based on file extension, and file size.
+// Returns the open file as the reader (the caller must close it), the MIME
+// type based on the file extension (empty when unknown), and the file size.
+// A missing key or a directory fails with storageerr.ErrNotFound.
 func (c *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
 	filePath, err := c.fixFilePath(key)
 	if err != nil {
@@ -430,8 +432,10 @@ func (c *Client) checkOverwrite(path string, overwrite bool) error {
 	return nil
 }
 
-// MoveFile relocates a file from source to destination key within local filesystem storage.
-// Creates necessary directory structure and handles overwrite logic.
+// MoveFile relocates a file from source to destination key within local filesystem storage
+// using a rename, creating destination directories as needed. A missing source
+// fails with storageerr.ErrNotFound; an existing destination with overwrite
+// false fails with storageerr.ErrDestExists. Moving a key onto itself is a no-op.
 func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourcePath, err := c.fixFilePath(sourceKey)
 	if err != nil {
@@ -478,8 +482,10 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	return nil
 }
 
-// CopyFile duplicates a file from source to destination key within local filesystem storage.
-// Creates necessary directory structure and handles overwrite logic.
+// CopyFile duplicates a file from source to destination key within local filesystem storage,
+// creating destination directories as needed. A missing source fails with
+// storageerr.ErrNotFound; an existing destination with overwrite false fails
+// with storageerr.ErrDestExists.
 // The copy is atomic up to the rename that publishes it: a failure before that
 // point leaves the destination untouched, while a failure from the final
 // directory sync reports an error for content that is already there and may not

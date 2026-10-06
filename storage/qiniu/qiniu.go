@@ -1,19 +1,3 @@
-// Package qiniu is a Kodo storage.CDNStorage: token upload auth, public
-// URLHandler, and server-side upload/download/delete/move/copy.
-//
-// Upload tokens use InsertOnly: 1. MimeLimit applies to the token path
-// (declared Content-Type), not byte sniffing, and not server-side
-// UploadFile, which uses a key-scoped token and overwrites.
-// PutPolicy.Expires is relative seconds (sub-second rounded up to 1).
-// Delete of miss is idempotent. Download Size comes from the length the
-// SDK read off its own HEAD, falling back to Stat only when that length is
-// unknown or the stored content type is empty; a body that ends short of
-// that Size reads as io.ErrUnexpectedEOF.
-//
-// Stat, IsFileExists, DeleteFile, MoveFile and CopyFile ignore the context
-// they are given: the SDK's BucketManager methods for these hardcode
-// context.Background() and v7.27.0 offers no ctx-taking variant. Uploads,
-// downloads and listings do honour cancellation.
 package qiniu
 
 import (
@@ -39,8 +23,8 @@ type Config struct {
 	SecretKey string `json:"secret_key" yaml:"secret_key"` // Qiniu secret key for authentication
 
 	Bucket       string                       `json:"bucket" yaml:"bucket"`               // Storage bucket name
-	Dir          string                       `json:"dir" yaml:"dir"`                     // Default directory prefix for uploads
-	UploadNaming storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"` // Upload file naming strategy
+	Dir          string                       `json:"dir" yaml:"dir"`                     // Prefix directory for keys created by GenerateUploadAuth
+	UploadNaming storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"` // Upload file naming strategy for GenerateUploadAuth; empty means random_ext
 
 	// UploadTTL is the default validity window for generated upload tokens, and
 	// also the ceiling for UploadAuthRequest.TTL. A zero value falls back to
@@ -51,7 +35,7 @@ type Config struct {
 	// DefaultMimeLimit; set it to AnyMimeLimit to accept every content type.
 	MimeLimit string `json:"mime_limit" yaml:"mime_limit"`
 
-	PublicBase string `json:"public_base" yaml:"public_base"` // Public base URL for file access
+	PublicBase string `json:"public_base" yaml:"public_base"` // Public base URL (bucket domain) for GenerateURL
 }
 
 const (
@@ -71,7 +55,9 @@ const (
 const defaultUploadTTL = time.Hour
 
 // Client is a Kodo storage.CDNStorage: token upload auth, public URLs, and
-// server-side upload/download/delete/move/copy.
+// server-side upload/download/delete/move/copy. It also implements
+// storage.FileStater and storage.FileLister. Create it with NewClient; it has
+// no Close.
 type Client struct {
 	urlhandler.Handler           // Embedded URL handler for public file access
 	config             Config    // Qiniu configuration
@@ -80,6 +66,8 @@ type Client struct {
 
 // NewClient creates a new Qiniu storage client with the provided configuration.
 // It initializes the URL handler for public file access and sets up authentication.
+// It does not contact Qiniu, so bad credentials surface on the first operation.
+// An empty MimeLimit becomes DefaultMimeLimit.
 // Returns an error if the public base URL is invalid.
 func NewClient(conf Config) (*Client, error) {
 	handler, err := urlhandler.NewHandler(conf.PublicBase)
@@ -105,7 +93,8 @@ func NewClient(conf Config) (*Client, error) {
 }
 
 // GenerateImageURL creates a URL for accessing an image with the specified width using Qiniu's image processing.
-// It appends imageView2 parameters to enable automatic image resizing with quality optimization.
+// It replaces the URL's query with "imageView2/2/w/<width>/q/75" (fit within
+// width pixels, quality 75). It returns "" when GenerateURL does.
 func (n *Client) GenerateImageURL(key string, width int) string {
 	uri := n.GenerateURL(key)
 	if uri == "" {
@@ -177,6 +166,8 @@ func (n *Client) serverUploadToken(key string) string {
 }
 
 // UploadFile uploads data from a reader to Qiniu Cloud Object Storage with the specified key.
+// It uses a key-scoped token, so it overwrites an existing object, and
+// Config.MimeLimit does not apply. It returns the stored key.
 func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -194,6 +185,7 @@ func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 }
 
 // UploadLocalFile uploads an existing local file to Qiniu Cloud Object Storage with the specified key.
+// Overwrite and MIME behavior match UploadFile.
 func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -212,6 +204,8 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 
 // StatFile returns lightweight metadata for a file without downloading its body.
 // It implements storage.FileStater by reusing the Qiniu stat call.
+// A missing key fails with storageerr.ErrNotFound. ctx is not honored: the SDK
+// call has no context variant.
 func (n *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -234,7 +228,7 @@ func (n *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 // ListFiles enumerates object keys under prefix with cursor-based pagination.
 // It implements storage.FileLister on top of the Qiniu list API, using the
 // marker as the cursor. The returned next cursor is non-empty only when more
-// objects remain.
+// objects remain. limit is clamped to 1000; a non-positive limit means 1000.
 func (n *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int) ([]string, string, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 1000
@@ -265,6 +259,7 @@ func (n *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 }
 
 // IsFileExists checks whether a file exists in the Qiniu Cloud Object Storage bucket.
+// A missing key reports (false, nil). ctx is not honored.
 func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -282,7 +277,9 @@ func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 }
 
 // DownloadFile retrieves a file from Qiniu Cloud Object Storage.
-// Returns the file reader, content type, and content length.
+// Returns the file reader (the caller must close it), content type, and
+// content length. A missing key fails with storageerr.ErrNotFound. A body that
+// ends before Size bytes reads as an error wrapping io.ErrUnexpectedEOF.
 func (n *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -351,6 +348,7 @@ func (r *sizeCheckedReader) Read(p []byte) (int, error) {
 
 // DeleteFile removes a file from the Qiniu Cloud Object Storage bucket.
 // Deletion is idempotent: a key that does not exist reports success.
+// ctx is not honored.
 func (n *Client) DeleteFile(ctx context.Context, key string) error {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -369,7 +367,11 @@ func (n *Client) DeleteFile(ctx context.Context, key string) error {
 	return nil
 }
 
-// MoveFile relocates a file from source to destination key within the Qiniu bucket.
+// MoveFile relocates a file from source to destination key within the Qiniu bucket
+// using Kodo's server-side move. A missing source fails with
+// storageerr.ErrNotFound; an existing destination with overwrite false fails
+// with storageerr.ErrDestExists. A move onto itself is a no-op when the source
+// exists. ctx is not honored.
 func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
@@ -407,6 +409,8 @@ func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 }
 
 // CopyFile duplicates a file from source to destination key within the Qiniu bucket.
+// A missing source fails with storageerr.ErrNotFound; an existing destination
+// with overwrite false fails with storageerr.ErrDestExists. ctx is not honored.
 func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {

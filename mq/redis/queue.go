@@ -21,15 +21,20 @@ var errInvalidBLPopResponse = errors.New("redis mq: invalid BLPOP response")
 // something else writes to the same key, the codec changes, or two differently
 // typed queues share a topic.
 type DecodeError struct {
+	// Topic is the queue the element was popped from.
 	Topic string
-	Raw   []byte
-	Err   error
+	// Raw is the undecoded payload as stored in Redis.
+	Raw []byte
+	// Err is the codec error; it is returned by Unwrap.
+	Err error
 }
 
+// Error reports the topic and the codec error.
 func (e *DecodeError) Error() string {
 	return fmt.Sprintf("redis mq: decode message from %q: %v", e.Topic, e.Err)
 }
 
+// Unwrap returns the codec error.
 func (e *DecodeError) Unwrap() error { return e.Err }
 
 // blockingConsumePoll bounds a single BLPOP so Consume can observe context
@@ -56,14 +61,17 @@ func (e *DecodeError) Unwrap() error { return e.Err }
 const blockingConsumePoll = time.Second
 
 // Queue implements a Redis-backed point-to-point message queue with typed message support.
-// It uses Redis lists to provide FIFO message delivery semantics.
+// It uses Redis lists to provide FIFO message delivery semantics. Each topic is
+// a Redis list key. Create it with NewQueue; the zero value is not usable.
 type Queue[T any] struct {
 	client *redis.Client
 	codec  codec.Codec
 }
 
 // NewQueue creates a new Redis-based queue with the specified options.
-// A Redis client must be provided via WithClient option.
+// A Redis client must be provided via WithClient option; NewQueue returns an
+// error without one, or when WithCodec was given a nil codec. It does not
+// contact Redis.
 func NewQueue[T any](opt ...Option) (*Queue[T], error) {
 	opts := newOptions(opt...)
 	err := opts.validate()
@@ -76,6 +84,9 @@ func NewQueue[T any](opt ...Option) (*Queue[T], error) {
 	}, nil
 }
 
+// Publish encodes data with the configured codec and appends it to the
+// topic list (RPUSH). The list is unbounded; Publish does not block on
+// consumers.
 func (q *Queue[T]) Publish(ctx context.Context, topic string, data T) error {
 	raw, err := q.codec.Marshal(data)
 	if err != nil {
@@ -135,6 +146,8 @@ func (q *Queue[T]) TryConsume(ctx context.Context, topic string) (T, bool, error
 	return data, true, nil
 }
 
+// PurgeQueue deletes the topic key, discarding every pending message. A
+// missing topic is not an error.
 func (q *Queue[T]) PurgeQueue(ctx context.Context, topic string) error {
 	return q.client.Del(ctx, topic).Err()
 }

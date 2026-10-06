@@ -1,13 +1,3 @@
-// Package tasktest provides reusable test helpers for task.Task: a Fake test
-// double and AssertLifecycleContract for a subset of the lifecycle guarantees
-// documented on the interface.
-//
-// AssertLifecycleContract checks that Stop is safe before Start, Stop is
-// idempotent, and concurrent Stop does not panic or deadlock. It does not
-// assert Stop-after-Start-returned, Stop-when-Start-failed, or that Stop
-// unblocks Start without also cancelling ctx. The factory must return a task
-// that unblocks on Stop or ctx cancel; a Start that ignores both fails the
-// helper at contractTimeout (5s).
 package tasktest
 
 import (
@@ -27,6 +17,12 @@ const contractTimeout = 5 * time.Second
 // concurrent Stop against a factory that returns a fresh, not-yet-started
 // task on every call. None of those may panic or deadlock. See the package
 // comment for what it does not cover.
+//
+// Each check runs as a t.Run subtest (StopWithoutStart, IdempotentStop,
+// ConcurrentStop) and fails if a step panics or does not finish within 5s.
+// AssertLifecycleContract calls t.Fatal when newTask is nil or returns nil.
+// Start runs in a background goroutine with a cancellable context; Stop
+// errors are ignored, because the contract concerns safety, not results.
 func AssertLifecycleContract(t *testing.T, newTask func() task.Task) {
 	t.Helper()
 	if newTask == nil {

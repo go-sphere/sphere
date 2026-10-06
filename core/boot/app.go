@@ -7,7 +7,10 @@ import (
 )
 
 // Application is the process-level Task that Run drives. It is a thin wrapper
-// around task.Group: Start and Stop forward to the group.
+// around task.Group: Start and Stop forward to the group, so an Application is
+// single-use like its group. Create it with NewApplication,
+// NewStagedApplication, or NewApplicationFromGroup; the zero value is not
+// usable.
 type Application struct {
 	group *task.Group
 }
@@ -24,7 +27,8 @@ func NewApplication(tasks ...task.Task) *Application {
 
 // NewApplicationFromGroup uses g as the application's group without wrapping
 // it in another NewGroup. Use this (or NewStagedApplication) when g already
-// has staged waves or Group options.
+// has staged waves or Group options. A nil g is replaced by an empty group.
+// The Application takes over g: do not Start or Stop g directly afterwards.
 func NewApplicationFromGroup(g *task.Group) *Application {
 	if g == nil {
 		g = task.NewGroup()

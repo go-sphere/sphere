@@ -1,11 +1,3 @@
-// Package secure is bcrypt password hashing, a display mask, and
-// crypto/rand alphanumeric strings.
-//
-// CryptPassword / IsPasswordMatch use bcrypt default cost. Hashing never
-// returns the plaintext on error. bcrypt's 72-byte input limit applies.
-// CensorString keeps the first and last rune and fills the middle with '*'
-// to outLength; outLength < 2 or empty src yields all stars. RandString
-// panics on entropy failure; non-positive length yields an empty string.
 package secure
 
 import (

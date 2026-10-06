@@ -38,7 +38,8 @@ func (s *subscription[T]) requestStop() {
 
 // PubSub implements process-local best-effort publish-subscribe delivery.
 // Each subscription has a bounded buffer; Broadcast drops rather than blocks
-// when one subscriber falls behind.
+// when one subscriber falls behind. Create it with NewPubSub; the zero value
+// is not usable. Methods are safe for concurrent use.
 type PubSub[T any] struct {
 	identifier string
 	queueSize  int
@@ -111,7 +112,9 @@ func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 }
 
 // Subscribe registers handler on topic. ctx controls the subscription's full
-// lifetime and is passed to every handler invocation.
+// lifetime and is passed to every handler invocation. The subscription is
+// active when Subscribe returns, so a later Broadcast reaches it. A nil ctx or
+// handler is an error; after RequestStop or Stop it returns mq.ErrPubSubClosed.
 func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler mq.Handler[T]) (mq.Subscription, error) {
 	if ctx == nil {
 		return nil, errors.New("mq memory: subscription context is required")

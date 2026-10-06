@@ -3,7 +3,10 @@ package pool
 import "sync"
 
 // SyncPool is an unbounded pool backed by sync.Pool. WithClose and
-// WithAllowCreate are ignored. Objects are GC-eligible when idle.
+// WithAllowCreate are ignored. Idle objects may be collected by the GC at any
+// time, so it is unsuitable for resources that need explicit closing. Create
+// it with NewSyncPool. Like sync.Pool, it is safe for concurrent use and must
+// not be copied after first use.
 type SyncPool[T any] struct {
 	p          sync.Pool
 	resetFunc  func(T) T

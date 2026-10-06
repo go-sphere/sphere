@@ -24,7 +24,9 @@ func (n nopBackend) With(options ...Option) Backend {
 	return n
 }
 
-// MultiBackend fan-outs each log entry to all configured backends.
+// MultiBackend fans each log entry out to its child backends in order.
+// Create it with NewMultiBackend; it is safe for concurrent use when every
+// child is.
 type MultiBackend struct {
 	backends []Backend
 }
@@ -40,6 +42,9 @@ func (m *MultiBackend) Backends() []Backend {
 }
 
 // NewMultiBackend creates a backend that writes to all provided backends.
+// Nil entries are skipped. With no non-nil backend it returns the same
+// discarding backend as NewNopBackend; with exactly one it returns that
+// backend unwrapped; otherwise it returns a *MultiBackend.
 func NewMultiBackend(backends ...Backend) Backend {
 	clean := make([]Backend, 0, len(backends))
 	for _, b := range backends {
@@ -56,12 +61,14 @@ func NewMultiBackend(backends ...Backend) Backend {
 	return &MultiBackend{backends: clean}
 }
 
+// Log forwards the entry to every child in order.
 func (m *MultiBackend) Log(ctx context.Context, level Level, msg string, attrs ...Attr) {
 	for _, b := range m.backends {
 		b.Log(ctx, level, msg, attrs...)
 	}
 }
 
+// Sync syncs every child, even after a failure, and joins their errors.
 func (m *MultiBackend) Sync() error {
 	errs := make([]error, 0, len(m.backends))
 	for _, b := range m.backends {
@@ -91,6 +98,8 @@ func (m *MultiBackend) Close() error {
 	return errors.Join(errs...)
 }
 
+// With derives every child with options and combines the results with
+// NewMultiBackend.
 func (m *MultiBackend) With(options ...Option) Backend {
 	next := make([]Backend, 0, len(m.backends))
 	for _, b := range m.backends {

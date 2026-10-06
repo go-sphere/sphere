@@ -1,12 +1,3 @@
-// Package zapx is a log.Backend on uber-go/zap: colored console on stdout
-// and optional lumberjack JSON file rotation.
-//
-// NewBackend owns the file handle; derived With loggers do not. Close
-// releases the file; lumberjack reopens on the next write, so Close is not
-// "seal the backend". Sync before Close if buffered entries must land.
-// log.WithMinLevel is ignored; set Config.Level (zap level string, default
-// "info"). Invalid Level falls back to Info. FileConfig.MaxSize is MB,
-// MaxAge is days, MaxBackups is count.
 package zapx
 
 import (
@@ -23,7 +14,10 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// Backend is the zap implementation of corelog.Backend.
+// Backend is the zap implementation of log.Backend; it also implements
+// log.SlogBackend and io.Closer. Create it with NewBackend; the zero value is
+// not usable. A Backend is safe for concurrent use. A panic while encoding an
+// attribute value is recovered and logged as an attr_error field instead.
 type Backend struct {
 	// zapLogger is the raw zap logger exposed to callers via ZapLogger().
 	// It does not include backend-specific caller skip adjustments.
@@ -49,7 +43,12 @@ type Backend struct {
 // 3) core logger call sites (both package-level log.* and logger instance methods).
 const coreCallerOffset = 3
 
-// NewBackend creates a zap-based backend.
+// NewBackend creates a zap-based backend from conf and options. It never
+// fails: an invalid conf.Level falls back to info, and a config with the
+// console disabled and no FileName discards every entry. The log file, when
+// configured, is opened lazily on first write. The caller owns the returned
+// Backend and should Sync then Close it at shutdown. log.WithMinLevel is
+// ignored.
 func NewBackend(conf Config, options ...corelog.Option) *Backend {
 	resolved := corelog.NewOptions(options...)
 	core, file := newCore(conf)

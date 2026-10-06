@@ -3,17 +3,27 @@ package pool
 // Options is the materialized configuration consumed by NewChanPool and
 // NewSyncPool. Option functions fill this struct; it is not itself a function.
 type Options[T any] struct {
-	New    func() T
-	Reset  func(T) T
+	// New creates an object when the pool has none to hand out. Nil means Get
+	// returns the zero value of T on an empty pool. Set by WithNew.
+	New func() T
+	// Reset is applied by Put to an accepted object before it is stored; its
+	// result is what gets pooled. Nil stores the object unchanged. Set by
+	// WithReset.
+	Reset func(T) T
+	// Accept decides whether Put retains an object. Nil accepts everything.
+	// Set by WithAccept.
 	Accept func(T) bool
-	Close  func(T)
+	// Close is run by ChanPool.Close on each object still pooled. SyncPool
+	// ignores it. Set by WithClose.
+	Close func(T)
 	// AllowCreate controls ChanPool.GetContext: when true (the default) and New
 	// is set, an empty pool creates an object instead of waiting. SyncPool
 	// ignores this field.
 	AllowCreate bool
 }
 
-// Option configures Options.
+// Option configures Options. Later options override earlier ones for the
+// same field.
 type Option[T any] func(*Options[T])
 
 // WithReset sets the function applied to an object after Accept and before Put.

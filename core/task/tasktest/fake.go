@@ -23,16 +23,31 @@ const (
 	ModeOneshot
 )
 
-// Fake is a test double for task.Task. Construct it with NewFake, then set
-// Mode / StartErr / StopErr / optional Funcs before the runner calls Start.
+// Fake is a test double for task.Task. Construct it with NewFake (the zero
+// value is not usable), then set the exported fields before the runner calls
+// Start; they are read without locking, so changing them concurrently with
+// Start or Stop is a data race. The counters and signal channels are safe for
+// concurrent use.
 type Fake struct {
-	ID        string
-	Mode      Mode
-	StartErr  error
-	StopErr   error
+	// ID is returned by Identifier; empty means "fake".
+	ID string
+	// Mode selects Start's behaviour when StartFunc is nil.
+	Mode Mode
+	// StartErr is returned by Start in every Mode once Start unblocks (except
+	// ModeRunLoop cancelled by ctx, which returns ctx.Err()).
+	StartErr error
+	// StopErr is returned by every Stop call when StopFunc is nil.
+	StopErr error
+	// StopDelay, when positive, makes the first Stop sleep before running
+	// StopFunc or returning StopErr; Start is already unblocked by then.
 	StopDelay time.Duration
+	// StartFunc, when set, replaces Mode-driven behaviour: Start returns its
+	// result. Stop does not unblock StartFunc; it must return on its own or
+	// when ctx is cancelled.
 	StartFunc func(context.Context) error
-	StopFunc  func(context.Context) error
+	// StopFunc, when set, runs once on the first Stop; its result is returned
+	// by that and every later Stop call. It replaces StopErr.
+	StopFunc func(context.Context) error
 
 	mu           sync.Mutex
 	startCount   int

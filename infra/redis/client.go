@@ -1,8 +1,3 @@
-// Package redis builds a go-redis client from a URL.
-//
-// NewClient only parses the URL; go-redis connects lazily on first use, so
-// connectivity errors surface later, not at construction. It does not ping,
-// pool-tune, or wrap sphere cache/mq types — it returns *redis.Client.
 package redis
 
 import (
@@ -15,6 +10,9 @@ import (
 
 // Config defines the configuration parameters for establishing a Redis connection.
 type Config struct {
+	// URL is parsed by go-redis ParseURL, for example
+	// "redis://user:password@localhost:6379/0" or "rediss://..." for TLS. The
+	// path selects the database number.
 	URL string `json:"url" yaml:"url"`
 }
 

@@ -1,12 +1,3 @@
-// Package scripttask is a callback-backed task.Task for scripts and tests.
-//
-// NewScriptTask(id, onStart, onStop): Start runs onStart, or blocks on
-// ctx.Done when onStart is nil. Stop runs onStop; it does not cancel Start's
-// context. Direct Start+Stop with a nil onStart therefore deadlocks unless
-// something else cancels ctx — put the task in a Group or Manager, which
-// cancel the run context. onStop is not wrapped in Once: callers must make
-// it idempotent. Started and Stopped close when Start or Stop is first
-// entered, not when the hook returns.
 package scripttask
 
 import (
@@ -15,7 +6,11 @@ import (
 	"sync/atomic"
 )
 
-// ScriptTask is a task.Task whose Start and Stop delegate to callbacks.
+// ScriptTask is a task.Task whose Start and Stop delegate to callbacks and
+// that records whether each was entered. Create it with NewScriptTask; the
+// zero value is not usable. The state accessors (Started, Stopped, IsStarted,
+// IsStopped) are safe for concurrent use; the callbacks themselves are called
+// without additional synchronization.
 type ScriptTask struct {
 	id string
 

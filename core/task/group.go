@@ -114,6 +114,10 @@ func WithStartTimeout(timeout time.Duration) GroupOption {
 // been stopped. The group implements Task, so it can be nested or passed to
 // boot.NewApplication.
 //
+// Create a Group with NewGroup, NewStagedGroup, or their WithOptions variants.
+// A Group is single-use (Start runs once) and
+// its methods are safe for concurrent use.
+//
 // See the package comment for the one-shot and HTTP-process recipes.
 type Group struct {
 	tasks []Task

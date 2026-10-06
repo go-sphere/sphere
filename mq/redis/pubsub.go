@@ -54,7 +54,8 @@ func (s *subscription[T]) requestStop() error {
 // task lifecycle both wait for running handlers). If the Handler stalls long
 // enough for go-redis' per-subscription buffer to fill, that subscription's
 // messages are dropped, as best-effort delivery allows; other subscriptions
-// have their own receive goroutines and are unaffected.
+// have their own receive goroutines and are unaffected. Create it with
+// NewPubSub; the zero value is not usable.
 type PubSub[T any] struct {
 	identifier string
 	client     *redis.Client
@@ -127,7 +128,11 @@ func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 }
 
 // Subscribe establishes a Redis subscription and starts handler delivery. ctx
-// controls both setup and the returned subscription's full lifetime.
+// controls both setup and the returned subscription's full lifetime. It waits
+// for Redis to confirm the subscription, so a Broadcast issued after Subscribe
+// returns reaches it. A nil ctx or handler is an error; after RequestStop or
+// Stop it returns mq.ErrPubSubClosed. Messages that fail to decode are logged
+// and skipped.
 func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler mq.Handler[T]) (mq.Subscription, error) {
 	if ctx == nil {
 		return nil, errors.New("redis mq: subscription context is required")

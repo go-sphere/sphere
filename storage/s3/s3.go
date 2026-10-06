@@ -1,11 +1,3 @@
-// Package s3 is a minio-go storage.CDNStorage: presigned PUT upload auth
-// and the core Storage operations.
-//
-// PublicBase is derived from endpoint+bucket when empty. ListFiles uses
-// StartAfter; the cursor is the last key. Copy overwrite=false is TOCTOU,
-// not atomic. Self-move is a no-op. Content-Type is the file extension.
-// NewClient constructs the minio client internally. There is no Close; the
-// HTTP transport lives with the process.
 package s3
 
 import (
@@ -28,15 +20,27 @@ import (
 
 // Config holds the configuration parameters for S3-compatible object storage.
 type Config struct {
-	Endpoint        string                       `json:"endpoint" yaml:"endpoint"`
-	AccessKeyID     string                       `json:"access_key" yaml:"access_key"`
-	SecretAccessKey string                       `json:"secret" yaml:"secret"`
-	Token           string                       `json:"token" yaml:"token"`
-	Bucket          string                       `json:"bucket" yaml:"bucket"`
-	UseSSL          bool                         `json:"use_ssl" yaml:"use_ssl"`
-	PublicBase      string                       `json:"public_base" yaml:"public_base"`
-	Dir             string                       `json:"dir" yaml:"dir"`
-	UploadNaming    storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"`
+	// Endpoint is the host[:port] of the S3 API, without scheme
+	// (for example "s3.amazonaws.com" or "localhost:9000").
+	Endpoint string `json:"endpoint" yaml:"endpoint"`
+	// AccessKeyID, SecretAccessKey, and the optional session Token are static
+	// V4 credentials.
+	AccessKeyID     string `json:"access_key" yaml:"access_key"`
+	SecretAccessKey string `json:"secret" yaml:"secret"`
+	Token           string `json:"token" yaml:"token"`
+	// Bucket is the bucket every key lives in. It must already exist.
+	Bucket string `json:"bucket" yaml:"bucket"`
+	// UseSSL selects https for the API and for the derived PublicBase.
+	UseSSL bool `json:"use_ssl" yaml:"use_ssl"`
+	// PublicBase is the base URL for GenerateURL. Empty means
+	// "http(s)://Endpoint/Bucket" (path-style).
+	PublicBase string `json:"public_base" yaml:"public_base"`
+	// Dir is the prefix directory for keys created by GenerateUploadAuth.
+	// It does not affect UploadFile or other key-based methods.
+	Dir string `json:"dir" yaml:"dir"`
+	// UploadNaming selects how GenerateUploadAuth names files; empty means
+	// storage.UploadNamingStrategyRandomExt.
+	UploadNaming storage.UploadNamingStrategy `json:"upload_naming" yaml:"upload_naming"`
 	// UploadTTL is the default validity window for presigned upload URLs, and
 	// also the ceiling for UploadAuthRequest.TTL. A zero value falls back to
 	// defaultUploadTTL.
@@ -61,7 +65,9 @@ const (
 )
 
 // Client is a minio-go storage.CDNStorage: presigned PUT upload auth and
-// the core Storage operations.
+// the core Storage operations. It also implements storage.FileStater and
+// storage.FileLister. Create it with NewClient; it is safe for concurrent use
+// to the extent minio-go's client is, and has no Close.
 type Client struct {
 	urlhandler.Handler
 	config Config
@@ -70,7 +76,10 @@ type Client struct {
 
 // NewClient creates a minio-backed storage client. An empty PublicBase is
 // derived from endpoint+bucket. The minio client is constructed here; this
-// type has no Close.
+// type has no Close. NewClient does not contact the server, so bad
+// credentials or a missing bucket surface on the first operation. It returns
+// an error for a PartSize below 5 MiB, an invalid Endpoint, or an unparsable
+// PublicBase.
 func NewClient(conf Config) (*Client, error) {
 	conf.PartSize = cmp.Or(conf.PartSize, defaultPartSize)
 	if conf.PartSize < minPartSize {
@@ -141,6 +150,9 @@ func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthR
 }
 
 // UploadFile uploads data from a reader to S3-compatible storage with the specified key.
+// The length is unknown, so the body is sent as a multipart upload buffering
+// one Config.PartSize part in memory. Content-Type comes from the key's
+// extension. It returns the normalized key.
 func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -157,6 +169,7 @@ func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 }
 
 // UploadLocalFile uploads an existing local file to S3-compatible storage with the specified key.
+// Content-Type comes from the key's extension. It returns the normalized key.
 func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -173,6 +186,7 @@ func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 
 // StatFile returns lightweight metadata for a file without downloading its body.
 // It implements storage.FileStater by reusing the S3 stat (HEAD) call.
+// A missing key fails with storageerr.ErrNotFound.
 func (s *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -194,7 +208,8 @@ func (s *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 // ListFiles enumerates object keys under prefix with cursor-based pagination.
 // It implements storage.FileLister on top of the S3 ListObjects API using
 // StartAfter as an exclusive cursor. The returned next cursor is the last key
-// of the page when more objects remain, otherwise empty.
+// of the page when more objects remain, otherwise empty. A non-positive limit
+// means 1000.
 func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int) ([]string, string, error) {
 	if limit <= 0 {
 		limit = 1000
@@ -231,6 +246,7 @@ func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 }
 
 // IsFileExists checks whether a file exists in the S3-compatible storage bucket.
+// A missing key reports (false, nil).
 func (s *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -246,8 +262,9 @@ func (s *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	return true, nil
 }
 
-// DownloadFile retrieves a file from S3-compatible storage.
-// Returns the file reader, content type, and content size.
+// DownloadFile retrieves a file from S3-compatible storage with a single GET.
+// Returns the body reader (the caller must close it), the stored content type,
+// and the content size. A missing key fails with storageerr.ErrNotFound.
 func (s *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -272,6 +289,7 @@ func (s *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 }
 
 // DeleteFile removes a file from the S3-compatible storage bucket.
+// S3 treats deleting a missing key as success.
 func (s *Client) DeleteFile(ctx context.Context, key string) error {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -285,7 +303,9 @@ func (s *Client) DeleteFile(ctx context.Context, key string) error {
 }
 
 // MoveFile relocates a file from source to destination key within the S3 bucket.
-// It performs a copy operation followed by deletion of the source file.
+// It performs a copy operation followed by deletion of the source file, so it
+// is not atomic: if the delete fails, the object exists at both keys. A move
+// onto itself is a no-op when the source exists. Errors follow CopyFile.
 func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
@@ -320,6 +340,8 @@ func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 }
 
 // CopyFile duplicates a file from source to destination key within the S3 bucket.
+// A missing source fails with storageerr.ErrNotFound and an existing
+// destination with overwrite false fails with storageerr.ErrDestExists.
 //
 // When overwrite is false the destination is checked with a separate stat call
 // before copying. The S3 CopyObject API has no portable conditional (there is

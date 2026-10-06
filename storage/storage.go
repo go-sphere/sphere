@@ -1,24 +1,3 @@
-// Package storage is the object-storage contract used by Sphere services:
-// upload, download, delete, move, and copy, plus optional stat/list and CDN
-// URL / upload-authorization capabilities.
-//
-// Drivers: local (filesystem), s3 (minio-go), qiniu (Kodo), kvcache (ByteCache
-// as a blob store). fileserver is an HTTP adapter that wraps any Storage with
-// one-time PUT tokens; it is not an S3 driver.
-//
-// Every driver normalizes keys via NormalizeKey before use, so a key stored
-// by one backend addresses the same object on another. UploadFile returns the
-// normalized key — persist that value, not the one passed in.
-//
-// Storage is FileDeleter + FileUploader + FileDownloader + FileMoverCopier.
-// FileStater and FileLister are optional; probe with a type assertion.
-// kvcache and fileserver do not implement them. CDNStorage adds URLHandler
-// and UploadAuthorizer for public URLs and direct-to-storage uploads.
-// UploadAuthRequest.TTL is a ceiling: a client cannot extend the driver's
-// configured credential lifetime.
-//
-// DeleteFile is idempotent: missing keys succeed. URLHandler.GenerateURL is
-// for public reads; private-bucket signed download URLs are out of scope.
 package storage
 
 import (
@@ -32,19 +11,22 @@ import (
 // This interface enables URL-based access to stored files and reverse key lookup from URLs.
 type URLHandler interface {
 	// GenerateURL creates a public URL for accessing the file identified by the given key.
-	// Optional params are encoded into query string. When multiple values are provided,
-	// only the first non-nil params is used.
+	// Optional params are intended for query-string options; when multiple values are
+	// provided, only the first non-nil params is meaningful. An implementation may
+	// ignore params: the urlhandler.Handler used by every driver in this module does.
 	GenerateURL(key string, params ...url.Values) string
 
-	// GenerateURLs creates public URLs for multiple files in batch.
-	// Optional params are encoded into query string for each generated URL.
+	// GenerateURLs creates public URLs for multiple files in batch, one per key
+	// and in the same order. params are treated as in GenerateURL.
 	GenerateURLs(keys []string, params ...url.Values) []string
 
-	// ExtractKeyFromURL extracts the storage key from a given URL.
+	// ExtractKeyFromURL extracts the storage key from a public URL (or returns a
+	// bare key unchanged). It returns "" when the key cannot be extracted.
 	ExtractKeyFromURL(uri string) string
 
-	// ExtractKeyFromURLWithMode extracts the storage key from a URL with strict mode option.
-	// When strict is true, returns an error if the URL format is invalid.
+	// ExtractKeyFromURLWithMode extracts the storage key from a URL. When strict
+	// is true, a URL whose host or base path does not match the public base is
+	// rejected with an error instead of being parsed leniently.
 	ExtractKeyFromURLWithMode(uri string, strict bool) (string, error)
 }
 
@@ -52,15 +34,23 @@ type URLHandler interface {
 type UploadAuthorizationType string
 
 const (
-	UploadAuthorizationTypeURL   UploadAuthorizationType = "url"
+	// UploadAuthorizationTypeURL means UploadAuthorization.Value is a URL the
+	// client sends the file body to with UploadAuthorization.Method
+	// (s3 presigned PUT, fileserver one-time PUT).
+	UploadAuthorizationTypeURL UploadAuthorizationType = "url"
+	// UploadAuthorizationTypeToken means UploadAuthorization.Value is an upload
+	// token for the provider's own upload API (qiniu form upload).
 	UploadAuthorizationTypeToken UploadAuthorizationType = "token"
 )
 
 // UploadAuthorization carries the upload authorization data for client-side uploads.
 type UploadAuthorization struct {
-	Type   UploadAuthorizationType `json:"type" yaml:"type"`
-	Value  string                  `json:"value" yaml:"value"`
-	Method string                  `json:"method" yaml:"method"`
+	// Type selects how Value is interpreted.
+	Type UploadAuthorizationType `json:"type" yaml:"type"`
+	// Value is the upload URL or token, depending on Type.
+	Value string `json:"value" yaml:"value"`
+	// Method is the HTTP method the client should use (PUT or POST).
+	Method string `json:"method" yaml:"method"`
 	// Headers is a reserved field for extra headers a client must send with the
 	// upload request. No driver populates it today; it is kept intentionally as a
 	// stable extension point, so do not remove it as "dead code".
@@ -69,7 +59,9 @@ type UploadAuthorization struct {
 
 // UploadFileInfo contains the finalized storage information for an upload.
 type UploadFileInfo struct {
+	// Key is the normalized storage key the upload will be stored under.
 	Key string `json:"key" yaml:"key"`
+	// URL is the public URL for Key, as produced by URLHandler.GenerateURL.
 	URL string `json:"url" yaml:"url"`
 }
 
@@ -79,19 +71,30 @@ type UploadAuthResult struct {
 	File          UploadFileInfo      `json:"file" yaml:"file"`
 }
 
-// UploadNamingStrategy controls how upload file names are generated.
+// UploadNamingStrategy controls how upload file names are generated by
+// BuildUploadFileName. The empty value means UploadNamingStrategyRandomExt.
 type UploadNamingStrategy string
 
 const (
+	// UploadNamingStrategyRandomExt names the file with a random UUID plus the
+	// original extension. It is the default.
 	UploadNamingStrategyRandomExt UploadNamingStrategy = "random_ext"
-	UploadNamingStrategyHashExt   UploadNamingStrategy = "hash_ext"
-	UploadNamingStrategyOriginal  UploadNamingStrategy = "original"
+	// UploadNamingStrategyHashExt names the file with the hex MD5 of the
+	// original name plus its extension, so the same name always maps to the
+	// same key.
+	UploadNamingStrategyHashExt UploadNamingStrategy = "hash_ext"
+	// UploadNamingStrategyOriginal keeps the base name of the original file.
+	UploadNamingStrategyOriginal UploadNamingStrategy = "original"
 )
 
 // UploadAuthRequest describes the input for upload authorization generation.
 type UploadAuthRequest struct {
+	// FileName is the client's original file name; it is required and feeds
+	// the driver's UploadNamingStrategy.
 	FileName string `json:"file_name" yaml:"file_name"`
-	Dir      string `json:"dir,omitempty" yaml:"dir,omitempty"`
+	// Dir is an optional relative business directory placed under the
+	// driver's configured prefix directory (see JoinUploadKey).
+	Dir string `json:"dir,omitempty" yaml:"dir,omitempty"`
 	// TTL optionally shortens how long the generated authorization stays valid.
 	// A zero value uses the driver's configured default TTL, which also caps this
 	// field: a longer TTL is clamped down rather than honored, so populating it
@@ -103,34 +106,47 @@ type UploadAuthRequest struct {
 // This is commonly used for direct-to-storage uploads from web browsers or mobile apps.
 type UploadAuthorizer interface {
 	// GenerateUploadAuth creates upload authorization and target file information.
+	// The returned File.Key is final: the client uploads to it and the caller
+	// should persist it. An empty or invalid req.FileName, or a req.Dir that is
+	// absolute or escapes upward, is an error.
 	GenerateUploadAuth(ctx context.Context, req UploadAuthRequest) (UploadAuthResult, error)
 }
 
 // FileUploader provides file upload capabilities to the storage backend.
 type FileUploader interface {
-	// UploadFile uploads data from a reader under key. The returned key is
-	// NormalizeKey(key) and may differ from the argument; persist that value.
+	// UploadFile uploads data from a reader under key, replacing any existing
+	// object. The returned key is NormalizeKey(key) and may differ from the
+	// argument; persist that value. An invalid key fails with
+	// storageerr.ErrFileNameInvalid.
 	UploadFile(ctx context.Context, file io.Reader, key string) (string, error)
 
-	// UploadLocalFile uploads a local file to the storage backend with the specified key.
-	// Returns the storage key or an error if upload fails.
+	// UploadLocalFile uploads the local file at path file under key, with the
+	// same key rules as UploadFile. The source file is read, not moved.
+	// Returns the normalized storage key or an error if upload fails.
 	UploadLocalFile(ctx context.Context, file string, key string) (string, error)
 }
 
 // DownloadResult is the structured output for download operations.
 type DownloadResult struct {
+	// Reader streams the object body. The caller must close it.
 	Reader io.ReadCloser
-	MIME   string
-	Size   int64
+	// MIME is the content type; it may be empty when the driver cannot
+	// determine one (drivers that derive it from the key's extension return
+	// "" for unknown extensions).
+	MIME string
+	// Size is the object size in bytes.
+	Size int64
 }
 
 // FileDownloader provides file download and existence checking capabilities.
 type FileDownloader interface {
 	// IsFileExists checks whether a file exists in the storage backend.
+	// A missing key reports (false, nil); an error means the check itself failed.
 	IsFileExists(ctx context.Context, key string) (bool, error)
 
-	// DownloadFile retrieves a file from storage.
-	// The caller is responsible for closing DownloadResult.Reader.
+	// DownloadFile retrieves a file from storage. A missing key fails with
+	// storageerr.ErrNotFound. On success the caller is responsible for closing
+	// DownloadResult.Reader.
 	DownloadFile(ctx context.Context, key string) (DownloadResult, error)
 }
 
@@ -183,11 +199,15 @@ type FileDeleter interface {
 // FileMoverCopier provides file moving and copying operations within the storage backend.
 type FileMoverCopier interface {
 	// MoveFile relocates a file from source to destination key.
-	// If overwrite is false, returns an error if destination already exists.
+	// A missing source fails with storageerr.ErrNotFound. If overwrite is false
+	// and the destination exists, it fails with storageerr.ErrDestExists; the
+	// check is best-effort against concurrent writers on most drivers. Moving a
+	// key onto itself is a no-op when the source exists.
 	MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error
 
 	// CopyFile duplicates a file from source to destination key.
-	// If overwrite is false, returns an error if destination already exists.
+	// A missing source fails with storageerr.ErrNotFound. If overwrite is false
+	// and the destination exists, it fails with storageerr.ErrDestExists.
 	CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error
 }
 

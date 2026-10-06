@@ -48,6 +48,8 @@ func (m *CodecCache[T]) GetCodec() codec.Codec {
 	return m.codec
 }
 
+// Set encodes val with the codec and stores it without expiration. An encoding
+// error is returned and nothing is written.
 func (m *CodecCache[T]) Set(ctx context.Context, key string, val T) error {
 	raw, err := m.codec.Marshal(val)
 	if err != nil {
@@ -56,6 +58,8 @@ func (m *CodecCache[T]) Set(ctx context.Context, key string, val T) error {
 	return m.cache.Set(ctx, key, raw)
 }
 
+// SetWithTTL encodes val and stores it with the cache.TTL expiration rules.
+// An encoding error is returned and nothing is written.
 func (m *CodecCache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration time.Duration) error {
 	raw, err := m.codec.Marshal(val)
 	if err != nil {
@@ -64,6 +68,8 @@ func (m *CodecCache[T]) SetWithTTL(ctx context.Context, key string, val T, expir
 	return m.cache.SetWithTTL(ctx, key, raw, expiration)
 }
 
+// MultiSet encodes every value and stores them without expiration. If any
+// value fails to encode, nothing is written.
 func (m *CodecCache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
 	rawMap, err := m.marshalMap(valMap)
 	if err != nil {
@@ -72,6 +78,8 @@ func (m *CodecCache[T]) MultiSet(ctx context.Context, valMap map[string]T) error
 	return m.cache.MultiSet(ctx, rawMap)
 }
 
+// MultiSetWithTTL encodes every value and stores them with expiration. If
+// any value fails to encode, nothing is written.
 func (m *CodecCache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, expiration time.Duration) error {
 	rawMap, err := m.marshalMap(valMap)
 	if err != nil {
@@ -92,6 +100,8 @@ func (m *CodecCache[T]) marshalMap(valMap map[string]T) (map[string][]byte, erro
 	return rawMap, nil
 }
 
+// Get loads and decodes key. A miss returns (zero, false, nil). A decode
+// error returns found=false with the error and leaves the entry in place.
 func (m *CodecCache[T]) Get(ctx context.Context, key string) (T, bool, error) {
 	raw, found, err := m.cache.Get(ctx, key)
 	var val T
@@ -108,6 +118,9 @@ func (m *CodecCache[T]) Get(ctx context.Context, key string) (T, bool, error) {
 	return val, true, nil
 }
 
+// GetDel atomically consumes key from the byte cache, then decodes it. If the
+// consumed entry cannot be decoded, GetDel returns found=true with the decode
+// error; the entry is already deleted.
 func (m *CodecCache[T]) GetDel(ctx context.Context, key string) (T, bool, error) {
 	raw, found, err := m.cache.GetDel(ctx, key)
 	var val T
@@ -157,14 +170,18 @@ func (m *CodecCache[T]) MultiGet(ctx context.Context, keys []string) (map[string
 	return result, nil
 }
 
+// Del forwards to the underlying byte cache.
 func (m *CodecCache[T]) Del(ctx context.Context, key string) error {
 	return m.cache.Del(ctx, key)
 }
 
+// MultiDel forwards to the underlying byte cache.
 func (m *CodecCache[T]) MultiDel(ctx context.Context, keys []string) error {
 	return m.cache.MultiDel(ctx, keys)
 }
 
+// DelAll forwards to the underlying byte cache, so its blast radius is the
+// backend's (redis FlushDB, the whole process cache for memory/mcache).
 func (m *CodecCache[T]) DelAll(ctx context.Context) error {
 	return m.cache.DelAll(ctx)
 }
@@ -182,6 +199,7 @@ func (m *CodecCache[T]) Keys(ctx context.Context, prefix string) ([]string, erro
 	return lister.Keys(ctx, prefix)
 }
 
+// Exists forwards to the underlying byte cache without decoding the value.
 func (m *CodecCache[T]) Exists(ctx context.Context, key string) (bool, error) {
 	return m.cache.Exists(ctx, key)
 }

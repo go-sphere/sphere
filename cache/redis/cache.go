@@ -1,11 +1,3 @@
-// Package redis is the Redis-backed cache.ByteCache driver (go-redis).
-//
-// DelAll is FlushDB of the selected database, not FLUSHALL and not "this
-// wrapper's keys". Do not share that DB with mq keys if you call DelAll.
-// Keys uses SCAN with a glob-escaped MATCH prefix* of the selected DB.
-// NewByteCache(client) does not close the client; NewByteCacheWithOptions
-// does. Empty MultiGet/MultiDel short-circuit because Redis rejects 0-arg
-// MGET/DEL.
 package redis
 
 import (
@@ -30,6 +22,11 @@ var ErrorType = fmt.Errorf("type error")
 
 // ByteCache is a Redis-backed cache implementation for storing raw byte data.
 // It provides direct access to Redis operations without any encoding/decoding overhead.
+//
+// ByteCache implements cache.ByteCache and cache.KeyLister and is safe for
+// concurrent use (go-redis clients are). Network and Redis errors are returned
+// as go-redis reports them; a missing key is a miss (found=false, nil error),
+// not an error.
 type ByteCache struct {
 	client *redis.Client
 	// owned reports whether this cache created the underlying client and is

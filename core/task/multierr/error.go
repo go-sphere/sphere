@@ -1,11 +1,3 @@
-// Package multierr is a concurrent-safe error collector used by task.Group
-// and task.Manager.
-//
-// The zero value retains every error. Set Limit before the first Add on a
-// long-lived collector (Manager uses 1024). Errors returns the joined error
-// string, not a []error. Unwrap returns errors.Join of the retained batch
-// (plus a synthetic "N earlier errors dropped" when Limit discarded older
-// ones), so errors.Is still matches members.
 package multierr
 
 import (
@@ -16,7 +8,11 @@ import (
 )
 
 // Error collects errors from concurrent producers. The zero value is ready to
-// use and retains everything added to it.
+// use and retains everything added to it. Add, Errors, and Unwrap are safe for
+// concurrent use; Error must not be copied after first use.
+//
+// Error does not implement the error interface itself: call Unwrap to get an
+// error value (nil when nothing was added).
 type Error struct {
 	// Limit caps how many errors are retained; the oldest are dropped once it is
 	// exceeded, and Unwrap reports how many were lost. A non-positive value (the

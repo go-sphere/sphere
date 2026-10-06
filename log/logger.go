@@ -1,25 +1,3 @@
-// Package log is a backend-agnostic structured logger with slog.Attr fields.
-//
-// The global logger starts as a zero StdioBackend (logfmt on stdout, Error+
-// on stderr). Call InitWithBackends early in main to swap it. Package-level
-// Debug/Info/Warn/Error (+ Context and f variants) go through that global.
-// Logger.With derives a child; Sync flushes.
-//
-// # Backends
-//
-// Backend is Log, Sync, and With. Close is not on the interface: type-assert
-// io.Closer (StdioBackend has nothing to close; zapx.Backend and
-// MultiBackend do). InitWithBackends does not close the previous backend and
-// does not Sync it. An empty or all-nil list keeps the current logger and
-// prints a warning on stderr; pass NewNopBackend to discard logs on purpose.
-//
-// StdioBackend honors WithMinLevel. zapx does not — set zapx.Config.Level
-// instead. WithStackAt attaches a stack at that level and above; it is not a
-// level filter.
-//
-// WrapBackendWithContextMerge injects attributes from context.Context.
-// FormatLogger methods use context.Background and Sprintf; they do not take
-// a caller context.
 package log
 
 import (
@@ -53,7 +31,11 @@ type FormatLogger interface {
 	Errorf(format string, args ...any)
 }
 
-// Logger combines quick-use APIs with type-safe attrs and context support.
+// Logger combines structured, context-aware, and printf-style logging over
+// one [Backend]. Backend returns that backend for bridge adapters. With
+// returns a child Logger whose backend is Backend().With(options...); the
+// receiver is unchanged. Sync flushes the backend. Loggers built by this
+// package are safe for concurrent use when their backend is.
 type Logger interface {
 	BaseLogger
 	ContextLogger
@@ -125,8 +107,10 @@ func (l *coreLogger) With(options ...Option) Logger {
 	return &coreLogger{backend: l.backend.With(options...)}
 }
 
-// NewLogger wraps a Backend as a Logger. Use it at the boundary where a
-// caller has a Backend but a consumer wants BaseLogger / Logger.
+// NewLogger wraps a Backend as a Logger without touching the global logger.
+// Use it at the boundary where a caller has a Backend but a consumer wants
+// BaseLogger or Logger. backend must be non-nil; logging through a Logger
+// built from nil panics.
 func NewLogger(backend Backend) Logger {
 	return &coreLogger{backend: backend}
 }
@@ -247,12 +231,13 @@ func Errorf(format string, args ...any) {
 	logger().backend.Log(context.Background(), LevelError, fmt.Sprintf(format, args...))
 }
 
-// With returns a derived Logger from the global backend.
+// With returns a Logger derived from the backend installed at call time.
+// A later InitWithBackends does not affect the returned Logger.
 func With(options ...Option) Logger {
 	return logger().With(options...)
 }
 
-// Sync flushes the global backend.
+// Sync flushes the global backend and returns its error.
 func Sync() error {
 	return logger().Sync()
 }

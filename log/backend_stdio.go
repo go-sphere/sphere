@@ -22,8 +22,14 @@ import (
 const stdioCallerSkip = 3
 
 // StdioBackend writes logfmt lines with a UTC RFC3339 timestamp. Entries
-// below minLevel are dropped. LevelError and above go to stderr; other
-// levels go to stdout. It honors log.WithMinLevel.
+// below the minimum level are dropped. LevelError and above go to stderr;
+// other levels go to stdout. It honors WithMinLevel, WithName, WithAttrs,
+// AddCaller/DisableCaller (best-effort location), and WithStackAt.
+//
+// The zero value is usable and logs every level without a name or caller;
+// it is the initial global backend. A StdioBackend is safe for concurrent
+// use and has nothing to close. A panic while rendering an attribute value
+// is recovered and logged as an attr_error field instead.
 type StdioBackend struct {
 	mu        sync.Mutex
 	name      string
@@ -46,6 +52,8 @@ func NewStdioBackend(options ...Option) *StdioBackend {
 	return b.apply(options...)
 }
 
+// Log writes one line for level and msg unless level is below the minimum.
+// The context is ignored.
 func (b *StdioBackend) Log(_ context.Context, level Level, msg string, attrs ...Attr) {
 	if level < b.minLevel {
 		return
@@ -88,10 +96,13 @@ func (b *StdioBackend) buildLineSafely(level Level, msg, caller string, attrs []
 	return b.buildLine(level, msg, caller, attrs)
 }
 
+// Sync is a no-op; lines are written unbuffered. It always returns nil.
 func (b *StdioBackend) Sync() error {
 	return nil
 }
 
+// With returns a copy with options applied; the receiver is unchanged.
+// Names are joined with "." and attrs are merged, new keys winning.
 func (b *StdioBackend) With(options ...Option) Backend {
 	return b.clone().apply(options...)
 }

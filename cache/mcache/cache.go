@@ -1,12 +1,3 @@
-// Package mcache is a mutex-protected map cache.Cache driver with lazy TTL.
-//
-// No background janitor: expired entries are dropped on Get/GetDel/MultiGet/
-// and bulk-reclaimed by Trim. There is no capacity cap. Close is a no-op;
-// later operations still succeed. Implements cache.KeyLister. []byte values
-// are cloned; other types are stored as the caller's value. Get takes a write
-// lock so it can delete expired keys; Count is a cheap read and does not
-// reclaim, so keep Trim on a timer in long-running processes (online.Start
-// does exactly this).
 package mcache
 
 import (
@@ -25,6 +16,9 @@ import (
 //
 // The zero value is not usable — the maps are nil, so the first write panics.
 // Build one with NewMapCache, NewMapCacheWithCapacity, NewCache, or NewByteCache.
+//
+// A *Map[string, S] implements cache.Cache[S] and cache.KeyLister. All methods
+// are safe for concurrent use. The ctx arguments of CRUD methods are unused.
 type Map[K comparable, S any] struct {
 	rw         sync.RWMutex
 	store      map[K]S
@@ -265,6 +259,7 @@ func (t *Map[K, S]) Exists(ctx context.Context, key K) (bool, error) {
 	return ok, err
 }
 
+// Close is a no-op; the cache stays usable afterwards.
 func (t *Map[K, S]) Close() error {
 	return nil
 }
