@@ -9,7 +9,9 @@
 package s3
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -39,11 +41,24 @@ type Config struct {
 	// also the ceiling for UploadAuthRequest.TTL. A zero value falls back to
 	// defaultUploadTTL.
 	UploadTTL time.Duration `json:"upload_ttl" yaml:"upload_ttl"`
+	// PartSize is the multipart part size for UploadFile, whose reader has an
+	// unknown length. minio-go buffers one part in memory per upload, and
+	// without a part size it sizes parts for a 5 TiB object (~537 MiB each).
+	// The largest object UploadFile accepts is PartSize * 10000. A zero value
+	// falls back to defaultPartSize; the minimum is 5 MiB.
+	PartSize uint64 `json:"part_size" yaml:"part_size"`
 }
 
-// defaultUploadTTL is the presigned upload URL validity used when neither the
-// request nor the config specifies one.
-const defaultUploadTTL = time.Hour
+const (
+	// defaultUploadTTL is the presigned upload URL validity used when neither
+	// the request nor the config specifies one.
+	defaultUploadTTL = time.Hour
+	// defaultPartSize caps UploadFile's per-upload buffer at 16 MiB, allowing
+	// objects up to ~156 GiB.
+	defaultPartSize = 16 << 20
+	// minPartSize is the smallest part S3 accepts.
+	minPartSize = 5 << 20
+)
 
 // Client is a minio-go storage.CDNStorage: presigned PUT upload auth and
 // the core Storage operations.
@@ -57,6 +72,10 @@ type Client struct {
 // derived from endpoint+bucket. The minio client is constructed here; this
 // type has no Close.
 func NewClient(conf Config) (*Client, error) {
+	conf.PartSize = cmp.Or(conf.PartSize, defaultPartSize)
+	if conf.PartSize < minPartSize {
+		return nil, fmt.Errorf("s3: part size %d is below the 5 MiB minimum", conf.PartSize)
+	}
 	client, err := minio.New(conf.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(conf.AccessKeyID, conf.SecretAccessKey, conf.Token),
 		Secure: conf.UseSSL,
@@ -129,6 +148,7 @@ func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	}
 	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, -1, minio.PutObjectOptions{
 		ContentType: mime.TypeByExtension(filepath.Ext(key)),
+		PartSize:    s.config.PartSize,
 	})
 	if err != nil {
 		return "", err

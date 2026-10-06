@@ -45,6 +45,7 @@ type Server struct {
 	uploads    map[string]map[int][]byte
 	uploadMIME map[string]string
 	nextUpload int
+	largest    int // largest multipart part body received
 }
 
 // New starts a fake bucket for the lifetime of tb.
@@ -72,6 +73,14 @@ func (s *Server) Object(key string) (Object, bool) {
 	obj, ok := s.objects[key]
 	obj.Data = bytes.Clone(obj.Data)
 	return obj, ok
+}
+
+// LargestPart returns the size of the largest multipart part received, which
+// is the client's per-upload part buffer.
+func (s *Server) LargestPart() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.largest
 }
 
 // Put seeds an object directly.
@@ -147,6 +156,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				s.uploads[id] = map[int][]byte{}
 			}
 			s.uploads[id][n] = body
+			s.largest = max(s.largest, len(body))
 			w.Header().Set("ETag", etag(body))
 			w.WriteHeader(http.StatusOK)
 			return

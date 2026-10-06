@@ -718,6 +718,16 @@ reported for the old version. A single GET now supplies both, which also drops
 a round trip. The returned `Reader` is a plain `io.ReadCloser` and no longer
 implements `io.Seeker`; type-assert callers must buffer instead.
 
+### `s3` `UploadFile` buffers 16 MiB instead of ~537 MiB
+
+`UploadFile` streams a reader of unknown length, for which minio-go sizes
+multipart parts for a 5 TiB object and holds one ~537 MiB part in memory per
+upload, so a handful of concurrent uploads could exhaust a container. The new
+`Config.PartSize` (default 16 MiB, minimum 5 MiB, validated by `NewClient`)
+sets the part size. The trade-off is a size cap: `UploadFile` now rejects
+objects larger than `PartSize * 10000` (~156 GiB by default); raise `PartSize`
+if you need more. `UploadLocalFile` knows the file size and is unaffected.
+
 ## Contract and robustness fixes
 
 Lower-severity than the section above, but several change what callers observe.

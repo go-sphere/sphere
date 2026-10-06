@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"net/http"
@@ -335,5 +336,33 @@ func TestS3ClientFailedUploadKeepsExistingObject(t *testing.T) {
 	}
 	if obj, ok := fake.Object("doc.txt"); !ok || string(obj.Data) != "original" {
 		t.Fatalf("stored object = %q exists=%v after failed upload, want %q", obj.Data, ok, "original")
+	}
+}
+
+func TestNewClientPartSize(t *testing.T) {
+	client, _ := newFakeClient(t, Config{})
+	if client.config.PartSize != defaultPartSize {
+		t.Fatalf("PartSize = %d, want default %d", client.config.PartSize, defaultPartSize)
+	}
+	if _, err := NewClient(Config{Endpoint: "localhost:9000", PartSize: minPartSize - 1}); err == nil {
+		t.Fatal("NewClient accepted a part size below the S3 minimum")
+	}
+}
+
+// UploadFile has no length for its reader, so the configured PartSize is what
+// bounds minio-go's per-upload buffer.
+func TestS3ClientUploadFileUsesPartSize(t *testing.T) {
+	client, fake := newFakeClient(t, Config{PartSize: minPartSize})
+	data := bytes.Repeat([]byte("x"), 2*minPartSize+1)
+	// io.MultiReader hides the length, as a request body would.
+	if _, err := client.UploadFile(t.Context(), io.MultiReader(bytes.NewReader(data)), "big.bin"); err != nil {
+		t.Fatalf("UploadFile() error = %v", err)
+	}
+	if got := fake.LargestPart(); got != minPartSize {
+		t.Fatalf("largest part = %d, want %d", got, minPartSize)
+	}
+	obj, ok := fake.Object("big.bin")
+	if !ok || !bytes.Equal(obj.Data, data) {
+		t.Fatalf("stored object mismatch: ok=%v len=%d", ok, len(obj.Data))
 	}
 }

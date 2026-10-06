@@ -95,6 +95,10 @@ Storage driver fixes since v0.0.6, each described in
   key) instead of `ErrDestExists`.
 - `s3` downloads fetch body and metadata in one GET. The returned `Reader` no
   longer implements `io.Seeker`; callers that type-asserted it must buffer.
+- `s3` `UploadFile` buffers 16 MiB per upload instead of ~537 MiB. The new
+  `Config.PartSize` (default 16 MiB, minimum 5 MiB) sets the buffer and caps
+  objects uploaded through `UploadFile` at `PartSize * 10000` (~156 GiB by
+  default); `UploadLocalFile` is unaffected.
 
 ### Earlier changes that shipped without a changelog
 
