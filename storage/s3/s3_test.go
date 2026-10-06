@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/go-sphere/sphere/storage"
@@ -379,5 +380,21 @@ func TestS3ClientDownloadSurvivesOverwrite(t *testing.T) {
 	}
 	if string(body) != "old version" || result.Size != int64(len(body)) {
 		t.Fatalf("body = %q size = %d, want the version the metadata described", body, result.Size)
+	}
+}
+
+// TestS3ClientFailedUploadKeepsExistingObject pins that an upload whose reader
+// fails leaves the key's previous object in place: minio-go aborts the
+// multipart upload, which must not delete what is already stored.
+func TestS3ClientFailedUploadKeepsExistingObject(t *testing.T) {
+	client, fake := newFakeClient(t, Config{})
+	fake.Put("doc.txt", []byte("original"), "text/plain")
+
+	failing := io.MultiReader(strings.NewReader("partial"), iotest.ErrReader(errors.New("stream dropped")))
+	if _, err := client.UploadFile(t.Context(), failing, "doc.txt"); err == nil {
+		t.Fatal("UploadFile(failing reader) succeeded, want an error")
+	}
+	if obj, ok := fake.Object("doc.txt"); !ok || string(obj.Data) != "original" {
+		t.Fatalf("stored object = %q exists=%v after failed upload, want %q", obj.Data, ok, "original")
 	}
 }

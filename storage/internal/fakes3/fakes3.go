@@ -192,7 +192,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(obj.Data))
 
 	case http.MethodDelete:
-		delete(s.objects, key)
+		// Aborting a multipart upload (minio-go does so when the source
+		// reader fails) discards its parts and leaves the stored object alone.
+		if id := q.Get("uploadId"); id != "" {
+			delete(s.uploads, id)
+			delete(s.uploadMIME, id)
+		} else {
+			delete(s.objects, key)
+		}
 		w.WriteHeader(http.StatusNoContent)
 
 	default:
