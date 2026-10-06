@@ -2,8 +2,10 @@
 //
 // local, kvcache, s3, qiniu, and fileserver compile-assert the interfaces
 // they claim. Runtime cases cover upload/download/delete/move/copy, key
-// normalization, and idempotent delete. Cloud drivers are skipped unless
-// credentials are present. Add a new driver here rather than a parallel suite.
+// normalization, and idempotent delete. The s3 and qiniu drivers run against
+// in-process fakes (storage/internal/fakes3, storage/internal/fakeqiniu), so no
+// network or credentials are needed. Add a new driver here rather than a
+// parallel suite.
 package test
 
 import (

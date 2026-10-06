@@ -15,6 +15,8 @@ import (
 	"github.com/go-sphere/sphere/cache/memory"
 	"github.com/go-sphere/sphere/storage"
 	"github.com/go-sphere/sphere/storage/fileserver"
+	"github.com/go-sphere/sphere/storage/internal/fakeqiniu"
+	"github.com/go-sphere/sphere/storage/internal/fakes3"
 	"github.com/go-sphere/sphere/storage/kvcache"
 	"github.com/go-sphere/sphere/storage/local"
 	"github.com/go-sphere/sphere/storage/qiniu"
@@ -25,6 +27,12 @@ import (
 type storageFactory struct {
 	name string
 	new  func(*testing.T) storage.Storage
+	// overwriteReadsMayFail marks drivers whose download can fail, with a
+	// reported io.ErrUnexpectedEOF, when the key is overwritten mid-download.
+	// The Qiniu SDK fetches a HEAD and then a ranged GET pinned to its ETag, so
+	// a concurrent overwrite aborts the read. Such a failure must still be
+	// reported: a silent partial payload fails the suite for every driver.
+	overwriteReadsMayFail bool
 }
 
 func storageFactories() []storageFactory {
@@ -53,7 +61,46 @@ func storageFactories() []storageFactory {
 				return client
 			},
 		},
+		{name: "s3", new: func(t *testing.T) storage.Storage { return newFakeS3Storage(t) }},
+		{
+			name:                  "qiniu",
+			new:                   func(t *testing.T) storage.Storage { return newFakeQiniuStorage(t) },
+			overwriteReadsMayFail: true,
+		},
 	}
+}
+
+// newFakeS3Storage runs the s3 driver against an in-process S3 endpoint.
+func newFakeS3Storage(t *testing.T) *s3.Client {
+	t.Helper()
+	fake := fakes3.New(t, "contract")
+	client, err := s3.NewClient(s3.Config{
+		Endpoint:        fake.Endpoint(),
+		AccessKeyID:     "contract-ak",
+		SecretAccessKey: "contract-sk",
+		Bucket:          fake.Bucket,
+	})
+	if err != nil {
+		t.Fatalf("new s3 storage: %v", err)
+	}
+	return client
+}
+
+// newFakeQiniuStorage runs the qiniu driver, through the real SDK, against
+// in-process emulations of the Kodo uc/up/rs/rsf/io endpoints.
+func newFakeQiniuStorage(t *testing.T) *qiniu.Client {
+	t.Helper()
+	fake := fakeqiniu.New(t, "contract")
+	client, err := qiniu.NewClient(qiniu.Config{
+		AccessKey:  fake.AccessKey,
+		SecretKey:  fake.SecretKey,
+		Bucket:     fake.Bucket,
+		PublicBase: "https://cdn.example.com",
+	})
+	if err != nil {
+		t.Fatalf("new qiniu storage: %v", err)
+	}
+	return client
 }
 
 func TestStorageCoreContract(t *testing.T) {
@@ -402,6 +449,9 @@ func TestStorageConcurrentUploadDownload(t *testing.T) {
 						}
 						sData, readErr := io.ReadAll(sRes.Reader)
 						closeErr = sRes.Reader.Close()
+						if factory.overwriteReadsMayFail && errors.Is(readErr, io.ErrUnexpectedEOF) {
+							continue
+						}
 						if readErr != nil {
 							errCh <- fmt.Errorf("worker %d read shared error: %w", workerID, readErr)
 							return

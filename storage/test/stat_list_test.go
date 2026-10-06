@@ -31,13 +31,29 @@ func putFile(t *testing.T, ctx context.Context, store storage.FileUploader, key,
 	}
 }
 
-func TestFileStaterContract(t *testing.T) {
-	ctx := context.Background()
-	store := newLocalStorage(t)
+// statListFactories are the drivers that implement both FileStater and
+// FileLister.
+func statListFactories() []storageFactory {
+	return []storageFactory{
+		{name: "local", new: func(t *testing.T) storage.Storage { return newLocalStorage(t) }},
+		{name: "s3", new: func(t *testing.T) storage.Storage { return newFakeS3Storage(t) }},
+		{name: "qiniu", new: func(t *testing.T) storage.Storage { return newFakeQiniuStorage(t) }},
+	}
+}
 
-	stater, ok := any(store).(storage.FileStater)
+func TestFileStaterContract(t *testing.T) {
+	for _, factory := range statListFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			testFileStaterContract(t, factory.new(t))
+		})
+	}
+}
+
+func testFileStaterContract(t *testing.T, store storage.Storage) {
+	ctx := context.Background()
+	stater, ok := store.(storage.FileStater)
 	if !ok {
-		t.Fatal("local.Client does not implement storage.FileStater")
+		t.Fatalf("%T does not implement storage.FileStater", store)
 	}
 
 	const key = "docs/readme.txt"
@@ -72,12 +88,18 @@ func TestFileStaterContract(t *testing.T) {
 }
 
 func TestFileListerContract(t *testing.T) {
-	ctx := context.Background()
-	store := newLocalStorage(t)
+	for _, factory := range statListFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			testFileListerContract(t, factory.new(t))
+		})
+	}
+}
 
-	lister, ok := any(store).(storage.FileLister)
+func testFileListerContract(t *testing.T, store storage.Storage) {
+	ctx := context.Background()
+	lister, ok := store.(storage.FileLister)
 	if !ok {
-		t.Fatal("local.Client does not implement storage.FileLister")
+		t.Fatalf("%T does not implement storage.FileLister", store)
 	}
 
 	// Keys are deliberately created out of lexical order to prove the listing
