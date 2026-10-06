@@ -386,3 +386,20 @@ func TestClientDownloadReportsTruncation(t *testing.T) {
 		t.Fatalf("ReadAll() = %q, %v; want io.ErrUnexpectedEOF for a body short of Size %d", body, err, result.Size)
 	}
 }
+
+// TestClientDownloadFallsBackToStat covers the path where the download
+// response carries no Content-Type and the driver asks Stat for it.
+func TestClientDownloadFallsBackToStat(t *testing.T) {
+	client, fake := newFakeClient(t, Config{})
+	fake.Put("blob", []byte("raw"), "")
+
+	result, err := client.DownloadFile(t.Context(), "blob")
+	if err != nil {
+		t.Fatalf("DownloadFile() error = %v", err)
+	}
+	body, err := io.ReadAll(result.Reader)
+	_ = result.Reader.Close()
+	if err != nil || string(body) != "raw" || result.Size != 3 {
+		t.Fatalf("DownloadFile() = %q size=%d err=%v", body, result.Size, err)
+	}
+}
