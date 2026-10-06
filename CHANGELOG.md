@@ -11,8 +11,9 @@ points at the ones most likely to surprise an upgrade.
 The release that removes process-global side effects from package init and
 stops the storage layer from carrying HTTP semantics.
 
-This release is **breaking**. Two of the four breaking changes compile cleanly
-and only show up at runtime; each entry says what to write instead. The full
+This release is **breaking**. Three of the four breaking changes compile
+cleanly and only show up at runtime (the storage one only for custom error
+parsers); each entry says what to write instead. The full
 behaviour notes are under "The v0.0.7 breaking release" in
 `compat/behavior-changes.md`.
 
@@ -50,7 +51,7 @@ if err := idgenerator.InitFromEnv(); err != nil {
 }
 ```
 
-Initializing after the generator exists (including after a lazy `NextId`)
+Initializing again (including after a lazy `NextId` or a failed attempt)
 returns `ErrAlreadyInitialized`. The package no longer configures yitter's own
 `idgen` global.
 
