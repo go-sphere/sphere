@@ -3,34 +3,14 @@ package auth
 import (
 	"context"
 	"errors"
+	"net/http"
 	"slices"
 	"testing"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/httpxmock"
 	"github.com/go-sphere/sphere/server/auth/authorizer"
 )
-
-// httpxContext aliases httpx.Context so the embedded field name does not collide
-// with the interface's own Context() method (which would shadow it).
-type httpxContext = httpx.Context
-
-// fakeContext embeds httpx.Context so it satisfies the full interface while only
-// overriding the two methods parserToken depends on.
-type fakeContext struct {
-	httpxContext
-	ctx context.Context
-}
-
-func (f *fakeContext) Context() context.Context {
-	if f.ctx == nil {
-		return context.Background()
-	}
-	return f.ctx
-}
-
-func (f *fakeContext) SetContext(ctx context.Context) {
-	f.ctx = ctx
-}
 
 type stubClaims struct {
 	uid        int64
@@ -92,7 +72,7 @@ func TestParserTokenClaimsErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := &fakeContext{}
+			ctx := httpxmock.New(nil)
 			parser := authorizer.ParserFunc[int64, stubClaims](func(context.Context, string) (stubClaims, error) {
 				return tt.claims, nil
 			})
@@ -142,50 +122,9 @@ func TestUnauthorizedErrorPreservesUserMessage(t *testing.T) {
 	}
 }
 
-type fullFakeContext struct {
-	httpxContext
-	ctx     context.Context
-	headers map[string]string
-	cookies map[string]string
-	nexted  bool
-}
-
-func (f *fullFakeContext) Context() context.Context {
-	if f.ctx == nil {
-		return context.Background()
-	}
-	return f.ctx
-}
-
-func (f *fullFakeContext) SetContext(ctx context.Context) {
-	f.ctx = ctx
-}
-
-func (f *fullFakeContext) Header(key string) string {
-	if f.headers == nil {
-		return ""
-	}
-	return f.headers[key]
-}
-
-func (f *fullFakeContext) Cookie(name string) (string, error) {
-	if f.cookies == nil {
-		return "", errors.New("no cookies")
-	}
-	val, ok := f.cookies[name]
-	if !ok {
-		return "", errors.New("cookie not found")
-	}
-	return val, nil
-}
-
-// run drives mw with a terminal handler that records whether the chain
-// continued past the middleware.
-func run(mw httpx.Middleware, ctx *fullFakeContext) error {
-	return mw(func(httpx.Context) error {
-		ctx.nexted = true
-		return nil
-	})(ctx)
+// headerContext builds a mock request context carrying one request header.
+func headerContext(key, value string) *httpxmock.Context {
+	return httpxmock.NewRequest(http.MethodGet, "/", nil, httpxmock.WithHeader(key, value))
 }
 
 func TestWithPrefixTransform(t *testing.T) {
@@ -235,13 +174,12 @@ func TestNewAuthMiddleware(t *testing.T) {
 			WithHeaderLoader("X-Custom-Auth"),
 			WithPrefixTransform("Token"),
 		)
-		ctx := &fullFakeContext{
-			headers: map[string]string{"X-Custom-Auth": "Token valid-token"},
-		}
-		if err := run(mw, ctx); err != nil {
+		ctx := headerContext("X-Custom-Auth", "Token valid-token")
+		next := &httpxmock.Handler{}
+		if err := httpxmock.Run(ctx, next.Handle, mw); err != nil {
 			t.Fatalf("mw error: %v", err)
 		}
-		if !ctx.nexted {
+		if !next.Called() {
 			t.Fatal("the chain did not continue")
 		}
 		data, ok := authorizer.GetAuthData[int64](ctx.Context())
@@ -252,23 +190,22 @@ func TestNewAuthMiddleware(t *testing.T) {
 
 	t.Run("cookie loader success", func(t *testing.T) {
 		mw := NewAuthMiddleware(parser, WithCookieLoader("session_id"))
-		ctx := &fullFakeContext{
-			cookies: map[string]string{"session_id": "valid-token"},
-		}
-		if err := run(mw, ctx); err != nil {
+		ctx := httpxmock.NewRequest(http.MethodGet, "/", nil,
+			httpxmock.WithCookie(&http.Cookie{Name: "session_id", Value: "valid-token"}))
+		next := &httpxmock.Handler{}
+		if err := httpxmock.Run(ctx, next.Handle, mw); err != nil {
 			t.Fatalf("mw error: %v", err)
 		}
-		if !ctx.nexted {
+		if !next.Called() {
 			t.Fatal("the chain did not continue")
 		}
 	})
 
 	t.Run("invalid token with abort on error", func(t *testing.T) {
 		mw := NewAuthMiddleware(parser, WithAbortOnError(true))
-		ctx := &fullFakeContext{
-			headers: map[string]string{AuthorizationHeader: "invalid-token"},
-		}
-		err := run(mw, ctx)
+		ctx := headerContext(AuthorizationHeader, "invalid-token")
+		next := &httpxmock.Handler{}
+		err := httpxmock.Run(ctx, next.Handle, mw)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -276,20 +213,19 @@ func TestNewAuthMiddleware(t *testing.T) {
 		if status != 401 {
 			t.Fatalf("status = %d, want 401", status)
 		}
-		if ctx.nexted {
+		if next.Called() {
 			t.Fatal("the chain continued although the request was aborted")
 		}
 	})
 
 	t.Run("invalid token without abort on error", func(t *testing.T) {
 		mw := NewAuthMiddleware(parser, WithAbortOnError(false))
-		ctx := &fullFakeContext{
-			headers: map[string]string{AuthorizationHeader: "invalid-token"},
-		}
-		if err := run(mw, ctx); err != nil {
+		ctx := headerContext(AuthorizationHeader, "invalid-token")
+		next := &httpxmock.Handler{}
+		if err := httpxmock.Run(ctx, next.Handle, mw); err != nil {
 			t.Fatalf("expected nil error when abortOnError is false, got: %v", err)
 		}
-		if !ctx.nexted {
+		if !next.Called() {
 			t.Fatal("the chain did not continue with abortOnError false")
 		}
 	})

@@ -5,55 +5,43 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/httpxmock"
 )
 
-// withFakeContext embeds httpx.Context so it satisfies the whole interface while
-// overriding only the methods the wrappers under test actually call.
-type withFakeContext struct {
-	httpxContext
-	status    int
-	noContent int
-	body      any
-	text      string
-	values    map[string]any
+// lastWrite returns the last body-writing Responder call the wrappers made, so
+// a test can tell "answered with NoContent" from "happened to write a 204".
+func lastWrite(t *testing.T, ctx *httpxmock.Context) httpxmock.ResponseWrite {
+	t.Helper()
+	writes := ctx.Writes()
+	if len(writes) == 0 {
+		t.Fatal("no response was written")
+	}
+	return writes[len(writes)-1]
 }
 
-func (f *withFakeContext) JSON(code int, v any) error {
-	f.status = code
-	f.body = v
-	return nil
+// jsonBody returns the value the wrappers handed to JSON, typed.
+func jsonBody[T any](t *testing.T, ctx *httpxmock.Context) T {
+	t.Helper()
+	v, ok := ctx.LastJSON()
+	if !ok {
+		t.Fatal("no JSON response was written")
+	}
+	typed, ok := v.(T)
+	if !ok {
+		var zero T
+		t.Fatalf("body type = %T, want %T", v, zero)
+	}
+	return typed
 }
-
-func (f *withFakeContext) Text(code int, s string) error {
-	f.status = code
-	f.text = s
-	return nil
-}
-
-func (f *withFakeContext) NoContent(code int) error {
-	f.status = code
-	f.noContent = code
-	return nil
-}
-
-func (f *withFakeContext) Get(key string) (any, bool) {
-	v, ok := f.values[key]
-	return v, ok
-}
-
-// StatusCode is part of httpx.Context; the wrappers observe the status a
-// handler buffered through it.
-func (f *withFakeContext) StatusCode() int { return f.status }
 
 // TestWithJsonSuccessEnvelope pins the shape of a successful response: the
 // standard envelope with Success set and the value in Data, at 200 when the
 // handler did not buffer another status.
 func TestWithJsonSuccessEnvelope(t *testing.T) {
-	ctx := &withFakeContext{}
+	ctx := httpxmock.New(nil)
 	handler := WithJson(func(httpx.Context) (map[string]string, error) {
 		return map[string]string{"id": "1"}, nil
 	})
@@ -61,13 +49,10 @@ func TestWithJsonSuccessEnvelope(t *testing.T) {
 	if err := handler(ctx); err != nil {
 		t.Fatalf("handler: %v", err)
 	}
-	if ctx.status != http.StatusOK {
-		t.Fatalf("status = %d, want %d", ctx.status, http.StatusOK)
+	if ctx.StatusCode() != http.StatusOK {
+		t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusOK)
 	}
-	resp, ok := ctx.body.(DataResponse[map[string]string])
-	if !ok {
-		t.Fatalf("body type = %T, want DataResponse[map[string]string]", ctx.body)
-	}
+	resp := jsonBody[DataResponse[map[string]string]](t, ctx)
 	if !resp.Success {
 		t.Error("Success = false, want true")
 	}
@@ -81,68 +66,68 @@ func TestWithJsonSuccessEnvelope(t *testing.T) {
 // that an out-of-range value is rejected rather than written as an invalid code.
 func TestWithJsonRespectsBufferedStatus(t *testing.T) {
 	t.Run("buffered 201", func(t *testing.T) {
-		ctx := &withFakeContext{}
+		ctx := httpxmock.New(nil)
 		handler := WithJson(func(httpx.Context) (string, error) {
-			ctx.status = http.StatusCreated
+			ctx.Status(http.StatusCreated)
 			return "created", nil
 		})
 
 		if err := handler(ctx); err != nil {
 			t.Fatalf("handler: %v", err)
 		}
-		if ctx.status != http.StatusCreated {
-			t.Fatalf("status = %d, want %d", ctx.status, http.StatusCreated)
+		if ctx.StatusCode() != http.StatusCreated {
+			t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusCreated)
 		}
 	})
 
 	t.Run("out of range falls back to 200", func(t *testing.T) {
-		ctx := &withFakeContext{}
+		ctx := httpxmock.New(nil)
 		handler := WithJson(func(httpx.Context) (string, error) {
-			ctx.status = 42
+			ctx.Status(42)
 			return "created", nil
 		})
 
 		if err := handler(ctx); err != nil {
 			t.Fatalf("handler: %v", err)
 		}
-		if ctx.status != http.StatusOK {
-			t.Fatalf("status = %d, want %d", ctx.status, http.StatusOK)
+		if ctx.StatusCode() != http.StatusOK {
+			t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusOK)
 		}
 	})
 
 	t.Run("buffered 204 writes NoContent, not a JSON body", func(t *testing.T) {
-		ctx := &withFakeContext{}
+		ctx := httpxmock.New(nil)
 		handler := WithJson(func(httpx.Context) (string, error) {
-			ctx.status = http.StatusNoContent
+			ctx.Status(http.StatusNoContent)
 			return "gone", nil
 		})
 
 		if err := handler(ctx); err != nil {
 			t.Fatalf("handler: %v", err)
 		}
-		if ctx.noContent != http.StatusNoContent {
-			t.Fatalf("noContent = %d, want %d", ctx.noContent, http.StatusNoContent)
+		if w := lastWrite(t, ctx); w.Kind != httpxmock.KindNoContent || w.Code != http.StatusNoContent {
+			t.Fatalf("last write = %s %d, want NoContent %d", w.Kind, w.Code, http.StatusNoContent)
 		}
-		if ctx.body != nil {
-			t.Fatalf("JSON body written for 204: %v", ctx.body)
+		if v, ok := ctx.LastJSON(); ok {
+			t.Fatalf("JSON body written for 204: %v", v)
 		}
 	})
 
 	t.Run("buffered 304 writes NoContent, not a JSON body", func(t *testing.T) {
-		ctx := &withFakeContext{}
+		ctx := httpxmock.New(nil)
 		handler := WithJson(func(httpx.Context) (string, error) {
-			ctx.status = http.StatusNotModified
+			ctx.Status(http.StatusNotModified)
 			return "cached", nil
 		})
 
 		if err := handler(ctx); err != nil {
 			t.Fatalf("handler: %v", err)
 		}
-		if ctx.noContent != http.StatusNotModified {
-			t.Fatalf("noContent = %d, want %d", ctx.noContent, http.StatusNotModified)
+		if w := lastWrite(t, ctx); w.Kind != httpxmock.KindNoContent || w.Code != http.StatusNotModified {
+			t.Fatalf("last write = %s %d, want NoContent %d", w.Kind, w.Code, http.StatusNotModified)
 		}
-		if ctx.body != nil {
-			t.Fatalf("JSON body written for 304: %v", ctx.body)
+		if v, ok := ctx.LastJSON(); ok {
+			t.Fatalf("JSON body written for 304: %v", v)
 		}
 	})
 }
@@ -150,7 +135,7 @@ func TestWithJsonRespectsBufferedStatus(t *testing.T) {
 // TestWithJsonErrorPath pins that a handler error flows through the standard
 // error response path instead of being wrapped in a 200 envelope.
 func TestWithJsonErrorPath(t *testing.T) {
-	ctx := &withFakeContext{}
+	ctx := httpxmock.New(nil)
 	handler := WithJson(func(httpx.Context) (string, error) {
 		return "", httpx.BadRequestError(errors.New("raw detail"), "please provide a valid id")
 	})
@@ -158,13 +143,10 @@ func TestWithJsonErrorPath(t *testing.T) {
 	if err := handler(ctx); err != nil {
 		t.Fatalf("handler: %v", err)
 	}
-	if ctx.status != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d", ctx.status, http.StatusBadRequest)
+	if ctx.StatusCode() != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusBadRequest)
 	}
-	resp, ok := ctx.body.(ErrorResponse)
-	if !ok {
-		t.Fatalf("body type = %T, want ErrorResponse", ctx.body)
-	}
+	resp := jsonBody[ErrorResponse](t, ctx)
 	if resp.Message != "please provide a valid id" {
 		t.Errorf("Message = %q, want the classified message", resp.Message)
 	}
@@ -173,7 +155,7 @@ func TestWithJsonErrorPath(t *testing.T) {
 // TestWithText pins both directions of the plain-text wrapper.
 func TestWithText(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		ctx := &withFakeContext{}
+		ctx := httpxmock.New(nil)
 		handler := WithText(func(httpx.Context) (string, error) {
 			return "hello", nil
 		})
@@ -181,13 +163,13 @@ func TestWithText(t *testing.T) {
 		if err := handler(ctx); err != nil {
 			t.Fatalf("handler: %v", err)
 		}
-		if ctx.status != http.StatusOK || ctx.text != "hello" {
-			t.Fatalf("got (%d, %q), want (200, hello)", ctx.status, ctx.text)
+		if ctx.StatusCode() != http.StatusOK || ctx.BodyString() != "hello" {
+			t.Fatalf("got (%d, %q), want (200, hello)", ctx.StatusCode(), ctx.BodyString())
 		}
 	})
 
 	t.Run("error", func(t *testing.T) {
-		ctx := &withFakeContext{}
+		ctx := httpxmock.New(nil)
 		handler := WithText(func(httpx.Context) (string, error) {
 			return "", errors.New("unclassified failure")
 		})
@@ -195,12 +177,10 @@ func TestWithText(t *testing.T) {
 		if err := handler(ctx); err != nil {
 			t.Fatalf("handler: %v", err)
 		}
-		if ctx.status != http.StatusInternalServerError {
-			t.Fatalf("status = %d, want %d", ctx.status, http.StatusInternalServerError)
+		if ctx.StatusCode() != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusInternalServerError)
 		}
-		if _, ok := ctx.body.(ErrorResponse); !ok {
-			t.Fatalf("body type = %T, want ErrorResponse", ctx.body)
-		}
+		_ = jsonBody[ErrorResponse](t, ctx)
 	})
 }
 
@@ -212,7 +192,7 @@ func TestWithRecoverTurnsPanicsInto500s(t *testing.T) {
 	SetDebugMode(false)
 	defer SetDebugMode(prev)
 
-	ctx := &withFakeContext{}
+	ctx := httpxmock.New(nil)
 	handler := WithRecover("boom", func(httpx.Context) error {
 		panic("sensitive internal state: /var/secrets/key.pem")
 	})
@@ -220,13 +200,10 @@ func TestWithRecoverTurnsPanicsInto500s(t *testing.T) {
 	if err := handler(ctx); err != nil {
 		t.Fatalf("handler: %v", err)
 	}
-	if ctx.status != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want %d", ctx.status, http.StatusInternalServerError)
+	if ctx.StatusCode() != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusInternalServerError)
 	}
-	resp, ok := ctx.body.(ErrorResponse)
-	if !ok {
-		t.Fatalf("body type = %T, want ErrorResponse", ctx.body)
-	}
+	resp := jsonBody[ErrorResponse](t, ctx)
 	if resp.Error != "" {
 		t.Fatalf("panic text leaked through Error: %q", resp.Error)
 	}
@@ -239,7 +216,7 @@ func TestWithRecoverTurnsPanicsInto500s(t *testing.T) {
 // with the ordinary error path: a handler returning an error still produces the
 // classified response.
 func TestWithRecoverKeepsClassifiedErrorPath(t *testing.T) {
-	ctx := &withFakeContext{}
+	ctx := httpxmock.New(nil)
 	handler := WithRecover("boom", func(httpx.Context) error {
 		return httpx.UnauthorizedError(errors.New("token expired"))
 	})
@@ -247,8 +224,8 @@ func TestWithRecoverKeepsClassifiedErrorPath(t *testing.T) {
 	if err := handler(ctx); err != nil {
 		t.Fatalf("handler: %v", err)
 	}
-	if ctx.status != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want %d", ctx.status, http.StatusUnauthorized)
+	if ctx.StatusCode() != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusUnauthorized)
 	}
 }
 
@@ -266,17 +243,17 @@ func TestWithRecoverRepanicsAbortHandler(t *testing.T) {
 			t.Fatalf("recovered %v, want http.ErrAbortHandler to propagate", got)
 		}
 	}()
-	_ = handler(&withFakeContext{})
+	_ = handler(httpxmock.New(nil))
 	t.Fatal("http.ErrAbortHandler must not be swallowed")
 }
 
 // TestValue pins the typed context lookup: present and correct type yields the
 // value, anything else yields the zero value with ok=false.
 func TestValue(t *testing.T) {
-	ctx := &withFakeContext{values: map[string]any{
-		"count": 3,
-		"name":  "alice",
-	}}
+	ctx := httpxmock.New(nil,
+		httpxmock.WithState("count", 3),
+		httpxmock.WithState("name", "alice"),
+	)
 
 	if got, ok := Value[int](ctx, "count"); !ok || got != 3 {
 		t.Fatalf("Value[int] = (%d, %v), want (3, true)", got, ok)
@@ -290,30 +267,6 @@ func TestValue(t *testing.T) {
 	if got, ok := Value[int](ctx, "missing"); ok || got != 0 {
 		t.Fatalf("missing key = (%d, %v), want (0, false)", got, ok)
 	}
-}
-
-type stressFakeContext struct {
-	httpxContext
-	mu     sync.Mutex
-	status int
-	body   any
-	text   string
-}
-
-func (f *stressFakeContext) JSON(code int, v any) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.status = code
-	f.body = v
-	return nil
-}
-
-func (f *stressFakeContext) Text(code int, s string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.status = code
-	f.text = s
-	return nil
 }
 
 // TestStressNoLeakageUnderNonDebug verifies strict data leakage prevention under diverse errors.
@@ -391,14 +344,11 @@ func TestStressNoLeakageUnderNonDebug(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := &stressFakeContext{}
+			ctx := httpxmock.New(nil)
 			h := tc.makeHandler()
 			_ = h(ctx)
 
-			resp, ok := ctx.body.(ErrorResponse)
-			if !ok {
-				t.Fatalf("expected ErrorResponse, got %T", ctx.body)
-			}
+			resp := jsonBody[ErrorResponse](t, ctx)
 
 			// Under non-debug, resp.Error MUST be empty
 			if resp.Error != "" {

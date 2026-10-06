@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/httpxmock"
 )
 
 func TestResolveOriginWildcard(t *testing.T) {
@@ -91,52 +91,13 @@ func TestNewCORSRejectsWildcardWithCredentials(t *testing.T) {
 	}
 }
 
-type httpxContext = httpx.Context
-
-type fakeContext struct {
-	httpxContext
-	method      string
-	headers     map[string]string
-	respHeaders map[string]string
-	status      int
-	nextCalled  bool
-}
-
-func newFakeContext(method string, headers map[string]string) *fakeContext {
-	if headers == nil {
-		headers = make(map[string]string)
+// newRequestContext builds a mock request context carrying headers.
+func newRequestContext(method string, headers map[string]string) *httpxmock.Context {
+	opts := make([]httpxmock.Option, 0, len(headers))
+	for key, value := range headers {
+		opts = append(opts, httpxmock.WithHeader(key, value))
 	}
-	return &fakeContext{
-		method:      method,
-		headers:     headers,
-		respHeaders: make(map[string]string),
-	}
-}
-
-func (f *fakeContext) Method() string {
-	return f.method
-}
-
-func (f *fakeContext) Header(key string) string {
-	return f.headers[key]
-}
-
-func (f *fakeContext) SetHeader(key, value string) {
-	f.respHeaders[key] = value
-}
-
-func (f *fakeContext) NoContent(code int) error {
-	f.status = code
-	return nil
-}
-
-// run drives mw with a terminal handler that records whether the chain
-// continued past the middleware.
-func run(mw httpx.Middleware, ctx *fakeContext) error {
-	return mw(func(httpx.Context) error {
-		ctx.nextCalled = true
-		return nil
-	})(ctx)
+	return httpxmock.NewRequest(method, "/", nil, opts...)
 }
 
 func TestCORS_OptionsPreflight(t *testing.T) {
@@ -153,37 +114,38 @@ func TestCORS_OptionsPreflight(t *testing.T) {
 		t.Fatalf("NewCORS: %v", err)
 	}
 
-	ctx := newFakeContext(http.MethodOptions, map[string]string{
+	ctx := newRequestContext(http.MethodOptions, map[string]string{
 		"Origin":                         "https://example.com",
 		"Access-Control-Request-Headers": "X-Custom-Header",
 	})
 
-	if err := run(mw, ctx); err != nil {
-		t.Fatalf("run(mw, ctx): %v", err)
+	next := &httpxmock.Handler{}
+	if err := httpxmock.Run(ctx, next.Handle, mw); err != nil {
+		t.Fatalf("Run: %v", err)
 	}
 
-	if ctx.status != http.StatusNoContent {
-		t.Fatalf("status = %d, want 204", ctx.status)
+	if ctx.StatusCode() != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", ctx.StatusCode())
 	}
-	if ctx.nextCalled {
+	if next.Called() {
 		t.Fatal("the chain must not continue on an OPTIONS preflight")
 	}
-	if got := ctx.respHeaders["Access-Control-Allow-Origin"]; got != "https://example.com" {
+	if got := ctx.ResponseHeader("Access-Control-Allow-Origin"); got != "https://example.com" {
 		t.Fatalf("Allow-Origin = %q, want https://example.com", got)
 	}
-	if got := ctx.respHeaders["Vary"]; got != "Origin" {
+	if got := ctx.ResponseHeader("Vary"); got != "Origin" {
 		t.Fatalf("Vary = %q, want Origin", got)
 	}
-	if got := ctx.respHeaders["Access-Control-Allow-Methods"]; got != "GET,POST,PUT" {
+	if got := ctx.ResponseHeader("Access-Control-Allow-Methods"); got != "GET,POST,PUT" {
 		t.Fatalf("Allow-Methods = %q, want GET,POST,PUT", got)
 	}
-	if got := ctx.respHeaders["Access-Control-Allow-Headers"]; got != "X-Custom-Header,Authorization" {
+	if got := ctx.ResponseHeader("Access-Control-Allow-Headers"); got != "X-Custom-Header,Authorization" {
 		t.Fatalf("Allow-Headers = %q, want X-Custom-Header,Authorization", got)
 	}
-	if got := ctx.respHeaders["Access-Control-Expose-Headers"]; got != "X-Exposed-1,X-Exposed-2" {
+	if got := ctx.ResponseHeader("Access-Control-Expose-Headers"); got != "X-Exposed-1,X-Exposed-2" {
 		t.Fatalf("Expose-Headers = %q, want X-Exposed-1,X-Exposed-2", got)
 	}
-	if got := ctx.respHeaders["Access-Control-Max-Age"]; got != "600" {
+	if got := ctx.ResponseHeader("Access-Control-Max-Age"); got != "600" {
 		t.Fatalf("Max-Age = %q, want 600", got)
 	}
 }
@@ -201,27 +163,28 @@ func TestCORS_ActualGetRequest(t *testing.T) {
 		t.Fatalf("NewCORS: %v", err)
 	}
 
-	ctx := newFakeContext(http.MethodGet, map[string]string{
+	ctx := newRequestContext(http.MethodGet, map[string]string{
 		"Origin": "https://example.com",
 	})
 
-	if err := run(mw, ctx); err != nil {
-		t.Fatalf("run(mw, ctx): %v", err)
+	next := &httpxmock.Handler{}
+	if err := httpxmock.Run(ctx, next.Handle, mw); err != nil {
+		t.Fatalf("Run: %v", err)
 	}
 
-	if !ctx.nextCalled {
+	if !next.Called() {
 		t.Fatal("the chain must continue on a GET request")
 	}
-	if got := ctx.respHeaders["Access-Control-Allow-Origin"]; got != "https://example.com" {
+	if got := ctx.ResponseHeader("Access-Control-Allow-Origin"); got != "https://example.com" {
 		t.Fatalf("Allow-Origin = %q, want https://example.com", got)
 	}
-	if got := ctx.respHeaders["Access-Control-Allow-Credentials"]; got != "true" {
+	if got := ctx.ResponseHeader("Access-Control-Allow-Credentials"); got != "true" {
 		t.Fatalf("Allow-Credentials = %q, want true", got)
 	}
-	if got := ctx.respHeaders["Access-Control-Expose-Headers"]; got != "X-Trace-Id" {
+	if got := ctx.ResponseHeader("Access-Control-Expose-Headers"); got != "X-Trace-Id" {
 		t.Fatalf("Expose-Headers = %q, want X-Trace-Id", got)
 	}
-	if got := ctx.respHeaders["Access-Control-Allow-Methods"]; got != "GET,POST" {
+	if got := ctx.ResponseHeader("Access-Control-Allow-Methods"); got != "GET,POST" {
 		t.Fatalf("Allow-Methods = %q, want GET,POST", got)
 	}
 }
@@ -235,25 +198,26 @@ func TestCORS_RequestHeadersFallback(t *testing.T) {
 	}
 
 	// 1. When request provides Access-Control-Request-Headers
-	ctx1 := newFakeContext(http.MethodOptions, map[string]string{
+	ctx1 := newRequestContext(http.MethodOptions, map[string]string{
 		"Origin":                         "https://example.com",
 		"Access-Control-Request-Headers": "X-Custom-1,X-Custom-2",
 	})
-	if err := run(mw, ctx1); err != nil {
-		t.Fatalf("run(mw, ctx1): %v", err)
+	next := &httpxmock.Handler{}
+	if err := httpxmock.Run(ctx1, next.Handle, mw); err != nil {
+		t.Fatalf("Run: %v", err)
 	}
-	if got := ctx1.respHeaders["Access-Control-Allow-Headers"]; got != "X-Custom-1,X-Custom-2" {
+	if got := ctx1.ResponseHeader("Access-Control-Allow-Headers"); got != "X-Custom-1,X-Custom-2" {
 		t.Fatalf("Allow-Headers = %q, want X-Custom-1,X-Custom-2", got)
 	}
 
 	// 2. When no request headers provided, fallback to defaultAllowHeaders
-	ctx2 := newFakeContext(http.MethodOptions, map[string]string{
+	ctx2 := newRequestContext(http.MethodOptions, map[string]string{
 		"Origin": "https://example.com",
 	})
-	if err := run(mw, ctx2); err != nil {
-		t.Fatalf("run(mw, ctx2): %v", err)
+	if err := httpxmock.Run(ctx2, next.Handle, mw); err != nil {
+		t.Fatalf("Run: %v", err)
 	}
-	if got := ctx2.respHeaders["Access-Control-Allow-Headers"]; got != defaultAllowHeaders {
+	if got := ctx2.ResponseHeader("Access-Control-Allow-Headers"); got != defaultAllowHeaders {
 		t.Fatalf("Allow-Headers = %q, want default %q", got, defaultAllowHeaders)
 	}
 }
@@ -266,18 +230,19 @@ func TestCORS_UnmatchedOrigin(t *testing.T) {
 		t.Fatalf("NewCORS: %v", err)
 	}
 
-	ctx := newFakeContext(http.MethodGet, map[string]string{
+	ctx := newRequestContext(http.MethodGet, map[string]string{
 		"Origin": "https://unauthorized.com",
 	})
 
-	if err := run(mw, ctx); err != nil {
-		t.Fatalf("run(mw, ctx): %v", err)
+	next := &httpxmock.Handler{}
+	if err := httpxmock.Run(ctx, next.Handle, mw); err != nil {
+		t.Fatalf("Run: %v", err)
 	}
 
-	if !ctx.nextCalled {
+	if !next.Called() {
 		t.Fatal("the chain must continue on a GET request")
 	}
-	if got := ctx.respHeaders["Access-Control-Allow-Origin"]; got != "" {
+	if got := ctx.ResponseHeader("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("Allow-Origin = %q, want empty", got)
 	}
 }

@@ -9,37 +9,33 @@ import (
 	"testing"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/httpxmock"
 )
 
-// httpxContext aliases httpx.Context so the embedded field name does not collide
-// with the interface's own Context() method (which would shadow it).
-type httpxContext = httpx.Context
-
-// fakeContext embeds httpx.Context so it satisfies the full interface while only
-// overriding JSON, which is the sole method AbortWithJsonError depends on.
-type fakeContext struct {
-	httpxContext
-	status int
-	body   any
-}
-
-func (f *fakeContext) JSON(code int, v any) error {
-	f.status = code
-	f.body = v
-	return nil
+// errorBody returns the envelope AbortWithJsonError handed to JSON. It asserts
+// on the value rather than on the encoded body, so two structs sharing a JSON
+// shape stay distinguishable.
+func errorBody(t *testing.T, ctx *httpxmock.Context) ErrorResponse {
+	t.Helper()
+	v, ok := ctx.LastJSON()
+	if !ok {
+		t.Fatalf("no JSON response was written")
+	}
+	resp, ok := v.(ErrorResponse)
+	if !ok {
+		t.Fatalf("body type = %T, want ErrorResponse", v)
+	}
+	return resp
 }
 
 func TestAbortWithJsonError_NilDoesNotPanic(t *testing.T) {
-	ctx := &fakeContext{}
+	ctx := httpxmock.New(nil)
 	// Must not panic on a nil error interface.
 	AbortWithJsonError(ctx, nil)
-	if ctx.status != http.StatusInternalServerError {
-		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, ctx.status)
+	if ctx.StatusCode() != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, ctx.StatusCode())
 	}
-	resp, ok := ctx.body.(ErrorResponse)
-	if !ok {
-		t.Fatalf("expected ErrorResponse body, got %T", ctx.body)
-	}
+	resp := errorBody(t, ctx)
 	if resp.Error != "" {
 		t.Fatalf("expected empty Error field for nil error, got %q", resp.Error)
 	}
@@ -59,10 +55,10 @@ func TestAbortWithJsonError_UnclassifiedDoesNotLeak(t *testing.T) {
 
 	const raw = "pq: password authentication failed for user \"admin\" (host 10.0.3.14:5432)"
 
-	ctx := &fakeContext{}
+	ctx := httpxmock.New(nil)
 	AbortWithJsonError(ctx, errors.New(raw))
 
-	resp := ctx.body.(ErrorResponse)
+	resp := errorBody(t, ctx)
 	if resp.Error != "" {
 		t.Fatalf("raw error leaked through Error: %q", resp.Error)
 	}
@@ -81,11 +77,11 @@ func TestAbortWithJsonError_WrappedUnclassifiedDoesNotLeak(t *testing.T) {
 	SetDebugMode(false)
 	defer SetDebugMode(prev)
 
-	ctx := &fakeContext{}
+	ctx := httpxmock.New(nil)
 	inner := errors.New("ent: constraint failed: UNIQUE constraint failed: users.email")
 	AbortWithJsonError(ctx, fmt.Errorf("create user: %w", inner))
 
-	resp := ctx.body.(ErrorResponse)
+	resp := errorBody(t, ctx)
 	if strings.Contains(resp.Message, "constraint") || strings.Contains(resp.Error, "constraint") {
 		t.Fatalf("wrapped error leaked: message=%q error=%q", resp.Message, resp.Error)
 	}
@@ -99,12 +95,12 @@ func TestAbortWithJsonError_EmptyMessageFallsBackToStatusText(t *testing.T) {
 	SetDebugMode(false)
 	defer SetDebugMode(prev)
 
-	ctx := &fakeContext{}
+	ctx := httpxmock.New(nil)
 	AbortWithJsonError(ctx, httpx.UnauthorizedError(errors.New("token is expired")))
 
-	resp := ctx.body.(ErrorResponse)
-	if ctx.status != http.StatusUnauthorized {
-		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, ctx.status)
+	resp := errorBody(t, ctx)
+	if ctx.StatusCode() != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, ctx.StatusCode())
 	}
 	if resp.Message != http.StatusText(http.StatusUnauthorized) {
 		t.Fatalf("expected generic status text, got %q", resp.Message)
@@ -120,12 +116,12 @@ func TestAbortWithJsonError_CustomParserPreservesMessageAndCode(t *testing.T) {
 		return 1001, http.StatusNotFound, "user not found"
 	})
 
-	ctx := &fakeContext{}
+	ctx := httpxmock.New(nil)
 	AbortWithJsonError(ctx, errors.New("not found"))
-	if ctx.status != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404", ctx.status)
+	if ctx.StatusCode() != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", ctx.StatusCode())
 	}
-	resp := ctx.body.(ErrorResponse)
+	resp := errorBody(t, ctx)
 	if resp.Message != "user not found" || resp.Code != 1001 {
 		t.Fatalf("response = %+v, want custom message and code", resp)
 	}
@@ -136,10 +132,10 @@ func TestAbortWithJsonError_DebugModeExposesError(t *testing.T) {
 	SetDebugMode(true)
 	defer SetDebugMode(prev)
 
-	ctx := &fakeContext{}
+	ctx := httpxmock.New(nil)
 	AbortWithJsonError(ctx, errors.New("sensitive internal detail"))
 
-	resp := ctx.body.(ErrorResponse)
+	resp := errorBody(t, ctx)
 	if resp.Error != "sensitive internal detail" {
 		t.Fatalf("expected raw error in debug mode, got %q", resp.Error)
 	}
@@ -150,13 +146,13 @@ func TestAbortWithJsonError_ClassifiedMessageReturned(t *testing.T) {
 	SetDebugMode(false)
 	defer SetDebugMode(prev)
 
-	ctx := &fakeContext{}
+	ctx := httpxmock.New(nil)
 	err := httpx.BadRequestError(errors.New("raw sql detail"), "please provide a valid id")
 	AbortWithJsonError(ctx, err)
 
-	resp := ctx.body.(ErrorResponse)
-	if ctx.status != http.StatusBadRequest {
-		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, ctx.status)
+	resp := errorBody(t, ctx)
+	if ctx.StatusCode() != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, ctx.StatusCode())
 	}
 	if resp.Message != "please provide a valid id" {
 		t.Fatalf("expected user-facing message returned, got %q", resp.Message)
@@ -189,13 +185,15 @@ func TestAbortWithJsonErrorConcurrentConfig(t *testing.T) {
 		wg.Go(func() {
 			<-start
 			for range 250 {
-				ctx := &fakeContext{}
+				ctx := httpxmock.New(nil)
 				AbortWithJsonError(ctx, errors.New("boom"))
-				if ctx.status != http.StatusInternalServerError {
-					t.Errorf("status = %d, want %d", ctx.status, http.StatusInternalServerError)
+				if ctx.StatusCode() != http.StatusInternalServerError {
+					t.Errorf("status = %d, want %d", ctx.StatusCode(), http.StatusInternalServerError)
 				}
-				if _, ok := ctx.body.(ErrorResponse); !ok {
-					t.Errorf("body type = %T, want ErrorResponse", ctx.body)
+				if v, ok := ctx.LastJSON(); !ok {
+					t.Error("no JSON response was written")
+				} else if _, ok := v.(ErrorResponse); !ok {
+					t.Errorf("body type = %T, want ErrorResponse", v)
 				}
 			}
 		})
@@ -211,10 +209,10 @@ func TestSetDefaultErrorParserIgnoresNil(t *testing.T) {
 	t.Cleanup(func() { SetDefaultErrorParser(httpx.ParseError) })
 
 	SetDefaultErrorParser(nil)
-	ctx := &fakeContext{}
+	ctx := httpxmock.New(nil)
 	AbortWithJsonError(ctx, httpx.BadRequestError(errors.New("raw"), "friendly"))
-	if ctx.status != http.StatusBadRequest {
-		t.Fatalf("expected the previous parser to remain active, got status %d", ctx.status)
+	if ctx.StatusCode() != http.StatusBadRequest {
+		t.Fatalf("expected the previous parser to remain active, got status %d", ctx.StatusCode())
 	}
 }
 
@@ -232,12 +230,12 @@ func TestAbortWithJsonError_CustomParserMessageKept(t *testing.T) {
 		return 0, http.StatusBadRequest, userMsg
 	})
 
-	ctx := &fakeContext{}
+	ctx := httpxmock.New(nil)
 	AbortWithJsonError(ctx, raw)
-	if ctx.status != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", ctx.status)
+	if ctx.StatusCode() != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.StatusCode())
 	}
-	resp := ctx.body.(ErrorResponse)
+	resp := errorBody(t, ctx)
 	if resp.Message != userMsg {
 		t.Fatalf("message = %q, want %q", resp.Message, userMsg)
 	}
@@ -270,9 +268,9 @@ func TestAbortWithJsonError_ParserEchoingRawErrorIsKept(t *testing.T) {
 		return 0, http.StatusInternalServerError, err.Error()
 	})
 
-	ctx := &fakeContext{}
+	ctx := httpxmock.New(nil)
 	AbortWithJsonError(ctx, raw)
-	resp := ctx.body.(ErrorResponse)
+	resp := errorBody(t, ctx)
 	if resp.Message != raw.Error() {
 		t.Fatalf("message = %q, want the parser's own %q", resp.Message, raw.Error())
 	}
@@ -287,10 +285,10 @@ func TestAbortWithJsonError_OutOfRangeStatusClamped(t *testing.T) {
 		SetDefaultErrorParser(func(err error) (int32, int32, string) {
 			return 0, invalidStatus, "invalid status message"
 		})
-		ctx := &fakeContext{}
+		ctx := httpxmock.New(nil)
 		AbortWithJsonError(ctx, errors.New("sample error"))
-		if ctx.status != http.StatusInternalServerError {
-			t.Errorf("status %d was not clamped to %d, got %d", invalidStatus, http.StatusInternalServerError, ctx.status)
+		if ctx.StatusCode() != http.StatusInternalServerError {
+			t.Errorf("status %d was not clamped to %d, got %d", invalidStatus, http.StatusInternalServerError, ctx.StatusCode())
 		}
 	}
 }

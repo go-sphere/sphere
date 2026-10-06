@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/httpxmock"
 	"github.com/go-sphere/sphere/server/auth/authorizer"
 )
 
@@ -32,26 +33,28 @@ func TestNewPermissionMiddleware(t *testing.T) {
 	mw := NewPermissionMiddleware[int64]("/admin", acl)
 
 	t.Run("allowed role succeeds", func(t *testing.T) {
-		ctx := &fullFakeContext{}
+		ctx := httpxmock.New(nil)
 		ctx.SetContext(authorizer.WithAuthData[int64](context.Background(), authorizer.Data[int64]{
 			UID:   1,
 			Roles: []string{"user", "admin"},
 		}))
-		if err := run(mw, ctx); err != nil {
+		next := &httpxmock.Handler{}
+		if err := httpxmock.Run(ctx, next.Handle, mw); err != nil {
 			t.Fatalf("mw error: %v", err)
 		}
-		if !ctx.nexted {
+		if !next.Called() {
 			t.Fatal("the chain did not continue for an authorized user")
 		}
 	})
 
 	t.Run("disallowed role returns forbidden", func(t *testing.T) {
-		ctx := &fullFakeContext{}
+		ctx := httpxmock.New(nil)
 		ctx.SetContext(authorizer.WithAuthData[int64](context.Background(), authorizer.Data[int64]{
 			UID:   2,
 			Roles: []string{"user"},
 		}))
-		err := run(mw, ctx)
+		next := &httpxmock.Handler{}
+		err := httpxmock.Run(ctx, next.Handle, mw)
 		if err == nil {
 			t.Fatal("expected permission error, got nil")
 		}
@@ -59,14 +62,15 @@ func TestNewPermissionMiddleware(t *testing.T) {
 		if status != 403 {
 			t.Fatalf("status = %d, want 403", status)
 		}
-		if ctx.nexted {
+		if next.Called() {
 			t.Fatal("the chain continued although access was denied")
 		}
 	})
 
 	t.Run("no auth data in context returns forbidden", func(t *testing.T) {
-		ctx := &fullFakeContext{}
-		err := run(mw, ctx)
+		ctx := httpxmock.New(nil)
+		next := &httpxmock.Handler{}
+		err := httpxmock.Run(ctx, next.Handle, mw)
 		if err == nil {
 			t.Fatal("expected permission error, got nil")
 		}

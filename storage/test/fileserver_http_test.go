@@ -4,27 +4,37 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
-	"io/fs"
-	"maps"
-	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"path"
 	"strings"
 	"testing"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/stdx"
 	"github.com/go-sphere/sphere/cache/memory"
 	"github.com/go-sphere/sphere/server/httpz"
 	"github.com/go-sphere/sphere/storage"
 	"github.com/go-sphere/sphere/storage/fileserver"
 )
 
+// newEngine returns a stdx engine and the http.Handler it is. stdx is the
+// adapter these tests drive because it needs no framework and its Engine
+// serves net/http directly, so the routes the file server registers are
+// matched by a real router rather than by a stand-in written here.
+func newEngine(t *testing.T) (httpx.Engine, http.Handler) {
+	t.Helper()
+	engine := stdx.New()
+	handler, ok := engine.(http.Handler)
+	if !ok {
+		t.Fatalf("stdx engine %T is not an http.Handler", engine)
+	}
+	return engine, handler
+}
+
 func TestFileServerUploadAndDownloadOverHTTP(t *testing.T) {
-	router := newMiniRouter()
-	server := httptest.NewServer(router)
+	engine, handler := newEngine(t)
+	server := httptest.NewServer(handler)
 	defer server.Close()
 
 	tokenCache := memory.NewByteCache()
@@ -43,8 +53,8 @@ func TestFileServerUploadAndDownloadOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCDNAdapter() error = %v", err)
 	}
-	fileServer.RegisterFileUploader(router.Group("/upload"))
-	fileServer.RegisterFileDownloader(router.Group("/files"))
+	fileServer.RegisterFileUploader(engine.Group("/upload"))
+	fileServer.RegisterFileDownloader(engine.Group("/files"))
 
 	tokenData, err := fileServer.GenerateUploadAuth(context.Background(), storage.UploadAuthRequest{
 		FileName: "avatar.txt",
@@ -117,8 +127,8 @@ func TestFileServerDownloadIsNotRenderable(t *testing.T) {
 		{name: "svg", key: "payload.svg", payload: `<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			router := newMiniRouter()
-			server := httptest.NewServer(router)
+			engine, handler := newEngine(t)
+			server := httptest.NewServer(handler)
 			defer server.Close()
 
 			tokenCache := memory.NewByteCache()
@@ -136,7 +146,7 @@ func TestFileServerDownloadIsNotRenderable(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewCDNAdapter() error = %v", err)
 			}
-			fileServer.RegisterFileDownloader(router.Group("/files"))
+			fileServer.RegisterFileDownloader(engine.Group("/files"))
 
 			if _, err = fileServer.UploadFile(context.Background(), strings.NewReader(tc.payload), tc.key); err != nil {
 				t.Fatalf("UploadFile() error = %v", err)
@@ -162,8 +172,8 @@ func TestFileServerDownloadIsNotRenderable(t *testing.T) {
 // TestFileServerInlineDownloadOptOut pins that the attachment default is
 // escapable for deployments that serve GetBase from a session-free origin.
 func TestFileServerInlineDownloadOptOut(t *testing.T) {
-	router := newMiniRouter()
-	server := httptest.NewServer(router)
+	engine, handler := newEngine(t)
+	server := httptest.NewServer(handler)
 	defer server.Close()
 
 	tokenCache := memory.NewByteCache()
@@ -182,7 +192,7 @@ func TestFileServerInlineDownloadOptOut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCDNAdapter() error = %v", err)
 	}
-	fileServer.RegisterFileDownloader(router.Group("/files"))
+	fileServer.RegisterFileDownloader(engine.Group("/files"))
 
 	if _, err = fileServer.UploadFile(context.Background(), strings.NewReader("body"), "photo.png"); err != nil {
 		t.Fatalf("UploadFile() error = %v", err)
@@ -204,12 +214,6 @@ func TestFileServerInlineDownloadOptOut(t *testing.T) {
 	}
 }
 
-type miniRoute struct {
-	method  string
-	pattern string
-	handler httpx.Handler
-}
-
 type unknownSizeStorage struct{ storage.Storage }
 
 func (s unknownSizeStorage) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
@@ -219,7 +223,7 @@ func (s unknownSizeStorage) DownloadFile(ctx context.Context, key string) (stora
 }
 
 func TestFileServerDownloadUnknownSize(t *testing.T) {
-	router := newMiniRouter()
+	engine, handler := newEngine(t)
 	tokens := memory.NewByteCache()
 	t.Cleanup(func() { _ = tokens.Close() })
 	store := unknownSizeStorage{newInMemoryStorage(t)}
@@ -232,357 +236,10 @@ func TestFileServerDownloadUnknownSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	adapter.RegisterFileDownloader(router.Group("/files"))
+	adapter.RegisterFileDownloader(engine.Group("/files"))
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/files/a.txt", nil))
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/files/a.txt", nil))
 	if rec.Code != http.StatusOK || rec.Body.String() != "payload" {
 		t.Fatalf("download = %d %q, want 200 payload", rec.Code, rec.Body.String())
 	}
-}
-
-type miniRouter struct {
-	prefix string
-	routes *[]miniRoute
-}
-
-func (r *miniRouter) SupportsRouterFeature(feature httpx.RouterFeature) bool {
-	return true
-}
-
-func newMiniRouter() *miniRouter {
-	routes := make([]miniRoute, 0, 8)
-	return &miniRouter{
-		prefix: "",
-		routes: &routes,
-	}
-}
-
-func (r *miniRouter) BasePath() string {
-	return r.prefix
-}
-
-func (r *miniRouter) Group(prefix string, m ...httpx.Middleware) httpx.Router {
-	return &miniRouter{
-		prefix: path.Join("/", r.prefix, prefix),
-		routes: r.routes,
-	}
-}
-
-func (r *miniRouter) Use(...httpx.Middleware) {}
-
-func (r *miniRouter) Handle(method, pattern string, h httpx.Handler) {
-	full := path.Join("/", r.prefix, pattern)
-	*r.routes = append(*r.routes, miniRoute{
-		method:  method,
-		pattern: full,
-		handler: h,
-	})
-}
-
-func (r *miniRouter) Any(pattern string, h httpx.Handler) {
-	r.Handle(http.MethodGet, pattern, h)
-	r.Handle(http.MethodPost, pattern, h)
-	r.Handle(http.MethodPut, pattern, h)
-	r.Handle(http.MethodDelete, pattern, h)
-	r.Handle(http.MethodPatch, pattern, h)
-	r.Handle(http.MethodHead, pattern, h)
-	r.Handle(http.MethodOptions, pattern, h)
-}
-
-func (r *miniRouter) Static(prefix, root string) {}
-
-func (r *miniRouter) StaticFS(prefix string, f fs.FS) {}
-
-func (r *miniRouter) GET(path string, h httpx.Handler)     { r.Handle(http.MethodGet, path, h) }
-func (r *miniRouter) POST(path string, h httpx.Handler)    { r.Handle(http.MethodPost, path, h) }
-func (r *miniRouter) PUT(path string, h httpx.Handler)     { r.Handle(http.MethodPut, path, h) }
-func (r *miniRouter) DELETE(path string, h httpx.Handler)  { r.Handle(http.MethodDelete, path, h) }
-func (r *miniRouter) PATCH(path string, h httpx.Handler)   { r.Handle(http.MethodPatch, path, h) }
-func (r *miniRouter) HEAD(path string, h httpx.Handler)    { r.Handle(http.MethodHead, path, h) }
-func (r *miniRouter) OPTIONS(path string, h httpx.Handler) { r.Handle(http.MethodOptions, path, h) }
-
-func (r *miniRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	for _, rt := range *r.routes {
-		if rt.method != req.Method {
-			continue
-		}
-		params, ok := matchRoute(rt.pattern, req.URL.Path)
-		if !ok {
-			continue
-		}
-		ctx := newMiniContext(req.Context(), w, req, params)
-		if err := rt.handler(ctx); err != nil {
-			_, status, msg := httpx.ParseError(err)
-			http.Error(w, msg, int(status))
-		}
-		return
-	}
-	http.NotFound(w, req)
-}
-
-func matchRoute(pattern string, inputPath string) (map[string]string, bool) {
-	pp := splitRoute(pattern)
-	sp := splitRoute(inputPath)
-	params := map[string]string{}
-
-	for i := range pp {
-		if i >= len(sp) {
-			if after, ok := strings.CutPrefix(pp[i], "*"); ok {
-				params[after] = ""
-				return params, true
-			}
-			return nil, false
-		}
-		pseg := pp[i]
-		if after, ok := strings.CutPrefix(pseg, ":"); ok {
-			params[after] = sp[i]
-			continue
-		}
-		if after, ok := strings.CutPrefix(pseg, "*"); ok {
-			name := after
-			params[name] = "/" + strings.Join(sp[i:], "/")
-			return params, true
-		}
-		if pseg != sp[i] {
-			return nil, false
-		}
-	}
-	if len(sp) != len(pp) {
-		return nil, false
-	}
-	return params, true
-}
-
-func splitRoute(raw string) []string {
-	parts := strings.Split(strings.Trim(raw, "/"), "/")
-	if len(parts) == 1 && parts[0] == "" {
-		return []string{}
-	}
-	return parts
-}
-
-var _ httpx.Context = (*miniContext)(nil)
-
-type miniContext struct {
-	ctx    context.Context
-	w      http.ResponseWriter
-	r      *http.Request
-	params map[string]string
-	store  map[string]any
-	status int
-}
-
-func newMiniContext(ctx context.Context, w http.ResponseWriter, r *http.Request, params map[string]string) *miniContext {
-	return &miniContext{
-		ctx:    ctx,
-		w:      w,
-		r:      r,
-		params: params,
-		store:  map[string]any{},
-	}
-}
-
-func (c *miniContext) Method() string   { return c.r.Method }
-func (c *miniContext) Path() string     { return c.r.URL.Path }
-func (c *miniContext) FullPath() string { return c.r.URL.Path }
-func (c *miniContext) ClientIP() string { return c.r.RemoteAddr }
-
-func (c *miniContext) Param(key string) string {
-	return c.params[key]
-}
-
-func (c *miniContext) Params() map[string]string {
-	out := make(map[string]string, len(c.params))
-	maps.Copy(out, c.params)
-	return out
-}
-
-func (c *miniContext) Query(key string) string {
-	return c.r.URL.Query().Get(key)
-}
-
-func (c *miniContext) Queries() map[string][]string {
-	out := map[string][]string{}
-	for k, v := range c.r.URL.Query() {
-		cp := make([]string, len(v))
-		copy(cp, v)
-		out[k] = cp
-	}
-	return out
-}
-
-func (c *miniContext) RawQuery() string {
-	return c.r.URL.RawQuery
-}
-
-func (c *miniContext) Header(key string) string {
-	return c.r.Header.Get(key)
-}
-
-func (c *miniContext) Headers() map[string][]string {
-	out := map[string][]string{}
-	for k, v := range c.r.Header {
-		cp := make([]string, len(v))
-		copy(cp, v)
-		out[k] = cp
-	}
-	return out
-}
-
-func (c *miniContext) Cookie(name string) (string, error) {
-	cookie, err := c.r.Cookie(name)
-	if err != nil {
-		return "", err
-	}
-	return cookie.Value, nil
-}
-
-func (c *miniContext) Cookies() map[string]string {
-	out := map[string]string{}
-	for _, ck := range c.r.Cookies() {
-		out[ck.Name] = ck.Value
-	}
-	return out
-}
-
-func (c *miniContext) BodyRaw() ([]byte, error) {
-	return io.ReadAll(c.r.Body)
-}
-
-func (c *miniContext) BodyReader() io.ReadCloser {
-	return c.r.Body
-}
-
-func (c *miniContext) FormValue(key string) string {
-	return c.r.FormValue(key)
-}
-
-func (c *miniContext) MultipartForm() (*multipart.Form, error) {
-	err := c.r.ParseMultipartForm(32 << 20)
-	if err != nil {
-		return nil, err
-	}
-	return c.r.MultipartForm, nil
-}
-
-func (c *miniContext) FormFile(name string) (*multipart.FileHeader, error) {
-	_, fh, err := c.r.FormFile(name)
-	return fh, err
-}
-
-func (c *miniContext) BindJSON(dst any) error {
-	return json.NewDecoder(c.r.Body).Decode(dst)
-}
-
-func (c *miniContext) BindQuery(dst any) error {
-	return errors.New("BindQuery not implemented in miniContext")
-}
-
-func (c *miniContext) BindForm(dst any) error {
-	return errors.New("BindForm not implemented in miniContext")
-}
-
-func (c *miniContext) BindURI(dst any) error {
-	return errors.New("BindURI not implemented in miniContext")
-}
-
-func (c *miniContext) BindHeader(dst any) error {
-	return errors.New("BindHeader not implemented in miniContext")
-}
-
-func (c *miniContext) Status(code int) {
-	c.writeHeader(code)
-}
-
-// writeHeader records the status so StatusCode (part of the httpx.Context
-// contract) can report it.
-func (c *miniContext) writeHeader(code int) {
-	c.status = code
-	c.w.WriteHeader(code)
-}
-
-func (c *miniContext) StatusCode() int {
-	if c.status == 0 {
-		return http.StatusOK
-	}
-	return c.status
-}
-
-func (c *miniContext) SetHeader(key, value string) {
-	c.w.Header().Set(key, value)
-}
-
-func (c *miniContext) SetCookie(cookie *http.Cookie) {
-	http.SetCookie(c.w, cookie)
-}
-
-func (c *miniContext) JSON(code int, v any) error {
-	c.w.Header().Set("Content-Type", "application/json")
-	c.writeHeader(code)
-	return json.NewEncoder(c.w).Encode(v)
-}
-
-func (c *miniContext) Text(code int, s string) error {
-	c.w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	c.writeHeader(code)
-	_, err := io.WriteString(c.w, s)
-	return err
-}
-
-func (c *miniContext) NoContent(code int) error {
-	c.writeHeader(code)
-	return nil
-}
-
-func (c *miniContext) Bytes(code int, b []byte, contentType string) error {
-	c.w.Header().Set("Content-Type", contentType)
-	c.writeHeader(code)
-	_, err := c.w.Write(b)
-	return err
-}
-
-func (c *miniContext) DataFromReader(code int, contentType string, r io.Reader, size int64) error {
-	c.w.Header().Set("Content-Type", contentType)
-	c.writeHeader(code)
-	if size >= 0 {
-		_, err := io.CopyN(c.w, r, size)
-		if err != nil && !errors.Is(err, io.EOF) {
-			return err
-		}
-		return nil
-	}
-	_, err := io.Copy(c.w, r)
-	return err
-}
-
-func (c *miniContext) File(filePath string) error {
-	http.ServeFile(c.w, c.r, filePath)
-	return nil
-}
-
-func (c *miniContext) Redirect(code int, location string) error {
-	c.status = code
-	http.Redirect(c.w, c.r, location, code)
-	return nil
-}
-
-func (c *miniContext) Set(key string, val any) {
-	c.store[key] = val
-}
-
-func (c *miniContext) Get(key string) (any, bool) {
-	val, ok := c.store[key]
-	return val, ok
-}
-
-func (c *miniContext) Context() context.Context {
-	return c.ctx
-}
-
-func (c *miniContext) SetContext(ctx context.Context) {
-	c.ctx = ctx
-}
-
-func (c *miniContext) Next() error {
-	return nil
 }

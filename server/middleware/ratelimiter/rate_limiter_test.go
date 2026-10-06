@@ -11,32 +11,16 @@ import (
 	"time"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/httpxmock"
 	"github.com/go-sphere/sphere/cache"
 	"github.com/go-sphere/sphere/cache/mcache"
 	"golang.org/x/time/rate"
 )
 
-type httpxContext = httpx.Context
-
-type fakeRateLimitContext struct {
-	httpxContext
-	ctx      context.Context
-	clientIP string
-	nexted   bool
+// clientIPContext builds a mock request context reporting ip as its client IP.
+func clientIPContext(ip string) *httpxmock.Context {
+	return httpxmock.NewRequest(http.MethodGet, "/", nil, httpxmock.WithClientIP(ip))
 }
-
-func (f *fakeRateLimitContext) Context() context.Context {
-	if f.ctx == nil {
-		return context.Background()
-	}
-	return f.ctx
-}
-
-func (f *fakeRateLimitContext) ClientIP() string {
-	return f.clientIP
-}
-
-func (f *fakeRateLimitContext) markNext() { f.nexted = true }
 
 func TestNewRateLimiter(t *testing.T) {
 	t.Parallel()
@@ -54,18 +38,18 @@ func TestNewRateLimiter(t *testing.T) {
 
 	// First 2 requests should be allowed (burst 2)
 	for i := range 2 {
-		ctx := &fakeRateLimitContext{}
-		if err := run(mw, ctx); err != nil {
+		next := &httpxmock.Handler{}
+		if err := httpxmock.Run(httpxmock.New(nil), next.Handle, mw); err != nil {
 			t.Fatalf("request %d failed: %v", i+1, err)
 		}
-		if !ctx.nexted {
+		if !next.Called() {
 			t.Fatalf("request %d did not proceed down the chain", i+1)
 		}
 	}
 
 	// 3rd request immediately should be rejected
-	ctx := &fakeRateLimitContext{}
-	err := run(mw, ctx)
+	next := &httpxmock.Handler{}
+	err := httpxmock.Run(httpxmock.New(nil), next.Handle, mw)
 	if err == nil {
 		t.Fatal("expected rate limit error, got nil")
 	}
@@ -73,7 +57,7 @@ func TestNewRateLimiter(t *testing.T) {
 	if status != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want %d (code=%d)", status, http.StatusTooManyRequests, code)
 	}
-	if ctx.nexted {
+	if next.Called() {
 		t.Fatal("rate limited request must not proceed down the chain")
 	}
 }
@@ -84,26 +68,25 @@ func TestNewRateLimiterByClientIP(t *testing.T) {
 	mw := NewRateLimiterByClientIP(time.Second, 1, time.Minute)
 
 	// User from IP 1.1.1.1
-	ctx1 := &fakeRateLimitContext{clientIP: "1.1.1.1"}
-	if err := run(mw, ctx1); err != nil {
+	next1 := &httpxmock.Handler{}
+	if err := httpxmock.Run(clientIPContext("1.1.1.1"), next1.Handle, mw); err != nil {
 		t.Fatalf("IP 1.1.1.1 first request failed: %v", err)
 	}
-	if !ctx1.nexted {
+	if !next1.Called() {
 		t.Fatal("IP 1.1.1.1 first request did not proceed down the chain")
 	}
 
 	// IP 1.1.1.1 second request should be rate limited
-	ctx1Second := &fakeRateLimitContext{clientIP: "1.1.1.1"}
-	if err := run(mw, ctx1Second); err == nil {
+	if err := httpxmock.Run(clientIPContext("1.1.1.1"), nil, mw); err == nil {
 		t.Fatal("IP 1.1.1.1 second request should be rate limited")
 	}
 
 	// User from IP 2.2.2.2 should have independent bucket and succeed
-	ctx2 := &fakeRateLimitContext{clientIP: "2.2.2.2"}
-	if err := run(mw, ctx2); err != nil {
+	next2 := &httpxmock.Handler{}
+	if err := httpxmock.Run(clientIPContext("2.2.2.2"), next2.Handle, mw); err != nil {
 		t.Fatalf("IP 2.2.2.2 request failed: %v", err)
 	}
-	if !ctx2.nexted {
+	if !next2.Called() {
 		t.Fatal("IP 2.2.2.2 request did not proceed down the chain")
 	}
 }
@@ -145,8 +128,7 @@ func TestNewRateLimiterCacheErrors(t *testing.T) {
 			WithCache(&errCache{getErr: customErr}),
 		)
 
-		ctx := &fakeRateLimitContext{}
-		err := run(mw, ctx)
+		err := httpxmock.Run(httpxmock.New(nil), nil, mw)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -166,8 +148,7 @@ func TestNewRateLimiterCacheErrors(t *testing.T) {
 			WithCache(&errCache{setErr: customErr}),
 		)
 
-		ctx := &fakeRateLimitContext{}
-		err := run(mw, ctx)
+		err := httpxmock.Run(httpxmock.New(nil), nil, mw)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -190,8 +171,8 @@ func TestNewRateLimiterCacheErrors(t *testing.T) {
 			WithCache(&errCache{getVal: &rate.Limiter{}}),
 		)
 
-		ctx := &fakeRateLimitContext{}
-		err := run(mw, ctx)
+		next := &httpxmock.Handler{}
+		err := httpxmock.Run(httpxmock.New(nil), next.Handle, mw)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -202,46 +183,10 @@ func TestNewRateLimiterCacheErrors(t *testing.T) {
 		if status != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500", status)
 		}
-		if ctx.nexted {
+		if next.Called() {
 			t.Fatal("guard-triggered request must not proceed down the chain")
 		}
 	})
-}
-
-type stressRateLimitContext struct {
-	httpxContext
-	ctx      context.Context
-	clientIP string
-	nexted   atomic.Bool
-}
-
-func (s *stressRateLimitContext) Context() context.Context {
-	if s.ctx == nil {
-		return context.Background()
-	}
-	return s.ctx
-}
-
-func (s *stressRateLimitContext) ClientIP() string {
-	return s.clientIP
-}
-
-func (s *stressRateLimitContext) markNext() { s.nexted.Store(true) }
-
-// nextRecorder is what both fake contexts share: the flag the terminal handler
-// sets when the chain reaches it.
-type nextRecorder interface {
-	httpx.Context
-	markNext()
-}
-
-// run drives mw with a terminal handler that records whether the chain
-// continued past the middleware.
-func run[C nextRecorder](mw httpx.Middleware, ctx C) error {
-	return mw(func(httpx.Context) error {
-		ctx.markNext()
-		return nil
-	})(ctx)
 }
 
 // TestRateLimiter_ConcurrentSingleflightStampede verifies that concurrent cache
@@ -281,8 +226,8 @@ func TestRateLimiter_ConcurrentSingleflightStampede(t *testing.T) {
 		wg.Go(func() {
 			<-startBarrier
 
-			ctx := &stressRateLimitContext{clientIP: "10.0.0.1"}
-			err := run(mw, ctx)
+			next := &httpxmock.Handler{}
+			err := httpxmock.Run(clientIPContext("10.0.0.1"), next.Handle, mw)
 			if err != nil {
 				_, status, _ := httpx.ParseError(err)
 				if status == http.StatusTooManyRequests {
@@ -292,7 +237,7 @@ func TestRateLimiter_ConcurrentSingleflightStampede(t *testing.T) {
 					t.Errorf("unexpected error: %v", err)
 				}
 			} else {
-				if ctx.nexted.Load() {
+				if next.Called() {
 					allowedCount.Add(1)
 				} else {
 					t.Errorf("nil error but the chain did not continue")
@@ -362,8 +307,7 @@ func TestRateLimiter_FlightRechecksCacheBeforeCreating(t *testing.T) {
 		WithCache(c),
 	)
 
-	first := &fakeRateLimitContext{}
-	if err := run(mw, first); err != nil {
+	if err := httpxmock.Run(httpxmock.New(nil), nil, mw); err != nil {
 		t.Fatalf("middleware returned %v, want the cached limiter", err)
 	}
 	if created := createdCount.Load(); created != 0 {
@@ -372,8 +316,7 @@ func TestRateLimiter_FlightRechecksCacheBeforeCreating(t *testing.T) {
 
 	// The second request proves the burst was not reset: a freshly created
 	// limiter (burst 100) would allow it, the cached one (burst 1) does not.
-	second := &fakeRateLimitContext{}
-	err := run(mw, second)
+	err := httpxmock.Run(httpxmock.New(nil), nil, mw)
 	if err == nil {
 		t.Fatal("second request must be rate limited by the cached limiter")
 	}
@@ -396,19 +339,16 @@ func TestRateLimiter_CacheExpirationRebuildsLimiter(t *testing.T) {
 		WithCache(mcache.NewMapCache[*rate.Limiter]()),
 	)
 
-	ctx1 := &stressRateLimitContext{}
-	if err := run(mw, ctx1); err != nil {
+	if err := httpxmock.Run(httpxmock.New(nil), nil, mw); err != nil {
 		t.Fatalf("first request failed: %v", err)
 	}
 
-	ctx2 := &stressRateLimitContext{}
-	if err := run(mw, ctx2); err == nil {
+	if err := httpxmock.Run(httpxmock.New(nil), nil, mw); err == nil {
 		t.Fatal("immediate second request should be rejected")
 	}
 
 	time.Sleep(150 * time.Millisecond)
-	ctx3 := &stressRateLimitContext{}
-	if err := run(mw, ctx3); err != nil {
+	if err := httpxmock.Run(httpxmock.New(nil), nil, mw); err != nil {
 		t.Fatalf("post-TTL request failed: %v", err)
 	}
 	if created := createdCount.Load(); created != 2 {
@@ -452,13 +392,14 @@ func TestRateLimiter_CacheWriteOutlivesCanceledRequest(t *testing.T) {
 	)
 
 	reqCtx, cancel := context.WithCancel(context.Background())
-	ctx := &fakeRateLimitContext{ctx: reqCtx}
+	ctx := httpxmock.New(nil, httpxmock.WithContext(reqCtx))
 	cancel() // the triggering client is already gone
 
-	if err := run(mw, ctx); err != nil {
+	next := &httpxmock.Handler{}
+	if err := httpxmock.Run(ctx, next.Handle, mw); err != nil {
 		t.Fatalf("middleware returned %v, want the shared limiter", err)
 	}
-	if !ctx.nexted {
+	if !next.Called() {
 		t.Fatal("request must proceed down the chain")
 	}
 	if c.seenCtxErr != nil {
@@ -479,11 +420,11 @@ func TestRateLimiter_CacheHitAcceptsInfiniteLimiterWithZeroBurst(t *testing.T) {
 		WithCache(&errCache{getVal: rate.NewLimiter(rate.Inf, 0)}),
 	)
 
-	ctx := &fakeRateLimitContext{}
-	if err := run(mw, ctx); err != nil {
+	next := &httpxmock.Handler{}
+	if err := httpxmock.Run(httpxmock.New(nil), next.Handle, mw); err != nil {
 		t.Fatalf("middleware returned %v, want the cached infinite limiter", err)
 	}
-	if !ctx.nexted {
+	if !next.Called() {
 		t.Fatal("request must proceed down the chain")
 	}
 }

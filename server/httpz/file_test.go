@@ -2,7 +2,6 @@ package httpz
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -10,11 +9,13 @@ import (
 	"testing"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/httpxmock"
 )
 
-// multipartFileHeader builds a *multipart.FileHeader backed by a real temp file,
-// so file.Open() returns a working reader exactly as the framework would.
-func multipartFileHeader(tb testing.TB, filename string, content []byte) *multipart.FileHeader {
+// uploadContext builds a context over a real multipart request carrying one
+// file under the "file" field, so FormFile parses exactly what the framework
+// would hand the wrapper.
+func uploadContext(tb testing.TB, filename string, content []byte) *httpxmock.Context {
 	tb.Helper()
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -31,28 +32,7 @@ func multipartFileHeader(tb testing.TB, filename string, content []byte) *multip
 
 	req := httptest.NewRequest(http.MethodPost, "/upload", &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
-	form, err := multipart.NewReader(bytes.NewReader(buf.Bytes()), mw.Boundary()).ReadForm(1 << 20)
-	if err != nil {
-		tb.Fatal(err)
-	}
-	headers := form.File["file"]
-	if len(headers) != 1 {
-		tb.Fatalf("got %d file headers, want 1", len(headers))
-	}
-	return headers[0]
-}
-
-// formFakeContext supplies a canned multipart file to the upload wrappers. It
-// reuses withFakeContext's JSON override because the wrapper's error path
-// renders an ErrorResponse.
-type formFakeContext struct {
-	withFakeContext
-	file *multipart.FileHeader
-	err  error
-}
-
-func (f *formFakeContext) FormFile(string) (*multipart.FileHeader, error) {
-	return f.file, f.err
+	return httpxmock.New(req)
 }
 
 // TestWithFormFileReader pins the upload validation chain: missing form field,
@@ -60,7 +40,8 @@ func (f *formFakeContext) FormFile(string) (*multipart.FileHeader, error) {
 // runs; a valid upload must reach it with the original filename.
 func TestWithFormFileReader(t *testing.T) {
 	t.Run("missing form field surfaces the error", func(t *testing.T) {
-		ctx := &formFakeContext{err: errors.New("no such file field")}
+		// A request with no multipart body is what a missing field looks like.
+		ctx := httpxmock.New(nil)
 		handler := WithFormFileReader(func(httpx.Context, io.ReadSeekCloser, string) (string, error) {
 			t.Fatal("handler must not run")
 			return "", nil
@@ -71,13 +52,13 @@ func TestWithFormFileReader(t *testing.T) {
 		if err := handler(ctx); err != nil {
 			t.Fatalf("handler: %v", err)
 		}
-		if ctx.status != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", ctx.status, http.StatusBadRequest)
+		if ctx.StatusCode() != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusBadRequest)
 		}
 	})
 
 	t.Run("oversize file is rejected", func(t *testing.T) {
-		ctx := &formFakeContext{file: multipartFileHeader(t, "big.bin", bytes.Repeat([]byte("x"), 100))}
+		ctx := uploadContext(t, "big.bin", bytes.Repeat([]byte("x"), 100))
 		handler := WithFormFileReader(func(httpx.Context, io.ReadSeekCloser, string) (string, error) {
 			t.Fatal("handler must not run")
 			return "", nil
@@ -86,20 +67,17 @@ func TestWithFormFileReader(t *testing.T) {
 		if err := handler(ctx); err != nil {
 			t.Fatalf("handler: %v", err)
 		}
-		if ctx.status != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", ctx.status, http.StatusBadRequest)
+		if ctx.StatusCode() != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusBadRequest)
 		}
-		resp, ok := ctx.body.(ErrorResponse)
-		if !ok {
-			t.Fatalf("body type = %T, want ErrorResponse", ctx.body)
-		}
+		resp := jsonBody[ErrorResponse](t, ctx)
 		if want := "File size exceeds maximum allowed size: big.bin"; resp.Message != want {
 			t.Fatalf("Message = %q, want %q", resp.Message, want)
 		}
 	})
 
 	t.Run("disallowed extension is rejected", func(t *testing.T) {
-		ctx := &formFakeContext{file: multipartFileHeader(t, "script.sh", []byte("rm -rf /"))}
+		ctx := uploadContext(t, "script.sh", []byte("rm -rf /"))
 		handler := WithFormFileReader(func(httpx.Context, io.ReadSeekCloser, string) (string, error) {
 			t.Fatal("handler must not run")
 			return "", nil
@@ -108,14 +86,14 @@ func TestWithFormFileReader(t *testing.T) {
 		if err := handler(ctx); err != nil {
 			t.Fatalf("handler: %v", err)
 		}
-		if ctx.status != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", ctx.status, http.StatusBadRequest)
+		if ctx.StatusCode() != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusBadRequest)
 		}
 	})
 
 	t.Run("valid upload reaches the handler", func(t *testing.T) {
 		content := []byte("photo bytes")
-		ctx := &formFakeContext{file: multipartFileHeader(t, "photo.JPG", content)}
+		ctx := uploadContext(t, "photo.JPG", content)
 		handler := WithFormFileReader(func(_ httpx.Context, f io.ReadSeekCloser, name string) (string, error) {
 			all, err := io.ReadAll(f)
 			if err != nil {
@@ -141,7 +119,7 @@ func TestWithFormFileReader(t *testing.T) {
 // documented.
 func TestWithFormFileBytesPinsBytePath(t *testing.T) {
 	t.Run("reads the upload", func(t *testing.T) {
-		ctx := &formFakeContext{file: multipartFileHeader(t, "photo.png", []byte("photo bytes"))}
+		ctx := uploadContext(t, "photo.png", []byte("photo bytes"))
 		handler := WithFormFileBytes(func(_ httpx.Context, data []byte, name string) (int, error) {
 			if string(data) != "photo bytes" {
 				t.Errorf("data = %q, want the upload contents", data)
@@ -158,7 +136,7 @@ func TestWithFormFileBytesPinsBytePath(t *testing.T) {
 	})
 
 	t.Run("extension check is case-insensitive", func(t *testing.T) {
-		ctx := &formFakeContext{file: multipartFileHeader(t, "photo.JPG", []byte("x"))}
+		ctx := uploadContext(t, "photo.JPG", []byte("x"))
 		handler := WithFormFileBytes(func(httpx.Context, []byte, string) (int, error) {
 			return 1, nil
 		}, WithFormAllowExtensions(".jpg"))
@@ -169,7 +147,7 @@ func TestWithFormFileBytesPinsBytePath(t *testing.T) {
 	})
 
 	t.Run("extension check works without leading dot", func(t *testing.T) {
-		ctx := &formFakeContext{file: multipartFileHeader(t, "photo.png", []byte("x"))}
+		ctx := uploadContext(t, "photo.png", []byte("x"))
 		handler := WithFormFileBytes(func(httpx.Context, []byte, string) (int, error) {
 			return 1, nil
 		}, WithFormAllowExtensions("png", "jpg"))
@@ -180,7 +158,7 @@ func TestWithFormFileBytesPinsBytePath(t *testing.T) {
 	})
 
 	t.Run("empty extension list allows everything", func(t *testing.T) {
-		ctx := &formFakeContext{file: multipartFileHeader(t, "weird.bin", []byte("x"))}
+		ctx := uploadContext(t, "weird.bin", []byte("x"))
 		handler := WithFormFileBytes(func(httpx.Context, []byte, string) (int, error) {
 			return 1, nil
 		}, WithFormAllowExtensions())

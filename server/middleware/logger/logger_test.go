@@ -10,51 +10,19 @@ import (
 	"testing"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/httpxmock"
 	"github.com/go-sphere/sphere/log"
 )
 
-type httpxContext = httpx.Context
-
-// fakeContext embeds httpx.Context so it satisfies the full interface while
-// only overriding the methods Log and RecoveryLog actually call.
-type fakeContext struct {
-	httpxContext
-	ctx     context.Context
-	method  string
-	path    string
-	query   string
-	ip      string
-	headers map[string]string
-	status  int
-}
-
-func (f *fakeContext) Context() context.Context {
-	if f.ctx == nil {
-		return context.Background()
-	}
-	return f.ctx
-}
-
-func (f *fakeContext) Method() string   { return f.method }
-func (f *fakeContext) Path() string     { return f.path }
-func (f *fakeContext) RawQuery() string { return f.query }
-func (f *fakeContext) ClientIP() string { return f.ip }
-
-func (f *fakeContext) Header(key string) string {
-	if f.headers == nil {
-		return ""
-	}
-	return f.headers[key]
-}
-
-func (f *fakeContext) StatusCode() int { return f.status }
-
-func (f *fakeContext) Status(code int) { f.status = code }
-
-func (f *fakeContext) NoContent(code int) error {
-	f.status = code
-	return nil
-}
+// The request accessRequest stands for, stated once so the attr assertions do
+// not read their expectations back off the context under test.
+const (
+	accessMethod    = http.MethodGet
+	accessPath      = "/users"
+	accessQuery     = "q=alice"
+	accessIP        = "203.0.113.10"
+	accessUserAgent = "logger-test/1.0"
+)
 
 type entry struct {
 	level log.Level
@@ -103,35 +71,30 @@ func hasAttr(attrs []log.Attr, key string) bool {
 	})
 }
 
-func accessRequest() *fakeContext {
-	return &fakeContext{
-		method: http.MethodGet,
-		path:   "/users",
-		query:  "q=alice",
-		ip:     "203.0.113.10",
-		headers: map[string]string{
-			"User-Agent": "logger-test/1.0",
-		},
-		status: http.StatusOK,
-	}
+func accessRequest(ctx context.Context) *httpxmock.Context {
+	return httpxmock.NewRequest(accessMethod, accessPath+"?"+accessQuery, nil,
+		httpxmock.WithHeader("User-Agent", accessUserAgent),
+		httpxmock.WithClientIP(accessIP),
+		httpxmock.WithContext(ctx),
+	)
 }
 
-func assertAccessAttrs(t *testing.T, attrs []log.Attr, req *fakeContext, status int) {
+func assertAccessAttrs(t *testing.T, attrs []log.Attr, status int) {
 	t.Helper()
-	if got := requireAttr(t, attrs, "method").String(); got != req.method {
-		t.Errorf("method = %q, want %q", got, req.method)
+	if got := requireAttr(t, attrs, "method").String(); got != accessMethod {
+		t.Errorf("method = %q, want %q", got, accessMethod)
 	}
-	if got := requireAttr(t, attrs, "path").String(); got != req.path {
-		t.Errorf("path = %q, want %q", got, req.path)
+	if got := requireAttr(t, attrs, "path").String(); got != accessPath {
+		t.Errorf("path = %q, want %q", got, accessPath)
 	}
-	if got := requireAttr(t, attrs, "query").String(); got != req.query {
-		t.Errorf("query = %q, want %q", got, req.query)
+	if got := requireAttr(t, attrs, "query").String(); got != accessQuery {
+		t.Errorf("query = %q, want %q", got, accessQuery)
 	}
-	if got := requireAttr(t, attrs, "ip").String(); got != req.ip {
-		t.Errorf("ip = %q, want %q", got, req.ip)
+	if got := requireAttr(t, attrs, "ip").String(); got != accessIP {
+		t.Errorf("ip = %q, want %q", got, accessIP)
 	}
-	if got := requireAttr(t, attrs, "user-agent").String(); got != req.headers["User-Agent"] {
-		t.Errorf("user-agent = %q, want %q", got, req.headers["User-Agent"])
+	if got := requireAttr(t, attrs, "user-agent").String(); got != accessUserAgent {
+		t.Errorf("user-agent = %q, want %q", got, accessUserAgent)
 	}
 	statusVal := requireAttr(t, attrs, "status")
 	if statusVal.Kind() != slog.KindInt64 {
@@ -155,14 +118,13 @@ func TestLogSuccess(t *testing.T) {
 	t.Parallel()
 
 	rec := &recordingLogger{}
-	req := accessRequest()
-	req.ctx = t.Context()
-	next := func(httpx.Context) error {
-		req.status = http.StatusOK
+	ctx := accessRequest(t.Context())
+	next := func(c httpx.Context) error {
+		c.Status(http.StatusOK)
 		return nil
 	}
 
-	if err := Log(rec)(next)(req); err != nil {
+	if err := httpxmock.Run(ctx, next, Log(rec)); err != nil {
 		t.Fatalf("Log: %v", err)
 	}
 	if len(rec.entries) != 1 {
@@ -172,7 +134,7 @@ func TestLogSuccess(t *testing.T) {
 	if got.level != log.LevelInfo {
 		t.Errorf("level = %v, want LevelInfo", got.level)
 	}
-	assertAccessAttrs(t, got.attrs, req, http.StatusOK)
+	assertAccessAttrs(t, got.attrs, http.StatusOK)
 	if hasAttr(got.attrs, "error") {
 		t.Error("success path must not include an error attr")
 	}
@@ -186,14 +148,13 @@ func TestLogChainError(t *testing.T) {
 
 	chainErr := errors.New("handler failed")
 	rec := &recordingLogger{}
-	req := accessRequest()
-	req.ctx = t.Context()
-	next := func(httpx.Context) error {
-		req.status = http.StatusBadRequest
+	ctx := accessRequest(t.Context())
+	next := func(c httpx.Context) error {
+		c.Status(http.StatusBadRequest)
 		return chainErr
 	}
 
-	err := Log(rec)(next)(req)
+	err := httpxmock.Run(ctx, next, Log(rec))
 	if !errors.Is(err, chainErr) {
 		t.Fatalf("Log() error = %v, want %v", err, chainErr)
 	}
@@ -204,7 +165,7 @@ func TestLogChainError(t *testing.T) {
 	if got.level != log.LevelError {
 		t.Errorf("level = %v, want LevelError", got.level)
 	}
-	assertAccessAttrs(t, got.attrs, req, http.StatusBadRequest)
+	assertAccessAttrs(t, got.attrs, http.StatusBadRequest)
 	errVal := requireAttr(t, got.attrs, "error").Any()
 	gotErr, ok := errVal.(error)
 	if !ok {
@@ -222,17 +183,16 @@ func TestRecoveryLogPanic(t *testing.T) {
 
 	const panicValue = "boom from handler"
 	rec := &recordingLogger{}
-	req := accessRequest()
-	req.ctx = t.Context()
+	ctx := accessRequest(t.Context())
 	next := func(httpx.Context) error {
 		panic(panicValue)
 	}
 
-	if err := RecoveryLog(rec, false)(next)(req); err != nil {
+	if err := httpxmock.Run(ctx, next, RecoveryLog(rec, false)); err != nil {
 		t.Fatalf("RecoveryLog returned %v, want nil after recover", err)
 	}
-	if req.StatusCode() != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want 500", req.StatusCode())
+	if ctx.StatusCode() != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", ctx.StatusCode())
 	}
 	if len(rec.entries) != 1 {
 		t.Fatalf("entries = %d, want 1", len(rec.entries))
@@ -263,13 +223,12 @@ func TestRecoveryLogStackOption(t *testing.T) {
 			t.Parallel()
 
 			rec := &recordingLogger{}
-			req := accessRequest()
-			req.ctx = t.Context()
+			ctx := accessRequest(t.Context())
 			next := func(httpx.Context) error {
 				panic("stack-option")
 			}
 
-			if err := RecoveryLog(rec, tt.stack)(next)(req); err != nil {
+			if err := httpxmock.Run(ctx, next, RecoveryLog(rec, tt.stack)); err != nil {
 				t.Fatalf("RecoveryLog: %v", err)
 			}
 			if len(rec.entries) != 1 {

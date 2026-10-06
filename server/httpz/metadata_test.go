@@ -6,32 +6,15 @@ import (
 	"testing"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/httpxmock"
 	"github.com/go-sphere/httpx/stdx"
 )
 
-// matchFakeContext adds request metadata overrides used by MatchOperation.
-type matchFakeContext struct {
-	httpxContext
-	method        string
-	fullPath      string
-	methodCalls   int
-	fullPathCalls int
-}
-
-func (m *matchFakeContext) Method() string {
-	m.methodCalls++
-	return m.method
-}
-
-func (m *matchFakeContext) FullPath() string {
-	m.fullPathCalls++
-	return m.fullPath
-}
-
-// Path backs the fail-closed warning log, which reports the raw request path
-// when the route pattern is unavailable.
-func (m *matchFakeContext) Path() string {
-	return "/raw" + m.fullPath
+// matchContext builds a request whose method and reported route pattern are
+// what MatchOperation keys on. The concrete path is "/raw"+fullPath, which is
+// what the fail-closed warning log reports when the pattern is unavailable.
+func matchContext(method, fullPath string) *httpxmock.Context {
+	return httpxmock.NewRequest(method, "/raw"+fullPath, nil, httpxmock.WithFullPath(fullPath))
 }
 
 // TestMatchOperation pins the endpoint-matching helper: the operation must match
@@ -68,7 +51,7 @@ func TestMatchOperation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := &matchFakeContext{method: tt.method, fullPath: tt.fullPath}
+			ctx := matchContext(tt.method, tt.fullPath)
 			if got := matcher(ctx); got != tt.want {
 				t.Fatalf("match = %v, want %v", got, tt.want)
 			}
@@ -78,13 +61,14 @@ func TestMatchOperation(t *testing.T) {
 
 func TestMatchOperationDoesNotReadPathWhenMethodMisses(t *testing.T) {
 	matcher := MatchOperation("/api", [][3]string{{"read", http.MethodGet, "/users"}}, "read")
-	ctx := &matchFakeContext{method: http.MethodDelete, fullPath: "/api/users"}
+	ctx := matchContext(http.MethodDelete, "/api/users")
 
 	if matcher(ctx) {
 		t.Fatal("unexpected match")
 	}
-	if ctx.methodCalls != 1 || ctx.fullPathCalls != 0 {
-		t.Fatalf("metadata calls = method:%d fullPath:%d, want method:1 fullPath:0", ctx.methodCalls, ctx.fullPathCalls)
+	if ctx.CallCount("Method") != 1 || ctx.CallCount("FullPath") != 0 {
+		t.Fatalf("metadata calls = method:%d fullPath:%d, want method:1 fullPath:0",
+			ctx.CallCount("Method"), ctx.CallCount("FullPath"))
 	}
 }
 

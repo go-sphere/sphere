@@ -4,15 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/httpxmock"
 	"github.com/go-sphere/sphere/core/task"
 	"github.com/go-sphere/sphere/core/task/tasktest"
 )
+
+// headerContext builds a mock request context carrying the key header the
+// tracker's keygen reads.
+func headerContext(key, value string) *httpxmock.Context {
+	return httpxmock.NewRequest(http.MethodGet, "/", nil, httpxmock.WithHeader(key, value))
+}
 
 // Online must stay a task.Task: its storage is only bounded while the periodic
 // sweep is running, because the backing cache reclaims an expired entry when
@@ -83,7 +91,7 @@ func TestZeroValueMiddlewareAndCountDoNotPanic(t *testing.T) {
 	}
 
 	mw := o.Middleware(func(ctx httpx.Context) string { return "k" }, time.Minute)
-	err := run(mw, &fakeContext{})
+	err := httpxmock.Run(httpxmock.New(nil), nil, mw)
 	if !errors.Is(err, ErrNotInitialized) {
 		t.Fatalf("Middleware on zero-value Online: got %v, want ErrNotInitialized", err)
 	}
@@ -107,31 +115,6 @@ func TestOnline_Identifier(t *testing.T) {
 	}
 }
 
-type httpxContext = httpx.Context
-
-type fakeContext struct {
-	httpxContext
-	ctx        context.Context
-	headers    map[string]string
-	nextCalled bool
-}
-
-func (f *fakeContext) Context() context.Context {
-	if f.ctx == nil {
-		return context.Background()
-	}
-	return f.ctx
-}
-
-func (f *fakeContext) Header(key string) string {
-	if f.headers == nil {
-		return ""
-	}
-	return f.headers[key]
-}
-
-func (f *fakeContext) markNext() { f.nextCalled = true }
-
 func TestOnline_Middleware(t *testing.T) {
 	t.Parallel()
 
@@ -142,13 +125,11 @@ func TestOnline_Middleware(t *testing.T) {
 	mw := o.Middleware(keygen, 10*time.Minute)
 
 	// 1. Non-empty key records presence
-	ctx1 := &fakeContext{
-		headers: map[string]string{"X-User-ID": "user-1001"},
+	next1 := &httpxmock.Handler{}
+	if err := httpxmock.Run(headerContext("X-User-ID", "user-1001"), next1.Handle, mw); err != nil {
+		t.Fatalf("Run with a key: %v", err)
 	}
-	if err := run(mw, ctx1); err != nil {
-		t.Fatalf("run(mw, ctx1): %v", err)
-	}
-	if !ctx1.nextCalled {
+	if !next1.Called() {
 		t.Fatal("the chain did not continue on a valid key")
 	}
 	if count := o.OnlineCount(); count != 1 {
@@ -156,54 +137,16 @@ func TestOnline_Middleware(t *testing.T) {
 	}
 
 	// 2. Empty key does not record presence but proceeds
-	ctx2 := &fakeContext{
-		headers: map[string]string{},
+	next2 := &httpxmock.Handler{}
+	if err := httpxmock.Run(httpxmock.New(nil), next2.Handle, mw); err != nil {
+		t.Fatalf("Run without a key: %v", err)
 	}
-	if err := run(mw, ctx2); err != nil {
-		t.Fatalf("run(mw, ctx2): %v", err)
-	}
-	if !ctx2.nextCalled {
+	if !next2.Called() {
 		t.Fatal("the chain did not continue on an empty key")
 	}
 	if count := o.OnlineCount(); count != 1 {
 		t.Fatalf("OnlineCount() = %d, want 1 (unchanged)", count)
 	}
-}
-
-type stressOnlineContext struct {
-	httpxContext
-	ctx     context.Context
-	headers map[string]string
-	nexted  atomic.Bool
-}
-
-func (s *stressOnlineContext) Context() context.Context {
-	if s.ctx == nil {
-		return context.Background()
-	}
-	return s.ctx
-}
-
-func (s *stressOnlineContext) Header(key string) string {
-	return s.headers[key]
-}
-
-func (s *stressOnlineContext) markNext() { s.nexted.Store(true) }
-
-// nextRecorder is what both fake contexts share: the flag the terminal handler
-// sets when the chain reaches it.
-type nextRecorder interface {
-	httpx.Context
-	markNext()
-}
-
-// run drives mw with a terminal handler that records whether the chain
-// continued past the middleware.
-func run[C nextRecorder](mw httpx.Middleware, ctx C) error {
-	return mw(func(httpx.Context) error {
-		ctx.markNext()
-		return nil
-	})(ctx)
 }
 
 // TestOnline_AdversarialConcurrentPresenceAndTrimming tests 100+ concurrent requests
@@ -244,15 +187,13 @@ func TestOnline_AdversarialConcurrentPresenceAndTrimming(t *testing.T) {
 			defer wg.Done()
 			for r := range requestsPerWorker {
 				key := fmt.Sprintf("session-%d-%d", workerID, r)
-				reqCtx := &stressOnlineContext{
-					headers: map[string]string{"X-Session-ID": key},
-				}
-				err := run(mw, reqCtx)
+				next := &httpxmock.Handler{}
+				err := httpxmock.Run(headerContext("X-Session-ID", key), next.Handle, mw)
 				if err != nil {
 					t.Errorf("worker %d req %d failed: %v", workerID, r, err)
 					return
 				}
-				if !reqCtx.nexted.Load() {
+				if !next.Called() {
 					t.Errorf("worker %d req %d next not called", workerID, r)
 					return
 				}

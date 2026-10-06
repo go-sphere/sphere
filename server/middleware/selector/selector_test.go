@@ -4,21 +4,17 @@ import (
 	"testing"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/httpxmock"
 )
 
-// httpxContext aliases httpx.Context so the embedded field name does not collide
-// with the interface's own Context() method.
-type httpxContext = httpx.Context
-
-// stateFakeContext supplies the Get surface the matcher needs.
-type stateFakeContext struct {
-	httpxContext
-	values map[string]any
-}
-
-func (s *stateFakeContext) Get(key string) (any, bool) {
-	v, ok := s.values[key]
-	return v, ok
+// stateContext returns a mock context whose StateStore holds values, as if a
+// middleware above the matcher had set them.
+func stateContext(values map[string]any) *httpxmock.Context {
+	opts := make([]httpxmock.Option, 0, len(values))
+	for k, v := range values {
+		opts = append(opts, httpxmock.WithState(k, v))
+	}
+	return httpxmock.New(nil, opts...)
 }
 
 // TestNewContextMatcher pins the typed lookup: the value must both be present
@@ -39,7 +35,7 @@ func TestNewContextMatcher(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := &stateFakeContext{values: tt.values}
+			ctx := stateContext(tt.values)
 			if got := matcher.Match(ctx); got != tt.want {
 				t.Fatalf("match = %v, want %v", got, tt.want)
 			}
@@ -52,37 +48,37 @@ func TestNewContextMatcher(t *testing.T) {
 func TestLogicalCombinators(t *testing.T) {
 	yes := MatchFunc(func(httpx.Context) bool { return true })
 	no := MatchFunc(func(httpx.Context) bool { return false })
-	var nilCtx httpx.Context
+	ctx := httpxmock.New(nil)
 
 	t.Run("not", func(t *testing.T) {
-		if NewLogicalNotMatcher(yes).Match(nilCtx) {
+		if NewLogicalNotMatcher(yes).Match(ctx) {
 			t.Error("NOT true matched")
 		}
-		if !NewLogicalNotMatcher(no).Match(nilCtx) {
+		if !NewLogicalNotMatcher(no).Match(ctx) {
 			t.Error("NOT false did not match")
 		}
 	})
 
 	t.Run("or", func(t *testing.T) {
-		if !NewLogicalOrMatcher(no, yes).Match(nilCtx) {
+		if !NewLogicalOrMatcher(no, yes).Match(ctx) {
 			t.Error("OR with one true did not match")
 		}
-		if NewLogicalOrMatcher(no, no).Match(nilCtx) {
+		if NewLogicalOrMatcher(no, no).Match(ctx) {
 			t.Error("OR of all false matched")
 		}
-		if NewLogicalOrMatcher().Match(nilCtx) {
+		if NewLogicalOrMatcher().Match(ctx) {
 			t.Error("empty OR must match nothing")
 		}
 	})
 
 	t.Run("and", func(t *testing.T) {
-		if !NewLogicalAndMatcher(yes, yes).Match(nilCtx) {
+		if !NewLogicalAndMatcher(yes, yes).Match(ctx) {
 			t.Error("AND of all true did not match")
 		}
-		if NewLogicalAndMatcher(yes, no).Match(nilCtx) {
+		if NewLogicalAndMatcher(yes, no).Match(ctx) {
 			t.Error("AND with one false matched")
 		}
-		if !NewLogicalAndMatcher().Match(nilCtx) {
+		if !NewLogicalAndMatcher().Match(ctx) {
 			t.Error("empty AND must match everything")
 		}
 	})
@@ -91,17 +87,9 @@ func TestLogicalCombinators(t *testing.T) {
 // TestNewSelectorMiddleware pins the gating contract: each middleware runs only
 // when the matcher matches, and a skipped one hands the request downstream.
 func TestNewSelectorMiddleware(t *testing.T) {
-	// terminal returns a handler that records whether the chain reached it.
-	terminal := func(nexted *bool) httpx.Handler {
-		return func(httpx.Context) error {
-			*nexted = true
-			return nil
-		}
-	}
-
 	t.Run("matching request runs the middleware", func(t *testing.T) {
 		var ran int
-		var nexted bool
+		next := &httpxmock.Handler{}
 		chain := NewSelectorMiddleware(
 			MatchFunc(func(httpx.Context) bool { return true }),
 			counting(&ran),
@@ -109,31 +97,31 @@ func TestNewSelectorMiddleware(t *testing.T) {
 		if len(chain) != 1 {
 			t.Fatalf("got %d middlewares, want 1", len(chain))
 		}
-		if err := chain[0](terminal(&nexted))(&stateFakeContext{}); err != nil {
+		if err := httpxmock.Run(httpxmock.New(nil), next.Handle, chain[0]); err != nil {
 			t.Fatalf("middleware: %v", err)
 		}
 		if ran != 1 {
 			t.Fatalf("middleware ran %d times, want 1", ran)
 		}
-		if !nexted {
+		if !next.Called() {
 			t.Error("the chain did not continue past the middleware")
 		}
 	})
 
 	t.Run("non-matching request skips to the rest of the chain", func(t *testing.T) {
 		var ran int
-		var nexted bool
+		next := &httpxmock.Handler{}
 		chain := NewSelectorMiddleware(
 			MatchFunc(func(httpx.Context) bool { return false }),
 			counting(&ran),
 		)
-		if err := chain[0](terminal(&nexted))(&stateFakeContext{}); err != nil {
+		if err := httpxmock.Run(httpxmock.New(nil), next.Handle, chain[0]); err != nil {
 			t.Fatalf("middleware: %v", err)
 		}
 		if ran != 0 {
 			t.Fatalf("middleware ran %d times, want 0", ran)
 		}
-		if !nexted {
+		if !next.Called() {
 			t.Error("the chain did not continue for a skipped request")
 		}
 	})
@@ -148,12 +136,11 @@ func TestNewSelectorMiddleware(t *testing.T) {
 		if len(chain) != 2 {
 			t.Fatalf("got %d middlewares, want 2", len(chain))
 		}
-		var nexted bool
-		handler := terminal(&nexted)
-		if err := chain[0](handler)(&stateFakeContext{}); err != nil {
+		next := &httpxmock.Handler{}
+		if err := httpxmock.Run(httpxmock.New(nil), next.Handle, chain[0]); err != nil {
 			t.Fatal(err)
 		}
-		if err := chain[1](handler)(&stateFakeContext{}); err != nil {
+		if err := httpxmock.Run(httpxmock.New(nil), next.Handle, chain[1]); err != nil {
 			t.Fatal(err)
 		}
 		if len(order) != 2 || order[0] != 1 || order[1] != 2 {
