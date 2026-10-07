@@ -51,7 +51,9 @@ func NewHandler(public string) (*Handler, error) {
 }
 
 // GenerateURL creates a public URL for the given storage key by joining it
-// onto the public base. Keys that already look like http:// or https:// are
+// onto the public base, path-escaping each "/"-separated segment so the
+// result round-trips through ExtractKeyFromURL. Keys that already look like
+// http:// or https:// are
 // returned unchanged. It returns "" for an empty key, for a key containing a
 // ".." segment, and when joining fails. The handler ignores params.
 func (n *Handler) GenerateURL(key string, params ...url.Values) string {
@@ -83,7 +85,15 @@ func (n *Handler) generateURL(key string) string {
 		// that addresses the wrong origin/path.
 		return ""
 	}
-	result, err := url.JoinPath(n.publicURLBase, key)
+	// url.JoinPath treats its elements as already escaped, so a literal "%"
+	// in a key would be decoded (or rejected) instead of addressing the key.
+	// Escaping each segment makes the URL round-trip through
+	// ExtractKeyFromURL.
+	segments := strings.Split(key, "/")
+	for i, segment := range segments {
+		segments[i] = url.PathEscape(segment)
+	}
+	result, err := url.JoinPath(n.publicURLBase, segments...)
 	if err != nil {
 		return ""
 	}

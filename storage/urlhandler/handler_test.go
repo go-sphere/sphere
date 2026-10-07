@@ -619,3 +619,23 @@ func TestHandler_WithBasePathURL(t *testing.T) {
 		}
 	})
 }
+
+// TestHandler_GenerateURLEscapesReservedCharacters pins that keys carrying
+// "%" and other reserved characters produce a URL that ExtractKeyFromURL maps
+// back to the same key. url.JoinPath alone decoded "%41" to "A" and rejected
+// "100% done.png".
+func TestHandler_GenerateURLEscapesReservedCharacters(t *testing.T) {
+	h, err := NewHandler("https://cdn.example.com/assets")
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	for _, key := range []string{"a%41.png", "dir/100% done.png", "q?x#y.png", "a b/c+d.png"} {
+		u := h.GenerateURL(key)
+		if u == "" {
+			t.Fatalf("GenerateURL(%q) = \"\"", key)
+		}
+		if got := h.ExtractKeyFromURL(u); got != key {
+			t.Errorf("ExtractKeyFromURL(GenerateURL(%q)) = %q (url %q)", key, got, u)
+		}
+	}
+}
