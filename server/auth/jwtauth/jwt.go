@@ -73,7 +73,8 @@ func (g *JwtAuth[T]) keyFunc(token *jwt.Token) (any, error) {
 }
 
 // GenerateToken creates a signed JWT token from the provided claims.
-// It does not set or check expiry; put ExpiresAt in claims (NewRBACClaims does).
+// It does not set expiry; put ExpiresAt in claims (NewRBACClaims does), because
+// ParseToken rejects tokens without an exp claim.
 // ctx is currently unused.
 func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims T) (string, error) {
 	token, err := jwt.NewWithClaims(g.signingMethod, claims).SignedString(g.secret)
@@ -90,7 +91,9 @@ func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims T) (string, error
 // It returns a golang-jwt error, testable with errors.Is against values such
 // as jwt.ErrTokenExpired, jwt.ErrTokenNotValidYet, jwt.ErrTokenMalformed, and
 // jwt.ErrTokenSignatureInvalid, when the token is malformed, signed with a
-// different algorithm or secret, or outside its exp/nbf window. The returned
+// different algorithm or secret, or outside its exp/nbf window. A token
+// without an exp claim is rejected with jwt.ErrTokenRequiredClaimMissing, so a
+// token minted without expiry never validates forever. The returned
 // claims must not be trusted when err is non-nil. ctx is currently unused.
 func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (T, error) {
 	var claims T
@@ -99,14 +102,14 @@ func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (T, err
 	// > token is malformed: could not JSON decode claim: json: cannot unmarshal object into Go value of type jwt.Claims
 	// Therefore, you must pass a pointer to claims, and also ensure that *T is of type jwt.Claims.
 	if jwtClaims, ok := any(&claims).(jwt.Claims); ok {
-		_, err := jwt.ParseWithClaims(signedToken, jwtClaims, g.keyFunc)
+		_, err := jwt.ParseWithClaims(signedToken, jwtClaims, g.keyFunc, jwt.WithExpirationRequired())
 		if err != nil {
 			return claims, err
 		}
 		return claims, nil
 	} else {
 		// Otherwise, first parse it into a map, then attempt to convert it into T.
-		token, err := jwt.Parse(signedToken, g.keyFunc)
+		token, err := jwt.Parse(signedToken, g.keyFunc, jwt.WithExpirationRequired())
 		if err != nil {
 			return claims, err
 		}

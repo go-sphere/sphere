@@ -184,6 +184,22 @@ func TestJwtAuth_RejectsExpiredTokenWithoutImplicitLeeway(t *testing.T) {
 	}
 }
 
+// TestJwtAuth_RejectsTokenWithoutExpiry pins that a token minted without exp
+// does not validate forever.
+func TestJwtAuth_RejectsTokenWithoutExpiry(t *testing.T) {
+	t.Parallel()
+
+	auth := NewJwtAuth[RBACClaims[int64]]("secret")
+	token, err := auth.GenerateToken(context.Background(), RBACClaims[int64]{UID: 1})
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+	if _, err := auth.ParseToken(context.Background(), token); !errors.Is(err, jwt.ErrTokenRequiredClaimMissing) {
+		t.Errorf("ParseToken err = %v, want ErrTokenRequiredClaimMissing", err)
+	}
+
+}
+
 func TestJwtAuth_PointerClaims(t *testing.T) {
 	auth := NewJwtAuth[*RBACClaims[int64]]("secret")
 	claims := NewRBACClaims[int64](42, "alice", []string{"admin"}, time.Now().Add(time.Hour))
