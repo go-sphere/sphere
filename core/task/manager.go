@@ -107,8 +107,8 @@ func (t *managedTask) getStopErr() error {
 
 // Manager is a supervisor for named tasks started later at runtime.
 // It is not the process runner: HTTP servers and one-shot jobs belong in a
-// Group (typically under boot.Run). Wait holds the registration lock for its
-// entire duration, so a long-running task makes Wait a freeze on StartTask.
+// Group (typically under boot.Run). A running task may call StartTask, also
+// while Wait or StopAll is in progress.
 //
 // Stop is treated as the cleanup half of the lifecycle rather than an interrupt
 // signal, matching Group: every task the manager starts is stopped exactly once,
@@ -119,13 +119,10 @@ func (t *managedTask) getStopErr() error {
 // as the Task interface requires.
 //
 // Create a Manager with NewManager; the zero value is not usable. Its methods
-// are safe for concurrent use, subject to the reentrancy limits documented on
-// Wait and StopAll.
+// are safe for concurrent use.
 type Manager struct {
 	opts managerOptions
 
-	opsMu  sync.Mutex
-	runMu  sync.Mutex
 	mu     sync.RWMutex
 	nextID uint64
 	// tasks only contains non-nil entries created by newManagedTask.
@@ -142,7 +139,11 @@ type Manager struct {
 	tombstones     map[string]taskResult
 	tombstoneOrder []string
 
-	runWG    sync.WaitGroup
+	// running counts task goroutines that have not exited; idle is closed when
+	// it drops to zero. Both are guarded by mu. A plain WaitGroup cannot be
+	// used because StartTask may Add while Wait is blocked.
+	running  int
+	idle     chan struct{}
 	startErr multierr.Error
 	stopErr  multierr.Error
 }
@@ -213,12 +214,6 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 		ctx = context.Background()
 	}
 
-	m.runMu.Lock()
-	defer m.runMu.Unlock()
-
-	m.opsMu.Lock()
-	defer m.opsMu.Unlock()
-
 	runCtx, cancel := context.WithCancel(ctx)
 
 	m.mu.Lock()
@@ -231,17 +226,20 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 	entry := newManagedTask(m.nextID, name, task, cancel)
 	m.dropTombstone(name)
 	m.tasks[name] = entry
-	m.runWG.Add(1)
+	if m.running == 0 {
+		m.idle = make(chan struct{})
+	}
+	m.running++
 	m.mu.Unlock()
 
 	go func() {
-		defer m.runWG.Done()
+		defer m.taskExited()
 		// runCtx is a child of the caller's ctx, so it stays registered on that
 		// parent until cancelled. A task that exits on its own never reaches
 		// requestStop, which is the only other place entry.cancel is called, so
 		// without this the registration would outlive the task for as long as the
 		// parent ctx lives. CancelFunc is idempotent, so the requestStop path is
-		// unaffected. Registered after runWG.Done so it runs before it, which lets
+		// unaffected. Registered after taskExited so it runs before it, which lets
 		// Wait guarantee every run context has been released.
 		defer entry.cancel()
 		defer close(entry.doneCh)
@@ -332,17 +330,12 @@ func (m *Manager) StopTask(ctx context.Context, name string) error {
 // cleanup context configured by WithManagerCleanupTimeout.
 // Returns any errors encountered during shutdown and previously collected task run errors.
 //
-// StopAll holds the registration lock for its entire duration, so a task whose
-// Stop calls StartTask deadlocks the drain when ctx is unbounded: the Stop
-// blocks on the lock, and StopAll waits on the Stop. Do not register tasks
-// from Stop paths (mirroring the reentrancy restriction documented on Wait).
+// StopAll stops the tasks registered when it is called. A task started while
+// it runs (for example from another task's Stop) is not stopped by this call.
 func (m *Manager) StopAll(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-
-	m.opsMu.Lock()
-	defer m.opsMu.Unlock()
 
 	tasks := m.snapshotTasks()
 
@@ -379,16 +372,30 @@ func (m *Manager) StopAll(ctx context.Context) error {
 // settle — a Stop that ignores its context can therefore block Wait, which is why
 // NewManager applies defaultManagerCleanupTimeout.
 //
-// Wait holds the registration lock for its entire duration, so a StartTask
-// that races with Wait blocks until Wait returns. A long-running task therefore
-// makes Wait a freeze on new registrations; do not Wait from a supervisor that
-// still needs to StartTask.
+// Tasks started while Wait is blocked, including from a running task, are
+// waited for too: Wait returns once no task goroutine is left.
 // It returns task run errors and stop errors accumulated over the manager's lifetime.
 func (m *Manager) Wait() error {
-	m.runMu.Lock()
-	defer m.runMu.Unlock()
-	m.runWG.Wait()
-	return m.resultErr()
+	for {
+		m.mu.RLock()
+		running, idle := m.running, m.idle
+		m.mu.RUnlock()
+		if running == 0 {
+			return m.resultErr()
+		}
+		<-idle
+	}
+}
+
+// taskExited records that a task goroutine has finished and wakes Wait when
+// it was the last one.
+func (m *Manager) taskExited() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.running--
+	if m.running == 0 {
+		close(m.idle)
+	}
 }
 
 // IsRunning checks if a task with the given name is currently running.
