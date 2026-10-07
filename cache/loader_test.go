@@ -83,6 +83,15 @@ func assertNotCached[T any](t *testing.T, c cache.ExpirableCache[T], key string)
 	}
 }
 
+func TestGetExSingleflightNilInterfaceValue(t *testing.T) {
+	c := mcache.NewMapCache[error]()
+	builder := func() (error, error) { return nil, nil }
+	v, found, err := cache.GetEx(t.Context(), c, "k", builder, cache.WithSingleflight(&singleflight.Group{}))
+	if v != nil || !found || err != nil {
+		t.Fatalf("GetEx = (%v, %v, %v), want (nil, true, nil)", v, found, err)
+	}
+}
+
 // TestGetExSingleflightBuildsOnce holds the builder on a gate until every
 // caller has joined the in-flight call, so the "exactly once" assertion does
 // not depend on scheduler timing. synctest.Wait returns only once every

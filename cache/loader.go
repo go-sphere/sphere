@@ -245,7 +245,10 @@ func load[T any](
 				var zero T
 				return zero, err
 			}
-			return val.(T), nil
+			// val is a nil any when T is an interface type and the builder
+			// returned nil, so a plain assertion would panic.
+			obj, _ := val.(T)
+			return obj, nil
 		}
 	}
 	newObj, err := build()
