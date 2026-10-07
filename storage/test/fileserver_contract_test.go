@@ -72,7 +72,7 @@ func TestFileServerGenerateUploadAuthWithMemoryImplementations(t *testing.T) {
 		t.Fatalf("invalid token parsed from %q", uploadURI)
 	}
 
-	cachedKey, found, err := tokenCache.Get(ctx, token)
+	cachedKey, found, err := tokenCache.Get(ctx, "sphere-upload-token:"+token)
 	if err != nil {
 		t.Fatalf("cache.Get() error = %v", err)
 	}

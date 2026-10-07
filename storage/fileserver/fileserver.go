@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/cache"
+	"github.com/go-sphere/sphere/cache/nscache"
 	"github.com/go-sphere/sphere/storage"
 	"github.com/go-sphere/sphere/storage/storageerr"
 	"github.com/go-sphere/sphere/storage/urlhandler"
@@ -53,18 +54,27 @@ const defaultKeyTTL = 5 * time.Minute
 // does not implement storage.FileStater or storage.FileLister even when the
 // wrapped store does. Create it with NewCDNAdapter.
 type FileServer struct {
-	opts    *options
-	config  Config
-	cache   cache.ByteCache
-	store   storage.Storage
-	handler storage.URLHandler
+	opts   *options
+	config Config
+	// cache holds the upload tokens. It is the injected cache wrapped in the
+	// uploadTokenNamespace, so the public PUT route, which redeems whatever
+	// key the URL carries, cannot read or delete other entries of a shared
+	// cache.
+	cache cache.ByteCache
+	// rawCache is the injected cache itself; only Close uses it.
+	rawCache cache.ByteCache
+	store    storage.Storage
+	handler  storage.URLHandler
 
 	closeOnce sync.Once
 	closeErr  error
 }
 
+// uploadTokenNamespace prefixes every upload token key in the cache.
+const uploadTokenNamespace = "sphere-upload-token"
+
 // NewCDNAdapter constructs a FileServer that wraps store with one-time PUT
-// tokens stored in cache. PutBase, GetBase, cache, and store are required;
+// tokens stored in cache under the "sphere-upload-token:" key prefix. PutBase, GetBase, cache, and store are required;
 // a missing one, or an unparsable GetBase, is an error. A zero KeyTTL becomes
 // 5 minutes. The cache stays owned by the caller unless WithOwnedCache is
 // given. It is not a CDN or S3 driver; the name is historical.
@@ -90,11 +100,12 @@ func NewCDNAdapter(conf Config, cache cache.ByteCache, store storage.Storage, op
 	}
 	opts := newOptions(options...)
 	return &FileServer{
-		opts:    opts,
-		config:  conf,
-		cache:   cache,
-		store:   store,
-		handler: handler,
+		opts:     opts,
+		config:   conf,
+		cache:    nscache.NewNSCache(uploadTokenNamespace, cache),
+		rawCache: cache,
+		store:    store,
+		handler:  handler,
 	}, nil
 }
 
@@ -109,7 +120,7 @@ func NewCDNAdapter(conf Config, cache cache.ByteCache, store storage.Storage, op
 func (a *FileServer) Close() error {
 	a.closeOnce.Do(func() {
 		if a.opts.ownsCache {
-			a.closeErr = a.cache.Close()
+			a.closeErr = a.rawCache.Close()
 		}
 	})
 	return a.closeErr
@@ -192,8 +203,11 @@ func (a *FileServer) GenerateUploadAuth(ctx context.Context, req storage.UploadA
 	}
 	// The configured token TTL is the ceiling; req.TTL may only shorten it.
 	ttl := storage.ResolveUploadTTL(req.TTL, a.config.KeyTTL, defaultKeyTTL)
-	newToken, err := a.opts.createFileKey(ctx, a, key, ttl)
+	newToken, err := a.opts.createFileKey(ctx)
 	if err != nil {
+		return storage.UploadAuthResult{}, err
+	}
+	if err := a.cache.SetWithTTL(ctx, newToken, []byte(key), ttl); err != nil {
 		return storage.UploadAuthResult{}, err
 	}
 	uri, err := url.JoinPath(a.config.PutBase, newToken)

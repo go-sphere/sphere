@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-sphere/httpx/httpxmock"
 	"github.com/go-sphere/sphere/cache"
+	"github.com/go-sphere/sphere/cache/mcache"
 	"github.com/go-sphere/sphere/cache/memory"
 	"github.com/go-sphere/sphere/storage"
 )
@@ -260,5 +261,41 @@ func TestNormalizeWildcardParam(t *testing.T) {
 				t.Fatalf("normalizeWildcardParam(%q) = %q, want %q", tc.in, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestUploadTokensAreNamespaced pins that the token cache the public PUT route
+// redeems from cannot reach other entries of a shared cache: a URL segment
+// naming an unrelated key must neither read nor delete it.
+func TestUploadTokensAreNamespaced(t *testing.T) {
+	ctx := context.Background()
+	shared := mcache.NewByteCache()
+	t.Cleanup(func() { _ = shared.Close() })
+	if err := shared.Set(ctx, "session:abc", []byte("victim")); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	server, err := NewCDNAdapter(Config{PutBase: "https://upload.example.com", GetBase: "https://cdn.example.com"}, shared, noopStorage{},
+		WithCreateFileKey(func(context.Context) (string, error) { return "tok", nil }))
+	if err != nil {
+		t.Fatalf("NewCDNAdapter: %v", err)
+	}
+
+	if _, found, err := server.cache.GetDel(ctx, "session:abc"); err != nil || found {
+		t.Fatalf("GetDel(session:abc) found=%v err=%v, want not found", found, err)
+	}
+	if _, found, _ := shared.Get(ctx, "session:abc"); !found {
+		t.Fatal("unrelated shared entry was deleted")
+	}
+
+	result, err := server.GenerateUploadAuth(ctx, storage.UploadAuthRequest{FileName: "a.png"})
+	if err != nil {
+		t.Fatalf("GenerateUploadAuth: %v", err)
+	}
+	if _, found, _ := shared.Get(ctx, "tok"); found {
+		t.Fatal("token stored without namespace")
+	}
+	key, found, err := server.cache.GetDel(ctx, "tok")
+	if err != nil || !found || string(key) != result.File.Key {
+		t.Fatalf("redeem token = %q found=%v err=%v, want %q", key, found, err, result.File.Key)
 	}
 }

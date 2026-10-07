@@ -3,7 +3,6 @@ package fileserver
 import (
 	"context"
 	"strconv"
-	"time"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/server/httpz"
@@ -18,7 +17,7 @@ type UploadResult struct {
 }
 
 type options struct {
-	createFileKey        func(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error)
+	createFileKey        func(ctx context.Context) (string, error)
 	downloadCacheControl string
 	inlineDownload       bool
 	// ownsCache marks the cache as a resource of this FileServer rather than an
@@ -29,14 +28,12 @@ type options struct {
 // Option configures file server behavior.
 type Option func(*options)
 
-// WithCreateFileKey customizes temporary upload key generation behavior.
-// fn must store a token that maps to filename in the cache passed to
-// NewCDNAdapter (the uploader endpoint redeems it with GetDel) and return that
-// token, which becomes the last path segment of the upload URL. The ttl
-// argument is the resolved token validity (Config.KeyTTL, or the request TTL
-// when shorter); fn should apply it when persisting the token. A nil fn keeps
-// the default: a random UUID stored with SetWithTTL.
-func WithCreateFileKey(fn func(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error)) Option {
+// WithCreateFileKey customizes how one-time upload tokens are generated.
+// fn returns the token, which becomes the last path segment of the upload URL;
+// the FileServer stores it in its token cache with the resolved TTL. The token
+// must be unguessable and URL-path safe. A nil fn keeps the default, a random
+// UUID.
+func WithCreateFileKey(fn func(ctx context.Context) (string, error)) Option {
 	return func(options *options) {
 		if fn == nil {
 			return
@@ -93,15 +90,10 @@ func newOptions(opts ...Option) *options {
 	return opt
 }
 
-func defaultCreateFileKey(ctx context.Context, server *FileServer, filename string, ttl time.Duration) (string, error) {
-	// Use a random (v4) UUID for the one-time upload token path so it is not
-	// predictable, matching the generator used in storage/utils.go.
-	id := uuid.NewString()
-	err := server.cache.SetWithTTL(ctx, id, []byte(filename), ttl)
-	if err != nil {
-		return "", err
-	}
-	return id, nil
+func defaultCreateFileKey(context.Context) (string, error) {
+	// A random (v4) UUID keeps the one-time upload token path unpredictable,
+	// matching the generator used in storage/utils.go.
+	return uuid.NewString(), nil
 }
 
 func defaultUploadSuccessWithData(ctx httpx.Context, key, url string) error {
