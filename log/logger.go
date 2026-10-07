@@ -138,11 +138,8 @@ func init() {
 // Close for exactly this — see MultiBackend.Close and zapx.Backend.Close.
 //
 // Calling it with no usable backend — an empty list, or only nil values — leaves
-// the current logger in place and reports the problem on stderr. Installing a
-// silent logger there would turn a configuration mistake (a builder returning
-// nil on one branch) into a process with no logs at all, which is both
-// undetectable from the call site, since this function returns nothing, and
-// worst felt exactly when something is already wrong. Pass NewNopBackend()
+// the current logger in place and reports the problem on stderr, so a
+// misconfigured builder cannot silently disable logging. Pass NewNopBackend()
 // to discard logs deliberately.
 func InitWithBackends(backends ...Backend) {
 	// Counted on the input rather than checked on the result: NewMultiBackend

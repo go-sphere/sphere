@@ -245,13 +245,8 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 	// executable, and attachment disposition stops the declared type from
 	// rendering at all. See WithInlineDownload for opting out.
 	sharedHeaders["X-Content-Type-Options"] = "nosniff"
-	// The named wildcard registers as-is on every adapter: those whose router
-	// has no named wildcards rewrite it internally and keep Param("filename")
-	// resolving. Calling FixWildcardPathIfNeed here and registering its result
-	// was the old way, and is now wrong as well as redundant — the result is the
-	// anonymous form, which httpx rejects at registration from v0.0.5 because
-	// gin and hertz never accepted it and the three that did disagreed on the
-	// parameter's key.
+	// The named wildcard registers as-is on every adapter; do not pass it
+	// through FixWildcardPathIfNeed, whose anonymous form httpx rejects.
 	route.Handle(http.MethodGet, "/*filename", func(ctx httpx.Context) error {
 		filename := normalizeWildcardParam(ctx.Param("filename"))
 		if filename == "" {

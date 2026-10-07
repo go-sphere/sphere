@@ -71,13 +71,8 @@ func run(ctx context.Context, t task.Task, options *options) error {
 
 	log.Infof("Initiating shutdown due to: %s", shutdownReason)
 
-	// Bound the before-stop hooks with their own window of the same length.
-	// They previously ran on the run ctx, which has no deadline, so a hook
-	// that honours its context but hangs (e.g. notifying an unresponsive peer
-	// that this instance is draining) could stall shutdown past
-	// WithShutdownTimeout indefinitely. A separate window, rather than sharing
-	// the Task.Stop deadline, keeps a slow hook from starving Stop of its
-	// budget.
+	// Before-stop hooks get their own shutdown window, so a hanging hook
+	// cannot stall shutdown indefinitely or eat into Task.Stop's budget.
 	hookCtx, hookCancel := newShutdownContext(options.shutdownTimeout)
 	defer hookCancel()
 
@@ -134,10 +129,8 @@ func run(ctx context.Context, t task.Task, options *options) error {
 // handling rather than subscribing to every signal.
 //
 // A clean signal-triggered shutdown returns nil. It returns non-nil when a hook,
-// a task's Stop, or a task's Start reports a failure — including failures that
-// occur while the application is already shutting down, which earlier releases
-// dropped. Programs that exit non-zero on a non-nil result should be prepared for
-// shutdown-time task errors to become visible as failed exits.
+// a task's Stop, or a task's Start reports a failure, including failures that
+// occur while the application is already shutting down.
 //
 // If the task is a Group that has already finished, Stop returns the same result
 // Start did; that error is reported once, not joined a second time as a start error.

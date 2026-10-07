@@ -271,9 +271,8 @@ func (s *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 		return storage.DownloadResult{}, err
 	}
 	// A single GET supplies both the body and its metadata. minio's lazy
-	// Object would HEAD first and then fetch the body with If-Match on the
-	// HEAD's ETag, so an overwrite in between failed the read mid-stream with
-	// 412 after Size and MIME had already been reported for the old version.
+	// Object would HEAD first and then GET with If-Match, so a concurrent
+	// overwrite would fail the read mid-stream with 412.
 	body, info, _, err := minio.Core{Client: s.client}.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
 	if err != nil {
 		if isNoSuchKeyError(err) {

@@ -153,12 +153,10 @@ func (m *CodecCache[T]) MultiGet(ctx context.Context, keys []string) (map[string
 		}
 		var val T
 		if err = m.codec.Unmarshal(raw, &val); err != nil {
-			// Skip the entry instead of failing the batch. A single undecodable
-			// value — written under an older schema, or by a different type
-			// sharing the key space — used to discard every other result in the
-			// request. Do not delete it here: another caller may have repaired the
-			// key since MultiGet took its snapshot. Single-key Get also leaves an
-			// undecodable entry in place; GetDel has atomically consumed it.
+			// Skip an undecodable entry (older schema, or another type sharing the
+			// key space) instead of failing the whole batch. It is not deleted:
+			// another caller may have repaired the key since the snapshot, and
+			// single-key Get leaves such entries in place too.
 			log.Warn("cache: skipping undecodable entry",
 				log.String("key", key),
 				log.Err(err),

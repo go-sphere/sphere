@@ -23,14 +23,8 @@ var errCacheQueueFull = errors.New("reverseproxy: cache queue is full")
 // cacheQueue is the hand-off between the goroutine copying the upstream body
 // to the client and the goroutine saving that body to the cache.
 //
-// It replaces the io.Pipe the pair used to share. A pipe write returns only
-// once the reader has consumed the bytes, and that reader is cache.Save, which
-// writes to the configured backend between reads: a backend that stalls — a
-// remote cache on a congested link, a lock held by another writer — therefore
-// blocked the copy loop, which (a) throttled the client's download to the
-// cache's write speed and (b) if the backend never consumed at all, parked the
-// response goroutine for good, since the loop never got back around to the
-// client write that would have noticed the disconnect. The cache is
+// Unlike an io.Pipe, a write never waits for the reader (cache.Save), so a
+// stalled cache backend cannot throttle or park the client copy. The cache is
 // best-effort; the client must not pay for it.
 //
 // Write enqueues a copy of the chunk and returns immediately. A full queue is

@@ -170,10 +170,9 @@ type taskResult struct {
 // NewManager creates a new task manager with no initial tasks.
 //
 // Unless WithManagerCleanupTimeout says otherwise it applies
-// defaultManagerCleanupTimeout, so a task whose Stop honours its context is given
-// a bounded budget instead of the unbounded one earlier releases used. A Stop
-// that legitimately needs longer must raise the bound explicitly, or pass 0 to
-// restore an unbounded cleanup context.
+// defaultManagerCleanupTimeout as each task's Stop budget. A Stop that
+// legitimately needs longer must raise the bound, or pass 0 for an unbounded
+// cleanup context.
 func NewManager(options ...ManagerOption) *Manager {
 	opts := managerOptions{cleanupTimeout: defaultManagerCleanupTimeout}
 	for _, option := range options {
@@ -288,12 +287,9 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 // the cached result is final rather than a stop that never happened.
 // It waits for both Stop and Start goroutines to finish.
 //
-// Note the consequence for a task that already finished cleanly: its cached
-// result is nil, so StopTask returns nil where earlier releases returned
-// ErrTaskNotFound. Code using that error to detect "this task is no longer
-// running" will now read the nil as success and take the wrong branch. The
-// return value cannot distinguish "I stopped it" from "it was already gone";
-// use IsRunning before calling, or GetTaskResult, when that difference matters.
+// A task that already finished cleanly therefore yields nil: the return value
+// cannot distinguish "I stopped it" from "it was already gone". Use IsRunning
+// or GetTaskResult when that difference matters.
 // If the caller ctx expires first, StopTask returns ctx.Err(), but internal stopping continues in background.
 // The provided context only bounds the caller's wait; the task Stop call uses
 // the cleanup context configured by WithManagerCleanupTimeout.

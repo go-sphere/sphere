@@ -49,12 +49,9 @@ func (a *Application) Identifier() string {
 // Start begins all managed tasks in the application and reports whatever the
 // underlying group reports.
 //
-// A graceful shutdown still yields nil: the group already discards the
-// context.Canceled results its own teardown provokes, so there is nothing here
-// left to filter. What Start no longer does is blanket-swallow context.Canceled,
-// which previously also masked genuine task failures that happened to occur
-// while the group was tearing down. Callers mapping a non-nil result to a
-// non-zero exit code should expect to see those failures surface.
+// A graceful shutdown yields nil: the group discards the context.Canceled
+// results its own teardown provokes. A task that genuinely fails during
+// teardown is still reported, even if its error wraps context.Canceled.
 func (a *Application) Start(ctx context.Context) error {
 	return a.group.Start(ctx)
 }

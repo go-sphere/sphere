@@ -376,12 +376,9 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 		// goroutine to save cache
 		safe.Go(func() {
 			defer cacheFlags.Delete(key)
-			// Detached from the request, but bounded. Detaching alone let a
-			// backend that never answers hold this goroutine and the key's
-			// cacheFlags entry for the life of the process — and because the
-			// flag is only cleared here, that key was never cached again either.
-			// The copy goroutine is no longer among the things a stalled backend
-			// can hold: the queue above caps how long it waits for this side.
+			// Detached from the request but bounded: a backend that never answers
+			// must not hold this goroutine and the key's cacheFlags entry (which is
+			// only cleared here) forever.
 			ctx, cancel := context.WithTimeout(context.WithoutCancel(resp.Request.Context()), conf.saveTimeout)
 			defer cancel()
 			// Persist the real status code inside the header blob so it can be

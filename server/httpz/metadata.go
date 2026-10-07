@@ -29,13 +29,9 @@ func joinPaths(absolutePath, relativePath string) string {
 // Each route is [3]string{operation, method, path}; path is joined onto base,
 // preserving a trailing slash.
 //
-// The registered path is the only key. Named-wildcard routes used to be indexed
-// a second time in anonymous form ("/files/*") because echox and fiberx
-// rewrote "/files/*name" at registration and leaked the rewritten pattern from
-// FullPath; httpx v0.0.5 reports the pattern the caller registered on all five
-// adapters, so that second dialect cannot be produced any more — and the
-// anonymous form is rejected at registration. Pinned against real adapters by
-// TestMatchOperationWithNamedWildcard.
+// The registered path is the only key: every httpx adapter reports the
+// pattern the caller registered from FullPath, named wildcards included
+// (TestMatchOperationWithNamedWildcard).
 func EndpointsToMatches(base string, endpoints ...[][3]string) map[string]map[string]string {
 	matches := make(map[string]map[string]string)
 	for _, list := range endpoints {

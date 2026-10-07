@@ -117,11 +117,7 @@ func (s *VerificationStorage) forgetIdle(number string, now time.Time) {
 
 // rollWindow resets a rate-limit counter whose window has elapsed and anchors a
 // new window at now. It runs before the limit is checked, so the window rolls on
-// its own schedule. Previously a counter was only reset once it had already hit
-// its limit, which made both windows cumulative rather than rolling: a number
-// used a couple of times a day kept accumulating across days until it was
-// refused for exceeding a "daily" limit it never reached on any single day, and
-// could only recover by going completely silent for 24 hours.
+// its own schedule and counts never accumulate across windows.
 func (s *VerificationStorage) rollWindow(number string, now time.Time, window time.Duration, counts map[string]int, starts map[string]time.Time) {
 	start, ok := starts[number]
 	if !ok || now.Sub(start) >= window {

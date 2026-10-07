@@ -41,14 +41,10 @@ const baseTimeMillis int64 = 1704016800000
 //
 // An unset value keeps defaultWorkerID, the correct choice for a single-instance
 // deployment. Anything else must parse into [0, maxWorkerID] or the process
-// fails: this package promises globally unique IDs, and that promise cannot be
-// kept by guessing. Falling back to a fixed ID on a malformed value is the worst
-// available outcome — two replicas silently share a worker ID and emit
-// colliding IDs, which typically surfaces much later as a duplicate primary key
-// or as records attributed to the wrong entity.
+// fails: falling back to a fixed ID would let two replicas silently share a
+// worker ID and emit colliding IDs.
 //
-// Zero is explicitly valid. Rejecting it used to collide pod-0 with pod-1 under
-// the standard StatefulSet pattern of deriving WORKER_ID from the pod ordinal.
+// Zero is valid, so WORKER_ID can be the StatefulSet pod ordinal.
 func parseWorkerID(raw string) (uint16, error) {
 	if raw == "" {
 		return defaultWorkerID, nil

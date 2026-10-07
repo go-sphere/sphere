@@ -13,8 +13,9 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// ErrPubSubClosed is kept as an alias for callers that previously matched the
-// driver-specific error. New code should match mq.ErrPubSubClosed.
+// ErrPubSubClosed is an alias of mq.ErrPubSubClosed.
+//
+// Deprecated: match mq.ErrPubSubClosed instead.
 var ErrPubSubClosed = mq.ErrPubSubClosed
 
 type subscription[T any] struct {

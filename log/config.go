@@ -66,17 +66,9 @@ func DisableCaller() Option {
 // Stack traces help debug issues by showing the full call chain.
 // It only controls stack trace attachment; it does not filter out log entries.
 //
-// The StdioBackend used to misread this option as a minimum-level filter, so
-// WithStackAt(LevelError) both suppressed everything below Error and attached no
-// stack. It now does what its name says. Code that relied on the old behaviour
-// gets hit twice — every Debug/Info entry starts being emitted, and every Error
-// entry starts carrying a full goroutine stack — so switch it to WithMinLevel:
+// Use WithMinLevel to filter entries; combine the two when both are wanted:
 //
-//	NewStdioBackend(WithStackAt(LevelError))   // was: filter at Error
-//	NewStdioBackend(WithMinLevel(LevelError))  // now: filter at Error
-//
-// Keep WithStackAt only where a stack trace is actually wanted, and combine the
-// two when both are: WithMinLevel(LevelInfo), WithStackAt(LevelError).
+//	NewStdioBackend(WithMinLevel(LevelInfo), WithStackAt(LevelError))
 func WithStackAt(level Level) Option {
 	return func(o *Options) {
 		l := level

@@ -257,10 +257,8 @@ func (e *BaseEncoding) decodeBitwise(data string, bitsPerChar int) ([]byte, erro
 	}
 
 	// Reject anything the encoder could not have produced, so a value has exactly
-	// one valid encoding. Both checks below used to pass silently, which let
-	// distinct strings decode to identical bytes — ruinous wherever an encoded
-	// string is used as an identifier, because two of them then denote the same
-	// entity and slip past any deduplication done on the string.
+	// one valid encoding: otherwise distinct strings used as identifiers could
+	// decode to the same bytes.
 	//
 	// A trailing partial group is padding and must be zero: with 5 bits per
 	// character the last character of a 13-character base32 string contributes

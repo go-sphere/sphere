@@ -81,10 +81,6 @@ const fallbackCleanupBudget = 2 * time.Second
 // with no context of its own, so an unbounded budget lets one task that never
 // returns from Stop keep the group stopping permanently. That is why the
 // default is defaultCleanupTimeout (30s), matching WithManagerCleanupTimeout.
-//
-// This replaces WithAutoStopTimeout, which was removed without an alias. The
-// behaviour is unchanged — the old name never bounded Group.Stop's wait
-// either — so the migration is a rename and nothing more.
 func WithCleanupTimeout(timeout time.Duration) GroupOption {
 	return func(o *groupOptions) {
 		o.cleanupTimeout = timeout
