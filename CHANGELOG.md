@@ -82,6 +82,22 @@ httpz.SetDefaultErrorParser(func(err error) (int32, int32, string) {
 })
 ```
 
+**`jwtauth.ParseToken` rejects tokens without `exp`** (silent)
+
+A token whose claims carry no `exp` used to validate forever; it now fails
+with `jwt.ErrTokenRequiredClaimMissing`. Tokens built with `NewRBACClaims`
+always carry `exp` and are unaffected. Set `ExpiresAt` on custom claims.
+
+**`fileserver` namespaces upload tokens; `WithCreateFileKey` only generates
+the token**
+
+Upload tokens are stored under the `sphere-upload-token:` prefix in the
+injected cache, so the public PUT route can no longer read or delete other
+entries of a shared cache by naming their key in the URL. Tokens issued before
+the upgrade stop working. `WithCreateFileKey` now takes
+`func(ctx context.Context) (string, error)` and returns just the token; the
+FileServer stores it with the resolved TTL.
+
 ### Fixes
 
 Storage driver fixes since v0.0.6, each described in
@@ -99,6 +115,15 @@ Storage driver fixes since v0.0.6, each described in
   `Config.PartSize` (default 16 MiB, minimum 5 MiB) sets the buffer and caps
   objects uploaded through `UploadFile` at `PartSize * 10000` (~156 GiB by
   default); `UploadLocalFile` is unaffected.
+
+Other fixes:
+
+- `task.Manager` no longer deadlocks when a running task calls `StartTask`
+  while `Wait` or `StopAll` is in progress; `Wait` also waits for tasks
+  started that way.
+- `urlhandler` (and the s3, qiniu and fileserver URLs built on it) escapes each
+  key segment, so keys containing `%`, `?`, `#` or spaces produce URLs that map
+  back to the same key instead of a different one or `""`.
 
 ### Earlier changes that shipped without a changelog
 
