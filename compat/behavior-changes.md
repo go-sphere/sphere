@@ -300,7 +300,7 @@ no error, because ristretto reports reads on a closed cache as not-found.
 
 ## Silent changes outside `cache/`
 
-The scope note above was written before these were confirmed. All six are
+The scope note above was written before these were confirmed. All of them are
 behaviour changes with identical signatures, verified against the source and
 recorded here because nothing else in this file covers them.
 
@@ -421,6 +421,34 @@ return when the run context is done. `Stop` is the cleanup half of `task.Task`;
 cancelling the context without `Stop` leaves cron/asynq live. `boot.Run` and
 `task.Group` always `Stop`. (`scheduler/cron/scheduler.go`,
 `scheduler/asynq/scheduler.go`)
+
+### `WithFormFileReader` answers an oversize file with 413, not 400
+
+`httpz.WithFormFileReader` and `WithFormFileBytes` used to reject a file larger
+than `WithFormMaxSize` with 400. They now answer 413, and a declared
+`Content-Length` above the limit plus 1 MiB is rejected before the multipart
+body is parsed. Clients matching on 400 for this case must also accept 413.
+(`server/httpz/file.go`)
+
+### `jwtauth.ParseToken` errors render 401, not 500
+
+`ParseToken` used to return the bare golang-jwt error, which `httpz` renders as
+500. It now returns a 401 `httpx.StatusError` wrapping it;
+`errors.Is(err, jwt.ErrTokenExpired)` and similar still match. A handler that
+returns the error unchanged (for example a refresh endpoint given an expired
+token) now answers 401. (`server/auth/jwtauth/jwt.go`)
+
+### Read-through loaders rebuild an undecodable entry
+
+`cache.GetEx`, `GetObjectEx` and `GetJsonEx` used to return the decode error
+when a cached entry could not be decoded (for example one written under an
+older schema), so every read failed until the entry expired. They now treat it
+as a miss: the builder runs and the entry is overwritten. Callers that relied
+on seeing the decode error no longer get it unless the builder is nil, in
+which case the decode error is still returned. `GetObject`, `GetJson` and
+`CodecCache.Get` still return it, wrapping the new `cache.ErrDecode`, and now
+return the zero value alongside it instead of whatever the codec had partially
+decoded before failing. (`cache/loader.go`, `cache/codec_cache.go`)
 
 ## Per package
 

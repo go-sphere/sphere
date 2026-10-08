@@ -124,6 +124,41 @@ Other fixes:
 - `urlhandler` (and the s3, qiniu and fileserver URLs built on it) escapes each
   key segment, so keys containing `%`, `?`, `#` or spaces produce URLs that map
   back to the same key instead of a different one or `""`.
+- `httpz.WithRecover` (and so `WithJson` and the other wrappers) and
+  `httpz.AbortWithJsonError` no longer append a JSON error document to a
+  response the handler already committed; the error or panic is logged at
+  Warn level and nothing more is written. This needs a context exposing
+  `Committed() bool`, which `httpx.Context` gains after v0.0.5; under httpx
+  v0.0.5 the error is still written.
+- The read-through loaders `cache.GetEx`, `GetObjectEx` and `GetJsonEx` treat
+  an undecodable cached entry (for example one written under an older schema)
+  as a miss: the builder runs and overwrites it, instead of every read failing
+  until the entry expires. New `cache.ErrDecode`: `GetObject`, `GetJson` and
+  `CodecCache.Get` return decode failures wrapping it (the codec error is
+  still reachable with `errors.As`), together with the zero value instead of
+  a partially decoded one. With a nil builder the loaders return the decode
+  error, since nothing can rebuild the entry.
+- `memory` caches set ristretto's `IgnoreInternalCost`, so `UpdateMaxCost(n)`
+  holds n items (`NewMemoryCache`) or n value bytes (`NewByteCache`) instead of
+  far fewer once ristretto's per-item overhead was added to each cost.
+- `nscache.NSCache.DelAll` deletes in batches of at most 1000 keys, so a large
+  namespace over badger no longer fails with `ErrTxnTooBig`.
+- `scheduler/cron`: when the last waiting `Stop` times out, the handler
+  context is cancelled, so a job watching `ctx.Done()` can abort before the
+  process exits instead of running on until it is killed.
+- `jwtauth.ParseToken` errors are 401 `httpx.StatusError`s wrapping the
+  golang-jwt error (`errors.Is(err, jwt.ErrTokenExpired)` still matches), so a
+  handler returning them unchanged, such as a refresh endpoint given an
+  expired token, renders 401 instead of 500.
+- New `fileserver.WithMaxUploadSize(n)` bounds the `RegisterFileUploader` PUT
+  body: a declared `Content-Length` over n answers 413 before the token is
+  spent, and a body streaming past n is cut off with 413. Uploads stay
+  unbounded by default.
+- `httpz.WithFormFileReader`/`WithFormFileBytes` answer an oversize file with
+  **413 instead of 400** (behaviour change for clients matching on the status),
+  and reject a declared `Content-Length` above `WithFormMaxSize` plus 1 MiB
+  before the multipart body is parsed. Chunked bodies are still parsed in full
+  by the adapter before the size check.
 
 ### Earlier changes that shipped without a changelog
 
