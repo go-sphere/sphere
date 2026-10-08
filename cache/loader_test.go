@@ -345,8 +345,9 @@ func TestGetJsonExReadThrough(t *testing.T) {
 	}
 }
 
-// TestGetJsonExCorruptEntry: an undecodable cached entry is a read error,
-// not a miss — the builder is not consulted and the entry is left in place.
+// TestGetJsonExCorruptEntry: an undecodable cached entry is a miss for the
+// read-through loader — the builder runs and its result overwrites the entry —
+// while the plain GetJson read reports ErrDecode and the codec error.
 func TestGetJsonExCorruptEntry(t *testing.T) {
 	t.Parallel()
 
@@ -360,20 +361,95 @@ func TestGetJsonExCorruptEntry(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
-	called := false
-	_, found, err := cache.GetJsonEx(ctx, c, "k", func() (payload, error) {
-		called = true
+	_, found, err := cache.GetJson[payload](ctx, c, "k")
+	if _, ok := errors.AsType[*json.SyntaxError](err); !ok || !errors.Is(err, cache.ErrDecode) || found {
+		t.Fatalf("GetJson corrupt = (found=%v, err=%v), want ErrDecode wrapping json.SyntaxError", found, err)
+	}
+
+	calls := 0
+	got, found, err := cache.GetJsonEx(ctx, c, "k", func() (payload, error) {
+		calls++
 		return payload{N: 1}, nil
 	})
-	if _, ok := errors.AsType[*json.SyntaxError](err); !ok || found {
-		t.Fatalf("GetJsonEx corrupt = (found=%v, err=%v), want json.SyntaxError", found, err)
-	}
-	if called {
-		t.Fatalf("builder ran for an undecodable entry")
+	if err != nil || !found || got.N != 1 || calls != 1 {
+		t.Fatalf("GetJsonEx corrupt = (%v, %v, %v), calls=%d, want rebuilt value", got, found, err, calls)
 	}
 	raw, ok, _ := c.Get(ctx, "k")
-	if !ok || string(raw) != "not-json" {
-		t.Fatalf("corrupt entry was modified: (%q, %v)", raw, ok)
+	if !ok || string(raw) != `{"n":1}` {
+		t.Fatalf("entry not overwritten: (%q, %v)", raw, ok)
+	}
+}
+
+// TestGetJsonExSchemaChange: an entry written under an older schema whose
+// field type changed is rebuilt once and then served from the cache.
+func TestGetJsonExSchemaChange(t *testing.T) {
+	t.Parallel()
+
+	type v1 struct {
+		ID string `json:"id"`
+	}
+	type v2 struct {
+		ID int64 `json:"id"`
+	}
+
+	ctx := t.Context()
+	c := mcache.NewByteCache()
+	if err := cache.SetJson(ctx, c, "user:1", v1{ID: "abc"}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	calls := 0
+	builder := func() (v2, error) {
+		calls++
+		return v2{ID: 7}, nil
+	}
+	for i := range 3 {
+		got, found, err := cache.GetJsonEx(ctx, c, "user:1", builder)
+		if err != nil || !found || got.ID != 7 {
+			t.Fatalf("read %d = (%v, %v, %v), want ({7}, true, nil)", i, got, found, err)
+		}
+	}
+	if calls != 1 {
+		t.Fatalf("builder calls = %d, want 1", calls)
+	}
+}
+
+// TestGetExCodecCacheDecodeErrorIsMiss: GetEx over a CodecCache rebuilds an
+// undecodable entry, since CodecCache.Get reports it as ErrDecode.
+func TestGetExCodecCacheDecodeErrorIsMiss(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	inner := mcache.NewByteCache()
+	if err := inner.Set(ctx, "k", []byte("{bad")); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	typed := cache.NewJsonCache[int](inner)
+	got, found, err := cache.GetEx(ctx, typed, "k", func() (int, error) { return 5, nil })
+	if err != nil || !found || got != 5 {
+		t.Fatalf("GetEx = (%d, %v, %v), want (5, true, nil)", got, found, err)
+	}
+	if raw, _, _ := inner.Get(ctx, "k"); string(raw) != "5" {
+		t.Fatalf("entry = %q, want 5", raw)
+	}
+}
+
+// TestGetJsonExNilBuilderDecodeError: with no builder an undecodable entry
+// cannot be rebuilt, so the decode error is returned and the entry is kept.
+func TestGetJsonExNilBuilderDecodeError(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	c := mcache.NewByteCache()
+	if err := c.Set(ctx, "k", []byte("{bad")); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	got, found, err := cache.GetJsonEx[int](ctx, c, "k", nil)
+	if !errors.Is(err, cache.ErrDecode) || found || got != 0 {
+		t.Fatalf("GetJsonEx nil builder = (%d, %v, %v), want (0, false, ErrDecode)", got, found, err)
+	}
+	if raw, ok, _ := c.Get(ctx, "k"); !ok || string(raw) != "{bad" {
+		t.Fatalf("entry = (%q, %v), want untouched", raw, ok)
 	}
 }
 

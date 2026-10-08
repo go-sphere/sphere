@@ -242,7 +242,8 @@ func (d *Database) MultiDel(ctx context.Context, keys []string) error {
 const delAllBatchSize = 1000
 
 // DelAll removes every entry by enumerating the keyspace and deleting in
-// bounded batches, mirroring nscache.NSCache.DelAll.
+// batches of at most 1000 keys per transaction (nscache.NSCache.DelAll uses
+// the same bound).
 //
 // It deliberately avoids badger's DropAll, which is documented as safe against
 // concurrent writes but not against concurrent reads — the caller is expected to

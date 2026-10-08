@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -198,4 +199,54 @@ func TestGetDelIsAtomicWithSet(t *testing.T) {
 			t.Fatalf("cleanup attempt %d (final=%q): %v", i, final, err)
 		}
 	}
+}
+
+// TestUpdateMaxCostCapacity pins that MaxCost counts what the constructors
+// document — items for NewMemoryCache, value bytes for NewByteCache — and not
+// ristretto's internal per-item overhead on top.
+func TestUpdateMaxCostCapacity(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("items", func(t *testing.T) {
+		c := NewMemoryCache[int]()
+		t.Cleanup(func() { _ = c.Close() })
+		c.UpdateMaxCost(100)
+		for i := range 100 {
+			if err := c.Set(ctx, fmt.Sprintf("k%d", i), i); err != nil {
+				t.Fatalf("Set: %v", err)
+			}
+		}
+		if n := countPresent(t, c, 100); n != 100 {
+			t.Fatalf("present after 100 sets with UpdateMaxCost(100) = %d, want 100", n)
+		}
+	})
+
+	t.Run("bytes", func(t *testing.T) {
+		c := NewByteCache()
+		t.Cleanup(func() { _ = c.Close() })
+		c.UpdateMaxCost(1000)
+		for i := range 10 {
+			if err := c.Set(ctx, fmt.Sprintf("k%d", i), make([]byte, 100)); err != nil {
+				t.Fatalf("Set: %v", err)
+			}
+		}
+		if n := countPresent(t, c, 10); n != 10 {
+			t.Fatalf("present after 10x100B sets with UpdateMaxCost(1000) = %d, want 10", n)
+		}
+	})
+}
+
+func countPresent[T any](t *testing.T, c *Cache[T], n int) int {
+	t.Helper()
+	present := 0
+	for i := range n {
+		ok, err := c.Exists(context.Background(), fmt.Sprintf("k%d", i))
+		if err != nil {
+			t.Fatalf("Exists: %v", err)
+		}
+		if ok {
+			present++
+		}
+	}
+	return present
 }

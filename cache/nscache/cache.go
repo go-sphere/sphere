@@ -126,23 +126,32 @@ func (n *NSCache[S]) MultiSetWithTTL(ctx context.Context, valMap map[string]S, e
 }
 
 // DelAll removes every key in this namespace by listing them with Keys and
-// deleting them with MultiDel, both of which stay inside the namespace. It
+// deleting them with MultiDel in batches of at most 1000 keys, both of which
+// stay inside the namespace. Batching keeps each delete within backend limits
+// (badger's transaction size, a single redis DEL's argument count). It
 // therefore inherits the Keys requirement: the wrapped cache must implement
 // cache.KeyLister, otherwise DelAll returns cache.ErrNotSupported rather than
 // risk wiping keys belonging to a sibling namespace on the same backend.
 //
 // The listing and the deletion are not atomic: keys written in between
-// survive.
+// survive. A failing batch stops DelAll; earlier batches stay deleted.
 func (n *NSCache[S]) DelAll(ctx context.Context) error {
 	keys, err := n.Keys(ctx, "")
 	if err != nil {
 		return err
 	}
-	if len(keys) == 0 {
-		return nil
+	for len(keys) > 0 {
+		batch := keys[:min(len(keys), delAllBatchSize)]
+		if err := n.MultiDel(ctx, batch); err != nil {
+			return err
+		}
+		keys = keys[len(batch):]
 	}
-	return n.MultiDel(ctx, keys)
+	return nil
 }
+
+// delAllBatchSize bounds how many keys DelAll passes to one MultiDel call.
+const delAllBatchSize = 1000
 
 // Keys lists the keys in this namespace whose unprefixed name starts with
 // prefix. The namespace prefix is stripped from the result, so the returned

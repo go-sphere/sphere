@@ -69,8 +69,8 @@ func TestCodecCacheCorruptEntry(t *testing.T) {
 	seedRaw(t, inner, map[string]string{"good": "1", "bad": "{not-json", "also": "3"})
 
 	val, found, err := typed.Get(ctx, "bad")
-	if err == nil || found || val != 0 {
-		t.Fatalf("Get(bad) = (%d, %v, %v), want (0, false, decode error)", val, found, err)
+	if !errors.Is(err, cache.ErrDecode) || found || val != 0 {
+		t.Fatalf("Get(bad) = (%d, %v, %v), want (0, false, ErrDecode)", val, found, err)
 	}
 	assertExists(t, inner, "bad", true)
 

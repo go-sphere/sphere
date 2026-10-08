@@ -449,3 +449,93 @@ func TestNSCacheDelAllOverNoCache(t *testing.T) {
 		t.Fatalf("Keys over nocache = %v, want empty", keys)
 	}
 }
+
+// multiDelRecorder records the size of every MultiDel call it forwards.
+type multiDelRecorder struct {
+	cache.ByteCache
+	batches []int
+}
+
+func (r *multiDelRecorder) MultiDel(ctx context.Context, keys []string) error {
+	r.batches = append(r.batches, len(keys))
+	return r.ByteCache.MultiDel(ctx, keys)
+}
+
+func (r *multiDelRecorder) Keys(ctx context.Context, prefix string) ([]string, error) {
+	return r.ByteCache.(cache.KeyLister).Keys(ctx, prefix)
+}
+
+// TestNSCacheDelAllBatches pins that DelAll never hands the backend more than
+// 1000 keys in one MultiDel, so a large namespace stays within badger's
+// transaction limit and redis's argument count.
+func TestNSCacheDelAllBatches(t *testing.T) {
+	ctx := context.Background()
+	inner := mcache.NewByteCache()
+	t.Cleanup(func() { _ = inner.Close() })
+	rec := &multiDelRecorder{ByteCache: inner}
+	ns := nscache.NewNSCache[[]byte]("sess", rec)
+	other := nscache.NewNSCache[[]byte]("other", rec)
+
+	const n = 2500
+	vals := make(map[string][]byte, n)
+	for i := range n {
+		vals[fmt.Sprintf("k%d", i)] = []byte("v")
+	}
+	if err := ns.MultiSet(ctx, vals); err != nil {
+		t.Fatalf("MultiSet: %v", err)
+	}
+	if err := other.Set(ctx, "keep", []byte("v")); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	if err := ns.DelAll(ctx); err != nil {
+		t.Fatalf("DelAll: %v", err)
+	}
+	total := 0
+	for _, b := range rec.batches {
+		if b > 1000 {
+			t.Fatalf("MultiDel batch of %d keys, want <= 1000 (batches %v)", b, rec.batches)
+		}
+		total += b
+	}
+	if total != n {
+		t.Fatalf("deleted %d keys, want %d", total, n)
+	}
+	if keys, _ := ns.Keys(ctx, ""); len(keys) != 0 {
+		t.Fatalf("%d keys left in namespace", len(keys))
+	}
+	if ok, _ := other.Exists(ctx, "keep"); !ok {
+		t.Fatal("sibling namespace key was deleted")
+	}
+}
+
+// TestNSCacheDelAllLargeBadger runs DelAll over enough badger keys that a
+// single transaction would fail with ErrTxnTooBig.
+func TestNSCacheDelAllLargeBadger(t *testing.T) {
+	if testing.Short() {
+		t.Skip("writes 200k badger keys")
+	}
+	ctx := context.Background()
+	db, err := badgerdb.NewDatabase(badgerdb.Config{Path: t.TempDir()})
+	if err != nil {
+		t.Fatalf("create badgerdb: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ns := nscache.NewNSCache[[]byte]("sess", db)
+	const n = 200_000
+	for start := 0; start < n; start += 1000 {
+		vals := make(map[string][]byte, 1000)
+		for i := start; i < start+1000; i++ {
+			vals[fmt.Sprintf("k%d", i)] = []byte("v")
+		}
+		if err := ns.MultiSet(ctx, vals); err != nil {
+			t.Fatalf("MultiSet: %v", err)
+		}
+	}
+	if err := ns.DelAll(ctx); err != nil {
+		t.Fatalf("DelAll: %v", err)
+	}
+	if keys, _ := ns.Keys(ctx, ""); len(keys) != 0 {
+		t.Fatalf("%d keys left in namespace", len(keys))
+	}
+}

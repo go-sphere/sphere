@@ -47,7 +47,8 @@ type Cache[T any] struct {
 }
 
 // NewMemoryCache creates a new in-memory cache with default settings.
-// The cache uses a fixed cost of 1 per item and does not calculate actual memory usage.
+// The cache uses a fixed cost of 1 per item and does not calculate actual memory usage,
+// so MaxCost (see UpdateMaxCost) is a number of items.
 //
 // Construction cannot fail: ristretto.NewCache only errors when NumCounters,
 // MaxCost, or BufferItems is zero or negative, and the constants used here are
@@ -58,6 +59,9 @@ func NewMemoryCache[T any]() *Cache[T] {
 		NumCounters: defaultNumCounters,
 		MaxCost:     defaultMaxCost,
 		BufferItems: defaultBufferItems,
+		// Without this ristretto adds its per-item bookkeeping size to every
+		// cost, so MaxCost would no longer count items (or value bytes).
+		IgnoreInternalCost: true,
 	})
 	return &Cache[T]{
 		cache:         cache,
@@ -68,16 +72,19 @@ func NewMemoryCache[T any]() *Cache[T] {
 
 // NewMemoryCacheWithCost creates a new in-memory cache with a custom cost function.
 // The cost function determines the memory cost of each cached item, enabling memory-based eviction policies.
+// MaxCost is compared against the sum of these costs alone; ristretto's
+// internal per-item overhead is not added.
 //
 // Construction cannot fail for the same reason as NewMemoryCache: the
 // hardcoded config values are positive, and a nil cost falls back to
 // ristretto's own default.
 func NewMemoryCacheWithCost[T any](cost func(T) int64) *Cache[T] {
 	cache, _ := ristretto.NewCache[string, T](&ristretto.Config[string, T]{
-		NumCounters: defaultNumCounters,
-		MaxCost:     defaultMaxCost,
-		BufferItems: defaultBufferItems,
-		Cost:        cost,
+		NumCounters:        defaultNumCounters,
+		MaxCost:            defaultMaxCost,
+		BufferItems:        defaultBufferItems,
+		Cost:               cost,
+		IgnoreInternalCost: true,
 	})
 	return &Cache[T]{
 		cache:         cache,

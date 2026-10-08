@@ -4,12 +4,26 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/go-sphere/confstore/codec"
+	"github.com/go-sphere/sphere/log"
 	"golang.org/x/sync/singleflight"
 )
+
+// ErrDecode wraps the codec error returned when a stored entry exists but
+// cannot be decoded into the requested type (an older schema, or another type
+// sharing the key). GetObject, GetJson and CodecCache.Get return it joined with
+// the codec's own error, so errors.Is(err, ErrDecode) and errors.As on the
+// codec error type both work. The read-through loaders (GetEx, GetObjectEx,
+// GetJsonEx) treat it as a miss.
+var ErrDecode = errors.New("cache: undecodable entry")
+
+func decodeError(err error) error {
+	return fmt.Errorf("%w: %w", ErrDecode, err)
+}
 
 // ErrTTLCalculatorType is returned when a WithDynamicTTL calculator receives a
 // value of a different type than its type parameter, or is nil. SetObject hands
@@ -139,6 +153,7 @@ func SetJson[T any](ctx context.Context, c ExpirableByteCache, key string, value
 
 // GetObject retrieves and decodes a typed object from a byte cache using the provided decoder.
 // Returns the decoded object, whether it was found, and any error that occurred during retrieval or decoding.
+// A decode failure returns found=false and an error wrapping ErrDecode; the entry is left in place.
 func GetObject[T any, D codec.Decoder](ctx context.Context, c ExpirableByteCache, d D, key string) (T, bool, error) {
 	data, found, err := c.Get(ctx, key)
 	var value T
@@ -150,7 +165,8 @@ func GetObject[T any, D codec.Decoder](ctx context.Context, c ExpirableByteCache
 	}
 	err = d.Unmarshal(data, &value)
 	if err != nil {
-		return value, false, err
+		var zero T
+		return zero, false, decodeError(err)
 	}
 	return value, true, nil
 }
@@ -172,6 +188,12 @@ type FetchCached[T any] = func() (obj T, err error)
 // result. A builder error is returned with found=false and nothing is stored.
 // A failed cache write after a successful builder is ignored: GetEx still
 // returns (obj, true, nil). A nil builder on a miss returns (zero, false, nil).
+//
+// A cached entry that the getter reports as undecodable (an error wrapping
+// ErrDecode) is logged at Warn level and treated as a miss: builder runs and
+// its result overwrites the entry. With a nil builder nothing can replace the
+// entry, so the decode error is returned instead. Any other getter error is
+// returned without calling builder.
 func GetEx[T any](ctx context.Context, c ExpirableCache[T], key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return load[T](
 		ctx,
@@ -186,7 +208,8 @@ func GetEx[T any](ctx context.Context, c ExpirableCache[T], key string, builder 
 }
 
 // GetObjectEx is GetEx for a byte cache with an explicit decoder/encoder.
-// Setter errors after a successful builder are ignored, same as GetEx.
+// Setter errors after a successful builder are ignored and an undecodable
+// entry is rebuilt and overwritten, same as GetEx.
 func GetObjectEx[T any, D codec.Decoder, E codec.Encoder](ctx context.Context, c ExpirableByteCache, d D, e E, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return load[T](
 		ctx,
@@ -218,8 +241,15 @@ func load[T any](
 	opts := newOptions(options...)
 	obj, found, gErr := getter(ctx, key)
 	if gErr != nil {
-		var zero T
-		return zero, false, gErr
+		if !errors.Is(gErr, ErrDecode) || builder == nil {
+			var zero T
+			return zero, false, gErr
+		}
+		log.Warn("cache: rebuilding undecodable entry",
+			log.String("key", key),
+			log.Err(gErr),
+		)
+		found = false
 	}
 	if found {
 		return obj, true, nil
