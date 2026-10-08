@@ -64,10 +64,10 @@ github.com/go-playground/form/v4 v4.3.1 h1:g25h89QehzGCKiZe9J36JIsVx+NZuz/36lCun
 github.com/go-playground/form/v4 v4.3.1/go.mod h1:Cpe1iYJKoXb1vILRXEwxpWMGWyQuqplQ/4cvPecy+Jo=
 github.com/go-sphere/confstore v0.0.5 h1:En4PlOiGzowLdWNQEiFLAFvFbtrMSCXV2a8IBm8QmMA=
 github.com/go-sphere/confstore v0.0.5/go.mod h1:iZU3NFfMOgfzlJSh3i3NnPGoG0nSDo4eiIbxdOYPBV0=
-github.com/go-sphere/httpx v0.0.5 h1:HFm1LZpSc1uU9PliahLWHzDjuTz29R77zIbi1Bq3P1U=
-github.com/go-sphere/httpx v0.0.5/go.mod h1:Ax1OSjws2m1bP44KFObMzPrroThH+a/8N6ACU5a2rYg=
-github.com/go-sphere/httpx/stdx v0.0.5 h1:3WmlmU+66cxkumJFnqzJUVo0BEJoCLEyCbHwIqDay/I=
-github.com/go-sphere/httpx/stdx v0.0.5/go.mod h1:xJg8rZln3Y6vJLx+zcUdH41fJj3TL/Hs+EkYuPd6Hd8=
+github.com/go-sphere/httpx v0.0.6 h1:PpDVbyNV2GR1bMmyCeMJpDB+PpcDqU+YwDi0dMNTBKU=
+github.com/go-sphere/httpx v0.0.6/go.mod h1:Ax1OSjws2m1bP44KFObMzPrroThH+a/8N6ACU5a2rYg=
+github.com/go-sphere/httpx/stdx v0.0.6 h1:6GNe3jfUnA1MX91N56PGOR3mb9WXqZpvNK8a+VzCId8=
+github.com/go-sphere/httpx/stdx v0.0.6/go.mod h1:NhyrlfRIm7lzeIwuZsnhAJ8fV1xA9J5mNd/zytCO8tQ=
 github.com/gofrs/flock v0.13.0 h1:95JolYOvGMqeH31+FC7D2+uULf6mG61mEZ/A8dRYMzw=
 github.com/gofrs/flock v0.13.0/go.mod h1:jxeyy9R1auM5S6JYDBhDt+E2TCo7DkratH4Pgi8P+Z0=
 github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=

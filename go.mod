@@ -7,7 +7,7 @@ require (
 	github.com/dgraph-io/badger/v4 v4.9.6
 	github.com/dgraph-io/ristretto/v2 v2.4.2
 	github.com/go-sphere/confstore v0.0.5
-	github.com/go-sphere/httpx v0.0.5
+	github.com/go-sphere/httpx v0.0.6
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/hibiken/asynq v0.26.0
@@ -52,7 +52,7 @@ require (
 	github.com/go-openapi/swag/stringutils v0.29.2 // indirect
 	github.com/go-openapi/swag/typeutils v0.29.2 // indirect
 	github.com/go-openapi/swag/yamlutils v0.29.2 // indirect
-	github.com/go-sphere/httpx/stdx v0.0.5
+	github.com/go-sphere/httpx/stdx v0.0.6
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
