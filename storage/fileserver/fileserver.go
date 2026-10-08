@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -297,8 +298,9 @@ func contentDisposition(key string) string {
 // RegisterFileUploader registers PUT /:key on route, where key is a token
 // issued by GenerateUploadAuth. Mount route at the path of Config.PutBase.
 // The token is consumed on first use, even if the upload then fails; an
-// unknown or expired token answers 400. On success the raw request body is
-// stored under the authorized key and the response is a
+// unknown or expired token answers 400. A body over WithMaxUploadSize answers
+// 413 (see that option for when the token survives). On success the raw
+// request body is stored under the authorized key and the response is a
 // httpz.DataResponse[UploadResult] JSON envelope.
 func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 	route.Handle(http.MethodPut, "/:key", func(ctx httpx.Context) error {
@@ -312,6 +314,13 @@ func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 		body := ctx.BodyReader()
 		if body == nil {
 			return httpx.NewBadRequestError("empty request body")
+		}
+		limit := a.opts.maxUploadSize
+		if limit > 0 {
+			declared, err := strconv.ParseInt(ctx.Header("Content-Length"), 10, 64)
+			if err == nil && declared > limit {
+				return uploadTooLargeError()
+			}
 		}
 		// GetDel consumes the token atomically. Reading and then deleting left a
 		// window in which two concurrent requests both saw the token as valid,
@@ -327,12 +336,59 @@ func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 		if !found {
 			return httpx.NewBadRequestError("key expires or not found")
 		}
-		uploadKey, err := a.UploadFile(ctx.Context(), body, string(filename))
+		var reader io.Reader = body
+		var limited *limitedBody
+		if limit > 0 {
+			limited = &limitedBody{r: body, remaining: limit}
+			reader = limited
+		}
+		uploadKey, err := a.UploadFile(ctx.Context(), reader, string(filename))
+		if limited != nil && limited.exceeded {
+			// A store that ignored the read error must not keep a truncated object.
+			if err == nil {
+				_ = a.store.DeleteFile(ctx.Context(), uploadKey)
+			}
+			return uploadTooLargeError()
+		}
 		if err != nil {
 			return httpx.InternalServerError(err)
 		}
 		return defaultUploadSuccessWithData(ctx, uploadKey, a.GenerateURL(uploadKey))
 	})
+}
+
+var errUploadTooLarge = errors.New("fileserver: upload exceeds maximum size")
+
+func uploadTooLargeError() error {
+	return httpx.WithStatus(http.StatusRequestEntityTooLarge, errUploadTooLarge, "upload exceeds maximum size")
+}
+
+// limitedBody passes through at most remaining bytes and fails with
+// errUploadTooLarge once the underlying reader yields more.
+type limitedBody struct {
+	r         io.Reader
+	remaining int64
+	exceeded  bool
+}
+
+func (l *limitedBody) Read(p []byte) (int, error) {
+	if l.exceeded {
+		return 0, errUploadTooLarge
+	}
+	// Ask for one byte past the limit so an oversize body is detected without
+	// waiting for EOF.
+	if int64(len(p)) > l.remaining+1 {
+		p = p[:l.remaining+1]
+	}
+	n, err := l.r.Read(p)
+	if int64(n) > l.remaining {
+		l.exceeded = true
+		n = int(l.remaining)
+		l.remaining = 0
+		return n, errUploadTooLarge
+	}
+	l.remaining -= int64(n)
+	return n, err
 }
 
 // normalizeWildcardParam strips the leading "/" a wildcard parameter can still

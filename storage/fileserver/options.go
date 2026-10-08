@@ -20,6 +20,7 @@ type options struct {
 	createFileKey        func(ctx context.Context) (string, error)
 	downloadCacheControl string
 	inlineDownload       bool
+	maxUploadSize        int64
 	// ownsCache marks the cache as a resource of this FileServer rather than an
 	// injected dependency, so Close releases it.
 	ownsCache bool
@@ -77,6 +78,18 @@ func WithOwnedCache() Option {
 func WithInlineDownload() Option {
 	return func(o *options) {
 		o.inlineDownload = true
+	}
+}
+
+// WithMaxUploadSize caps the body accepted by RegisterFileUploader at n bytes.
+// A declared Content-Length above n is rejected with 413 before the upload
+// token is spent; a body that streams past n (for example a chunked request)
+// is cut off at n+1 bytes, the partial object is deleted if the store
+// accepted it, and the request answers 413 with the token spent. A
+// non-positive n, the default, leaves uploads unbounded.
+func WithMaxUploadSize(n int64) Option {
+	return func(o *options) {
+		o.maxUploadSize = n
 	}
 }
 

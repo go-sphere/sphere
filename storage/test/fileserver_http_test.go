@@ -243,3 +243,75 @@ func TestFileServerDownloadUnknownSize(t *testing.T) {
 		t.Fatalf("download = %d %q, want 200 payload", rec.Code, rec.Body.String())
 	}
 }
+
+// TestFileServerMaxUploadSize pins WithMaxUploadSize over a real server: a
+// declared Content-Length over the limit is refused with 413 without spending
+// the token, a chunked body that streams past the limit is cut off with 413
+// and leaves no object, and a body at the limit is stored.
+func TestFileServerMaxUploadSize(t *testing.T) {
+	const limit = 16
+	engine, handler := newEngine(t)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	tokenCache := memory.NewByteCache()
+	t.Cleanup(func() { _ = tokenCache.Close() })
+	memStorage := newInMemoryStorage(t)
+	fileServer, err := fileserver.NewCDNAdapter(
+		fileserver.Config{
+			PutBase:      server.URL + "/upload",
+			GetBase:      server.URL + "/files",
+			UploadNaming: storage.UploadNamingStrategyOriginal,
+		},
+		tokenCache,
+		memStorage,
+		fileserver.WithMaxUploadSize(limit),
+	)
+	if err != nil {
+		t.Fatalf("NewCDNAdapter() error = %v", err)
+	}
+	fileServer.RegisterFileUploader(engine.Group("/upload"))
+
+	ctx := context.Background()
+	put := func(url string, body io.Reader) int {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodPut, url, body)
+		if err != nil {
+			t.Fatalf("new PUT request: %v", err)
+		}
+		resp, err := server.Client().Do(req)
+		if err != nil {
+			t.Fatalf("PUT: %v", err)
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+	auth := func(name string) storage.UploadAuthResult {
+		t.Helper()
+		res, err := fileServer.GenerateUploadAuth(ctx, storage.UploadAuthRequest{FileName: name})
+		if err != nil {
+			t.Fatalf("GenerateUploadAuth: %v", err)
+		}
+		return res
+	}
+
+	declared := auth("declared.bin")
+	if got := put(declared.Authorization.Value, bytes.NewReader(make([]byte, limit+1))); got != http.StatusRequestEntityTooLarge {
+		t.Fatalf("declared oversize status = %d, want 413", got)
+	}
+	if got := put(declared.Authorization.Value, bytes.NewReader(make([]byte, limit))); got != http.StatusOK {
+		t.Fatalf("retry at the limit with the same token = %d, want 200", got)
+	}
+
+	streamed := auth("streamed.bin")
+	// Hiding the reader's length makes the client send a chunked body with no
+	// Content-Length, so only the streaming check can catch it.
+	chunked := io.MultiReader(bytes.NewReader(make([]byte, 4*limit)))
+	if got := put(streamed.Authorization.Value, chunked); got != http.StatusRequestEntityTooLarge {
+		t.Fatalf("streamed oversize status = %d, want 413", got)
+	}
+	if ok, err := memStorage.IsFileExists(ctx, streamed.File.Key); err != nil || ok {
+		t.Fatalf("truncated object stored: exists=%v err=%v", ok, err)
+	}
+}
