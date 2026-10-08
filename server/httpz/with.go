@@ -32,8 +32,10 @@ func Value[T any](ctx httpx.Context, key string) (T, bool) {
 // A non-nil error from handler is written with AbortWithJsonError. A panic is
 // logged at Error level under message, with the panic value and stack, and
 // written as a JSON 500 — except http.ErrAbortHandler, which is re-panicked so
-// net/http can drop the connection. The returned handler always returns nil,
-// so the engine's error handler never sees errors that WithRecover rendered.
+// net/http can drop the connection. If handler already committed the response
+// before failing, the error is logged and nothing more is written (see
+// AbortWithJsonError). The returned handler always returns nil, so the
+// engine's error handler never sees errors that WithRecover rendered.
 func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Handler {
 	return func(ctx httpx.Context) error {
 		defer func() {

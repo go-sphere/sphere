@@ -98,10 +98,26 @@ func DebugMode() bool {
 // WithJson/WithText/WithRecover. Status is clamped to 100–599 (invalid values
 // become 500). A nil err logs a warning and writes a 500.
 //
+// When ctx reports that the response is already committed (it implements
+// Committed() bool and returns true), the status and part of the body are on
+// the wire, so AbortWithJsonError only logs err at Warn level and writes
+// nothing; a second document would be appended to the body that was sent.
+// Contexts without Committed are always written to.
+//
 // Its signature matches httpx.ErrorHandler, so it can be installed as an
 // engine's error handler (for example stdx.WithErrorHandler) to render errors
 // returned by middleware with the same envelope.
 func AbortWithJsonError(ctx httpx.Context, err error) {
+	// Asserted rather than called so sphere builds against httpx versions whose
+	// Context lacks Committed.
+	if c, ok := ctx.(interface{ Committed() bool }); ok && c.Committed() {
+		log.Warn(
+			"AbortWithJsonError skipped: response already committed",
+			log.Int("status", ctx.StatusCode()),
+			log.Any("error", err),
+		)
+		return
+	}
 	if err == nil {
 		log.Warn("AbortWithJsonError called with nil error")
 		_ = ctx.JSON(http.StatusInternalServerError, ErrorResponse{

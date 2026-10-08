@@ -369,3 +369,51 @@ func TestStressNoLeakageUnderNonDebug(t *testing.T) {
 		})
 	}
 }
+
+// TestWithRecoverAfterCommit pins that an error or panic raised after the
+// handler committed the response writes nothing more: the status stays the
+// committed one and the body is not followed by a JSON error document.
+func TestWithRecoverAfterCommit(t *testing.T) {
+	cases := map[string]func(ctx httpx.Context) (string, error){
+		"write then error": func(ctx httpx.Context) (string, error) {
+			_ = ctx.Text(http.StatusOK, "partial")
+			return "", errors.New("late")
+		},
+		"write then panic": func(ctx httpx.Context) (string, error) {
+			_ = ctx.Text(http.StatusOK, "partial")
+			panic("boom")
+		},
+	}
+	for name, inner := range cases {
+		t.Run(name, func(t *testing.T) {
+			ctx := httpxmock.New(nil)
+			handler := WithJson(inner)
+			if err := handler(ctx); err != nil {
+				t.Fatalf("handler: %v", err)
+			}
+			if got := ctx.StatusCode(); got != http.StatusOK {
+				t.Errorf("status = %d, want %d", got, http.StatusOK)
+			}
+			if got := ctx.BodyString(); got != "partial" {
+				t.Errorf("body = %q, want %q", got, "partial")
+			}
+			if n := len(ctx.Writes()); n != 1 {
+				t.Errorf("writes = %d, want 1", n)
+			}
+		})
+	}
+}
+
+// TestAbortWithJsonErrorAfterCommit pins the guard on the engine error-handler
+// path too, where AbortWithJsonError is called directly.
+func TestAbortWithJsonErrorAfterCommit(t *testing.T) {
+	ctx := httpxmock.New(nil)
+	_ = ctx.Text(http.StatusAccepted, "sent")
+	AbortWithJsonError(ctx, errors.New("late"))
+	if got := ctx.StatusCode(); got != http.StatusAccepted {
+		t.Errorf("status = %d, want %d", got, http.StatusAccepted)
+	}
+	if got := ctx.BodyString(); got != "sent" {
+		t.Errorf("body = %q, want %q", got, "sent")
+	}
+}
