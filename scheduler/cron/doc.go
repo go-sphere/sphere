@@ -30,9 +30,11 @@
 // # Lifecycle
 //
 // Start blocks until Stop finishes draining. Stop waits for in-flight jobs
-// without cancelling their context; handler contexts are detached from
-// Start's context, so a runner that cancels the parent context before calling
-// Stop (task.Group does) still gets a real drain. Cancelling Start's context
+// without cancelling their context until its own ctx expires; handler contexts
+// are detached from Start's context, so a runner that cancels the parent
+// context before calling Stop (task.Group does) still gets a real drain. When
+// the last waiting Stop times out, handler contexts are cancelled so jobs can
+// abort before the process exits. Cancelling Start's context
 // without Stop leaves the cron running. A Stop that arrives before Start is
 // honoured: Start then returns nil without starting the cron. Duplicate
 // Register returns scheduler.ErrDuplicateName; Register after Start returns

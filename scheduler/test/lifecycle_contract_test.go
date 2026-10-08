@@ -112,6 +112,60 @@ func TestSchedulerTightShutdownTimeoutAndRecovery(t *testing.T) {
 	}
 }
 
+// TestSchedulerStopDeadlineCancelsHandler pins that a handler which watches its
+// context is cancelled once shutdown runs out of time, instead of running on
+// until the process is killed mid-job. cron cancels when the Stop deadline
+// passes; asynq when its ShutdownTimeout (1s in the factory) passes.
+func TestSchedulerStopDeadlineCancelsHandler(t *testing.T) {
+	for _, factory := range cronFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			s := factory.new(t)
+			started := make(chan struct{})
+			cancelled := make(chan struct{})
+			signalStarted := sync.OnceFunc(func() { close(started) })
+			signalCancelled := sync.OnceFunc(func() { close(cancelled) })
+
+			err := s.Register("ctx_aware", "@every 1s", func(ctx context.Context) error {
+				signalStarted()
+				select {
+				case <-ctx.Done():
+					signalCancelled()
+					return ctx.Err()
+				case <-time.After(10 * time.Second):
+					return nil
+				}
+			})
+			if err != nil {
+				t.Fatalf("register: %v", err)
+			}
+
+			startCtx, startCancel := context.WithCancel(context.Background())
+			defer startCancel()
+			startDone := make(chan error, 1)
+			go func() { startDone <- s.Start(startCtx) }()
+			waitForChan(t, 3*time.Second, started)
+
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer stopCancel()
+			if err := s.Stop(stopCtx); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("Stop = %v, want DeadlineExceeded", err)
+			}
+			waitForChan(t, 3*time.Second, cancelled)
+
+			finalCtx, finalCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer finalCancel()
+			if err := s.Stop(finalCtx); err != nil {
+				t.Fatalf("Stop after handler returned: %v", err)
+			}
+			select {
+			case <-startDone:
+			case <-time.After(3 * time.Second):
+				t.Fatal("Start did not return after the drain")
+			}
+		})
+	}
+}
+
 // TestSchedulerStopBeforeStartIsHonoured pins that a Stop arriving before Start
 // is recorded rather than dropped, matching task.Group: the later Start returns
 // nil promptly without bringing up a runtime, and the scheduler is closed.
