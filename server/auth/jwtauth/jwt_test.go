@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/server/auth/authorizer"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -265,4 +267,56 @@ func TestNewJwtAuthRejectsEmptySecret(t *testing.T) {
 		}
 	}()
 	NewJwtAuth[RBACClaims[int64]]("")
+}
+
+// TestJwtAuth_ParseErrorsAreUnauthorized pins that every ParseToken failure
+// renders as 401 through the httpx error parser while still matching the
+// golang-jwt sentinel with errors.Is.
+func TestJwtAuth_ParseErrorsAreUnauthorized(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	auth := NewJwtAuth[RBACClaims[int64]]("secret")
+	other := NewJwtAuth[RBACClaims[int64]]("other-secret")
+
+	expired, err := auth.GenerateToken(ctx, NewRBACClaims[int64](1, "s", nil, time.Now().Add(-time.Hour)))
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+	foreign, err := other.GenerateToken(ctx, NewRBACClaims[int64](1, "s", nil, time.Now().Add(time.Hour)))
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+	noExp, err := auth.GenerateToken(ctx, RBACClaims[int64]{UID: 1})
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+
+	cases := map[string]struct {
+		token string
+		want  error
+	}{
+		"expired":   {expired, jwt.ErrTokenExpired},
+		"signature": {foreign, jwt.ErrTokenSignatureInvalid},
+		"malformed": {"not-a-jwt", jwt.ErrTokenMalformed},
+		"no exp":    {noExp, jwt.ErrTokenRequiredClaimMissing},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := auth.ParseToken(ctx, tc.token)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("err = %v, want %v", err, tc.want)
+			}
+			if _, status, _ := httpx.ParseError(err); status != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want 401", status)
+			}
+		})
+	}
+
+	// The jwt.MapClaims path, where *T is not a jwt.Claims.
+	mapAuth := NewJwtAuth[jwt.MapClaims]("secret")
+	_, err = mapAuth.ParseToken(ctx, expired)
+	if _, status, _ := httpx.ParseError(err); !errors.Is(err, jwt.ErrTokenExpired) || status != http.StatusUnauthorized {
+		t.Fatalf("map claims: err = %v, status = %d, want ErrTokenExpired and 401", err, status)
+	}
 }

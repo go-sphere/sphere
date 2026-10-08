@@ -6,6 +6,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/go-sphere/httpx"
@@ -67,8 +68,8 @@ func TestWithFormFileReader(t *testing.T) {
 		if err := handler(ctx); err != nil {
 			t.Fatalf("handler: %v", err)
 		}
-		if ctx.StatusCode() != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusBadRequest)
+		if ctx.StatusCode() != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusRequestEntityTooLarge)
 		}
 		resp := jsonBody[ErrorResponse](t, ctx)
 		if want := "File size exceeds maximum allowed size: big.bin"; resp.Message != want {
@@ -191,4 +192,57 @@ func TestWithFormOptionsDefaults(t *testing.T) {
 		t.Errorf("extensions must be lowercased: %v", custom.allowExtensions)
 	}
 
+}
+
+// TestWithFormFileReaderDeclaredLengthTooLarge pins that a body declaring a
+// Content-Length beyond the file limit plus multipart overhead is rejected
+// with 413 without parsing the multipart body.
+func TestWithFormFileReaderDeclaredLengthTooLarge(t *testing.T) {
+	const limit = 10
+	body := &countingReader{r: bytes.NewReader(bytes.Repeat([]byte("x"), limit+multipartOverhead+1))}
+	req := httptest.NewRequest(http.MethodPost, "/upload", body)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=xyz")
+	req.Header.Set("Content-Length", strconv.Itoa(limit+multipartOverhead+1))
+	ctx := httpxmock.New(req)
+	handler := WithFormFileReader(func(httpx.Context, io.ReadSeekCloser, string) (string, error) {
+		t.Fatal("handler must not run")
+		return "", nil
+	}, WithFormMaxSize(limit))
+
+	if err := handler(ctx); err != nil {
+		t.Fatalf("handler: %v", err)
+	}
+	if ctx.StatusCode() != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusRequestEntityTooLarge)
+	}
+	if body.n != 0 {
+		t.Fatalf("read %d body bytes before rejecting, want 0", body.n)
+	}
+
+	t.Run("within overhead is parsed", func(t *testing.T) {
+		ctx := uploadContext(t, "a.txt", []byte("small"))
+		ctx.Request().Header.Set("Content-Length", strconv.Itoa(limit+multipartOverhead))
+		called := false
+		handler := WithFormFileReader(func(httpx.Context, io.ReadSeekCloser, string) (string, error) {
+			called = true
+			return "", nil
+		}, WithFormMaxSize(limit))
+		if err := handler(ctx); err != nil {
+			t.Fatalf("handler: %v", err)
+		}
+		if !called {
+			t.Fatalf("handler did not run; status %d", ctx.StatusCode())
+		}
+	})
+}
+
+type countingReader struct {
+	r io.Reader
+	n int
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += n
+	return n, err
 }

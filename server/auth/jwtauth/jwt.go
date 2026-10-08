@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/go-sphere/httpx"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -88,14 +89,25 @@ func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims T) (string, error
 // It handles both direct jwt.Claims types and custom structs, using JSON
 // marshaling/unmarshaling for struct conversion when necessary.
 //
-// It returns a golang-jwt error, testable with errors.Is against values such
-// as jwt.ErrTokenExpired, jwt.ErrTokenNotValidYet, jwt.ErrTokenMalformed, and
+// Every error is an httpx.StatusError with status 401 wrapping a golang-jwt
+// error, so a handler that returns it unchanged (for example a refresh
+// endpoint given an expired token) renders 401 rather than 500. The wrapped
+// error is testable with errors.Is against values such as jwt.ErrTokenExpired,
+// jwt.ErrTokenNotValidYet, jwt.ErrTokenMalformed, and
 // jwt.ErrTokenSignatureInvalid, when the token is malformed, signed with a
 // different algorithm or secret, or outside its exp/nbf window. A token
 // without an exp claim is rejected with jwt.ErrTokenRequiredClaimMissing, so a
 // token minted without expiry never validates forever. The returned
 // claims must not be trusted when err is non-nil. ctx is currently unused.
 func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (T, error) {
+	claims, err := g.parseToken(signedToken)
+	if err != nil {
+		return claims, httpx.UnauthorizedError(err)
+	}
+	return claims, nil
+}
+
+func (g *JwtAuth[T]) parseToken(signedToken string) (T, error) {
 	var claims T
 	// Although the second parameter in jwt.ParseWithClaims requires a jwt.Claims type,
 	// when claims is a struct type, directly passing it for parsing will result in the following error:
