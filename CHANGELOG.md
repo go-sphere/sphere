@@ -6,7 +6,9 @@ runtime behaviour changes in `compat/behavior-changes.md`, both measured from
 v0.0.3. The section "Earlier changes that shipped without a changelog" below
 points at the ones most likely to surprise an upgrade.
 
-## Unreleased (v0.0.7)
+## Unreleased
+
+## v0.0.7 (2026-10-08)
 
 The release that removes process-global side effects from package init and
 stops the storage layer from carrying HTTP semantics.
