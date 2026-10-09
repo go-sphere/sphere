@@ -93,7 +93,7 @@ func WithDurationHistogram(h metric.Float64Histogram) Option {
 	return func(c *config) { c.durationSet, c.duration = true, h }
 }
 
-// WithActiveRequests makes [NewMetrics] track in-flight requests with c
+// WithActiveRequests makes [NewMetrics] track in-flight requests with counter
 // instead of the default http.server.active_requests instrument. nil disables
 // the instrument.
 func WithActiveRequests(counter metric.Int64UpDownCounter) Option {
