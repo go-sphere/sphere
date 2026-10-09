@@ -11,6 +11,11 @@ correctness fixes listed under "Security and correctness fixes" and the
 confirmed silent changes under "Silent changes outside `cache/`" change
 observable behaviour outside `cache/` and are recorded there.
 
+From v0.0.7 every runtime behaviour change recorded here must name the contract
+test that pins it, on a `Contract test:` line directly under its heading. A
+change with no test says `none` rather than pointing at an unrelated one; add
+the test before, not after, the next entry that relies on it.
+
 Everything is measured from `v0.0.3` except "The `httpx` v0.0.5 upgrade", which
 is measured from `v0.0.5`.
 
@@ -30,6 +35,8 @@ engine for anyone. `httpx/stdx`, the net/http engine, takes their place in the
 tests and in the layout templates.
 
 ### `httpx.Middleware` changed shape, so middleware must be rewritten
+
+Contract test: `server/middleware/selector`: `TestNewSelectorMiddleware`; `server/middleware/auth`: `TestNewAuthMiddleware`, `TestNewPermissionMiddleware`; `server/middleware/cors`: `TestCORS_OptionsPreflight`; `server/middleware/logger`: `TestLogSuccess`.
 
 ```
 v0.0.4:  type Middleware func(Context) error
@@ -68,6 +75,8 @@ does not match pays only for `Matcher.Match`.
 
 ### A custom error parser's message is no longer second-guessed
 
+Contract test: `server/httpz`: `TestAbortWithJsonError_CustomParserMessageKept`, `TestAbortWithJsonError_ParserEchoingRawErrorIsKept`.
+
 `httpz.AbortWithJsonError` used to drop a parser-supplied message when it was
 byte-identical to `err.Error()`, falling back to the generic status text. That
 filter existed because `httpx.ParseError` returned `err.Error()` for an
@@ -85,6 +94,8 @@ classify, and return an empty message for those.
 
 ### `EndpointsToMatches` indexes only the registered path
 
+Contract test: `server/httpz`: `TestEndpointsToMatchesWildcardVerbatim`.
+
 Named-wildcard routes used to be indexed twice, verbatim (`/files/*name`) and in
 anonymous form (`/files/*`), because echox and fiberx rewrote the pattern at
 registration and reported the rewritten form from `FullPath`. All five adapters
@@ -95,6 +106,8 @@ unaffected.
 
 ### The anonymous wildcard is rejected at registration
 
+Contract test: none.
+
 `httpx.FixWildcardPathIfNeed` produced the anonymous form, which httpx now
 refuses: gin and hertz never accepted it, and the three adapters that did
 disagreed on the parameter's key. `fileserver.RegisterFileDownloader` registers
@@ -104,6 +117,8 @@ adapters read differently; register the named form and drop the call.
 
 ### A rate-limiter key no longer loses its burst to a race
 
+Contract test: `server/middleware/ratelimiter`: `TestRateLimiter_FlightRechecksCacheBeforeCreating`, `TestNewRateLimiterCacheErrors`.
+
 `ratelimiter.NewRateLimiter` re-reads the cache inside the singleflight before
 building a limiter. `singleflight` only deduplicates *overlapping* calls, so a
 request that missed the cache just before another flight's write could lead a
@@ -112,6 +127,8 @@ and hand the caller a fresh full burst. The re-read closes that window; a cache
 error raised by it now fails the request instead of being skipped.
 
 ### `ClientIP` on `stdx` ignores forwarding headers until proxies are trusted
+
+Contract test: none.
 
 This is a property of the engine, not of sphere, and it matters for
 `NewRateLimiterByClientIP`. `stdx` uses the direct peer address and ignores
@@ -132,6 +149,8 @@ Signature removals are in `api-incompatibilities.txt`; the upgrade steps are
 summarized in `CHANGELOG.md`.
 
 ### Importing `core/boot` no longer sets the timezone
+
+Contract test: `core/boot`: `TestImportLeavesTimezoneAlone`.
 
 `core/boot` used to run `InitTimezone(DefaultTimezone)` from its package init,
 so every binary that linked it — directly or through any package that imports
@@ -164,6 +183,8 @@ failed; that message is gone with it — the error is now returned to the caller
 generated IDs are unaffected.
 
 ### `idgenerator` builds its global generator on first use
+
+Contract test: `utils/idgenerator`: `TestImportHasNoSideEffects`, `TestNextIdLazilyInitializesFromEnv`, `TestInit`, `TestInitRacesLazyNextId`.
 
 The package init used to read `WORKER_ID`, panic on a malformed or out-of-range
 value, and register a process-global generator in yitter's package
@@ -202,6 +223,8 @@ The package also stopped writing yitter's own global, so code calling
 generator sphere configured (no caller exists in the go-sphere organization).
 
 ### Storage sentinels no longer carry an HTTP status
+
+Contract test: `storage/storageerr`: `TestSentinelsMatchThroughWrapping`; `server/httpz`: `TestStorageSentinelsRenderWithHTTPStatus`.
 
 `storageerr.ErrNotFound`, `ErrDestExists` and `ErrFileNameInvalid` used to be
 `httpx.NotFoundError(...)`/`httpx.BadRequestError(...)` values, so the storage
@@ -245,6 +268,8 @@ stored. They are the ones worth auditing call sites for.
 
 ### Entries that used to expire may now live forever
 
+Contract test: `cache/test`: `TestByteCacheTTLContract`, `TestByteCacheTTLZeroNeverExpires`.
+
 The TTL contract was unified across drivers (`cache/cache.go`): `expiration > 0`
 expires, `expiration == 0` never expires **and clears any existing TTL**, and
 `expiration < 0` returns the new `cache.ErrInvalidTTL` without writing.
@@ -265,6 +290,8 @@ keep this"; it now means "keep this forever".
 
 ### `-1` no longer means "never expire" on mcache
 
+Contract test: `cache/test`: `TestByteCacheNegativeTTLRejected`.
+
 `mcache` previously treated any negative expiration as "never expire" and `0` as
 "already expired" — the exact inverse of the new contract. `SetWithTTL(…, -1)`
 now returns `cache.ErrInvalidTTL` and stores nothing. Note that
@@ -273,6 +300,8 @@ internally, so code written against this package may well have copied the same
 convention. Use `0` for entries that never expire.
 
 ### `Close()` no longer closes what it did not create
+
+Contract test: `cache/test`: `TestWrapperCloseLeavesBackendOpen`; `cache/redis`, `cache/badgerdb`, `cache/memory`: `TestCloseOwnership`.
 
 Ownership is now explicit: a constructor that **creates** a resource closes it;
 a constructor that **receives** one does not. This applies at both layers.
@@ -306,6 +335,8 @@ recorded here because nothing else in this file covers them.
 
 ### Redis connectivity is no longer verified at construction
 
+Contract test: `infra/redis`: `TestNewClientParsesValidURL`.
+
 `infra/redis.NewClient` used to parse the URL, create the client, and run a
 `Ping` — an unreachable server or bad credentials failed at construction, which
 for most deployments means failed at boot. It now only parses the URL and
@@ -317,6 +348,8 @@ check must `Ping` explicitly — the return is a plain `*redis.Client`, so
 `client.Ping(ctx).Err()` is available. (`infra/redis/client.go:16`)
 
 ### Meilisearch `Index`/`Delete` no longer ignore a failed task
+
+Contract test: `search/meilisearch`: `TestTaskError`, `TestSearchTaskErrorAllStatuses`.
 
 `Searcher.Index`/`Delete` waited for the indexing task and discarded the
 result. `WaitForTaskWithContext` returns `(task, nil)` even for `failed`/
@@ -332,6 +365,8 @@ to distinguish "accepted and indexed" from "accepted then failed".
 
 ### `boot.Run` no longer swallows `context.Canceled` from `Start`
 
+Contract test: `core/boot`: `TestApplicationStartPreservesUnexpectedWrappedCancellation`; `core/task`: `TestGroupWrappedCanceledCountsAsFailure`.
+
 `Application.Start` used to return nil for any error satisfying
 `errors.Is(err, context.Canceled)`. It now defers to the group: only
 cancellation the group's own teardown provoked is discarded, and a `Canceled`
@@ -346,6 +381,8 @@ code fails a shutdown that used to look clean. (`core/boot/app.go:37`,
 
 ### `ErrorResponse.Code` is 0 for unclassified errors
 
+Contract test: none.
+
 `AbortWithJsonError` used to take the parser's code verbatim. `httpx.ParseError`
 falls back to `code = status` when the error does not implement
 `httpx.CodeError`, so an unclassified 500 was also reported with an application
@@ -357,6 +394,8 @@ is preserved. Clients that matched on status-like codes now see 0.
 (`server/httpz/error.go:76-79`)
 
 ### Base32 identifiers changed alphabet — old values no longer decode
+
+Contract test: `utils/encoding/baseconv`: `TestAlphabetBase32IsCrockford`.
 
 `AlphabetBase32` is a different alphabet. v0.0.3's was 33 symbols — `L` present,
 `U` absent, contradicting its own comment that excluded both — and v0.0.4's is
@@ -379,6 +418,8 @@ Re-encode, or keep the v0.0.3 alphabet around as a migration table.
 
 ### `afterStop` hooks no longer share an expired shutdown context
 
+Contract test: `core/boot`: `TestRun_AfterStopHookGetsLiveContextWhenStopTimesOut`.
+
 When `Stop` consumes the whole `WithShutdownTimeout` budget, `afterStop` used
 to observe `context.DeadlineExceeded` on the same context. Hooks that honoured
 the context — a final flush — failed and could turn a late shutdown into a
@@ -386,6 +427,8 @@ non-zero exit. They now get a short fresh context (2s) in that case. A hook
 that must still run longer needs its own timeout.
 
 ### `Group.Stop(ctx)` bounds member `Stop`, not only the caller's wait
+
+Contract test: `core/task`: `TestGroupStopContextBoundsMemberStop`; `core/boot`: `TestRun_ShutdownTimeoutBoundsGroupedTaskStop`.
 
 The ctx passed to `Group.Stop` used to bound only `waitForDone`. Member
 `Task.Stop` always received a separate `WithCleanupTimeout` context from
@@ -406,6 +449,8 @@ cleanup clock" must set a longer `WithShutdownTimeout` (or 0 for unbounded).
 
 ### `Stop` before `Start` no longer launches members
 
+Contract test: `core/task`: `TestGroupStopBeforeStart`, `TestGroupStartOnCanceledContextDoesNotStartMembers`, `TestStagedGroupPendingStopStartsNoStage`.
+
 A `Group.Stop` that arrived before `Start` used to start the first stage and
 immediately stop it, so a one-shot's `Start`/`Stop` both ran. Stages whose
 start never began now receive neither call, matching the staged-group contract
@@ -413,6 +458,8 @@ already documented for later waves. A parent context that is already cancelled
 when `Start` is invoked likewise starts nobody. (`core/task/group_run.go`)
 
 ### Scheduler `Start` no longer tears the runtime down
+
+Contract test: `scheduler/test`: `TestSchedulerLifecycleContract`, `TestCronContractDrainAfterStopTimeoutReleasesStart`.
 
 `scheduler/cron` and `scheduler/asynq` `Start` used to call `Stop` with
 `context.WithoutCancel` after the run context ended, so a Group's cleanup
@@ -424,6 +471,8 @@ cancelling the context without `Stop` leaves cron/asynq live. `boot.Run` and
 
 ### `WithFormFileReader` answers an oversize file with 413, not 400
 
+Contract test: `server/httpz`: `TestWithFormFileReader`, `TestWithFormFileReaderDeclaredLengthTooLarge`.
+
 `httpz.WithFormFileReader` and `WithFormFileBytes` used to reject a file larger
 than `WithFormMaxSize` with 400. They now answer 413, and a declared
 `Content-Length` above the limit plus 1 MiB is rejected before the multipart
@@ -432,6 +481,8 @@ body is parsed. Clients matching on 400 for this case must also accept 413.
 
 ### `jwtauth.ParseToken` errors render 401, not 500
 
+Contract test: `server/auth/jwtauth`: `TestJwtAuth_ParseErrorsAreUnauthorized`.
+
 `ParseToken` used to return the bare golang-jwt error, which `httpz` renders as
 500. It now returns a 401 `httpx.StatusError` wrapping it;
 `errors.Is(err, jwt.ErrTokenExpired)` and similar still match. A handler that
@@ -439,6 +490,8 @@ returns the error unchanged (for example a refresh endpoint given an expired
 token) now answers 401. (`server/auth/jwtauth/jwt.go`)
 
 ### Read-through loaders rebuild an undecodable entry
+
+Contract test: `cache`: `TestGetExCodecCacheDecodeErrorIsMiss`, `TestGetJsonExCorruptEntry`, `TestGetJsonExNilBuilderDecodeError`.
 
 `cache.GetEx`, `GetObjectEx` and `GetJsonEx` used to return the decode error
 when a cached entry could not be decoded (for example one written under an
@@ -453,6 +506,8 @@ decoded before failing. (`cache/loader.go`, `cache/codec_cache.go`)
 ## Per package
 
 ### `cache` (contract, wrappers, loader)
+
+Contract test: `cache/test`: `TestSetObjectDynamicTTLUsesOriginalValue`, `TestDynamicTTLTypeMismatch`, `TestDynamicTTLNilCalculator`; `cache`: `TestCodecCacheKeys`.
 
 - New: `cache.ErrInvalidTTL`, `cache.ErrNotSupported`,
   `cache.ErrTTLCalculatorType`, and the optional `cache.KeyLister` interface.
@@ -473,6 +528,8 @@ decoded before failing. (`cache/loader.go`, `cache/codec_cache.go`)
 
 ### `cache/redis`
 
+Contract test: `cache/redis`: `TestDelAllOnlyFlushesSelectedDatabase`, `TestKeys`, `TestKeysGlobEscaping`; `cache/test`: `TestByteCacheNegativeTTLRejected`.
+
 - `Set`/`MultiSet` clear the TTL instead of preserving it — see above. There is
   no longer any way to express `KEEPTTL` through this API; hold your own
   `*redis.Client` if you need it.
@@ -488,6 +545,8 @@ decoded before failing. (`cache/loader.go`, `cache/codec_cache.go`)
 
 ### `cache/mcache`
 
+Contract test: `cache/mcache`: `TestConcurrentExpiredReads`, `TestKeys`.
+
 - TTL semantics for `0` and negative values are inverted relative to v0.0.3 —
   see above.
 - `Get`/`MultiGet` take a write lock. They delete expired entries in place,
@@ -498,6 +557,8 @@ decoded before failing. (`cache/loader.go`, `cache/codec_cache.go`)
   `MultiDel`.
 
 ### `cache/badgerdb`
+
+Contract test: `cache/badgerdb`: `TestKeys`, `TestCloseOwnership`; `cache/test`: `TestByteCacheGetDelExactlyOnce`.
 
 - `SetWithTTL`/`MultiSetWithTTL` with `0` store a permanent entry instead of one
   that is immediately expired — see above. Negative expirations return
@@ -510,6 +571,8 @@ decoded before failing. (`cache/loader.go`, `cache/codec_cache.go`)
 - New: `Keys(prefix)`.
 
 ### `cache/memory`
+
+Contract test: `cache/memory`: `TestGetDelIsAtomicWithSet`, `TestSetAllowAsyncWritesConcurrent`, `TestCloseOwnership`.
 
 - `Set`/`MultiSet` no longer return an error when ristretto drops the write.
   A dropped write is normal under load — ristretto's `true` return does not
@@ -529,12 +592,16 @@ decoded before failing. (`cache/loader.go`, `cache/codec_cache.go`)
 
 ### `cache/nocache`
 
+Contract test: `cache/test`: `TestNoCacheContract`, `TestByteCacheNegativeTTLRejected`.
+
 - `SetWithTTL`/`MultiSetWithTTL` reject a negative expiration with
   `ErrInvalidTTL` instead of accepting it. Turning caching off should change
   what is persisted, not which arguments are legal, so a latent negative TTL is
   no longer masked by switching to this driver.
 
 ### `cache/nscache`
+
+Contract test: `cache/nscache`: `TestNSCacheDelAllUnsupportedBackend`, `TestNSCacheDelAllOverNoCache`.
 
 - `DelAll` deletes only the keys in its own namespace instead of delegating to
   the backend's `DelAll`. Sharing one backend between namespaces is now safe.
@@ -557,6 +624,8 @@ behaviour will now see an error where it previously saw silent success.
 
 ### Responses no longer leak raw error text
 
+Contract test: `server/httpz`: `TestAbortWithJsonError_UnclassifiedDoesNotLeak`, `TestAbortWithJsonError_WrappedUnclassifiedDoesNotLeak`, `TestStressNoLeakageUnderNonDebug`.
+
 `httpz.AbortWithJsonError` used to place `err.Error()` in `ErrorResponse.Message`
 for any error that does not implement `httpx.MessageError` — the debug-mode
 guard only ever covered the `Error` field. Driver and database strings
@@ -566,6 +635,8 @@ carries an explicit user-facing message, which also replaces the empty `Message`
 that classified-but-message-less errors used to produce.
 
 ### A token without a `uid` claim is rejected
+
+Contract test: `server/auth/jwtauth`: `TestGetUIDRejectsZeroValue`, `TestParsedTokenWithoutUIDIsRejected`; `server/middleware/auth`: `TestParserTokenClaimsErrors`.
 
 `jwtauth.RBACClaims.GetUID` returned `(zero, nil)`. Because the claim is
 serialized with `omitempty`, any token signed with the same key for another
@@ -577,6 +648,8 @@ identifier.
 
 ### CORS rejects `"*"` combined with credentials
 
+Contract test: `server/middleware/cors`: `TestNewCORSRejectsWildcardWithCredentials`.
+
 `cors.NewCORS` now returns `(httpx.Middleware, error)` and fails with
 `cors.ErrWildcardWithCredentials` for that combination. Previously it reflected
 the caller's own `Origin` back with `Access-Control-Allow-Credentials: true`,
@@ -584,6 +657,8 @@ which let any site read authenticated responses using the victim's cookies.
 Per-origin wildcards such as `https://*.example.com` are unaffected.
 
 ### The reverse-proxy cache no longer stores private responses
+
+Contract test: `server/service/reverseproxy`: `TestDefaultResponseCacheCheck`, `TestServeCacheReverseProxy_CredentialedResponseNotReplayed`.
 
 The default response check rejects a response when the request carried
 `Authorization` or `Cookie`, when the response sets a cookie or declares
@@ -604,6 +679,8 @@ are fetched from the upstream on every request instead.
 
 ### File downloads are served as attachments
 
+Contract test: `storage/test`: `TestFileServerDownloadIsNotRenderable`, `TestFileServerInlineDownloadOptOut`.
+
 `fileserver`'s download endpoint now always sends
 `X-Content-Type-Options: nosniff` and, by default,
 `Content-Disposition: attachment`. The content type is derived from the key's
@@ -613,6 +690,8 @@ as uploads. Use `WithInlineDownload()` to restore inline rendering when
 `GetBase` is a session-free origin.
 
 ### `WORKER_ID` accepts 0 and rejects garbage
+
+Contract test: `utils/idgenerator`: `TestParseWorkerID`, `TestInvalidWorkerID`.
 
 `idgenerator` treated `WORKER_ID=0` as invalid and fell back to 1, so under the
 standard StatefulSet pattern of deriving the value from a pod ordinal, pod-0 and
@@ -624,6 +703,8 @@ panic moves to the first `NextId`, or becomes an error from `InitFromEnv`; see
 "`idgenerator` builds its global generator on first use".)
 
 ### ID generation counts from a fixed epoch
+
+Contract test: `utils/idgenerator`: `TestBaseTimeIsAbsolute`.
 
 `idgenerator` derived its epoch from `time.Date(2024, 1, 1, 0, 0, 0, 0,
 time.Local)`, so the tick a process counted from depended on import order
@@ -638,6 +719,8 @@ back to an older epoch safe; worker IDs must remain unique across live instances
 
 ### Captcha rejects empty codes and normalizes its config
 
+Contract test: `utils/exp/captcha`: `TestZeroConfigDoesNotDisableVerification`, `TestNegativeConfigDoesNotPanic`, `TestEmptyCodeIsNeverStored`, `TestRandomCode`.
+
 `NewManager` now defaults non-positive `CodeLength`/`CodeExpiresIn` to
 `DefaultCodeLength`/`DefaultCodeExpiresIn`. A zero `CodeLength` used to generate
 an empty code that `Verify` then accepted from anyone; a zero `CodeExpiresIn`
@@ -647,6 +730,8 @@ length instead of panicking.
 
 ### `cache/memory` reports use after close
 
+Contract test: `cache/memory`: `TestCloseConcurrentOperations`, `TestCloseIsIdempotent`.
+
 Every method now takes a read lock and returns `cache.ErrClosed` once `Close`
 has run, instead of reaching a half-torn-down ristretto. Concurrent
 `Close`+`Set` used to park forever on `Wait`, and `Close`+`Del`/`DelAll` panicked
@@ -655,6 +740,8 @@ its members concurrently. `Close` is idempotent and still leaves an injected
 ristretto cache open for its owner.
 
 ### `task.Group` always stops tasks whose Start ran
+
+Contract test: `core/task`: `TestGroupNaturalCompleteStopsAllTasks`, `TestStagedGroupStartTimeoutAbortsNonFinalStage`, `TestStagedGroupStartTimeoutDoesNotApplyToLastStage`.
 
 If every member's `Start` returned on its own, the group used to mark itself
 stopped without calling `Stop`, and a later `Group.Stop` was a no-op. One-shot
@@ -670,6 +757,8 @@ wraps `ErrStartTimeout` and names the tasks still inside `Start`.
 
 ### `task.execute` names the task and stops logging provoked cancellation
 
+Contract test: `core/task`: `TestExecuteWrapsErrorWithName`, `TestExecuteKeepsProvokedCancelAsCanceled`.
+
 Start/Stop errors are wrapped as `<identifier>: <err>` so `errors.Join` still
 identifies the member. `errors.Is` / `As` are unchanged. A `context.Canceled`
 that the runner itself provoked is no longer logged at Error — a graceful
@@ -677,6 +766,8 @@ shutdown no longer looks like every task crashed. A `Canceled` that arrives
 while the run context is still live is still a failure and still logged.
 
 ### `task.Group.Stop` before `Start` is honoured
+
+Contract test: `core/task`: `TestGroupStopBeforeStart`.
 
 `Stop` returned `ErrGroupNotStarted` and did nothing if it arrived before
 `Start` completed its state transition; the group then ran with no way to stop
@@ -688,12 +779,16 @@ cascading shutdown.
 
 ### `task.Manager` no longer discards wrapped cancellation errors
 
+Contract test: none.
+
 A task returning an error that wraps `context.Canceled` while its run context
 was still live had that failure dropped: `Wait`, `GetTaskResult` and `StopTask`
 all reported success. The guard now matches `Group`'s and only ignores
 cancellation that this run actually caused.
 
 ### `mq/redis` `Consume` observes context cancellation
+
+Contract test: none.
 
 `BLPOP` was issued with an unlimited timeout, and go-redis applies no read
 deadline to it, so cancelling the context did not interrupt a call already in
@@ -703,6 +798,8 @@ between rounds, so cancellation is observed within about a second rather than
 never.
 
 ### `qiniu` downloads report a real size and a real 404
+
+Contract test: `storage/qiniu`: `TestClientDownloadFallsBackToStat`, `TestIsDownloadNotFoundError`.
 
 `DownloadFile` read `ContentLength` from a field the SDK did not fill, so it was
 0 — which the HTTP layer turns into `Content-Length: 0` and an empty response
@@ -715,6 +812,8 @@ with HTTP 404 rather than Qiniu's 612, so it is now mapped to
 
 ### `qiniu` server-side uploads overwrite existing keys
 
+Contract test: `storage/qiniu`: `TestClientUploadOverwrites`.
+
 `UploadFile` and `UploadLocalFile` signed upload tokens scoped to the bucket
 alone, which Kodo treats as insert-only: re-uploading an existing key with
 different content failed with 614 instead of replacing the object as `local`,
@@ -724,6 +823,8 @@ replaces whatever was stored there. Client upload tokens from
 
 ### `qiniu` reports a truncated download as `io.ErrUnexpectedEOF`
 
+Contract test: `storage/qiniu`: `TestClientDownloadReportsTruncation`.
+
 The SDK closes its download pipe without an error before it records a failure
 (an ETag mismatch, a failed ranged GET), so a broken download used to read as a
 short body followed by a clean `io.EOF` — a download racing an overwrite could
@@ -732,12 +833,16 @@ return an empty file and no error. The reader now returns an error wrapping
 
 ### `qiniu` `MoveFile` onto itself is a no-op
 
+Contract test: `storage/qiniu`: `TestClientMoveToSameKey`.
+
 `MoveFile(k, k, false)` reached Kodo, which refused it because the
 "destination" exists, so the driver returned `ErrDestExists`. A self-move now
 returns nil when the key exists and `storageerr.ErrNotFound` when it does not,
 as `s3` already did.
 
 ### `s3` downloads fetch body and metadata in one request
+
+Contract test: `storage/s3`: `TestS3ClientDownloadSurvivesOverwrite`.
 
 `DownloadFile` issued a HEAD and returned a lazy `minio.Object` whose body GET
 ran on the first `Read`, pinned to the HEAD's ETag; an overwrite in between
@@ -747,6 +852,8 @@ a round trip. The returned `Reader` is a plain `io.ReadCloser` and no longer
 implements `io.Seeker`; type-assert callers must buffer instead.
 
 ### `s3` `UploadFile` buffers 16 MiB instead of ~537 MiB
+
+Contract test: `storage/s3`: `TestNewClientPartSize`, `TestS3ClientUploadFileUsesPartSize`.
 
 `UploadFile` streams a reader of unknown length, for which minio-go sizes
 multipart parts for a 5 TiB object and holds one ~537 MiB part in memory per
@@ -761,6 +868,8 @@ if you need more. `UploadLocalFile` knows the file size and is unaffected.
 Lower-severity than the section above, but several change what callers observe.
 
 ### Cache
+
+Contract test: `cache/test`: `TestByteCacheValueOwnership`; `cache`: `TestCodecCacheCorruptEntry`; `cache/nscache`: `TestNSCacheDelAllOverNoCache`.
 
 - **Byte caches now hold copies.** `mcache` and `memory` stored and returned the
   caller's own slice, while `redis` and `badgerdb` produced fresh ones. Reusing
@@ -780,6 +889,8 @@ Lower-severity than the section above, but several change what callers observe.
 
 ### Lifecycle
 
+Contract test: `core/task`: `TestGroupCleanupTimeoutOption`; `core/boot`: `TestRun_ShutdownTimeout`; `server/service/file`: `TestWebStopReleasesOwnedUploadTokenCache`; `storage/fileserver`: `TestFileServerCloseOwnsCacheOnlyWhenAsked`.
+
 - **`task.NewGroup` defaults its cleanup timeout to 30s**, matching
   `WithManagerCleanupTimeout`. It was unbounded, so a task whose `Stop` honoured
   its context but never returned left the group stopping — and `Start` blocked —
@@ -798,6 +909,8 @@ Lower-severity than the section above, but several change what callers observe.
   it the upload-token path reports the cache's closed error.
 
 ### Scheduler
+
+Contract test: `scheduler/asynq`: `TestUnregisteredKindIsNotPrefixRouted`, `TestHandleRejectsEmptyKind`; `scheduler/test`: `TestCronContractStopTimeoutThenRetrySucceeds`.
 
 - **Routing is by exact kind.** asynq's ServeMux falls back to longest-prefix
   matching, and the dispatcher resolved handlers from the matched pattern, so an
@@ -822,6 +935,8 @@ Lower-severity than the section above, but several change what callers observe.
 
 ### Messaging
 
+Contract test: `mq/memory`: `TestPubSubIgnoresInvalidQueueSize`.
+
 - **`mq/redis` reports undecodable messages with their raw bytes** through
   `*redis.DecodeError`, and `TryConsume` returns `found=true` for them. It
   previously returned `found=false` with the element already popped and
@@ -836,6 +951,8 @@ Lower-severity than the section above, but several change what callers observe.
   registering a connection nothing would close.
 
 ### Log
+
+Contract test: `log`: `TestInitWithBackendsKeepsCurrentOnEmpty`, `TestQuoteIfNeededEscapesStructuralAndControlCharacters`, `TestContextMergeBackendForwardsClose`; `log/zapx`: `TestGroupAttrsKeepTypedEncoding`, `TestSyncSucceedsWithConsoleSink`.
 
 - **`InitWithBackends` with no usable backend keeps the current one** and warns
   on stderr, instead of installing a silent logger and discarding every
@@ -859,6 +976,8 @@ Lower-severity than the section above, but several change what callers observe.
   dropped because zap keeps the name outside the Core.
 
 ### HTTP and storage
+
+Contract test: `server/httpz`: `TestWithRecoverRepanicsAbortHandler`; `server/service/reverseproxy`: `TestCacheSaveFailureDoesNotTruncateResponse`, `TestReverseProxyStalledCacheDoesNotStallClient`, `TestWithSaveTimeout`; `storage/fileserver`: `TestUploadTokensAreNamespaced`; `infra/sqlite`: `TestPackageLevelRegistrationsApply`.
 
 - **`WithRecover` re-panics on `http.ErrAbortHandler`**, letting net/http drop
   the connection as intended rather than logging a full stack trace and writing
@@ -889,6 +1008,8 @@ Lower-severity than the section above, but several change what callers observe.
 
 ### Captcha
 
+Contract test: `utils/exp/captcha`: `TestVerifyLockoutPreservesOutstandingCodes`, `TestRateLimitWindowRolls`.
+
 - **Too many failed attempts freeze verification for 15 minutes instead of
   invalidating the outstanding codes.** Destroying them let anyone who knew a
   phone number wipe the code its owner had just received and, with the send
@@ -904,6 +1025,8 @@ Where the repository previously held two answers to the same question, these
 settle on one.
 
 ### `Close` waits for in-flight handlers
+
+Contract test: `mq/test`: `TestPubSubStopWaitsForRunningHandler`, `TestPubSubClose`.
 
 `mq`'s pubsub drivers returned from `Close`/`UnsubscribeAll` while handlers were
 still executing (measured at ~30µs, with the handler mid-run), whereas
@@ -928,6 +1051,8 @@ where `UnsubscribeAll` is used, that is the intended effect anyway.
 
 ### `TryConsume` reports failure through the error, not the bool
 
+Contract test: `mq/test`: `TestQueueTryConsumeCanceledContext`, `TestQueueClose`.
+
 The documented rule ("when bool is false, error should be nil") was violated by
 both drivers and by the contract test that pinned them, and following it
 literally produced a loop that spun forever after `Close` while swallowing every
@@ -936,6 +1061,8 @@ transport error. The contract now matches the implementations and Go's usual
 when the error is nil. No driver behaviour changed — the documentation did.
 
 ### Encoded identifiers have exactly one spelling
+
+Contract test: `utils/encoding/baseconv`: `TestDecodeStringRejectsNonCanonicalPadding`; `utils/encoding/numconv`: `TestDecodeRejectsNonCanonicalForms`.
 
 `baseconv` decoding now rejects input the encoder could not have produced
 (`ErrNonCanonical`): a trailing partial group whose padding bits are not zero,
@@ -958,6 +1085,8 @@ externally generated forms that were never canonical stop decoding.
 
 ### `online` must be started
 
+Contract test: `server/middleware/online`: `TestOnlineLifecycleContract`, `TestSweepReclaimsExpiredEntries`.
+
 `online.Online` implements `core/task.Task` and requires `Start` for its storage
 to stay bounded. The middleware only writes, and the backing cache reclaims an
 expired entry only when that key is read again or the map is swept, so nothing
@@ -970,6 +1099,8 @@ options.
 ## Remaining contract decisions
 
 ### PubSub shutdown is two-phase and subscription contexts own delivery
+
+Contract test: `mq/test`: `TestPubSubSubscriptionContextOwnsLifetime`, `TestPubSubStopHonorsContext`, `TestPubSubStopDropsBufferedMessages`, `TestPubSubTaskLifecycle`.
 
 `mq.PubSub` no longer embeds `io.Closer`. `Subscribe` returns a
 `mq.Subscription`, and the context passed to `Subscribe` now controls the full
@@ -999,6 +1130,8 @@ requests PubSub stop; task `MessageQueue.Stop(ctx)` is the quiescing form.
 
 ### Object keys are normalized, and `UploadFile` returns the normalized key
 
+Contract test: `storage/test`: `TestStorageKeyNormalization`.
+
 `storage.NormalizeKey` defines one rule for every driver: a leading `/` is
 dropped, repeated separators and `.` segments collapse, a trailing `/` is
 removed, a `..` segment is rejected rather than resolved, and a key that
@@ -1016,6 +1149,8 @@ Listing prefixes are not keys and are unaffected: an empty prefix still means
 
 ### Batch cache operations are documented as non-atomic
 
+Contract test: none.
+
 `Bulk` now states that `MultiSet`/`MultiDel` are not atomic: a non-nil error
 means at least one entry failed, entries that succeeded may already be visible,
 and nothing is rolled back. No driver changed. The contract follows what redis
@@ -1024,6 +1159,8 @@ compensating for a failed batch by deleting what it "would have" written is
 unsafe. `badgerdb` and `mcache` remain atomic in practice; do not rely on it.
 
 ### `badgerdb.DelAll` no longer uses `DropAll`
+
+Contract test: `cache/badgerdb`: `TestDelAllBatches`.
 
 It enumerates and deletes in batches, like `nscache.DelAll`. badger documents
 `DropAll` as unsafe against concurrent reads — the caller must guarantee none are
@@ -1034,6 +1171,8 @@ nscache equivalent it is not atomic: a key written between the scan and the
 delete survives.
 
 ### A log call cannot abort the goroutine that made it
+
+Contract test: `log`: `TestLogSurvivesPanickingAttr`, `TestLogSurvivesSelfReferentialValue`; `log/zapx`: `TestLogSurvivesPanickingAttr`.
 
 Both backends recover around attribute rendering and emit an `attr_error` field
 instead. Attribute values are arbitrary caller data, so a `Stringer` or
@@ -1049,12 +1188,16 @@ has to be prevented before formatting starts.
 
 ### `local` writes survive power loss
 
+Contract test: none.
+
 `writeFileAtomic` now fsyncs the parent directory after the rename. Syncing the
 file only covers its contents; the directory entry could still be in the page
 cache, so the durability the doc comment promised held against a process crash
 but not against power loss.
 
 ### `search.Result.Total` is documented as an estimate
+
+Contract test: none.
 
 It always was one — Meilisearch clamps it to `pagination.maxTotalHits`, 1000 by
 default — but the field was documented as an exact count, so paginating on it
