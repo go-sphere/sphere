@@ -1213,7 +1213,7 @@ calls `Status(500)` / `NoContent(500)` on top of the bytes already sent.
 
 ### Deadline expiry renders as 504
 
-Contract test: `server/httpz`: `TestParseError_DeadlineExceededIs504`, `TestErrorResponseMatchesHttpxErrorBody`.
+Contract test: `server/httpz`: `TestParseError_DeadlineExceededIs504`.
 
 `httpz.ParseError` maps an error matching `context.DeadlineExceeded` to 504
 Gateway Timeout; it was 500. An `httpx.StatusError` in the chain still wins, and

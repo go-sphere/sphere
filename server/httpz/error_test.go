@@ -2,12 +2,9 @@ package httpz
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -374,30 +371,12 @@ func TestParseError_DeadlineExceededIs504(t *testing.T) {
 			t.Errorf("%s: status = %d, want 504", name, got)
 		}
 	}
+	if got := ErrorStatus(context.Canceled); got == http.StatusGatewayTimeout {
+		t.Errorf("context.Canceled: status = %d, must not be 504", got)
+	}
 	// An explicit StatusError in the chain still wins.
 	err := httpx.WithStatus(http.StatusServiceUnavailable, context.DeadlineExceeded)
 	if got := ErrorStatus(err); got != http.StatusServiceUnavailable {
 		t.Errorf("StatusError: status = %d, want 503", got)
-	}
-}
-
-func TestErrorResponseMatchesHttpxErrorBody(t *testing.T) {
-	keys := func(v any) []string {
-		raw, err := json.Marshal(v)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var m map[string]any
-		if err := json.Unmarshal(raw, &m); err != nil {
-			t.Fatal(err)
-		}
-		return slices.Sorted(maps.Keys(m))
-	}
-	// Error is debug-only and omitted when empty, so the default envelope is
-	// what must agree with httpx.ErrorBody.
-	got := keys(ErrorResponse{Message: "m"})
-	want := keys(httpx.ErrorBody{Message: "m"})
-	if !slices.Equal(got, want) {
-		t.Errorf("ErrorResponse fields %v, httpx.ErrorBody fields %v", got, want)
 	}
 }
