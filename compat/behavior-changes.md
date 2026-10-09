@@ -1211,6 +1211,16 @@ Contract test: `server/middleware/logger`: `TestRecoveryEntriesAgree`.
 after the response was committed is still logged, but `RecoveryLog` no longer
 calls `Status(500)` / `NoContent(500)` on top of the bytes already sent.
 
+### Deadline expiry renders as 504
+
+Contract test: `server/httpz`: `TestParseError_DeadlineExceededIs504`, `TestErrorResponseMatchesHttpxErrorBody`.
+
+`httpz.ParseError` maps an error matching `context.DeadlineExceeded` to 504
+Gateway Timeout; it was 500. An `httpx.StatusError` in the chain still wins, and
+`context.Canceled` is unchanged. Custom parsers that fall back to `ParseError`
+inherit the change; clients or alerts keyed on 500 for timeouts must also
+accept 504.
+
 ## Known issue requiring an upstream fix
 
 `WithRecover` can emit two JSON documents in one response when a handler panics

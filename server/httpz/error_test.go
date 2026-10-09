@@ -1,9 +1,13 @@
 package httpz
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -360,3 +364,40 @@ func TestStorageSentinelsRenderWithHTTPStatus(t *testing.T) {
 }
 
 var errCustomOnly = errors.New("handled by the custom parser only")
+
+func TestParseError_DeadlineExceededIs504(t *testing.T) {
+	for name, err := range map[string]error{
+		"bare":    context.DeadlineExceeded,
+		"wrapped": fmt.Errorf("query: %w", context.DeadlineExceeded),
+	} {
+		if got := ErrorStatus(err); got != http.StatusGatewayTimeout {
+			t.Errorf("%s: status = %d, want 504", name, got)
+		}
+	}
+	// An explicit StatusError in the chain still wins.
+	err := httpx.WithStatus(http.StatusServiceUnavailable, context.DeadlineExceeded)
+	if got := ErrorStatus(err); got != http.StatusServiceUnavailable {
+		t.Errorf("StatusError: status = %d, want 503", got)
+	}
+}
+
+func TestErrorResponseMatchesHttpxErrorBody(t *testing.T) {
+	keys := func(v any) []string {
+		raw, err := json.Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatal(err)
+		}
+		return slices.Sorted(maps.Keys(m))
+	}
+	// Error is debug-only and omitted when empty, so the default envelope is
+	// what must agree with httpx.ErrorBody.
+	got := keys(ErrorResponse{Message: "m"})
+	want := keys(httpx.ErrorBody{Message: "m"})
+	if !slices.Equal(got, want) {
+		t.Errorf("ErrorResponse fields %v, httpx.ErrorBody fields %v", got, want)
+	}
+}

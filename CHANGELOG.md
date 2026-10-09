@@ -19,6 +19,10 @@ points at the ones most likely to surprise an upgrade.
 - `logger.RecoveryLog` no longer writes a 500 when the response is already
   committed, matching `httpz.WithRecover`. `httpz.AbortWithJsonError` calls
   `ctx.Committed()` directly instead of asserting an optional interface.
+- `httpz.ParseError` maps `context.DeadlineExceeded` to 504 instead of 500.
+  An `httpx.StatusError` in the chain still takes precedence, and
+  `context.Canceled` is unchanged. Contract test:
+  `TestParseError_DeadlineExceededIs504`.
 
 ## v0.0.7 (2026-10-08)
 

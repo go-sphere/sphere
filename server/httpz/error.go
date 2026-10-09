@@ -1,6 +1,7 @@
 package httpz
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"sync/atomic"
@@ -35,7 +36,9 @@ func init() {
 // status of their own. It maps (via errors.Is):
 //
 //   - storageerr.ErrNotFound to 404;
-//   - storageerr.ErrDestExists and storageerr.ErrFileNameInvalid to 400.
+//   - storageerr.ErrDestExists and storageerr.ErrFileNameInvalid to 400;
+//   - context.DeadlineExceeded to 504. context.Canceled is left to
+//     httpx.ParseError.
 //
 // An httpx.StatusError anywhere in err's chain takes precedence, so a handler
 // that wraps a storage error with an explicit status keeps that status.
@@ -60,6 +63,8 @@ func ParseError(err error) (code int32, status int32, message string) {
 		status = http.StatusNotFound
 	case errors.Is(err, storageerr.ErrDestExists), errors.Is(err, storageerr.ErrFileNameInvalid):
 		status = http.StatusBadRequest
+	case errors.Is(err, context.DeadlineExceeded):
+		status = http.StatusGatewayTimeout
 	}
 	return code, status, message
 }
