@@ -12,9 +12,9 @@ func TestNewClientRejectsInvalidURL(t *testing.T) {
 }
 
 func TestNewClientParsesValidURL(t *testing.T) {
-	client, err := NewClient(Config{URL: "redis://127.0.0.1:6379/0"})
+	client, err := NewClient(Config{URL: "redis://127.0.0.1:1/0"})
 	if err != nil {
-		t.Fatalf("NewClient: %v", err)
+		t.Fatalf("NewClient must not dial the server: %v", err)
 	}
 	if client == nil {
 		t.Fatal("NewClient returned a nil client for a valid URL")
