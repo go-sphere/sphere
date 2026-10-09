@@ -90,7 +90,7 @@ Everything that runs is modeled as a `task.Task` with `Identifier()`, `Start(ctx
 
 - `server/httpz` is a thin convention layer on top of `github.com/go-sphere/httpx` (a framework-agnostic HTTP abstraction whose default engine is `httpx/stdx` over net/http, with Gin/Fiber/Echo/Hertz adapters). It defines the standard `DataResponse[T]` / `ErrorResponse` envelopes and the `WithJson` / `WithText` / `WithRecover` handler wrappers. Handlers return `(T, error)`; errors flow through `defaultErrorParser` (overridable via `SetDefaultErrorParser`) and become JSON error responses. New endpoints should be exposed via these wrappers rather than calling `ctx.JSON` directly so the response envelope stays consistent.
 - `server/auth/authorizer` is generic over the user-ID type (`UID` constraint: integer or string). `Data[I]` is stored on `context.Context` via a private `authKey`. Use `authorizer.ContextUtils[I]{}` helpers (`GetCurrentID`, `CheckAuthID`, `GetCurrentSubject`, …) instead of reading the context value directly.
-- `server/auth/jwtauth` and `server/auth/acl` plug into that contract; `server/middleware/{auth,cors,online,ratelimiter,selector}` are httpx middlewares built on the same primitives.
+- `server/auth/jwtauth` and `server/auth/acl` plug into that contract; `server/middleware/{auth,cors,online,ratelimiter,selector}` are httpx middlewares built on the same primitives. `server/middleware/stack` fixes the engine-level order (Tracing, Metrics, RequestID, Log, Recovery); `server/ops` serves healthz and opt-in pprof on a separate listener, never the business engine.
 - `server/service/{docs,file,reverseproxy}` are reusable mountable services (Swagger docs, file uploader, reverse proxy with cache).
 
 ### Pluggable infra interfaces

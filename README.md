@@ -25,7 +25,7 @@ Sphere is not meant to replace Go's standard toolchain, Makefiles, Buf, Docker, 
 
 - [**`httpx`**](https://github.com/go-sphere/httpx) - A small HTTP adapter contract with a net/http engine (`stdx`, the default) and Gin, Fiber, Echo, and Hertz adapters.
 - **`server/httpz`** - Response envelopes and handler wrappers on top of `httpx`.
-- **`server/middleware`** - Common middleware such as auth, CORS, online tracking, rate limiting, and middleware selectors.
+- **`server/middleware`** - Common middleware such as auth, CORS, online tracking, rate limiting, and middleware selectors, plus `server/middleware/stack` (standard middleware order) and `server/ops` (healthz and opt-in pprof on a separate listener).
 - **`cache`**, **`mq`**, **`scheduler`**, **`storage`** - Interfaces and default adapters for common service infrastructure.
 - **`log`** and **`log/logbuffer`** - Backend-agnostic logging plus a cursor-addressable in-memory tail for realtime delivery.
 - **`confstore`**, **`infra`** - Practical wrappers for configuration and infrastructure clients.

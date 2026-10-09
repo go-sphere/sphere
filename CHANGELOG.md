@@ -10,6 +10,21 @@ points at the ones most likely to surprise an upgrade.
 
 ### Added
 
+- `stack.New` / `stack.Apply` (`server/middleware/stack`): assemble the
+  standard engine-level middleware stack in one documented order, outermost
+  first: telemetry Tracing, Metrics, RequestID, access Log, Recovery. Tracing
+  and Metrics are opt-in (`WithTracing`, `WithMetrics`); RequestID and
+  Recovery are on by default; the access log needs `WithLogger` and Recovery
+  falls back to a stdio logger without one. The package documentation states
+  the engine-level versus group-level rule (the stack and CORS on the engine,
+  auth, rate limiting and selectors on groups). Existing middleware
+  constructors are unchanged; layouts adopt it by calling `stack.Apply`.
+- `ops.Handler`, `ops.NewServer`, `ops.HealthzHandler` (`server/ops`): a
+  `/healthz` liveness endpoint and opt-in (`ops.WithPprof`) `net/http/pprof`
+  on a dedicated `http.ServeMux`, served by `ops.Server`, a `task.Task` with
+  its own listener. pprof is off by default and no function mounts it on an
+  httpx engine; the package documentation spells out the exposure risk.
+  Readiness probing is not provided. No new module requirements.
 - `telemetry.NewTracing` and `telemetry.NewMetrics`
   (`server/middleware/telemetry`): OpenTelemetry server span and
   `http.server.request.duration` / `http.server.active_requests` middleware on
