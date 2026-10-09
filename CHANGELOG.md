@@ -10,12 +10,27 @@ points at the ones most likely to surprise an upgrade.
 
 ### Added
 
+- `log.ContextWithAttrs` and `log.AttrsFromContext`: attach attrs to a
+  `context.Context`; loggers built by the `log` package append them to every
+  `*Context` entry.
+- `requestid.New` (`server/middleware/requestid`): request-ID middleware that
+  publishes the ID to the context, the httpx state store and the response
+  header, and as a `request_id` log attr. Client-supplied IDs are accepted only
+  when at most 64 characters of `[A-Za-z0-9._-]`; `WithAlwaysGenerate` never
+  trusts the client.
+- `logger.UnmatchedRoute`, the `route` value for requests that matched no route.
 - `httpz.HandlePanic`, the recover tail shared by `httpz.WithRecover` and
   `logger.RecoveryLog`; `logger.RecoveryLogErr` and `logger.PanicError`, an
   opt-in form of `RecoveryLog` that returns the recovered panic as an error.
 
 ### Changed
 
+- `logger.Log` access entries gain a `route` attr (the matched pattern, or
+  `unmatched`). `logger.Log` and `logger.RecoveryLog` write through
+  `InfoContext`/`ErrorContext` with the request context when the logger
+  implements `log.ContextLogger`, so ctx attrs such as `request_id` appear;
+  loggers without it are called as before. Contract tests:
+  `TestLogRouteAttr`, `TestLogUsesContextLogger`.
 - `logger.RecoveryLog` no longer writes a 500 when the response is already
   committed, matching `httpz.WithRecover`. `httpz.AbortWithJsonError` calls
   `ctx.Committed()` directly instead of asserting an optional interface.

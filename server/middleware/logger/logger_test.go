@@ -404,3 +404,95 @@ func TestRecoveryLogCommittedStillLogs(t *testing.T) {
 		t.Fatalf("committed response was rewritten: status=%d writes=%d", ctx.StatusCode(), len(ctx.Writes()))
 	}
 }
+
+type ctxEntry struct {
+	level log.Level
+	ctx   context.Context
+	attrs []log.Attr
+}
+
+// ctxRecordingLogger additionally implements log.ContextLogger; the plain
+// methods record into the embedded logger so a test can tell which path ran.
+type ctxRecordingLogger struct {
+	recordingLogger
+	ctxEntries []ctxEntry
+}
+
+func (r *ctxRecordingLogger) DebugContext(ctx context.Context, _ string, attrs ...log.Attr) {
+	r.ctxEntries = append(r.ctxEntries, ctxEntry{log.LevelDebug, ctx, slices.Clone(attrs)})
+}
+
+func (r *ctxRecordingLogger) InfoContext(ctx context.Context, _ string, attrs ...log.Attr) {
+	r.ctxEntries = append(r.ctxEntries, ctxEntry{log.LevelInfo, ctx, slices.Clone(attrs)})
+}
+
+func (r *ctxRecordingLogger) WarnContext(ctx context.Context, _ string, attrs ...log.Attr) {
+	r.ctxEntries = append(r.ctxEntries, ctxEntry{log.LevelWarn, ctx, slices.Clone(attrs)})
+}
+
+func (r *ctxRecordingLogger) ErrorContext(ctx context.Context, _ string, attrs ...log.Attr) {
+	r.ctxEntries = append(r.ctxEntries, ctxEntry{log.LevelError, ctx, slices.Clone(attrs)})
+}
+
+type reqKey struct{}
+
+// TestLogUsesContextLogger pins that a logger implementing log.ContextLogger
+// receives the request context and the plain methods are not used.
+func TestLogUsesContextLogger(t *testing.T) {
+	t.Parallel()
+
+	rec := &ctxRecordingLogger{}
+	ctx := accessRequest(context.WithValue(t.Context(), reqKey{}, "v"))
+	next := func(c httpx.Context) error { c.Status(http.StatusOK); return nil }
+	if err := httpxmock.Run(ctx, next, Log(rec)); err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.entries) != 0 || len(rec.ctxEntries) != 1 {
+		t.Fatalf("plain=%d ctx=%d, want 0/1", len(rec.entries), len(rec.ctxEntries))
+	}
+	got := rec.ctxEntries[0]
+	if got.level != log.LevelInfo || got.ctx.Value(reqKey{}) != "v" {
+		t.Errorf("level=%v ctx value=%v", got.level, got.ctx.Value(reqKey{}))
+	}
+	assertAccessAttrs(t, got.attrs, http.StatusOK)
+
+	// Error path and recovery path.
+	rec = &ctxRecordingLogger{}
+	ctx = accessRequest(context.WithValue(t.Context(), reqKey{}, "v"))
+	_ = httpxmock.Run(ctx, func(httpx.Context) error { return errors.New("x") }, Log(rec))
+	ctx = accessRequest(context.WithValue(t.Context(), reqKey{}, "v"))
+	_ = httpxmock.Run(ctx, func(httpx.Context) error { panic("boom") }, RecoveryLog(rec, false))
+	if len(rec.entries) != 0 || len(rec.ctxEntries) != 2 {
+		t.Fatalf("plain=%d ctx=%d, want 0/2", len(rec.entries), len(rec.ctxEntries))
+	}
+	for _, e := range rec.ctxEntries {
+		if e.level != log.LevelError || e.ctx.Value(reqKey{}) != "v" {
+			t.Errorf("entry level=%v ctx value=%v", e.level, e.ctx.Value(reqKey{}))
+		}
+	}
+}
+
+// TestLogRouteAttr pins the route attr: the matched pattern, or the fixed
+// UnmatchedRoute value so unknown paths cannot inflate cardinality.
+func TestLogRouteAttr(t *testing.T) {
+	t.Parallel()
+
+	rec := &recordingLogger{}
+	ctx := httpxmock.NewRequest(http.MethodGet, "/users/42", nil,
+		httpxmock.WithContext(t.Context()), httpxmock.WithFullPath("/users/:id"))
+	if err := httpxmock.Run(ctx, func(httpx.Context) error { return nil }, Log(rec)); err != nil {
+		t.Fatal(err)
+	}
+	if got := requireAttr(t, rec.entries[0].attrs, "route").String(); got != "/users/:id" {
+		t.Errorf("route = %q", got)
+	}
+
+	rec = &recordingLogger{}
+	ctx = httpxmock.NewRequest(http.MethodGet, "/nope/123", nil, httpxmock.WithContext(t.Context()))
+	if err := httpxmock.Run(ctx, func(httpx.Context) error { return nil }, Log(rec)); err != nil {
+		t.Fatal(err)
+	}
+	if got := requireAttr(t, rec.entries[0].attrs, "route").String(); got != UnmatchedRoute {
+		t.Errorf("route = %q, want %q", got, UnmatchedRoute)
+	}
+}

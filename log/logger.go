@@ -72,19 +72,19 @@ func (l *coreLogger) Error(msg string, attrs ...Attr) {
 }
 
 func (l *coreLogger) DebugContext(ctx context.Context, msg string, attrs ...Attr) {
-	l.backend.Log(ctx, LevelDebug, msg, attrs...)
+	l.backend.Log(ctx, LevelDebug, msg, withContextAttrs(ctx, attrs)...)
 }
 
 func (l *coreLogger) InfoContext(ctx context.Context, msg string, attrs ...Attr) {
-	l.backend.Log(ctx, LevelInfo, msg, attrs...)
+	l.backend.Log(ctx, LevelInfo, msg, withContextAttrs(ctx, attrs)...)
 }
 
 func (l *coreLogger) WarnContext(ctx context.Context, msg string, attrs ...Attr) {
-	l.backend.Log(ctx, LevelWarn, msg, attrs...)
+	l.backend.Log(ctx, LevelWarn, msg, withContextAttrs(ctx, attrs)...)
 }
 
 func (l *coreLogger) ErrorContext(ctx context.Context, msg string, attrs ...Attr) {
-	l.backend.Log(ctx, LevelError, msg, attrs...)
+	l.backend.Log(ctx, LevelError, msg, withContextAttrs(ctx, attrs)...)
 }
 
 func (l *coreLogger) Debugf(format string, args ...any) {

@@ -10,11 +10,38 @@ import (
 	"github.com/go-sphere/sphere/server/httpz"
 )
 
+// UnmatchedRoute is the route attr value logged when the request matched no
+// route pattern, so the field stays low-cardinality.
+const UnmatchedRoute = "unmatched"
+
+// logWith writes through the Context methods when lg implements
+// log.ContextLogger, so request-scoped attrs (see log.ContextWithAttrs) and
+// trace correlation reach the backend; otherwise it uses the plain methods.
+func logWith(lg log.BaseLogger, ctx httpx.Context, level log.Level, msg string, attrs []log.Attr) {
+	if cl, ok := lg.(log.ContextLogger); ok {
+		c := ctx.Context()
+		if level == log.LevelError {
+			cl.ErrorContext(c, msg, attrs...)
+		} else {
+			cl.InfoContext(c, msg, attrs...)
+		}
+		return
+	}
+	if level == log.LevelError {
+		lg.Error(msg, attrs...)
+	} else {
+		lg.Info(msg, attrs...)
+	}
+}
+
 // Log returns middleware that writes one access log after the downstream chain.
 // Successful requests are logged with Info; a chain error is logged with Error
 // and returned to the caller. Each entry includes status, method, path, query,
 // client IP, user-agent, and latency; the message is the request path. Path and
-// query are captured before the chain runs. When the chain returns an error
+// query are captured before the chain runs. The route attr is the matched
+// pattern (FullPath), or UnmatchedRoute when none matched, so it is safe as a
+// metrics-style label. When lg implements log.ContextLogger the entry is
+// written with InfoContext or ErrorContext using the request's context. When the chain returns an error
 // before a status was written, the status logged is the one httpz.ErrorStatus
 // resolves, which consults a parser installed with httpz.SetDefaultErrorParser.
 func Log(lg log.BaseLogger) httpx.Middleware {
@@ -27,20 +54,28 @@ func Log(lg log.BaseLogger) httpx.Middleware {
 			path := ctx.Path()
 			query := ctx.RawQuery()
 			err := next(ctx)
+			// FullPath is read after the chain: routers resolve the pattern
+			// while routing, and middleware registered globally runs before
+			// that on some adapters.
+			route := ctx.FullPath()
+			if route == "" {
+				route = UnmatchedRoute
+			}
 			attrs := []log.Attr{
 				log.Int("status", responseStatus(ctx, err)),
 				log.String("method", ctx.Method()),
 				log.String("path", path),
+				log.String("route", route),
 				log.String("query", query),
 				log.String("ip", ctx.ClientIP()),
 				log.String("user-agent", ctx.Header("User-Agent")),
 				log.Duration("latency", time.Since(start)),
 			}
 			if err != nil {
-				lg.Error(path, append(attrs, log.Err(err))...)
+				logWith(lg, ctx, log.LevelError, path, append(attrs, log.Err(err)))
 				return err
 			}
-			lg.Info(path, attrs...)
+			logWith(lg, ctx, log.LevelInfo, path, attrs)
 			return nil
 		}
 	}
@@ -66,7 +101,8 @@ func responseStatus(ctx httpx.Context, err error) int {
 // with no body, unless the response is already committed, in which case
 // nothing more is written. The middleware returns nil, so enclosing middleware
 // sees a successful chain; use RecoveryLogErr to surface the panic as an error.
-// Like httpz.WithRecover, it re-panics http.ErrAbortHandler without logging it,
+// When lg implements log.ContextLogger the entry is written with ErrorContext
+// using the request's context. Like httpz.WithRecover, it re-panics http.ErrAbortHandler without logging it,
 // so net/http can drop the connection.
 func RecoveryLog(lg log.BaseLogger, stack bool) httpx.Middleware {
 	return recoveryLog(lg, stack, false)
@@ -110,7 +146,7 @@ func recoveryLog(lg log.BaseLogger, stack, asError bool) httpx.Middleware {
 						if stack {
 							attrs = append(attrs, log.String("stack", st))
 						}
-						lg.Error("[Recovery from panic]", attrs...)
+						logWith(lg, ctx, log.LevelError, "[Recovery from panic]", attrs)
 					},
 					func(ctx httpx.Context) {
 						ctx.Status(http.StatusInternalServerError)

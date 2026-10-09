@@ -19,6 +19,22 @@ the test before, not after, the next entry that relies on it.
 Everything is measured from `v0.0.3` except "The `httpx` v0.0.5 upgrade", which
 is measured from `v0.0.5`.
 
+## Unreleased
+
+### Access and recovery logs carry `route` and the request context
+
+Contract test: `TestLogRouteAttr`, `TestLogUsesContextLogger` (`server/middleware/logger`).
+
+`logger.Log` adds a `route` attr (the `FullPath()` pattern, or `unmatched`) to
+every access entry; log pipelines that match on a fixed field set may need
+updating. When the logger passed to `logger.Log` or `logger.RecoveryLog`
+implements `log.ContextLogger` (every `log.Logger` does), entries are written
+with `InfoContext`/`ErrorContext` and the request context, so backends that read
+the context (trace IDs, `log.ContextWithAttrs`) now see it. Loggers that
+implement only `log.BaseLogger` are unaffected. Loggers from the `log` package
+now also append attrs attached with `log.ContextWithAttrs` to `*Context`
+entries; nothing attaches attrs unless `requestid.New` or the caller does.
+
 ## The `httpx` v0.0.5 upgrade
 
 `apidiff` reports no incompatibility for anything in this section, including the
