@@ -10,6 +10,16 @@ points at the ones most likely to surprise an upgrade.
 
 ### Added
 
+- `telemetry.NewTracing` and `telemetry.NewMetrics`
+  (`server/middleware/telemetry`): OpenTelemetry server span and
+  `http.server.request.duration` / `http.server.active_requests` middleware on
+  the OpenTelemetry API only (no SDK). Spans and metrics are labelled with the
+  matched route (`unmatched` in metrics, no `http.route` on unmatched spans),
+  5xx marks the span Error and 4xx does not, an unrecovered panic still ends
+  the span and records the duration, and `telemetry.TraceAttrs` supplies
+  `trace_id`/`span_id` for logs. `go.opentelemetry.io/otel`, `otel/metric` and
+  `otel/trace` become direct requirements of `sphere` at the versions it
+  already resolved; `go.sum` is unchanged.
 - `log.ContextWithAttrs` and `log.AttrsFromContext`: attach attrs to a
   `context.Context`; loggers built by the `log` package append them to every
   `*Context` entry.

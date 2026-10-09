@@ -20,6 +20,7 @@ import (
 	"github.com/go-sphere/sphere/server/auth/authorizer"
 	"github.com/go-sphere/sphere/server/middleware/auth"
 	"github.com/go-sphere/sphere/server/middleware/logger"
+	"github.com/go-sphere/sphere/server/middleware/telemetry"
 )
 
 type discardLogger struct{}
@@ -65,10 +66,19 @@ func BenchmarkRealStack(b *testing.B) {
 	acl := allowAll{}
 	leaf := func(ctx httpx.Context) error { return ctx.NoContent(http.StatusNoContent) }
 
-	for _, mode := range []string{"none", "middleware"} {
+	for _, mode := range []string{"none", "middleware", "telemetry-noop"} {
 		b.Run(fmt.Sprintf("form=%s", mode), func(b *testing.B) {
 			app := stdx.New()
-			if mode == "middleware" {
+			if mode != "none" {
+				if mode == "telemetry-noop" {
+					// Global no-op providers: the overhead an application pays
+					// before it installs an SDK.
+					metrics, err := telemetry.NewMetrics()
+					if err != nil {
+						b.Fatal(err)
+					}
+					app.Use(telemetry.NewTracing(), metrics)
+				}
 				app.Use(logger.Log(lg), logger.RecoveryLog(lg, true))
 				authed := app.Group("/api", auth.NewAuthMiddleware(parser))
 				admin := authed.Group("/admin", auth.NewPermissionMiddleware[int64]("bench", acl))
