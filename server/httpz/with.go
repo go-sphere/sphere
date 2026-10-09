@@ -3,7 +3,6 @@ package httpz
 import (
 	"errors"
 	"net/http"
-	"runtime/debug"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/log"
@@ -39,23 +38,23 @@ func Value[T any](ctx httpx.Context, key string) (T, bool) {
 func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Handler {
 	return func(ctx httpx.Context) error {
 		defer func() {
-			if err := recover(); err != nil {
-				// http.ErrAbortHandler is net/http's documented way to abandon a
-				// request (usually a client disconnect); re-panic so the server
-				// drops the connection instead of logging a stack and writing 500.
-				if err == http.ErrAbortHandler {
-					panic(err)
-				}
-				log.Error(
-					message,
-					log.Any("error", err),
-					log.String("stack", string(debug.Stack())),
-				)
-				AbortWithJsonError(ctx,
-					httpx.InternalServerError(
-						errInternalServerPanic,
-						"internal server error",
-					),
+			if rec := recover(); rec != nil {
+				HandlePanic(ctx, rec, true,
+					func(rec any, stack string) {
+						log.Error(
+							message,
+							log.Any("error", rec),
+							log.String("stack", stack),
+						)
+					},
+					func(ctx httpx.Context) {
+						AbortWithJsonError(ctx,
+							httpx.InternalServerError(
+								errInternalServerPanic,
+								"internal server error",
+							),
+						)
+					},
 				)
 			}
 		}()

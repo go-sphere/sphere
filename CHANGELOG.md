@@ -8,6 +8,18 @@ points at the ones most likely to surprise an upgrade.
 
 ## Unreleased
 
+### Added
+
+- `httpz.HandlePanic`, the recover tail shared by `httpz.WithRecover` and
+  `logger.RecoveryLog`; `logger.RecoveryLogErr` and `logger.PanicError`, an
+  opt-in form of `RecoveryLog` that returns the recovered panic as an error.
+
+### Changed
+
+- `logger.RecoveryLog` no longer writes a 500 when the response is already
+  committed, matching `httpz.WithRecover`. `httpz.AbortWithJsonError` calls
+  `ctx.Committed()` directly instead of asserting an optional interface.
+
 ## v0.0.7 (2026-10-08)
 
 The release that removes process-global side effects from package init and

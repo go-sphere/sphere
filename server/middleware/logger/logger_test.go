@@ -308,3 +308,99 @@ func TestLogUsesInstalledErrorParser(t *testing.T) {
 		t.Fatalf("logged status = %d, want %d from the installed parser", got, http.StatusTeapot)
 	}
 }
+
+// recoveryEntries runs the same panicking chain through both recover entry
+// points so their shared behaviour is pinned in one place.
+var recoveryEntries = map[string]func(rec *recordingLogger, next httpx.Handler) httpx.Handler{
+	"RecoveryLog": func(rec *recordingLogger, next httpx.Handler) httpx.Handler {
+		return RecoveryLog(rec, false)(next)
+	},
+	"RecoveryLogErr": func(rec *recordingLogger, next httpx.Handler) httpx.Handler {
+		return RecoveryLogErr(rec, false)(next)
+	},
+	"WithRecover": func(_ *recordingLogger, next httpx.Handler) httpx.Handler {
+		return httpz.WithRecover("panic", next)
+	},
+}
+
+// TestRecoveryEntriesAgree pins that every recover entry point turns a panic
+// into a 500, re-panics http.ErrAbortHandler, and leaves a committed response
+// untouched.
+func TestRecoveryEntriesAgree(t *testing.T) {
+	for name, build := range recoveryEntries {
+		t.Run(name+"/500", func(t *testing.T) {
+			ctx := accessRequest(t.Context())
+			h := build(&recordingLogger{}, func(httpx.Context) error { panic("boom") })
+			_ = h(ctx)
+			if ctx.StatusCode() != http.StatusInternalServerError {
+				t.Fatalf("status = %d, want 500", ctx.StatusCode())
+			}
+		})
+		t.Run(name+"/abort", func(t *testing.T) {
+			h := build(&recordingLogger{}, func(httpx.Context) error { panic(http.ErrAbortHandler) })
+			defer func() {
+				if got := recover(); got != http.ErrAbortHandler {
+					t.Fatalf("recovered %v, want http.ErrAbortHandler", got)
+				}
+			}()
+			_ = h(accessRequest(t.Context()))
+			t.Fatal("http.ErrAbortHandler was swallowed")
+		})
+		t.Run(name+"/committed", func(t *testing.T) {
+			ctx := accessRequest(t.Context())
+			h := build(&recordingLogger{}, func(c httpx.Context) error {
+				_ = c.Text(http.StatusOK, "partial")
+				panic("late")
+			})
+			_ = h(ctx)
+			if ctx.StatusCode() != http.StatusOK || ctx.BodyString() != "partial" || len(ctx.Writes()) != 1 {
+				t.Fatalf("committed response was rewritten: status=%d body=%q writes=%d",
+					ctx.StatusCode(), ctx.BodyString(), len(ctx.Writes()))
+			}
+		})
+	}
+}
+
+// TestRecoveryLogErr pins the opt-in error form: the panic is returned as a
+// *PanicError (unwrapping a panicked error) while RecoveryLog still returns nil.
+func TestRecoveryLogErr(t *testing.T) {
+	t.Parallel()
+
+	cause := errors.New("cause")
+	next := func(httpx.Context) error { panic(cause) }
+
+	ctx := accessRequest(t.Context())
+	err := httpxmock.Run(ctx, next, RecoveryLogErr(&recordingLogger{}, false))
+	var pe *PanicError
+	if !errors.As(err, &pe) || !errors.Is(err, cause) {
+		t.Fatalf("err = %v, want *PanicError wrapping cause", err)
+	}
+	if ctx.StatusCode() != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", ctx.StatusCode())
+	}
+	if err := httpxmock.Run(accessRequest(t.Context()), next, RecoveryLog(&recordingLogger{}, false)); err != nil {
+		t.Fatalf("RecoveryLog err = %v, want nil", err)
+	}
+}
+
+// TestRecoveryLogCommittedStillLogs pins that a panic after the response was
+// committed is logged even though no 500 is written.
+func TestRecoveryLogCommittedStillLogs(t *testing.T) {
+	t.Parallel()
+
+	rec := &recordingLogger{}
+	ctx := accessRequest(t.Context())
+	next := func(c httpx.Context) error {
+		_ = c.Text(http.StatusOK, "partial")
+		panic("late")
+	}
+	if err := httpxmock.Run(ctx, next, RecoveryLog(rec, false)); err != nil {
+		t.Fatalf("RecoveryLog: %v", err)
+	}
+	if len(rec.entries) != 1 || rec.entries[0].level != log.LevelError {
+		t.Fatalf("entries = %+v, want one Error entry", rec.entries)
+	}
+	if ctx.StatusCode() != http.StatusOK || len(ctx.Writes()) != 1 {
+		t.Fatalf("committed response was rewritten: status=%d writes=%d", ctx.StatusCode(), len(ctx.Writes()))
+	}
+}

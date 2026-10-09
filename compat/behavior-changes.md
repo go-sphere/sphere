@@ -1203,6 +1203,14 @@ It always was one — Meilisearch clamps it to `pagination.maxTotalHits`, 1000 b
 default — but the field was documented as an exact count, so paginating on it
 ran off the end of the results. No behaviour changed.
 
+### `RecoveryLog` leaves a committed response alone
+
+Contract test: `server/middleware/logger`: `TestRecoveryEntriesAgree`.
+
+`RecoveryLog` and `httpz.WithRecover` now share `httpz.HandlePanic`. A panic
+after the response was committed is still logged, but `RecoveryLog` no longer
+calls `Status(500)` / `NoContent(500)` on top of the bytes already sent.
+
 ## Known issue requiring an upstream fix
 
 `WithRecover` can emit two JSON documents in one response when a handler panics
