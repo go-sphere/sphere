@@ -77,7 +77,8 @@ points at the ones most likely to surprise an upgrade.
   channel"; it blocks until the stream is torn down and returns the
   cancellation cause, also when the send is made while the pump is still
   writing, and a failure before the pump runs (retry frame, initial flush)
-  cancels the producer.
+  cancels the producer, including on adapters that run the stream callback
+  after the handler returned and drop its error (fiber).
 - `logger.Log` records the status the client receives when the chain returns an
   error: the recorded status once the response is committed, otherwise the
   status `httpz.ErrorStatus` resolves.
