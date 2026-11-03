@@ -406,7 +406,10 @@ func TestClientDownloadFallsBackToStat(t *testing.T) {
 
 // TestClientUsesHTTPSByDefault points a default client at a fake that only
 // speaks http. The SDK must then dial the hosts the region query returns over
-// https and fail, instead of sending credentials and tokens in the clear.
+// https and fail, instead of sending credentials and tokens in the clear. The
+// fake's UC host is an explicit http:// address, which the SDK keeps as given,
+// so the region query itself stays plain here; only the hosts it returns are
+// covered.
 func TestClientUsesHTTPSByDefault(t *testing.T) {
 	client, fake := newFakeClient(t, Config{})
 	client.insecureHTTP = false

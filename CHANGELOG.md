@@ -67,13 +67,17 @@ points at the ones most likely to surprise an upgrade.
 ### Fixed
 
 - `log`: package-level `DebugContext`/`InfoContext`/`WarnContext`/
-  `ErrorContext` include attrs attached with `ContextWithAttrs`. `logbuffer` stores error attrs
-  as their message, so entries serialize to JSON as text instead of `{}`.
+  `ErrorContext` include attrs attached with `ContextWithAttrs`. `logbuffer`
+  stores error attrs, including preset ones, as their message, so entries
+  serialize to JSON as text instead of `{}`; a typed nil error is recorded as
+  nil and a panicking attr no longer drops the attrs after it.
 - `httpz`: `WithRecover` and `WithSSE` panic logs carry the request context, so
   `request_id`/`trace_id` appear on them. A `send` made after a `WithSSE`
   stream function returned no longer crashes the process with "send on closed
   channel"; it blocks until the stream is torn down and returns the
-  cancellation cause.
+  cancellation cause, also when the send is made while the pump is still
+  writing, and a failure before the pump runs (retry frame, initial flush)
+  cancels the producer.
 - `logger.Log` records the status the client receives when the chain returns an
   error: the recorded status once the response is committed, otherwise the
   status `httpz.ErrorStatus` resolves.
@@ -87,7 +91,13 @@ points at the ones most likely to surprise an upgrade.
 - `reverseproxy`: `WithSaveTimeout` is an idle timeout that restarts whenever
   body bytes reach the cache, so slow downloads are cached instead of aborted
   at a fixed deadline; a stalled upstream or backend is still abandoned after
-  the timeout.
+  the timeout. The timeout also closes the cache body queue, so a save parked
+  in a driver that ignores its context (local storage) is released.
+- `jwtauth.ParseToken` rejects a payload with bytes after the JSON object for
+  pointer claims too, as it already did for value claims.
+- `scheduler/asynq`: `Stop` returns the error of a panicking teardown step
+  (the remaining steps still run) instead of reporting a clean drain, and stops
+  the server's processor before waiting for cron to shut down.
 - `qiniu`: SDK calls (region query, uploads, management and download requests)
   use https instead of the SDK's plaintext http default; users whose hosts
   were reachable only over http must set an explicit `http://` UC host. The
