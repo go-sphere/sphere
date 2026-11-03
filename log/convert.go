@@ -92,9 +92,6 @@ func formattable(rv reflect.Value, depth int, seen map[containerKey]struct{}) bo
 	if depth > maxFormatDepth {
 		return false
 	}
-	if rendersItself(rv) {
-		return true
-	}
 	switch rv.Kind() {
 	case reflect.Invalid:
 		return true
@@ -143,25 +140,6 @@ func formattable(rv reflect.Value, depth int, seen map[containerKey]struct{}) bo
 	default:
 		return true
 	}
-}
-
-var (
-	errorType     = reflect.TypeFor[error]()
-	stringerType  = reflect.TypeFor[fmt.Stringer]()
-	formatterType = reflect.TypeFor[fmt.Formatter]()
-)
-
-// rendersItself reports whether fmt.Sprint renders rv through Error, String or
-// Format instead of walking its fields, so whatever rv references is never
-// reached. fmt only calls those methods on values it can Interface, hence the
-// CanInterface guard for fields obtained through unexported struct fields.
-// GoString is left out: Sprint uses it for %#v only.
-func rendersItself(rv reflect.Value) bool {
-	if !rv.IsValid() || !rv.CanInterface() {
-		return false
-	}
-	t := rv.Type()
-	return t.Implements(errorType) || t.Implements(stringerType) || t.Implements(formatterType)
 }
 
 func formattableElems(rv reflect.Value, depth int, seen map[containerKey]struct{}) bool {

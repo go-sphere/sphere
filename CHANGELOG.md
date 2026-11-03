@@ -67,9 +67,7 @@ points at the ones most likely to surprise an upgrade.
 ### Fixed
 
 - `log`: package-level `DebugContext`/`InfoContext`/`WarnContext`/
-  `ErrorContext` include attrs attached with `ContextWithAttrs`. The logfmt
-  formatter no longer reports cyclic or deep values as unformattable when they
-  render through `Error`, `String` or `Format`. `logbuffer` stores error attrs
+  `ErrorContext` include attrs attached with `ContextWithAttrs`. `logbuffer` stores error attrs
   as their message, so entries serialize to JSON as text instead of `{}`.
 - `httpz`: `WithRecover` and `WithSSE` panic logs carry the request context, so
   `request_id`/`trace_id` appear on them. A `send` made after a `WithSSE`
