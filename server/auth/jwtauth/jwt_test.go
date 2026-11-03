@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"math"
 	"net/http"
 	"testing"
 	"time"
@@ -216,6 +217,102 @@ func TestJwtAuth_PointerClaims(t *testing.T) {
 	if got == nil || got.UID != claims.UID {
 		t.Fatalf("claims = %+v, want UID %d", got, claims.UID)
 	}
+}
+
+// TestJwtAuth_PointerClaimsPreserveNumbers pins that the map-decoding path used
+// for pointer claims types keeps integers above 2^53 exact instead of rounding
+// them through float64.
+func TestJwtAuth_PointerClaimsPreserveNumbers(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	exp := time.Now().Add(time.Hour)
+
+	t.Run("int64", func(t *testing.T) {
+		t.Parallel()
+
+		auth := NewJwtAuth[*RBACClaims[int64]]("secret")
+		for _, uid := range []int64{1234567890123456789, math.MaxInt64, 42, -1234567890123456789} {
+			claims := NewRBACClaims[int64](uid, "alice", []string{"admin"}, exp)
+			token, err := auth.GenerateToken(ctx, &claims)
+			if err != nil {
+				t.Fatalf("GenerateToken: %v", err)
+			}
+			got, err := auth.ParseToken(ctx, token)
+			if err != nil {
+				t.Fatalf("ParseToken: %v", err)
+			}
+			if got == nil || got.UID != uid {
+				t.Errorf("UID = %+v, want %d", got, uid)
+			}
+			if got != nil && (got.Subject != "alice" || len(got.Roles) != 1 || got.Roles[0] != "admin") {
+				t.Errorf("claims = %+v, want subject alice and roles [admin]", got)
+			}
+		}
+	})
+
+	t.Run("uint64", func(t *testing.T) {
+		t.Parallel()
+
+		auth := NewJwtAuth[*RBACClaims[uint64]]("secret")
+		const uid uint64 = math.MaxUint64
+		claims := NewRBACClaims[uint64](uid, "alice", nil, exp)
+		token, err := auth.GenerateToken(ctx, &claims)
+		if err != nil {
+			t.Fatalf("GenerateToken: %v", err)
+		}
+		got, err := auth.ParseToken(ctx, token)
+		if err != nil {
+			t.Fatalf("ParseToken: %v", err)
+		}
+		if got == nil || got.UID != uid {
+			t.Errorf("UID = %+v, want %d", got, uid)
+		}
+	})
+
+	t.Run("string", func(t *testing.T) {
+		t.Parallel()
+
+		auth := NewJwtAuth[*RBACClaims[string]]("secret")
+		claims := NewRBACClaims[string]("1234567890123456789", "alice", nil, exp)
+		token, err := auth.GenerateToken(ctx, &claims)
+		if err != nil {
+			t.Fatalf("GenerateToken: %v", err)
+		}
+		got, err := auth.ParseToken(ctx, token)
+		if err != nil {
+			t.Fatalf("ParseToken: %v", err)
+		}
+		if got == nil || got.UID != "1234567890123456789" {
+			t.Errorf("UID = %+v, want 1234567890123456789", got)
+		}
+	})
+
+	t.Run("float field", func(t *testing.T) {
+		t.Parallel()
+
+		type scored struct {
+			jwt.RegisteredClaims
+			Score float64 `json:"score"`
+			Count int     `json:"count"`
+		}
+		auth := NewJwtAuth[*scored]("secret")
+		token, err := auth.GenerateToken(ctx, &scored{
+			RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(exp)},
+			Score:            0.125,
+			Count:            7,
+		})
+		if err != nil {
+			t.Fatalf("GenerateToken: %v", err)
+		}
+		got, err := auth.ParseToken(ctx, token)
+		if err != nil {
+			t.Fatalf("ParseToken: %v", err)
+		}
+		if got == nil || got.Score != 0.125 || got.Count != 7 {
+			t.Errorf("claims = %+v, want score 0.125 and count 7", got)
+		}
+	})
 }
 
 func TestJwtAuth_MissingUIDClaims(t *testing.T) {

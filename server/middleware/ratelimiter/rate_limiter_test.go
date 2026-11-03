@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -427,4 +428,54 @@ func TestRateLimiter_CacheHitAcceptsInfiniteLimiterWithZeroBurst(t *testing.T) {
 	if !next.Called() {
 		t.Fatal("request must proceed down the chain")
 	}
+}
+
+// TestNewOptionsDefaultCache pins that the default in-memory cache is built only
+// when WithCache did not supply one: building and discarding it per middleware
+// would leave its background goroutines running forever. Not parallel, so no
+// other test's goroutines move the count while it runs.
+func TestNewOptionsDefaultCache(t *testing.T) {
+	const n = 20
+	build := func(opts ...Option) int {
+		before := runtime.NumGoroutine()
+		for range n {
+			NewRateLimiter(
+				func(httpx.Context) string { return "k" },
+				func(httpx.Context) (*rate.Limiter, time.Duration) { return rate.NewLimiter(rate.Inf, 0), 0 },
+				opts...,
+			)
+		}
+		// Let goroutines started by the constructors show up.
+		for range 50 {
+			runtime.Gosched()
+			time.Sleep(time.Millisecond)
+		}
+		return runtime.NumGoroutine() - before
+	}
+
+	t.Run("WithCache builds no default cache", func(t *testing.T) {
+		custom := &errCache{}
+		if grown := build(WithCache(custom)); grown >= n {
+			t.Fatalf("goroutines grew by %d over %d middlewares with WithCache, want no orphaned default cache", grown, n)
+		}
+		if got := newOptions(WithCache(custom)).cache; got != cache.Cache[*rate.Limiter](custom) {
+			t.Fatalf("cache = %v, want the one passed to WithCache", got)
+		}
+	})
+
+	t.Run("default cache works", func(t *testing.T) {
+		mw := NewRateLimiter(
+			func(httpx.Context) string { return "k" },
+			func(httpx.Context) (*rate.Limiter, time.Duration) {
+				return rate.NewLimiter(rate.Every(time.Hour), 1), time.Minute
+			},
+		)
+		next := &httpxmock.Handler{}
+		if err := httpxmock.Run(httpxmock.New(nil), next.Handle, mw); err != nil {
+			t.Fatalf("first request: %v", err)
+		}
+		if err := httpxmock.Run(httpxmock.New(nil), next.Handle, mw); err == nil {
+			t.Fatal("second request passed, want the burst of 1 exhausted")
+		}
+	})
 }

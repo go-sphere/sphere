@@ -338,3 +338,73 @@ func TestSwaggerDocJSONRewritesWithoutMutatingSpec(t *testing.T) {
 		t.Fatalf("caller spec was mutated: %+v", spec)
 	}
 }
+
+func TestProxyPreservesEscapedPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		target     string
+		wantURI    string
+		wantPath   string
+		wantRawSet bool
+	}{
+		{"encoded slash", "/escproxyv1/api/files/a%2Fb", "/files/a%2Fb", "/files/a/b", true},
+		{"plain", "/escproxyv1/api/files/ab", "/files/ab", "/files/ab", false},
+		{"bare prefix", "/escproxyv1/api", "/", "/", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotURI, gotPath, gotRaw string
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotURI = r.RequestURI
+				gotPath = r.URL.Path
+				gotRaw = r.URL.RawPath
+			}))
+			defer backend.Close()
+
+			mux := http.NewServeMux()
+			if err := registerTarget(mux, &swag.Spec{InfoInstanceName: "EscProxyV1"}, backend.URL); err != nil {
+				t.Fatalf("registerTarget error: %v", err)
+			}
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.target, nil))
+
+			if gotURI != tt.wantURI {
+				t.Fatalf("RequestURI = %q, want %q", gotURI, tt.wantURI)
+			}
+			if gotPath != tt.wantPath {
+				t.Fatalf("Path = %q, want %q", gotPath, tt.wantPath)
+			}
+			if (gotRaw != "") != tt.wantRawSet {
+				t.Fatalf("RawPath = %q, set = %v, want set = %v", gotRaw, gotRaw != "", tt.wantRawSet)
+			}
+		})
+	}
+}
+
+func TestSwaggerDocJSONKeepsLargeIntegers(t *testing.T) {
+	const instance = "DocBigIntTargetV1"
+	if swag.GetSwagger(instance) == nil {
+		swag.Register(instance, fakeSwagger(`{"swagger":"2.0","info":{"title":"t"},"definitions":{"X":{"type":"integer","example":1234567890123456789,"maximum":9223372036854775807}}}`))
+	}
+
+	web := NewWebServer(Config{Targets: []Target{{Address: "https://api.example.com", Spec: &swag.Spec{InfoInstanceName: instance}}}})
+	handler, err := web.newHandler()
+	if err != nil {
+		t.Fatalf("newHandler: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/docbiginttargetv1/doc/swagger/doc.json", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("doc.json status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"1234567890123456789", "9223372036854775807"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("doc.json lost %s: %s", want, body)
+		}
+	}
+}

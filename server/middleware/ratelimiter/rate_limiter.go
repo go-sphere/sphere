@@ -19,12 +19,14 @@ type options struct {
 }
 
 func newOptions(opts ...Option) *options {
-	defaults := &options{
-		cache:      memory.NewMemoryCache[*rate.Limiter](),
-		setTimeout: 5 * time.Second,
-	}
+	defaults := &options{setTimeout: 5 * time.Second}
 	for _, opt := range opts {
 		opt(defaults)
+	}
+	// Built after the options so a WithCache cache does not orphan a default
+	// one with its background goroutines.
+	if defaults.cache == nil {
+		defaults.cache = memory.NewMemoryCache[*rate.Limiter]()
 	}
 	return defaults
 }

@@ -42,9 +42,9 @@ func logWith(lg log.BaseLogger, ctx httpx.Context, level log.Level, msg string, 
 // pattern (FullPath), or UnmatchedRoute when none matched, so it is safe as a
 // metrics-style label. When lg implements log.ContextLogger the entry is
 // written with InfoContext or ErrorContext using the request's context. When
-// the chain returns an error before a status was written, the status logged is
-// the one httpz.ErrorStatus resolves, which consults a parser installed with
-// httpz.SetDefaultErrorParser.
+// the chain returns an error before the response is committed, the status
+// logged is the one httpz.ErrorStatus resolves, which consults a parser
+// installed with httpz.SetDefaultErrorParser.
 func Log(lg log.BaseLogger) httpx.Middleware {
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
@@ -83,17 +83,16 @@ func Log(lg log.BaseLogger) httpx.Middleware {
 }
 
 // responseStatus reports the status the client will see. Where the response is
-// already written the recorded status is authoritative; when the chain failed
-// before anything was written — which is the normal case in a composed chain,
-// where the error is rendered at the route rather than at the failing layer —
-// the status httpz.ErrorStatus resolves — the one httpz.AbortWithJsonError
-// writes with the installed error parser — is what the client will get.
+// already committed the recorded status is authoritative: a later error is not
+// rendered over it. Otherwise an error the chain returned is rendered later by
+// the engine, so the status httpz.ErrorStatus resolves — the one
+// httpz.AbortWithJsonError writes with the installed error parser — wins over
+// any status set but not yet written.
 func responseStatus(ctx httpx.Context, err error) int {
-	status := ctx.StatusCode()
-	if err == nil || status >= http.StatusBadRequest {
-		return status
+	if err != nil && !ctx.Committed() {
+		return httpz.ErrorStatus(err)
 	}
-	return httpz.ErrorStatus(err)
+	return ctx.StatusCode()
 }
 
 // RecoveryLog returns middleware that recovers panics from the downstream chain.

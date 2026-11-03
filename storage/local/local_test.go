@@ -354,3 +354,73 @@ func TestClient_CopyMissingSourcePreservesDestination(t *testing.T) {
 		t.Fatalf("destination content = %q, want %q", got, "current")
 	}
 }
+
+func TestClient_FileUsedAsDirectoryDestination(t *testing.T) {
+	ctx := t.Context()
+	client, err := NewClient(Config{RootDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	for _, key := range []string{"a", "src"} {
+		if _, e := client.UploadFile(ctx, strings.NewReader("body"), key); e != nil {
+			t.Fatalf("UploadFile(%q) error = %v", key, e)
+		}
+	}
+
+	// A destination below a file is a real failure, not a missing source.
+	tests := []struct {
+		name string
+		do   func() error
+	}{
+		{"upload", func() error {
+			_, e := client.UploadFile(ctx, strings.NewReader("x"), "a/b")
+			return e
+		}},
+		{"move", func() error { return client.MoveFile(ctx, "src", "a/b", true) }},
+		{"copy", func() error { return client.CopyFile(ctx, "src", "a/b", true) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := tt.do()
+			if e == nil {
+				t.Fatal("error = nil, want failure")
+			}
+			if errors.Is(e, storageerr.ErrNotFound) {
+				t.Fatalf("error = %v, must not report a missing source", e)
+			}
+		})
+	}
+}
+
+func TestClient_ListFilesSymlinkRoot(t *testing.T) {
+	ctx := t.Context()
+	target := t.TempDir()
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	client, err := NewClient(Config{RootDir: link})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	if _, e := client.UploadFile(ctx, strings.NewReader("body"), "a/b.txt"); e != nil {
+		t.Fatalf("UploadFile() error = %v", e)
+	}
+
+	keys, next, err := client.ListFiles(ctx, "", "", 0)
+	if err != nil {
+		t.Fatalf("ListFiles() error = %v", err)
+	}
+	if len(keys) != 1 || keys[0] != "a/b.txt" || next != "" {
+		t.Fatalf("ListFiles() = %v, %q, want [a/b.txt], \"\"", keys, next)
+	}
+
+	for _, key := range []string{"../escape.txt", "a/../../escape.txt", "/../escape.txt"} {
+		if _, e := client.UploadFile(ctx, strings.NewReader("x"), key); e == nil {
+			t.Errorf("UploadFile(%q) error = nil, want rejection", key)
+		}
+	}
+	if _, e := os.Stat(filepath.Join(filepath.Dir(target), "escape.txt")); e == nil {
+		t.Error("traversal key wrote outside the root")
+	}
+}

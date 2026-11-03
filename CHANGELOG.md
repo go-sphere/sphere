@@ -64,6 +64,51 @@ points at the ones most likely to surprise an upgrade.
   `context.Canceled` is unchanged. Contract test:
   `TestParseError_DeadlineExceededIs504`.
 
+### Fixed
+
+- `log`: package-level `DebugContext`/`InfoContext`/`WarnContext`/
+  `ErrorContext` include attrs attached with `ContextWithAttrs`. The logfmt
+  formatter no longer reports cyclic or deep values as unformattable when they
+  render through `Error`, `String` or `Format`. `logbuffer` stores error attrs
+  as their message, so entries serialize to JSON as text instead of `{}`.
+- `httpz`: `WithRecover` and `WithSSE` panic logs carry the request context, so
+  `request_id`/`trace_id` appear on them. A `send` made after a `WithSSE`
+  stream function returned no longer crashes the process with "send on closed
+  channel"; it blocks until the stream is torn down and returns the
+  cancellation cause.
+- `logger.Log` records the status the client receives when the chain returns an
+  error: the recorded status once the response is committed, otherwise the
+  status `httpz.ErrorStatus` resolves.
+- `ratelimiter` no longer builds and leaks a default in-memory cache, with its
+  background goroutines, when `WithCache` is supplied.
+- `jwtauth.ParseToken` decodes JSON numbers exactly when the claims type is a
+  pointer such as `*RBACClaims[int64]`, so `int64`/`uint64` IDs above 2^53 are
+  no longer rounded through `float64`.
+- `docs` proxy keeps percent-encoded path segments such as `%2F` when
+  forwarding, and `doc.json` keeps integers beyond 2^53 verbatim.
+- `reverseproxy`: `WithSaveTimeout` is an idle timeout that restarts whenever
+  body bytes reach the cache, so slow downloads are cached instead of aborted
+  at a fixed deadline; a stalled upstream or backend is still abandoned after
+  the timeout.
+- `qiniu`: SDK calls (region query, uploads, management and download requests)
+  use https instead of the SDK's plaintext http default; users whose hosts
+  were reachable only over http must set an explicit `http://` UC host. The
+  upload-token TTL doc says it is truncated to whole seconds.
+- `local`: `ListFiles` works when `RootDir` is a symlink, and keys whose parent
+  path component is a regular file are reported as missing (`IsFileExists`
+  false, `ErrNotFound`, idempotent `DeleteFile`) instead of failing with a raw
+  "not a directory" error.
+- `s3`: `ListFiles` returns the caller's context error when the context ends
+  before the listing is exhausted, instead of a truncated page with an empty
+  cursor that reads as end of list.
+- `cache/memory`: `NewMemoryCacheWithCost(nil)` costs every item as 1 like
+  `NewMemoryCache`, and `NewByteCache` costs empty values as 1, so zero-cost
+  entries count against `MaxCost` and are evicted.
+- `scheduler/asynq`: `Stop` no longer holds the scheduler lock while cron and
+  the asynq server drain, so it returns `ctx.Err()` at the caller's deadline
+  when Redis stalls and concurrent `Register`, `Unregister` and dispatch are
+  not blocked during the drain.
+
 ## v0.0.7 (2026-10-08)
 
 The release that removes process-global side effects from package init and

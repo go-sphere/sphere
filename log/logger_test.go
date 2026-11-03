@@ -488,3 +488,33 @@ func TestStressGlobalLoggerFormatting(t *testing.T) {
 	derived := With(WithName("panic_test"))
 	derived.Warn("derived panicking stringer", Any("ps", panickingStringer{msg: "derived boom"}))
 }
+
+// TestPackageContextFunctionsAppendContextAttrs pins that the package-level
+// *Context functions merge attrs attached with ContextWithAttrs, exactly as the
+// Logger methods do, so request-scoped fields reach the backend on either path.
+func TestPackageContextFunctionsAppendContextAttrs(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		level Level
+		log   func(ctx context.Context, msg string, attrs ...Attr)
+	}{
+		{name: "DebugContext", level: LevelDebug, log: DebugContext},
+		{name: "InfoContext", level: LevelInfo, log: InfoContext},
+		{name: "WarnContext", level: LevelWarn, log: WarnContext},
+		{name: "ErrorContext", level: LevelError, log: ErrorContext},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := installRecorder(t)
+			ctx := ContextWithAttrs(context.Background(), String("request_id", "r1"))
+			tc.log(ctx, "m", String("k", "v"))
+
+			got := rec.last(t)
+			if got.level != tc.level {
+				t.Fatalf("level = %v, want %v", got.level, tc.level)
+			}
+			if len(got.attrs) != 2 || got.attrs[0].Key != "k" || got.attrs[1].Key != "request_id" {
+				t.Fatalf("attrs = %v, want [k request_id]", got.attrs)
+			}
+		})
+	}
+}

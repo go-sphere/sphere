@@ -121,7 +121,9 @@ func (g *JwtAuth[T]) parseToken(signedToken string) (T, error) {
 		return claims, nil
 	} else {
 		// Otherwise, first parse it into a map, then attempt to convert it into T.
-		token, err := jwt.Parse(signedToken, g.keyFunc, jwt.WithExpirationRequired())
+		// JSON numbers stay json.Number so 64-bit integers above 2^53 survive the
+		// round trip instead of being rounded through float64.
+		token, err := jwt.Parse(signedToken, g.keyFunc, jwt.WithExpirationRequired(), jwt.WithJSONNumber())
 		if err != nil {
 			return claims, err
 		}

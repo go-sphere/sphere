@@ -3,6 +3,7 @@ package reverseproxy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -45,9 +46,29 @@ func inboundRequest(req *http.Request) *http.Request {
 }
 
 // defaultSaveTimeout bounds how long persisting one response to the cache may
-// take. The save runs on a context detached from the request, so nothing else
-// would ever stop it.
+// go without progress. The save runs on a context detached from the request, so
+// nothing else would ever stop it.
 const defaultSaveTimeout = 30 * time.Second
+
+// errSaveIdle is the cancellation cause of a save that made no progress for the
+// save timeout.
+var errSaveIdle = errors.New("reverseproxy: cache save idle timeout")
+
+// idleReader restarts timer for d after every read that returns data, so the
+// timer only fires when the body goes d without delivering a byte.
+type idleReader struct {
+	r     io.Reader
+	timer *time.Timer
+	d     time.Duration
+}
+
+func (i *idleReader) Read(p []byte) (int, error) {
+	n, err := i.r.Read(p)
+	if n > 0 {
+		i.timer.Reset(i.d)
+	}
+	return n, err
+}
 
 // Options holds CreateCacheReverseProxy configuration filled by Option values.
 // Its fields are unexported; use the With* options.
@@ -178,7 +199,11 @@ func newOptions(opts ...Option) *Options {
 }
 
 // WithSaveTimeout bounds how long persisting a single response to the cache may
-// take. A non-positive duration restores the default.
+// go without progress. It is an idle timeout, not a total one: the save context
+// is canceled when no body bytes reach the cache backend for this long, so a
+// slow but steady transfer of any length is saved, while a stalled upstream or
+// a backend that stops reading is abandoned. A non-positive duration restores
+// the default.
 func WithSaveTimeout(timeout time.Duration) Option {
 	return func(config *Options) {
 		if timeout <= 0 {
@@ -378,9 +403,14 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 			defer cacheFlags.Delete(key)
 			// Detached from the request but bounded: a backend that never answers
 			// must not hold this goroutine and the key's cacheFlags entry (which is
-			// only cleared here) forever.
-			ctx, cancel := context.WithTimeout(context.WithoutCancel(resp.Request.Context()), conf.saveTimeout)
-			defer cancel()
+			// only cleared here) forever. The bound is idle rather than wall-clock
+			// because Save consumes the body at the pace of upstream and client,
+			// so a total deadline would cut off any download slower than it.
+			ctx, cancel := context.WithCancelCause(context.WithoutCancel(resp.Request.Context()))
+			defer cancel(nil)
+			timer := time.AfterFunc(conf.saveTimeout, func() { cancel(errSaveIdle) })
+			defer timer.Stop()
+			body := &idleReader{r: cacheBody, timer: timer, d: conf.saveTimeout}
 			// Persist the real status code inside the header blob so it can be
 			// replayed on cache hit. Clone to avoid leaking the internal header
 			// to the client response.
@@ -391,7 +421,10 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 			// this also covers a custom checker that does not.
 			cacheHeader.Del("Set-Cookie")
 			cacheHeader.Set(cacheStatusHeader, strconv.Itoa(resp.StatusCode))
-			if err := cache.Save(ctx, key, cacheHeader, cacheBody); err != nil {
+			if err := cache.Save(ctx, key, cacheHeader, body); err != nil {
+				if errors.Is(context.Cause(ctx), errSaveIdle) {
+					err = fmt.Errorf("%w after %v: %w", errSaveIdle, conf.saveTimeout, err)
+				}
 				// Cache save failed, but continue serving client
 				// Error is silently ignored as cache is not critical
 				conf.errorHandler(err)

@@ -173,9 +173,10 @@ func Debug(msg string, attrs ...Attr) {
 	logger().backend.Log(context.Background(), LevelDebug, msg, attrs...)
 }
 
-// DebugContext logs at LevelDebug with ctx (for context-merge backends).
+// DebugContext logs at LevelDebug with ctx (for context-merge backends) and
+// appends the attrs attached with [ContextWithAttrs].
 func DebugContext(ctx context.Context, msg string, attrs ...Attr) {
-	logger().backend.Log(ctx, LevelDebug, msg, attrs...)
+	logger().backend.Log(ctx, LevelDebug, msg, withContextAttrs(ctx, attrs)...)
 }
 
 // Debugf logs at LevelDebug using fmt.Sprintf. It does not take a context.
@@ -188,9 +189,10 @@ func Info(msg string, attrs ...Attr) {
 	logger().backend.Log(context.Background(), LevelInfo, msg, attrs...)
 }
 
-// InfoContext logs at LevelInfo with ctx (for context-merge backends).
+// InfoContext logs at LevelInfo with ctx (for context-merge backends) and
+// appends the attrs attached with [ContextWithAttrs].
 func InfoContext(ctx context.Context, msg string, attrs ...Attr) {
-	logger().backend.Log(ctx, LevelInfo, msg, attrs...)
+	logger().backend.Log(ctx, LevelInfo, msg, withContextAttrs(ctx, attrs)...)
 }
 
 // Infof logs at LevelInfo using fmt.Sprintf. It does not take a context.
@@ -203,9 +205,10 @@ func Warn(msg string, attrs ...Attr) {
 	logger().backend.Log(context.Background(), LevelWarn, msg, attrs...)
 }
 
-// WarnContext logs at LevelWarn with ctx (for context-merge backends).
+// WarnContext logs at LevelWarn with ctx (for context-merge backends) and
+// appends the attrs attached with [ContextWithAttrs].
 func WarnContext(ctx context.Context, msg string, attrs ...Attr) {
-	logger().backend.Log(ctx, LevelWarn, msg, attrs...)
+	logger().backend.Log(ctx, LevelWarn, msg, withContextAttrs(ctx, attrs)...)
 }
 
 // Warnf logs at LevelWarn using fmt.Sprintf. It does not take a context.
@@ -218,9 +221,10 @@ func Error(msg string, attrs ...Attr) {
 	logger().backend.Log(context.Background(), LevelError, msg, attrs...)
 }
 
-// ErrorContext logs at LevelError with ctx (for context-merge backends).
+// ErrorContext logs at LevelError with ctx (for context-merge backends) and
+// appends the attrs attached with [ContextWithAttrs].
 func ErrorContext(ctx context.Context, msg string, attrs ...Attr) {
-	logger().backend.Log(ctx, LevelError, msg, attrs...)
+	logger().backend.Log(ctx, LevelError, msg, withContextAttrs(ctx, attrs)...)
 }
 
 // Errorf logs at LevelError using fmt.Sprintf. It does not take a context.

@@ -112,3 +112,116 @@ func TestReverseProxyStalledCacheDoesNotStallClient(t *testing.T) {
 	default:
 	}
 }
+
+// ctxReadCache models an object-store backend: it consumes the body in a
+// goroutine, as a multipart uploader would, and aborts as soon as its context
+// is done. It reports the error Save returned on saved.
+type ctxReadCache struct {
+	Cache
+	saved chan error
+}
+
+func (c *ctxReadCache) Save(ctx context.Context, _ string, _ http.Header, r io.Reader) error {
+	done := make(chan error, 1)
+	go func() {
+		_, err := io.Copy(io.Discard, r)
+		done <- err
+	}()
+	var err error
+	select {
+	case err = <-done:
+	case <-ctx.Done():
+		err = ctx.Err()
+	}
+	c.saved <- err
+	return err
+}
+
+// TestReverseProxySaveTimeoutIsIdle pins that the save timeout bounds the time
+// the body goes without making progress, not the transfer as a whole: a slow
+// but steady download longer than the timeout is still saved, while an upstream
+// that stops sending mid-body is abandoned once the timeout passes.
+func TestReverseProxySaveTimeoutIsIdle(t *testing.T) {
+	const (
+		saveTimeout = 400 * time.Millisecond
+		chunks      = 20
+		chunkSize   = 512
+	)
+	tests := []struct {
+		name    string
+		stall   bool // upstream stops after the first chunk and never finishes
+		wantErr bool
+	}{
+		{name: "steady transfer longer than timeout is saved"},
+		{name: "stalled upstream is abandoned after timeout", stall: true, wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cache := &ctxReadCache{Cache: setupTestCache(t), saved: make(chan error, 1)}
+
+			unblock := make(chan struct{})
+			defer close(unblock)
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/octet-stream")
+				w.WriteHeader(http.StatusOK)
+				for range chunks {
+					_, _ = w.Write(bytes.Repeat([]byte("x"), chunkSize))
+					w.(http.Flusher).Flush()
+					if tc.stall {
+						select {
+						case <-unblock:
+						case <-r.Context().Done():
+						}
+						return
+					}
+					time.Sleep(50 * time.Millisecond)
+				}
+			}))
+			defer backend.Close()
+
+			backendURL, err := url.Parse(backend.URL)
+			if err != nil {
+				t.Fatalf("Parse backend URL: %v", err)
+			}
+			proxy, err := CreateCacheReverseProxy(cache,
+				WithTargetURL(backendURL),
+				WithSaveTimeout(saveTimeout),
+			)
+			if err != nil {
+				t.Fatalf("CreateCacheReverseProxy: %v", err)
+			}
+			frontend := httptest.NewServer(http.HandlerFunc(ServeCacheReverseProxy(cache, proxy)))
+			defer frontend.Close()
+
+			start := time.Now()
+			resp, err := frontend.Client().Get(frontend.URL + "/idle")
+			if err != nil {
+				t.Fatalf("GET: %v", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if tc.stall {
+				buf := make([]byte, chunkSize)
+				if _, err := io.ReadFull(resp.Body, buf); err != nil {
+					t.Fatalf("read first chunk: %v", err)
+				}
+			} else {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil || len(body) != chunks*chunkSize {
+					t.Fatalf("client read %d bytes, err %v; want %d", len(body), err, chunks*chunkSize)
+				}
+				if elapsed := time.Since(start); elapsed <= saveTimeout {
+					t.Fatalf("transfer took %v, want longer than the save timeout %v", elapsed, saveTimeout)
+				}
+			}
+
+			select {
+			case err := <-cache.saved:
+				if (err != nil) != tc.wantErr {
+					t.Fatalf("Save error = %v, want error: %v", err, tc.wantErr)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("Save did not finish")
+			}
+		})
+	}
+}

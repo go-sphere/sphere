@@ -44,6 +44,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-sphere/sphere/storage/internal/qiniuplain"
 	qiniuStorage "github.com/qiniu/go-sdk/v7/storage"
 	"github.com/qiniu/go-sdk/v7/storagev2/uplog"
 )
@@ -98,10 +99,14 @@ func New(tb testing.TB, bucket string) *Server {
 	}
 	s.api = httptest.NewServer(withReqID(http.HandlerFunc(s.serveAPI)))
 	s.io = httptest.NewServer(withReqID(http.HandlerFunc(s.serveIO)))
+	// The fake only speaks plain http, so clients created while it runs must
+	// not insist on https.
+	release := qiniuplain.Acquire()
 	registryMu.Lock()
 	registry[s.AccessKey] = s
 	registryMu.Unlock()
 	tb.Cleanup(func() {
+		release()
 		registryMu.Lock()
 		delete(registry, s.AccessKey)
 		registryMu.Unlock()

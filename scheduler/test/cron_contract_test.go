@@ -243,7 +243,10 @@ func TestCronContractParentCancelBeforeStopStillDrains(t *testing.T) {
 	// What task.Group does in beginStop: cancel first, then call Stop.
 	cancel()
 	select {
-	case <-doneStart:
+	case err := <-doneStart:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("Start after parent cancellation: %v", err)
+		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("start did not return after parent context cancellation")
 	}

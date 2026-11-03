@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/go-sphere/sphere/core/safe"
 	"github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/scheduler"
 	sasynq "github.com/hibiken/asynq"
@@ -494,14 +495,17 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 		if s.cancel != nil {
 			s.cancel()
 		}
-		s.cron.Shutdown()
-		s.server.Stop()
 
+		// The whole teardown runs off the lock and off the caller's goroutine:
+		// cron.Shutdown and server.Stop wait on Redis I/O and ignore ctx, so
+		// running them here would hold mu and defeat the ctx select below.
 		done := make(chan struct{})
-		go func() {
+		safe.Go(func() {
+			defer close(done)
+			s.cron.Shutdown()
+			s.server.Stop()
 			s.server.Shutdown()
-			close(done)
-		}()
+		})
 		s.stopDone = done
 	case stateStopping:
 		// Shutdown already in progress; fall through to wait on the same channel.

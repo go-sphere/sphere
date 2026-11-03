@@ -2,8 +2,12 @@ package logbuffer
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"math"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -224,5 +228,41 @@ func wantSeqs(t *testing.T, entries []Entry, want ...uint64) {
 		if entry.Seq != want[i] {
 			t.Fatalf("entry[%d].Seq = %d, want %d", i, entry.Seq, want[i])
 		}
+	}
+}
+
+// TestBufferStoresErrorAttrsAsMessages pins that an error attr serializes to its
+// message: error values are usually structs with no exported fields, which
+// encoding/json renders as {}.
+func TestBufferStoresErrorAttrsAsMessages(t *testing.T) {
+	var nilErr error
+	for _, tc := range []struct {
+		name string
+		attr log.Attr
+		want any
+	}{
+		{name: "error", attr: log.Err(errors.New("boom")), want: "boom"},
+		{name: "wrapped error", attr: log.Err(fmt.Errorf("ctx: %w", errors.New("boom"))), want: "ctx: boom"},
+		{name: "nil error", attr: log.Err(nilErr), want: nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := New(2)
+			b.Log(context.Background(), log.LevelError, "failed", tc.attr)
+
+			entries, _ := b.History(0, 1, log.LevelDebug)
+			if len(entries) != 1 {
+				t.Fatalf("entries = %d, want 1", len(entries))
+			}
+			if got := entries[0].Attrs["error"]; got != tc.want {
+				t.Fatalf("error attr = %#v, want %#v", got, tc.want)
+			}
+			raw, err := json.Marshal(entries[0])
+			if err != nil {
+				t.Fatalf("json.Marshal: %v", err)
+			}
+			if tc.want != nil && !strings.Contains(string(raw), fmt.Sprint(tc.want)) {
+				t.Fatalf("json = %s, want it to contain %q", raw, tc.want)
+			}
+		})
 	}
 }

@@ -137,15 +137,20 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 		prodCtx, cancel := context.WithCancelCause(reqCtx)
 		frames := make(chan T)
 		result := make(chan error, 1)
+		// done closes once result holds the stream's outcome. frames is never
+		// closed: a helper goroutine may still call send after the stream
+		// function returned, and a send on a closed channel would panic.
+		done := make(chan struct{})
 
 		go func() {
-			defer close(frames)
+			defer close(done)
 			defer func() {
 				if r := recover(); r != nil {
 					// The producer goroutine has no net/http recovery above
 					// it, so even http.ErrAbortHandler must be absorbed here;
 					// it still terminates the stream via the error frame.
-					log.Error(
+					log.ErrorContext(
+						reqCtx,
 						"WithSSE stream panic",
 						log.Any("error", r),
 						log.String("stack", string(debug.Stack())),
@@ -154,10 +159,10 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 				}
 			}()
 			send := func(msg T) error {
-				// Check for death first: after cancel the pump keeps draining
-				// frames, so both select cases can be ready at once and Go
-				// picks pseudo-randomly, letting send report nil on a dead
-				// stream about half the time.
+				// Check for death first: a pump still receiving after cancel
+				// makes both select cases ready at once, and Go picks
+				// pseudo-randomly, letting send report nil on a dead stream
+				// about half the time.
 				if err := context.Cause(prodCtx); err != nil {
 					return err
 				}
@@ -177,23 +182,22 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 		// is already committed — the point of the mode.
 		if conf.eagerCommit {
 			return serveSSE(ctx, conf, func(w *httpx.SSEWriter) error {
-				return pumpSSEEager(w, conf, reqCtx, frames, result, cancel)
+				return pumpSSEEager(w, conf, reqCtx, frames, done, result, cancel)
 			})
 		}
 
 		// Gate: hold the response uncommitted until the producer either
 		// emits its first message or finishes.
 		select {
-		case first, ok := <-frames:
-			if !ok {
-				cancel(errSSEStreamEnded)
-				if err := <-result; err != nil {
-					return err // pre-frame failure: plain JSON error status
-				}
-				return serveSSE(ctx, conf, func(w *httpx.SSEWriter) error {
-					return w.SendJSON(SSEEventDone, struct{}{})
-				})
+		case <-done:
+			cancel(errSSEStreamEnded)
+			if err := <-result; err != nil {
+				return err // pre-frame failure: plain JSON error status
 			}
+			return serveSSE(ctx, conf, func(w *httpx.SSEWriter) error {
+				return w.SendJSON(SSEEventDone, struct{}{})
+			})
+		case first := <-frames:
 			// Encode the first frame before the response commits. A message
 			// that cannot be JSON-serialized is a handler programming error;
 			// once the stream is committed it can only surface as a log line
@@ -201,15 +205,15 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 			// WithRecover path, which renders a plain JSON 500.
 			if _, err := json.Marshal(first); err != nil {
 				cancel(errSSEStreamEnded)
-				drainSSE(frames, result)
+				drainSSE(result)
 				return fmt.Errorf("httpz: WithSSE first message is not JSON-serializable: %w", err)
 			}
 			return serveSSE(ctx, conf, func(w *httpx.SSEWriter) error {
-				return pumpSSE(w, conf, reqCtx, first, frames, result, cancel)
+				return pumpSSE(w, conf, reqCtx, first, frames, done, result, cancel)
 			})
 		case <-reqCtx.Done():
 			cancel(context.Cause(reqCtx))
-			drainSSE(frames, result)
+			drainSSE(result)
 			return httpx.InternalServerError(context.Cause(reqCtx), "request canceled before the stream started")
 		}
 	})
@@ -250,13 +254,14 @@ func pumpSSE[T any](
 	reqCtx context.Context,
 	first T,
 	frames <-chan T,
+	done <-chan struct{},
 	result <-chan error,
 	cancel context.CancelCauseFunc,
 ) error {
 	defer cancel(errSSEStreamEnded)
 	abort := func(reason error) error {
 		cancel(reason)
-		drainSSE(frames, result)
+		drainSSE(result)
 		return reason
 	}
 
@@ -273,14 +278,13 @@ func pumpSSE[T any](
 
 	for {
 		select {
-		case msg, ok := <-frames:
-			if !ok {
-				if err := <-result; err != nil {
-					_, resp := buildErrorResponse(err)
-					return w.SendJSON(SSEEventError, resp)
-				}
-				return w.SendJSON(SSEEventDone, struct{}{})
+		case <-done:
+			if err := <-result; err != nil {
+				_, resp := buildErrorResponse(err)
+				return w.SendJSON(SSEEventError, resp)
 			}
+			return w.SendJSON(SSEEventDone, struct{}{})
+		case msg := <-frames:
 			if err := w.SendJSON("", msg); err != nil {
 				// Best effort terminator: the failure can be an encode error
 				// with the client still listening (only a write error means it
@@ -315,6 +319,7 @@ func pumpSSEEager[T any](
 	conf sseOptions,
 	reqCtx context.Context,
 	frames <-chan T,
+	done <-chan struct{},
 	result <-chan error,
 	cancel context.CancelCauseFunc,
 ) error {
@@ -332,39 +337,42 @@ func pumpSSEEager[T any](
 
 	for {
 		select {
-		case first, ok := <-frames:
+		case <-done:
 			if ticker != nil {
 				ticker.Stop()
 			}
-			if !ok {
-				// The producer finished without sending anything. Deliver its
-				// outcome as the terminal event: the response is committed, so
-				// there is no JSON status left to fall back on.
-				if err := <-result; err != nil {
-					_, resp := buildErrorResponse(err)
-					return w.SendJSON(SSEEventError, resp)
-				}
-				return w.SendJSON(SSEEventDone, struct{}{})
+			// The producer finished without sending anything. Deliver its
+			// outcome as the terminal event: the response is committed, so
+			// there is no JSON status left to fall back on.
+			if err := <-result; err != nil {
+				_, resp := buildErrorResponse(err)
+				return w.SendJSON(SSEEventError, resp)
 			}
-			return pumpSSE(w, conf, reqCtx, first, frames, result, cancel)
+			return w.SendJSON(SSEEventDone, struct{}{})
+		case first := <-frames:
+			if ticker != nil {
+				ticker.Stop()
+			}
+			return pumpSSE(w, conf, reqCtx, first, frames, done, result, cancel)
 		case <-heartbeat:
 			if err := w.Comment(""); err != nil {
 				cancel(err)
-				drainSSE(frames, result)
+				drainSSE(result)
 				return err
 			}
 		case <-reqCtx.Done():
 			cancel(context.Cause(reqCtx))
-			drainSSE(frames, result)
+			drainSSE(result)
 			return nil
 		}
 	}
 }
 
-// drainSSE unblocks a canceled producer and consumes its result so the
-// goroutine can exit.
-func drainSSE[T any](frames <-chan T, result <-chan error) {
-	for range frames { //nolint:revive // draining
-	}
-	<-result
+// drainSSE waits for the producer's result so its goroutine has exited. The
+// caller must have canceled the producer context first: send then returns the
+// cancellation cause instead of blocking on frames, so nothing needs draining.
+// The stream's error is dropped: the caller already reported the reason
+// through abort or the pump.
+func drainSSE(result <-chan error) {
+	<-result //nolint:errcheck // dropped on purpose; the caller already reported the reason
 }

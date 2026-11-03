@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -270,12 +271,9 @@ func TestWithSSESendUnblocksWhenClientGone(t *testing.T) {
 	// the conformance-grade live test lives with the streaming layout smoke
 	// tests. This test pins the drain helper so a finished producer never
 	// blocks.
-	frames := make(chan sseMsg, 1)
 	result := make(chan error, 1)
-	frames <- sseMsg{Msg: "pending"}
-	close(frames)
 	result <- errors.New("boom")
-	drainSSE(frames, result) // must not deadlock
+	drainSSE(result) // must not deadlock
 }
 
 // generatedWatchRequest/Response and the handler below replicate, shape for
@@ -555,5 +553,40 @@ func TestWithSSELiveDisconnectUnblocksProducer(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("producer still blocked 3s after client disconnect")
+	}
+}
+
+// TestWithSSELateSendAfterStreamReturns pins that a helper goroutine calling
+// send after the stream function returned neither panics nor delivers: the
+// send blocks until the pump cancels the producer context, then reports why.
+func TestWithSSELateSendAfterStreamReturns(t *testing.T) {
+	engine := stdx.New()
+	lateErrs := make(chan error, 1)
+	engine.Group("").GET("/sse", WithSSE(func(httpx.Context) (SSEStream[sseMsg], error) {
+		return func(send func(sseMsg) error) error {
+			if err := send(sseMsg{Msg: "first"}); err != nil {
+				return err
+			}
+			go func() {
+				runtime.Gosched()
+				lateErrs <- send(sseMsg{Msg: "late"})
+			}()
+			return nil
+		}, nil
+	}, WithSSEHeartbeat(0)))
+
+	for i := range 3000 {
+		status, _, body := sseDo(t, engine, "/sse")
+		if status != http.StatusOK || !strings.HasPrefix(body, "data: {\"msg\":\"first\"}\n\n") {
+			t.Fatalf("request %d: status=%d body=%q", i, status, body)
+		}
+		select {
+		case err := <-lateErrs:
+			if err == nil && !strings.Contains(body, "late") {
+				t.Fatalf("request %d: late send reported success but was not delivered: %q", i, body)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("request %d: late send never returned", i)
+		}
 	}
 }

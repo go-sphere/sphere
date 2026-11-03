@@ -236,6 +236,49 @@ func TestUpdateMaxCostCapacity(t *testing.T) {
 	})
 }
 
+// TestZeroCostEntriesAreBounded pins that entries whose cost function would
+// return 0 (or that have no cost function) still count against MaxCost, so
+// eviction applies to them.
+func TestZeroCostEntriesAreBounded(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("nil cost function", func(t *testing.T) {
+		c := NewMemoryCacheWithCost[int](nil)
+		t.Cleanup(func() { _ = c.Close() })
+		c.UpdateMaxCost(10)
+		const n = 1000
+		for i := range n {
+			if err := c.Set(ctx, fmt.Sprintf("k%d", i), i); err != nil {
+				t.Fatalf("Set: %v", err)
+			}
+		}
+		if err := c.Sync(); err != nil {
+			t.Fatalf("Sync: %v", err)
+		}
+		if got := countPresent(t, c, n); got > 50 {
+			t.Fatalf("present after %d sets with UpdateMaxCost(10) = %d, want <= 50", n, got)
+		}
+	})
+
+	t.Run("empty byte values", func(t *testing.T) {
+		c := NewByteCache()
+		t.Cleanup(func() { _ = c.Close() })
+		c.UpdateMaxCost(1000)
+		const n = 20000
+		for i := range n {
+			if err := c.Set(ctx, fmt.Sprintf("k%d", i), []byte{}); err != nil {
+				t.Fatalf("Set: %v", err)
+			}
+		}
+		if err := c.Sync(); err != nil {
+			t.Fatalf("Sync: %v", err)
+		}
+		if got := countPresent(t, c, n); got > 2000 {
+			t.Fatalf("present after %d empty sets with UpdateMaxCost(1000) = %d, want <= 2000", n, got)
+		}
+	})
+}
+
 func countPresent[T any](t *testing.T, c *Cache[T], n int) int {
 	t.Helper()
 	present := 0

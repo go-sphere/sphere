@@ -2,17 +2,23 @@ package s3
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"testing/iotest"
 	"time"
+
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 
 	"github.com/go-sphere/sphere/storage"
 	"github.com/go-sphere/sphere/storage/internal/fakes3"
@@ -223,6 +229,76 @@ func TestS3ClientListFilesPaging(t *testing.T) {
 	keys, next, err := client.ListFiles(ctx, "", "", 0)
 	if err != nil || len(keys) != 6 || next != "" {
 		t.Fatalf("ListFiles(all, default limit) = %v, %q, %v", keys, next, err)
+	}
+}
+
+// closeHook runs fn when the response body is closed.
+type closeHook struct {
+	io.ReadCloser
+	fn func()
+}
+
+func (c closeHook) Close() error {
+	err := c.ReadCloser.Close()
+	c.fn()
+	return err
+}
+
+// cancelAfterFirstPage cancels the caller's context once the first list
+// response has been fully consumed, so the client never requests page two.
+type cancelAfterFirstPage struct {
+	next   http.RoundTripper
+	cancel context.CancelFunc
+	once   sync.Once
+}
+
+func (c *cancelAfterFirstPage) RoundTrip(r *http.Request) (*http.Response, error) {
+	resp, err := c.next.RoundTrip(r)
+	if err != nil || r.URL.Query().Get("list-type") != "2" {
+		return resp, err
+	}
+	resp.Body = closeHook{ReadCloser: resp.Body, fn: func() { c.once.Do(c.cancel) }}
+	return resp, nil
+}
+
+// TestS3ClientListFilesCanceledBetweenPages pins that a listing cut short by
+// the caller's context never reads as a clean end of list: a truncated page
+// with an empty cursor would let orphan cleanup treat the rest as absent.
+func TestS3ClientListFilesCanceledBetweenPages(t *testing.T) {
+	client, fake := newFakeClient(t, Config{})
+	fake.MaxKeys = 1
+	want := []string{"list/a", "list/b", "list/c"}
+	for _, key := range want {
+		fake.Put(key, []byte("x"), "")
+	}
+
+	canceled := 0
+	for range 50 {
+		ctx, cancel := context.WithCancel(t.Context())
+		hook := &cancelAfterFirstPage{next: http.DefaultTransport, cancel: cancel}
+		mc, err := minio.New(fake.Endpoint(), &minio.Options{
+			Creds:     credentials.NewStaticV4("test-ak", "test-sk", ""),
+			Transport: hook,
+		})
+		if err != nil {
+			t.Fatalf("minio.New() error = %v", err)
+		}
+		client.client = mc
+
+		keys, next, err := client.ListFiles(ctx, "list/", "", 10)
+		cancel()
+		switch {
+		case err != nil:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("ListFiles() error = %v, want context.Canceled", err)
+			}
+			canceled++
+		case next != "" || !slices.Equal(keys, want):
+			t.Fatalf("ListFiles() = %v, %q, nil after cancel, want an error or the full listing", keys, next)
+		}
+	}
+	if canceled == 0 {
+		t.Fatal("cancellation never surfaced as an error")
 	}
 }
 

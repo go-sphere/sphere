@@ -143,7 +143,10 @@ func TestLogSuccess(t *testing.T) {
 
 // TestLogChainError pins that an error returned by the rest of the chain is
 // logged with Error with the same request fields plus the chain error, and
-// that the error is still returned to the caller.
+// that the error is still returned to the caller. The handler only sets
+// Status(400) without writing a response, so the engine renders the error
+// later with httpz.ErrorStatus (500 for an unclassified error); that is the
+// status the client sees and therefore the one logged.
 func TestLogChainError(t *testing.T) {
 	t.Parallel()
 
@@ -166,7 +169,7 @@ func TestLogChainError(t *testing.T) {
 	if got.level != log.LevelError {
 		t.Errorf("level = %v, want LevelError", got.level)
 	}
-	assertAccessAttrs(t, got.attrs, http.StatusBadRequest)
+	assertAccessAttrs(t, got.attrs, http.StatusInternalServerError)
 	errVal := requireAttr(t, got.attrs, "error").Any()
 	gotErr, ok := errVal.(error)
 	if !ok {
@@ -174,6 +177,53 @@ func TestLogChainError(t *testing.T) {
 	}
 	if !errors.Is(gotErr, chainErr) {
 		t.Errorf("error attr = %v, want %v", gotErr, chainErr)
+	}
+}
+
+// TestLogStatusWithError pins the logged status when the chain returns an
+// error: a committed response keeps its recorded status because the error is
+// never rendered over it, while an uncommitted one is rendered later with
+// httpz.ErrorStatus regardless of a Status the handler set.
+func TestLogStatusWithError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		next httpx.Handler
+		want int
+	}{
+		{
+			name: "committed 200 then error",
+			next: func(c httpx.Context) error {
+				_ = c.Text(http.StatusOK, "done")
+				return errors.New("late failure")
+			},
+			want: http.StatusOK,
+		},
+		{
+			name: "uncommitted status then error",
+			next: func(c httpx.Context) error {
+				c.Status(http.StatusNotFound)
+				return httpx.NewWithStatus(http.StatusConflict, "conflict")
+			},
+			want: httpz.ErrorStatus(httpx.NewWithStatus(http.StatusConflict, "conflict")),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rec := &recordingLogger{}
+			if err := httpxmock.Run(accessRequest(t.Context()), tt.next, Log(rec)); err == nil {
+				t.Fatal("Log() error = nil, want the chain error")
+			}
+			if len(rec.entries) != 1 {
+				t.Fatalf("entries = %d, want 1", len(rec.entries))
+			}
+			if got := requireAttr(t, rec.entries[0].attrs, "status").Int64(); got != int64(tt.want) {
+				t.Fatalf("logged status = %d, want %d", got, tt.want)
+			}
+		})
 	}
 }
 

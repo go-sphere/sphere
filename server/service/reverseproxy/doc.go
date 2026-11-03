@@ -50,7 +50,8 @@
 //   - Entries live as long as the backing cache keeps them; the proxy never
 //     revalidates with the upstream.
 //   - Saving runs in the background on a context detached from the request
-//     (30s by default). A failing or slow cache never affects the client
-//     stream; Load errors other than a miss are logged and the request goes
+//     (30s idle timeout by default, see WithSaveTimeout: it restarts whenever
+//     body bytes reach the cache, so slow downloads are still saved). A
+//     failing or slow cache never affects the client stream; Load errors other than a miss are logged and the request goes
 //     upstream.
 package reverseproxy

@@ -41,7 +41,8 @@ func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Ha
 			if rec := recover(); rec != nil {
 				HandlePanic(ctx, rec, true,
 					func(rec any, stack string) {
-						log.Error(
+						log.ErrorContext(
+							ctx.Context(),
 							message,
 							log.Any("error", rec),
 							log.String("stack", stack),

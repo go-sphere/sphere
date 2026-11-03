@@ -4,15 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/go-sphere/sphere/scheduler"
 	"github.com/go-sphere/sphere/test/redistest"
 	sasynq "github.com/hibiken/asynq"
+	"github.com/redis/go-redis/v9"
 )
 
 func TestEnqueueHandleEndToEnd(t *testing.T) {
@@ -199,7 +202,10 @@ func TestStopDoesNotLogSharedClientCloseError(t *testing.T) {
 		t.Fatalf("stop: %v", err)
 	}
 	select {
-	case <-startDone:
+	case err := <-startDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("start = %v, want Canceled", err)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("start did not return after stop")
 	}
@@ -358,5 +364,207 @@ func TestHandleRejectsEmptyKind(t *testing.T) {
 		if err := s.Handle(kind, func(context.Context, []byte) error { return nil }); err == nil {
 			t.Fatalf("Handle(%q) = nil, want an error", kind)
 		}
+	}
+}
+
+// stallProxy forwards TCP traffic to a backend until freeze is called; from
+// then on bytes are read but held back, so a client blocks on I/O exactly as
+// it does against an unresponsive Redis. thaw releases the held bytes.
+type stallProxy struct {
+	ln      net.Listener
+	backend string
+
+	mu     sync.Mutex
+	gate   chan struct{} // non-nil while frozen; closed by thaw
+	conns  []net.Conn
+	closed bool
+}
+
+func newStallProxy(t *testing.T, backend string) *stallProxy {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	p := &stallProxy{ln: ln, backend: backend}
+	go p.serve()
+	t.Cleanup(p.close)
+	return p
+}
+
+func (p *stallProxy) addr() string { return p.ln.Addr().String() }
+
+func (p *stallProxy) serve() {
+	for {
+		front, err := p.ln.Accept()
+		if err != nil {
+			return
+		}
+		back, err := net.Dial("tcp", p.backend)
+		if err != nil {
+			_ = front.Close()
+			continue
+		}
+		p.mu.Lock()
+		if p.closed {
+			p.mu.Unlock()
+			_ = front.Close()
+			_ = back.Close()
+			return
+		}
+		p.conns = append(p.conns, front, back)
+		p.mu.Unlock()
+		go p.pump(front, back)
+		go p.pump(back, front)
+	}
+}
+
+func (p *stallProxy) pump(src, dst net.Conn) {
+	buf := make([]byte, 4096)
+	for {
+		n, err := src.Read(buf)
+		if n > 0 {
+			p.mu.Lock()
+			gate := p.gate
+			p.mu.Unlock()
+			if gate != nil {
+				<-gate
+			}
+			if _, werr := dst.Write(buf[:n]); werr != nil {
+				return
+			}
+		}
+		if err != nil {
+			return
+		}
+	}
+}
+
+func (p *stallProxy) freeze() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.gate == nil {
+		p.gate = make(chan struct{})
+	}
+}
+
+func (p *stallProxy) thaw() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.gate != nil {
+		close(p.gate)
+		p.gate = nil
+	}
+}
+
+func (p *stallProxy) close() {
+	p.thaw()
+	_ = p.ln.Close()
+	p.mu.Lock()
+	p.closed = true
+	conns := p.conns
+	p.mu.Unlock()
+	for _, c := range conns {
+		_ = c.Close()
+	}
+}
+
+// TestStopHonoursContextWhileRedisStalls pins that Stop returns by its ctx
+// deadline when the shutdown of the asynq pieces is blocked on Redis I/O, that
+// the scheduler's lock is not held across that drain, and that the drain still
+// completes once Redis answers again.
+func TestStopHonoursContextWhileRedisStalls(t *testing.T) {
+	mini := miniredis.RunT(t)
+	proxy := newStallProxy(t, mini.Addr())
+	client := redis.NewClient(&redis.Options{
+		Addr:        proxy.addr(),
+		ReadTimeout: 10 * time.Second,
+		MaxRetries:  -1,
+	})
+	t.Cleanup(func() { _ = client.Close() })
+
+	s, err := NewScheduler(Config{ShutdownTimeout: time.Second}, WithClient(client), WithServerConfig(func(cfg *sasynq.Config) {
+		cfg.TaskCheckInterval = 20 * time.Millisecond
+	}))
+	if err != nil {
+		t.Fatalf("create scheduler: %v", err)
+	}
+	// Runs before the client is closed, so a failed run still drains asynq
+	// before its subscriber loses the connection.
+	t.Cleanup(func() {
+		proxy.thaw()
+		_ = s.Stop(context.Background())
+	})
+	if err := s.Register("tick", "@every 1h", func(context.Context) error { return nil }); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	startDone := make(chan error, 1)
+	go func() { startDone <- s.Start(context.Background()) }()
+	waitFor(t, time.Second, func() bool { return s.state.Load() == stateRunning })
+	// Let the processor settle into its polling loop so a Dequeue is in flight
+	// when the connection stalls.
+	time.Sleep(100 * time.Millisecond)
+
+	proxy.freeze()
+	time.Sleep(100 * time.Millisecond)
+
+	const budget = 200 * time.Millisecond
+	const slack = 2 * time.Second
+	stopCtx, cancel := context.WithTimeout(context.Background(), budget)
+	defer cancel()
+	begin := time.Now()
+	stopErr := make(chan error, 1)
+	go func() { stopErr <- s.Stop(stopCtx) }()
+
+	select {
+	case err := <-stopErr:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Stop = %v, want DeadlineExceeded", err)
+		}
+		if elapsed := time.Since(begin); elapsed > slack {
+			t.Fatalf("Stop returned after %s, want within %s of a %s budget", elapsed, slack, budget)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not honour its context while Redis stalled")
+	}
+
+	// The lock must be free while the drain is still in progress.
+	for name, call := range map[string]func() error{
+		"Register":   func() error { return s.Register("late", "@every 1h", func(context.Context) error { return nil }) },
+		"Unregister": func() error { return s.Unregister("tick") },
+		"Handle":     func() error { return s.Handle("late", func(context.Context, []byte) error { return nil }) },
+		"Stop": func() error {
+			c, f := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer f()
+			return s.Stop(c)
+		},
+	} {
+		done := make(chan error, 1)
+		go func() { done <- call() }()
+		select {
+		case err := <-done:
+			if err != nil && !errors.Is(err, scheduler.ErrAfterStart) && !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("%s = %v", name, err)
+			}
+		case <-time.After(slack):
+			t.Fatalf("%s blocked while the drain was in progress", name)
+		}
+	}
+
+	// Redis recovers: the single background drain finishes and Stop reports it.
+	proxy.thaw()
+	if err := s.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop after recovery: %v", err)
+	}
+	if got := s.state.Load(); got != stateClosed {
+		t.Fatalf("state = %d, want closed", got)
+	}
+	select {
+	case err := <-startDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Start returned %v, want Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Start did not return after Stop")
 	}
 }

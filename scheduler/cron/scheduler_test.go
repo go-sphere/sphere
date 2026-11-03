@@ -69,7 +69,9 @@ func TestStopTimeoutKeepsHandlerCtxWhileAnotherStopWaits(t *testing.T) {
 	if err := s.Stop(context.Background()); err != nil {
 		t.Fatalf("final Stop: %v", err)
 	}
-	<-startDone
+	if err := <-startDone; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Start = %v, want Canceled", err)
+	}
 }
 
 func waitWaiters(t *testing.T, s *Scheduler, n int) {

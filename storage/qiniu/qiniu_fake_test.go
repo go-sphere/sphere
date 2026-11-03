@@ -403,3 +403,32 @@ func TestClientDownloadFallsBackToStat(t *testing.T) {
 		t.Fatalf("DownloadFile() = %q size=%d err=%v", body, result.Size, err)
 	}
 }
+
+// TestClientUsesHTTPSByDefault points a default client at a fake that only
+// speaks http. The SDK must then dial the hosts the region query returns over
+// https and fail, instead of sending credentials and tokens in the clear.
+func TestClientUsesHTTPSByDefault(t *testing.T) {
+	client, fake := newFakeClient(t, Config{})
+	client.insecureHTTP = false
+	fake.Put("a.txt", []byte("hello"), "text/plain")
+
+	ops := []struct {
+		name string
+		do   func() error
+	}{
+		{"stat", func() error { _, err := client.StatFile(t.Context(), "a.txt"); return err }},
+		{"list", func() error { _, _, err := client.ListFiles(t.Context(), "", "", 0); return err }},
+		{"download", func() error { _, err := client.DownloadFile(t.Context(), "a.txt"); return err }},
+		{"upload", func() error { _, err := client.UploadFile(t.Context(), strings.NewReader("x"), "b.txt"); return err }},
+	}
+	for _, op := range ops {
+		t.Run(op.name, func(t *testing.T) {
+			if err := op.do(); err == nil {
+				t.Fatal("expected an error: the http-only fake must be unreachable over https")
+			}
+		})
+	}
+	if _, ok := fake.Object("b.txt"); ok {
+		t.Fatal("upload reached the http-only fake")
+	}
+}

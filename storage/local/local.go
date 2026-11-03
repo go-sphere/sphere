@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"mime"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/go-sphere/sphere/storage"
 	"github.com/go-sphere/sphere/storage/storageerr"
@@ -99,6 +101,13 @@ func syncDir(dir string) error {
 		err = closeErr
 	}
 	return err
+}
+
+// isMissing reports whether err means the path addresses nothing. Besides a
+// missing entry that includes a parent component that is a regular file, which
+// the OS reports as ENOTDIR (Windows reports it as a missing path).
+func isMissing(err error) bool {
+	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR)
 }
 
 // Client is a filesystem storage.Storage under Config.RootDir. It also
@@ -219,7 +228,7 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	}
 	stat, err := os.Stat(filePath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if isMissing(err) {
 			return false, nil
 		}
 		return false, err
@@ -242,7 +251,7 @@ func (c *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 	}
 	stat, err := os.Stat(filePath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if isMissing(err) {
 			return storage.FileInfo{}, storageerr.ErrNotFound
 		}
 		return storage.FileInfo{}, err
@@ -280,7 +289,13 @@ func (c *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 	if err != nil {
 		return nil, "", err
 	}
-	rootDir = filepath.Clean(rootDir)
+	// WalkDir does not follow a symlink root: it would see a non-directory and
+	// report nothing. Keys are relative to the root, so the resolved path yields
+	// the same keys.
+	rootDir, err = filepath.EvalSymlinks(filepath.Clean(rootDir))
+	if err != nil {
+		return nil, "", err
+	}
 
 	var all []string
 	walkErr := filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
@@ -352,7 +367,7 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 	}
 	file, err := os.Open(filePath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if isMissing(err) {
 			return storage.DownloadResult{}, storageerr.ErrNotFound
 		}
 		return storage.DownloadResult{}, err
@@ -384,7 +399,7 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 	}
 	stat, err := os.Stat(filePath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if isMissing(err) {
 			return nil
 		}
 		return err
@@ -398,7 +413,7 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 	err = os.Remove(filePath)
 	if err != nil {
 		// Lost a race with a concurrent deleter; the postcondition still holds.
-		if os.IsNotExist(err) {
+		if isMissing(err) {
 			return nil
 		}
 		return err
@@ -446,7 +461,7 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 		return err
 	}
 	if stat, e := os.Stat(sourcePath); e != nil {
-		if os.IsNotExist(e) {
+		if isMissing(e) {
 			return storageerr.ErrNotFound
 		}
 		return e
@@ -501,7 +516,7 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	}
 	srcFile, err := os.Open(sourcePath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if isMissing(err) {
 			return storageerr.ErrNotFound
 		}
 		return err

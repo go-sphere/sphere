@@ -209,7 +209,8 @@ func (s *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 // It implements storage.FileLister on top of the S3 ListObjects API using
 // StartAfter as an exclusive cursor. The returned next cursor is the last key
 // of the page when more objects remain, otherwise empty. A non-positive limit
-// means 1000.
+// means 1000. It fails with ctx.Err() when ctx ends before the listing is
+// exhausted rather than returning a truncated page with an empty cursor.
 func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int) ([]string, string, error) {
 	if limit <= 0 {
 		limit = 1000
@@ -241,6 +242,14 @@ func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 	// Drain any buffered entries so the ListObjects goroutine can exit cleanly
 	// after an early cancel.
 	for range ch {
+	}
+	// minio-go ends the channel without an error object when ctx is cancelled
+	// between pages. An empty cursor means "end of list", so a listing cut short
+	// must not be reported as complete.
+	if next == "" {
+		if err := ctx.Err(); err != nil {
+			return nil, "", err
+		}
 	}
 	return keys, next, nil
 }

@@ -238,7 +238,16 @@ func registerTarget(mux *http.ServeMux, spec *swag.Spec, target string) error {
 		if r.URL.Path == "" {
 			r.URL.Path = "/"
 		}
-		r.URL.RawPath = ""
+		// RawPath carries the client's original encoding (%2F); keep it
+		// trimmed in step with Path so the backend sees the same escapes.
+		if raw, ok := strings.CutPrefix(r.URL.RawPath, proxyPath); ok {
+			if raw == "" {
+				raw = "/"
+			}
+			r.URL.RawPath = raw
+		} else {
+			r.URL.RawPath = ""
+		}
 		r.Host = targetURL.Host
 		proxy.ServeHTTP(rw, r)
 	})
@@ -278,7 +287,10 @@ func swaggerDocHandler(instanceName, proxyPath, description string) http.Handler
 			return
 		}
 		var doc map[string]any
-		if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		// UseNumber keeps integers beyond 2^53 verbatim on re-encode.
+		dec := json.NewDecoder(strings.NewReader(raw))
+		dec.UseNumber()
+		if err := dec.Decode(&doc); err != nil {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}

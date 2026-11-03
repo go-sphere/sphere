@@ -104,3 +104,25 @@ func TestIsDownloadNotFoundError(t *testing.T) {
 		})
 	}
 }
+
+func TestSDKConfig(t *testing.T) {
+	t.Parallel()
+
+	client, err := NewClient(Config{PublicBase: "https://cdn.example.com"})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	first, second := client.sdkConfig(), client.sdkConfig()
+	if !first.UseHTTPS {
+		t.Fatal("default SDK config must use https")
+	}
+	// BucketManager mutates the config it is given, so each SDK object needs
+	// its own.
+	if first == second {
+		t.Fatal("sdkConfig must return a fresh config on every call")
+	}
+	client.insecureHTTP = true
+	if client.sdkConfig().UseHTTPS {
+		t.Fatal("insecureHTTP must disable https")
+	}
+}

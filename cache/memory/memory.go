@@ -75,10 +75,14 @@ func NewMemoryCache[T any]() *Cache[T] {
 // MaxCost is compared against the sum of these costs alone; ristretto's
 // internal per-item overhead is not added.
 //
+// A nil cost function is the same as NewMemoryCache: every item costs 1.
+//
 // Construction cannot fail for the same reason as NewMemoryCache: the
-// hardcoded config values are positive, and a nil cost falls back to
-// ristretto's own default.
+// hardcoded config values are positive.
 func NewMemoryCacheWithCost[T any](cost func(T) int64) *Cache[T] {
+	if cost == nil {
+		return NewMemoryCache[T]()
+	}
 	cache, _ := ristretto.NewCache[string, T](&ristretto.Config[string, T]{
 		NumCounters:        defaultNumCounters,
 		MaxCost:            defaultMaxCost,
@@ -400,14 +404,15 @@ func (m *Cache[T]) Sync() error {
 	return nil
 }
 
-// ByteCache is Cache[[]byte]. NewByteCache costs by len(bytes);
+// ByteCache is Cache[[]byte]. NewByteCache costs by max(len(bytes), 1);
 // NewMemoryCache[[]byte] costs 1 per item.
 type ByteCache = Cache[[]byte]
 
-// NewByteCache returns a ByteCache whose ristretto cost is len(bytes).
+// NewByteCache returns a ByteCache whose ristretto cost is len(bytes), with a
+// minimum of 1 so empty values still count against MaxCost and can be evicted.
 func NewByteCache() *ByteCache {
 	return NewMemoryCacheWithCost[[]byte](func(bytes []byte) int64 {
-		return int64(len(bytes))
+		return max(int64(len(bytes)), 1)
 	})
 }
 

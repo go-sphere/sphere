@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-sphere/sphere/storage"
+	"github.com/go-sphere/sphere/storage/internal/qiniuplain"
 	"github.com/go-sphere/sphere/storage/storageerr"
 	"github.com/go-sphere/sphere/storage/urlhandler"
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
@@ -62,6 +63,18 @@ type Client struct {
 	urlhandler.Handler           // Embedded URL handler for public file access
 	config             Config    // Qiniu configuration
 	mac                *qbox.Mac // Authentication credentials
+
+	// insecureHTTP makes SDK calls use http instead of https. It is set only
+	// while the plain-http Kodo fake is running (see qiniuplain).
+	insecureHTTP bool
+}
+
+// sdkConfig returns a new SDK config for one SDK object. It selects https
+// because the SDK defaults to http, which would expose the access key, upload
+// tokens and object data. It is fresh on every call because NewBucketManager
+// mutates the config it is given.
+func (n *Client) sdkConfig() *qiniuStorage.Config {
+	return &qiniuStorage.Config{UseHTTPS: !n.insecureHTTP}
 }
 
 // NewClient creates a new Qiniu storage client with the provided configuration.
@@ -89,6 +102,8 @@ func NewClient(conf Config) (*Client, error) {
 		Handler: *handler,
 		config:  conf,
 		mac:     mac,
+
+		insecureHTTP: qiniuplain.Enabled(),
 	}, nil
 }
 
@@ -133,9 +148,9 @@ func (n *Client) GenerateUploadAuth(_ context.Context, req storage.UploadAuthReq
 	}
 	// Despite the "deadline" JSON name, PutPolicy.Expires is a *relative* number
 	// of seconds: the SDK adds time.Now() to it while signing. Leaving it zero
-	// would let the SDK apply its own default, so round sub-second TTLs up to one
-	// second rather than truncating them to zero and silently widening the token
-	// to an hour.
+	// would let the SDK apply its own default, so the TTL is truncated to whole
+	// seconds and sub-second values are raised to one second rather than
+	// becoming zero and silently widening the token to an hour.
 	seconds := uint64(storage.ResolveUploadTTL(req.TTL, n.config.UploadTTL, defaultUploadTTL).Seconds())
 	if seconds == 0 {
 		seconds = 1
@@ -174,9 +189,8 @@ func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 		return "", err
 	}
 	upToken := n.serverUploadToken(key)
-	cfg := qiniuStorage.Config{}
 	ret := qiniuStorage.PutRet{}
-	formUploader := qiniuStorage.NewFormUploader(&cfg)
+	formUploader := qiniuStorage.NewFormUploader(n.sdkConfig())
 	err = formUploader.Put(ctx, &ret, upToken, key, file, -1, nil)
 	if err != nil {
 		return "", err
@@ -192,9 +206,8 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 		return "", err
 	}
 	upToken := n.serverUploadToken(key)
-	cfg := qiniuStorage.Config{}
 	ret := qiniuStorage.PutRet{}
-	formUploader := qiniuStorage.NewFormUploader(&cfg)
+	formUploader := qiniuStorage.NewFormUploader(n.sdkConfig())
 	err = formUploader.PutFile(ctx, &ret, upToken, key, file, nil)
 	if err != nil {
 		return "", err
@@ -211,7 +224,7 @@ func (n *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 	if err != nil {
 		return storage.FileInfo{}, err
 	}
-	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
+	manager := qiniuStorage.NewBucketManager(n.mac, n.sdkConfig())
 	info, err := manager.Stat(n.config.Bucket, key)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -233,7 +246,7 @@ func (n *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 	if limit <= 0 || limit > 1000 {
 		limit = 1000
 	}
-	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
+	manager := qiniuStorage.NewBucketManager(n.mac, n.sdkConfig())
 	ret, hasNext, err := manager.ListFilesWithContext(ctx, n.config.Bucket,
 		// A prefix is not a key: an empty prefix means "list everything", so it
 		// is only stripped of a leading separator rather than normalized.
@@ -265,7 +278,7 @@ func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
+	manager := qiniuStorage.NewBucketManager(n.mac, n.sdkConfig())
 	_, err = manager.Stat(n.config.Bucket, key)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -285,7 +298,7 @@ func (n *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 	if err != nil {
 		return storage.DownloadResult{}, err
 	}
-	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
+	manager := qiniuStorage.NewBucketManager(n.mac, n.sdkConfig())
 	object, err := manager.Get(n.config.Bucket, key, &qiniuStorage.GetObjectInput{Context: ctx})
 	if err != nil {
 		if isDownloadNotFoundError(err) {
@@ -354,7 +367,7 @@ func (n *Client) DeleteFile(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
-	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
+	manager := qiniuStorage.NewBucketManager(n.mac, n.sdkConfig())
 	err = manager.Delete(n.config.Bucket, key)
 	if err != nil {
 		// Qiniu reports a missing key as 612; the delete contract is idempotent,
@@ -394,7 +407,7 @@ func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 		}
 		return nil
 	}
-	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
+	manager := qiniuStorage.NewBucketManager(n.mac, n.sdkConfig())
 	err = manager.Move(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -420,7 +433,7 @@ func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return err
 	}
-	manager := qiniuStorage.NewBucketManager(n.mac, &qiniuStorage.Config{})
+	manager := qiniuStorage.NewBucketManager(n.mac, n.sdkConfig())
 	err = manager.Copy(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)
 	if err != nil {
 		if isNotFoundError(err) {

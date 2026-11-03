@@ -405,6 +405,12 @@ func addAttr(dst map[string]any, attr log.Attr) {
 	if attr.Key == "" {
 		return
 	}
+	// Error values are usually structs without exported fields, which JSON
+	// renders as {}, so keep the message.
+	if err, ok := value.Any().(error); ok && err != nil {
+		dst[attr.Key] = err.Error()
+		return
+	}
 	dst[attr.Key] = value.Any()
 }
 

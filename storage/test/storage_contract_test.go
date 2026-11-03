@@ -685,3 +685,46 @@ var (
 	_ storage.FileLister = (*s3.Client)(nil)
 	_ storage.FileLister = (*qiniu.Client)(nil)
 )
+
+// A key whose parent path component is an existing file addresses nothing; it
+// is missing, not an I/O failure.
+func TestStorageFileUsedAsDirectory(t *testing.T) {
+	for _, factory := range storageFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			ctx := context.Background()
+			store := factory.new(t)
+			if _, err := store.UploadFile(ctx, bytes.NewBufferString("body"), "a"); err != nil {
+				t.Fatalf("seed: %v", err)
+			}
+			const key = "a/b"
+
+			exists, err := store.IsFileExists(ctx, key)
+			if err != nil || exists {
+				t.Fatalf("IsFileExists(%q) = %v, %v, want false, nil", key, exists, err)
+			}
+			if stater, ok := store.(storage.FileStater); ok {
+				if _, err := stater.StatFile(ctx, key); !errors.Is(err, storageerr.ErrNotFound) {
+					t.Fatalf("StatFile(%q) error = %v, want %v", key, err, storageerr.ErrNotFound)
+				}
+			}
+			if res, err := store.DownloadFile(ctx, key); !errors.Is(err, storageerr.ErrNotFound) {
+				if err == nil {
+					_ = res.Reader.Close()
+				}
+				t.Fatalf("DownloadFile(%q) error = %v, want %v", key, err, storageerr.ErrNotFound)
+			}
+			if err := store.DeleteFile(ctx, key); err != nil {
+				t.Fatalf("DeleteFile(%q) error = %v, want nil", key, err)
+			}
+			if err := store.MoveFile(ctx, key, "moved", true); !errors.Is(err, storageerr.ErrNotFound) {
+				t.Fatalf("MoveFile(%q) error = %v, want %v", key, err, storageerr.ErrNotFound)
+			}
+			if err := store.CopyFile(ctx, key, "copied", true); !errors.Is(err, storageerr.ErrNotFound) {
+				t.Fatalf("CopyFile(%q) error = %v, want %v", key, err, storageerr.ErrNotFound)
+			}
+			if got := readStorageFile(t, ctx, store, "a"); got != "body" {
+				t.Fatalf("file a = %q, want it untouched", got)
+			}
+		})
+	}
+}

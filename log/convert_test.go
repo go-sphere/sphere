@@ -1,6 +1,7 @@
 package log
 
 import (
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -77,5 +78,87 @@ func TestFormatGroupQuotesKeysAndValues(t *testing.T) {
 	got := formatSlogValue(Group("g", String("k,x", "a,b")).Value)
 	if !strings.Contains(got, `"k,x"`) || !strings.Contains(got, `"a,b"`) {
 		t.Fatalf("formatSlogValue = %q, want key and value quoted", got)
+	}
+}
+
+// namedNode is cyclic but renders itself through String, so fmt.Sprint never
+// descends into next.
+type namedNode struct {
+	name string
+	next *namedNode
+}
+
+func (n *namedNode) String() string { return "node:" + n.name }
+
+type plainNode struct {
+	name string
+	next *plainNode
+}
+
+type errNode struct {
+	next *errNode
+}
+
+func (*errNode) Error() string { return "errnode" }
+
+type formatNode struct {
+	next *formatNode
+}
+
+func (*formatNode) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte("formatnode")) }
+
+// goStringNode only customizes %#v, which fmt.Sprint does not use, so its
+// cycle is still reachable through formatting.
+type goStringNode struct {
+	next *goStringNode
+}
+
+func (*goStringNode) GoString() string { return "gostring" }
+
+// TestFormatAnyTrustsFormattingMethods pins that a value fmt renders through
+// Error, String or Format is not walked: fmt never descends into it, so a cycle
+// behind such a method is harmless. A cyclic value without those methods is
+// still rejected.
+func TestFormatAnyTrustsFormattingMethods(t *testing.T) {
+	c := &namedNode{name: "c"}
+	c.next = c
+	e := &errNode{}
+	e.next = e
+	f := &formatNode{}
+	f.next = f
+	p := &plainNode{name: "p"}
+	p.next = p
+	g := &goStringNode{}
+	g.next = g
+
+	for _, tc := range []struct {
+		name string
+		in   any
+		want string // empty means the unformattable placeholder
+	}{
+		{name: "stringer", in: c, want: "node:c"},
+		{name: "error", in: e, want: "errnode"},
+		{name: "formatter", in: f, want: "formatnode"},
+		{name: "typed nil stringer", in: (*namedNode)(nil), want: "<nil>"},
+		{name: "slice element", in: []*namedNode{c}, want: "[node:c]"},
+		{name: "map value", in: map[string]*namedNode{"k": c}, want: "map[k:node:c]"},
+		{name: "exported struct field", in: struct{ N *namedNode }{c}, want: `"{node:c}"`},
+		{name: "plain cycle", in: p},
+		{name: "plain cycle in slice", in: []*plainNode{p}},
+		{name: "unexported field is not formatted by method", in: struct{ n *plainNode }{p}},
+		{name: "gostringer is not used by Sprint", in: g},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := formatAny(tc.in)
+			if tc.want == "" {
+				if !strings.Contains(got, "unformattable") {
+					t.Fatalf("formatAny = %q, want the unformattable placeholder", got)
+				}
+				return
+			}
+			if got != tc.want {
+				t.Fatalf("formatAny = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

@@ -158,7 +158,10 @@ func TestSchedulerStopDeadlineCancelsHandler(t *testing.T) {
 				t.Fatalf("Stop after handler returned: %v", err)
 			}
 			select {
-			case <-startDone:
+			case err := <-startDone:
+				if err != nil && !errors.Is(err, context.Canceled) {
+					t.Fatalf("Start after the drain: %v", err)
+				}
 			case <-time.After(3 * time.Second):
 				t.Fatal("Start did not return after the drain")
 			}
