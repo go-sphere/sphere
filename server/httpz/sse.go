@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/go-sphere/httpx"
@@ -141,6 +142,16 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 		// closed: a helper goroutine may still call send after the stream
 		// function returned, and a send on a closed channel would panic.
 		done := make(chan struct{})
+		// sendMu orders sends against the stream's return. A send holds the read
+		// side while it hands a frame to the pump; the producer takes the write
+		// side once the stream function returned and then sets ended, so a send
+		// that starts after the return can never be accepted by the pump racing
+		// the done signal. A send already in flight when the stream returns
+		// completes normally and its frame is delivered.
+		var (
+			sendMu sync.RWMutex
+			ended  bool
+		)
 
 		go func() {
 			defer close(done)
@@ -159,6 +170,14 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 				}
 			}()
 			send := func(msg T) error {
+				sendMu.RLock()
+				defer sendMu.RUnlock()
+				if ended {
+					// The stream function already returned: wait for the
+					// teardown and report why, as for any other dead stream.
+					<-prodCtx.Done()
+					return context.Cause(prodCtx)
+				}
 				// Check for death first: a pump still receiving after cancel
 				// makes both select cases ready at once, and Go picks
 				// pseudo-randomly, letting send report nil on a dead stream
@@ -173,7 +192,17 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 					return context.Cause(prodCtx)
 				}
 			}
-			result <- stream(send)
+			err := func() error {
+				// Also runs when stream panics, so a late send cannot slip
+				// through on the panic path.
+				defer func() {
+					sendMu.Lock()
+					ended = true
+					sendMu.Unlock()
+				}()
+				return stream(send)
+			}()
+			result <- err
 		}()
 
 		// Eager mode commits before the first frame: the pump waits for the
@@ -181,7 +210,7 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 		// as an "error" event rather than a JSON status, because the response
 		// is already committed — the point of the mode.
 		if conf.eagerCommit {
-			return serveSSE(ctx, conf, func(w *httpx.SSEWriter) error {
+			return serveSSE(ctx, conf, cancel, func(w *httpx.SSEWriter) error {
 				return pumpSSEEager(w, conf, reqCtx, frames, done, result, cancel)
 			})
 		}
@@ -194,7 +223,7 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 			if err := <-result; err != nil {
 				return err // pre-frame failure: plain JSON error status
 			}
-			return serveSSE(ctx, conf, func(w *httpx.SSEWriter) error {
+			return serveSSE(ctx, conf, cancel, func(w *httpx.SSEWriter) error {
 				return w.SendJSON(SSEEventDone, struct{}{})
 			})
 		case first := <-frames:
@@ -208,7 +237,7 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 				drainSSE(result)
 				return fmt.Errorf("httpz: WithSSE first message is not JSON-serializable: %w", err)
 			}
-			return serveSSE(ctx, conf, func(w *httpx.SSEWriter) error {
+			return serveSSE(ctx, conf, cancel, func(w *httpx.SSEWriter) error {
 				return pumpSSE(w, conf, reqCtx, first, frames, done, result, cancel)
 			})
 		case <-reqCtx.Done():
@@ -229,7 +258,7 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 // would otherwise leave no trace louder than a Debug line. A first-frame
 // encode failure never reaches this point: WithSSE detects it in the gate
 // before committing.
-func serveSSE(ctx httpx.Context, conf sseOptions, fn func(w *httpx.SSEWriter) error) error {
+func serveSSE(ctx httpx.Context, conf sseOptions, cancel context.CancelCauseFunc, fn func(w *httpx.SSEWriter) error) error {
 	err := httpx.ServerSentEvents(ctx, func(w *httpx.SSEWriter) error {
 		if conf.retry > 0 {
 			if err := w.Send(&httpx.SSEEvent{Retry: conf.retry}); err != nil {
@@ -239,6 +268,9 @@ func serveSSE(ctx httpx.Context, conf sseOptions, fn func(w *httpx.SSEWriter) er
 		return fn(w)
 	})
 	if err != nil {
+		// The pump cancels the producer itself, but a failure before it ran (the
+		// retry frame, the initial flush) never reaches it.
+		cancel(err)
 		log.Error("httpz: SSE stream terminated with error", log.Err(err))
 	}
 	return nil

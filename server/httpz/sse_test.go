@@ -8,8 +8,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -556,37 +556,117 @@ func TestWithSSELiveDisconnectUnblocksProducer(t *testing.T) {
 	}
 }
 
-// TestWithSSELateSendAfterStreamReturns pins that a helper goroutine calling
-// send after the stream function returned neither panics nor delivers: the
-// send blocks until the pump cancels the producer context, then reports why.
+// gateWriter holds the first write until gate closes, keeping the SSE pump
+// busy so the producer finishes while the pump is not yet receiving again.
+type gateWriter struct {
+	*httptest.ResponseRecorder
+	gate <-chan struct{}
+	once sync.Once
+}
+
+func (w *gateWriter) Write(p []byte) (int, error) {
+	w.once.Do(func() { <-w.gate })
+	return w.ResponseRecorder.Write(p)
+}
+
+// TestWithSSELateSendAfterStreamReturns pins that a send started after the
+// stream function returned neither panics nor is accepted: it blocks until the
+// stream is torn down and then reports the cancellation cause. The pump is held
+// inside its first write, so when it resumes both the late frame and the done
+// signal are ready and an unordered select would deliver the frame about half
+// the time.
 func TestWithSSELateSendAfterStreamReturns(t *testing.T) {
+	const runs = 100
+	var wg sync.WaitGroup
+	errs := make(chan string, runs)
+	for range runs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			engine := stdx.New()
+			gate := make(chan struct{})
+			returned := make(chan struct{})
+			lateErr := make(chan error, 1)
+			engine.Group("").GET("/sse", WithSSE(func(httpx.Context) (SSEStream[sseMsg], error) {
+				return func(send func(sseMsg) error) error {
+					if err := send(sseMsg{Msg: "first"}); err != nil {
+						return err
+					}
+					go func() {
+						<-returned
+						// Let the producer finish its own teardown bookkeeping.
+						time.Sleep(10 * time.Millisecond)
+						lateErr <- send(sseMsg{Msg: "late"})
+					}()
+					close(returned)
+					return nil
+				}, nil
+			}, WithSSEHeartbeat(0)))
+
+			w := &gateWriter{ResponseRecorder: httptest.NewRecorder(), gate: gate}
+			handled := make(chan struct{})
+			go func() {
+				defer close(handled)
+				engine.(http.Handler).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "http://example.com/sse", nil))
+			}()
+			<-returned
+			time.Sleep(30 * time.Millisecond)
+			close(gate)
+
+			select {
+			case <-handled:
+			case <-time.After(5 * time.Second):
+				errs <- "handler did not finish"
+				return
+			}
+			select {
+			case err := <-lateErr:
+				if err == nil {
+					errs <- "late send was accepted after the stream function returned"
+				}
+			case <-time.After(5 * time.Second):
+				errs <- "late send never returned"
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for msg := range errs {
+		t.Error(msg)
+	}
+}
+
+// failWriter rejects every body write, as a client that vanished mid-commit.
+type failWriter struct{ *httptest.ResponseRecorder }
+
+func (failWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+// TestWithSSERetryWriteFailureCancelsProducer pins that a failure before the
+// pump runs (here the retry frame) still cancels the producer, whose next send
+// would otherwise block for good on an adapter whose request context outlives
+// the handler.
+func TestWithSSERetryWriteFailureCancelsProducer(t *testing.T) {
 	engine := stdx.New()
-	lateErrs := make(chan error, 1)
+	sendErr := make(chan error, 1)
 	engine.Group("").GET("/sse", WithSSE(func(httpx.Context) (SSEStream[sseMsg], error) {
 		return func(send func(sseMsg) error) error {
 			if err := send(sseMsg{Msg: "first"}); err != nil {
 				return err
 			}
-			go func() {
-				runtime.Gosched()
-				lateErrs <- send(sseMsg{Msg: "late"})
-			}()
-			return nil
+			err := send(sseMsg{Msg: "second"})
+			sendErr <- err
+			return err
 		}, nil
-	}, WithSSEHeartbeat(0)))
+	}, WithSSEHeartbeat(0), WithSSERetry(time.Second)))
 
-	for i := range 3000 {
-		status, _, body := sseDo(t, engine, "/sse")
-		if status != http.StatusOK || !strings.HasPrefix(body, "data: {\"msg\":\"first\"}\n\n") {
-			t.Fatalf("request %d: status=%d body=%q", i, status, body)
+	go engine.(http.Handler).ServeHTTP(failWriter{httptest.NewRecorder()}, httptest.NewRequest(http.MethodGet, "http://example.com/sse", nil))
+
+	select {
+	case err := <-sendErr:
+		if err == nil {
+			t.Fatal("second send = nil, want the cancellation cause")
 		}
-		select {
-		case err := <-lateErrs:
-			if err == nil && !strings.Contains(body, "late") {
-				t.Fatalf("request %d: late send reported success but was not delivered: %q", i, body)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatalf("request %d: late send never returned", i)
-		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("producer still blocked after the retry frame failed")
 	}
 }
