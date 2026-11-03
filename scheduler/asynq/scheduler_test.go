@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -566,5 +567,63 @@ func TestStopHonoursContextWhileRedisStalls(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Start did not return after Stop")
+	}
+}
+
+// shutdownPanicLogger panics on cron's shutdown message and records the
+// messages that show the later teardown steps ran.
+type shutdownPanicLogger struct {
+	mu   sync.Mutex
+	seen []string
+}
+
+func (l *shutdownPanicLogger) record(args []any) string {
+	msg := fmt.Sprint(args...)
+	l.mu.Lock()
+	l.seen = append(l.seen, msg)
+	l.mu.Unlock()
+	return msg
+}
+
+func (l *shutdownPanicLogger) saw(msg string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Contains(l.seen, msg)
+}
+
+func (l *shutdownPanicLogger) Debug(args ...any) { l.record(args) }
+func (l *shutdownPanicLogger) Info(args ...any) {
+	if l.record(args) == "Scheduler shutting down" {
+		panic("logger exploded")
+	}
+}
+func (l *shutdownPanicLogger) Warn(args ...any)  { l.record(args) }
+func (l *shutdownPanicLogger) Error(args ...any) { l.record(args) }
+func (l *shutdownPanicLogger) Fatal(args ...any) { l.record(args) }
+
+// TestStopReportsTeardownPanic pins that a panic in a shutdown step is returned
+// by Stop rather than reported as a clean drain, and that the steps after it
+// still run so the server is not left using the Redis client.
+func TestStopReportsTeardownPanic(t *testing.T) {
+	logger := &shutdownPanicLogger{}
+	client := redistest.NewTestRedisClient(t)
+	s, err := NewScheduler(Config{ShutdownTimeout: time.Second}, WithClient(client), WithLogger(logger))
+	if err != nil {
+		t.Fatalf("create scheduler: %v", err)
+	}
+	startTestScheduler(t, s)
+
+	err = s.Stop(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "logger exploded") {
+		t.Fatalf("Stop = %v, want the teardown panic", err)
+	}
+	if !logger.saw("Starting graceful shutdown") {
+		t.Fatal("server.Shutdown did not run after the cron step panicked")
+	}
+	if got := s.state.Load(); got == stateClosed {
+		t.Fatal("state = closed after a failed teardown")
+	}
+	if again := s.Stop(context.Background()); again == nil || again.Error() != err.Error() {
+		t.Fatalf("second Stop = %v, want the same error %v", again, err)
 	}
 }

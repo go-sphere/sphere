@@ -67,6 +67,9 @@ type Scheduler struct {
 	state    atomic.Int32
 	cancel   context.CancelFunc
 	stopDone <-chan struct{}
+	// stopErr is the teardown outcome; it is written before stopDone is closed
+	// and read only after receiving from it.
+	stopErr error
 	// stopPending records a Stop that arrived before Start; Start then returns
 	// nil without starting the runtime.
 	stopPending bool
@@ -457,7 +460,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 
 // Stop shuts the scheduler down and waits for the asynq server to drain.
 //
-// A nil return means the drain finished. If ctx expires first Stop returns
+// A nil return means the drain finished. A panic in any teardown step is
+// returned as an error (the remaining steps still run) and leaves the scheduler
+// unclosed, so the Redis client must then be treated as still in use. If ctx expires first Stop returns
 // ctx.Err() and the shutdown continues in the background — the scheduler is not
 // yet quiesced. Because the Redis client is injected and not owned (see
 // WithClient), callers must not close that client until a Stop returns nil or
@@ -499,12 +504,19 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 		// The whole teardown runs off the lock and off the caller's goroutine:
 		// cron.Shutdown and server.Stop wait on Redis I/O and ignore ctx, so
 		// running them here would hold mu and defeat the ctx select below.
+		// Each step recovers on its own so a panic in one (a logger, say) still
+		// lets the remaining steps run, and is reported through stopErr instead
+		// of letting Stop claim a clean drain.
 		done := make(chan struct{})
 		safe.Go(func() {
 			defer close(done)
-			s.cron.Shutdown()
-			s.server.Stop()
-			s.server.Shutdown()
+			var errs []error
+			for _, step := range []func(){s.cron.Shutdown, s.server.Stop, s.server.Shutdown} {
+				if err := runStep(step); err != nil {
+					errs = append(errs, err)
+				}
+			}
+			s.stopErr = errors.Join(errs...)
 		})
 		s.stopDone = done
 	case stateStopping:
@@ -517,6 +529,11 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 
 	select {
 	case <-done:
+		// A failed teardown leaves the scheduler in stateStopping: it is not
+		// quiesced, and every later Stop reports the same error.
+		if s.stopErr != nil {
+			return s.stopErr
+		}
 		s.state.Store(stateClosed)
 		return nil
 	case <-ctx.Done():
@@ -547,6 +564,17 @@ func (s *Scheduler) Close() error {
 		s.mu.Unlock()
 		return s.Stop(context.Background())
 	}
+}
+
+// runStep calls fn and reports a panic as an error.
+func runStep(fn func()) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("scheduler/asynq: shutdown step panicked: %v", r)
+		}
+	}()
+	fn()
+	return nil
 }
 
 func applyDefaults(cfg Config) Config {
