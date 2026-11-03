@@ -54,18 +54,57 @@ const defaultSaveTimeout = 30 * time.Second
 // save timeout.
 var errSaveIdle = errors.New("reverseproxy: cache save idle timeout")
 
-// idleReader restarts timer for d after every read that returns data, so the
-// timer only fires when the body goes d without delivering a byte.
+// idleReader calls onIdle once the body has gone d without delivering a byte.
+// Progress is recorded as a timestamp and the timer re-checks it when it
+// fires, so a read that lands at the boundary cannot lose to a callback that
+// was already scheduled.
 type idleReader struct {
-	r     io.Reader
-	timer *time.Timer
-	d     time.Duration
+	r      io.Reader
+	d      time.Duration
+	onIdle func()
+
+	mu      sync.Mutex
+	last    time.Time
+	stopped bool
+	timer   *time.Timer
+}
+
+func newIdleReader(r io.Reader, d time.Duration, onIdle func()) *idleReader {
+	i := &idleReader{r: r, d: d, onIdle: onIdle, last: time.Now()}
+	i.timer = time.AfterFunc(d, i.check)
+	return i
+}
+
+func (i *idleReader) check() {
+	i.mu.Lock()
+	if i.stopped {
+		i.mu.Unlock()
+		return
+	}
+	if remaining := i.d - time.Since(i.last); remaining > 0 {
+		i.timer.Reset(remaining)
+		i.mu.Unlock()
+		return
+	}
+	i.stopped = true
+	i.mu.Unlock()
+	i.onIdle()
+}
+
+// stop disarms the timer for good; onIdle is not called afterwards.
+func (i *idleReader) stop() {
+	i.mu.Lock()
+	i.stopped = true
+	i.mu.Unlock()
+	i.timer.Stop()
 }
 
 func (i *idleReader) Read(p []byte) (int, error) {
 	n, err := i.r.Read(p)
 	if n > 0 {
-		i.timer.Reset(i.d)
+		i.mu.Lock()
+		i.last = time.Now()
+		i.mu.Unlock()
 	}
 	return n, err
 }
@@ -408,9 +447,15 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 			// so a total deadline would cut off any download slower than it.
 			ctx, cancel := context.WithCancelCause(context.WithoutCancel(resp.Request.Context()))
 			defer cancel(nil)
-			timer := time.AfterFunc(conf.saveTimeout, func() { cancel(errSaveIdle) })
-			defer timer.Stop()
-			body := &idleReader{r: cacheBody, timer: timer, d: conf.saveTimeout}
+			// Cancelling ctx alone cannot unblock a Save that is parked reading
+			// the body (the local driver does not observe ctx mid-copy), so the
+			// queue is closed too. The copy loop then sees a closed cache side,
+			// stops caching and keeps serving the client.
+			body := newIdleReader(cacheBody, conf.saveTimeout, func() {
+				cancel(errSaveIdle)
+				cacheBody.CloseWithError(errSaveIdle)
+			})
+			defer body.stop()
 			// Persist the real status code inside the header blob so it can be
 			// replayed on cache hit. Clone to avoid leaking the internal header
 			// to the client response.

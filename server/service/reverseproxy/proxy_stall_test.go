@@ -12,6 +12,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/go-sphere/sphere/cache/memory"
+	"github.com/go-sphere/sphere/storage/local"
 )
 
 // stalledSaveCache models a cache backend that has stopped making progress: it
@@ -223,5 +226,75 @@ func TestReverseProxySaveTimeoutIsIdle(t *testing.T) {
 				t.Fatal("Save did not finish")
 			}
 		})
+	}
+}
+
+// recordingSaveCache reports the error of every Save on saved.
+type recordingSaveCache struct {
+	Cache
+	saved chan error
+}
+
+func (c *recordingSaveCache) Save(ctx context.Context, key string, header http.Header, r io.Reader) error {
+	err := c.Cache.Save(ctx, key, header, r)
+	c.saved <- err
+	return err
+}
+
+// TestReverseProxySaveTimeoutReleasesBlockedStorageRead pins that the idle
+// timeout frees a Save that is parked reading the body inside a driver that
+// ignores its context mid-copy (local storage does), so the key can be cached
+// again afterwards.
+func TestReverseProxySaveTimeoutReleasesBlockedStorageRead(t *testing.T) {
+	store, err := local.NewClient(local.Config{RootDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("local.NewClient: %v", err)
+	}
+	headerCache := memory.NewByteCache()
+	t.Cleanup(func() { _ = headerCache.Close() })
+	cache := &recordingSaveCache{Cache: NewByteCache(headerCache, store), saved: make(chan error, 4)}
+
+	unblock := make(chan struct{})
+	defer close(unblock)
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(bytes.Repeat([]byte("x"), 1024))
+		w.(http.Flusher).Flush()
+		select {
+		case <-unblock:
+		case <-r.Context().Done():
+		}
+	}))
+	defer backend.Close()
+
+	backendURL, err := url.Parse(backend.URL)
+	if err != nil {
+		t.Fatalf("Parse backend URL: %v", err)
+	}
+	proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL), WithSaveTimeout(200*time.Millisecond))
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+	frontend := httptest.NewServer(http.HandlerFunc(ServeCacheReverseProxy(cache, proxy)))
+	defer frontend.Close()
+
+	for round := range 2 {
+		resp, err := frontend.Client().Get(frontend.URL + "/stall")
+		if err != nil {
+			t.Fatalf("round %d GET: %v", round, err)
+		}
+		if _, err := io.ReadFull(resp.Body, make([]byte, 1024)); err != nil {
+			t.Fatalf("round %d read: %v", round, err)
+		}
+		select {
+		case err := <-cache.saved:
+			if !errors.Is(err, errSaveIdle) {
+				t.Fatalf("round %d Save error = %v, want errSaveIdle", round, err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatalf("round %d: Save still blocked after the idle timeout", round)
+		}
+		_ = resp.Body.Close()
 	}
 }
