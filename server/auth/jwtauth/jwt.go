@@ -2,8 +2,10 @@ package jwtauth
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/go-sphere/httpx"
 	"github.com/golang-jwt/jwt/v5"
@@ -123,6 +125,9 @@ func (g *JwtAuth[T]) parseToken(signedToken string) (T, error) {
 		// Otherwise, first parse it into a map, then attempt to convert it into T.
 		// JSON numbers stay json.Number so 64-bit integers above 2^53 survive the
 		// round trip instead of being rounded through float64.
+		if err := checkPayloadIsOneJSONValue(signedToken); err != nil {
+			return claims, err
+		}
 		token, err := jwt.Parse(signedToken, g.keyFunc, jwt.WithExpirationRequired(), jwt.WithJSONNumber())
 		if err != nil {
 			return claims, err
@@ -138,4 +143,25 @@ func (g *JwtAuth[T]) parseToken(signedToken string) (T, error) {
 		}
 		return claims, nil
 	}
+}
+
+// checkPayloadIsOneJSONValue rejects a token whose payload segment holds
+// anything but a single JSON value. golang-jwt decodes the payload with a
+// json.Decoder when WithJSONNumber is set, which stops after the first value and
+// ignores trailing bytes, unlike the json.Unmarshal path used otherwise. The
+// signature is still verified by the parser; this only keeps both paths equally
+// strict about the payload syntax.
+func checkPayloadIsOneJSONValue(signedToken string) error {
+	parts := strings.Split(signedToken, ".")
+	if len(parts) != 3 {
+		return nil // the parser reports the malformed structure
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(parts[1], "="))
+	if err != nil {
+		return nil // the parser reports the bad encoding
+	}
+	if !json.Valid(payload) {
+		return fmt.Errorf("%w: payload is not a single JSON value", jwt.ErrTokenMalformed)
+	}
+	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"testing"
@@ -415,5 +416,42 @@ func TestJwtAuth_ParseErrorsAreUnauthorized(t *testing.T) {
 	_, err = mapAuth.ParseToken(ctx, expired)
 	if _, status, _ := httpx.ParseError(err); !errors.Is(err, jwt.ErrTokenExpired) || status != http.StatusUnauthorized {
 		t.Fatalf("map claims: err = %v, status = %d, want ErrTokenExpired and 401", err, status)
+	}
+}
+
+// TestJwtAuth_RejectsTrailingBytesAfterPayload pins that pointer and value
+// claims agree on a correctly signed token whose payload has bytes after the
+// JSON object.
+func TestJwtAuth_RejectsTrailingBytesAfterPayload(t *testing.T) {
+	t.Parallel()
+
+	const secret = "secret"
+	enc := base64.RawURLEncoding.EncodeToString
+	signed := func(payload string) string {
+		signingInput := enc([]byte(`{"alg":"HS256","typ":"JWT"}`)) + "." + enc([]byte(payload))
+		sig, err := jwt.SigningMethodHS256.Sign(signingInput, []byte(secret))
+		if err != nil {
+			t.Fatalf("Sign: %v", err)
+		}
+		return signingInput + "." + enc(sig)
+	}
+	exp := time.Now().Add(time.Hour).Unix()
+	good := fmt.Sprintf(`{"exp":%d,"uid":123}`, exp)
+
+	ctx := context.Background()
+	pointerAuth := NewJwtAuth[*RBACClaims[int64]](secret)
+	valueAuth := NewJwtAuth[RBACClaims[int64]](secret)
+
+	if got, err := pointerAuth.ParseToken(ctx, signed(good)); err != nil || got.UID != 123 {
+		t.Fatalf("pointer ParseToken(valid) = %+v, %v", got, err)
+	}
+	for _, payload := range []string{good + "garbage", good + good, good + " x"} {
+		token := signed(payload)
+		if _, err := pointerAuth.ParseToken(ctx, token); !errors.Is(err, jwt.ErrTokenMalformed) {
+			t.Errorf("pointer claims accepted payload %q: err = %v", payload, err)
+		}
+		if _, err := valueAuth.ParseToken(ctx, token); !errors.Is(err, jwt.ErrTokenMalformed) {
+			t.Errorf("value claims accepted payload %q: err = %v", payload, err)
+		}
 	}
 }
