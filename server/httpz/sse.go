@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-sphere/httpx"
@@ -259,19 +260,32 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 // encode failure never reaches this point: WithSSE detects it in the gate
 // before committing.
 func serveSSE(ctx httpx.Context, conf sseOptions, cancel context.CancelCauseFunc, fn func(w *httpx.SSEWriter) error) error {
-	err := httpx.ServerSentEvents(ctx, func(w *httpx.SSEWriter) error {
-		if conf.retry > 0 {
-			if err := w.Send(&httpx.SSEEvent{Retry: conf.retry}); err != nil {
-				return err
-			}
-		}
-		return fn(w)
-	})
-	if err != nil {
+	// Fiber runs the callback after the handler returned and drops its error, so
+	// a failure has to cancel the producer from inside the callback; the error
+	// returned by ServerSentEvents only covers a failure to start the stream.
+	var reported atomic.Bool
+	fail := func(err error) {
 		// The pump cancels the producer itself, but a failure before it ran (the
 		// retry frame, the initial flush) never reaches it.
 		cancel(err)
+		reported.Store(true)
 		log.Error("httpz: SSE stream terminated with error", log.Err(err))
+	}
+	err := httpx.ServerSentEvents(ctx, func(w *httpx.SSEWriter) error {
+		if conf.retry > 0 {
+			if err := w.Send(&httpx.SSEEvent{Retry: conf.retry}); err != nil {
+				fail(err)
+				return err
+			}
+		}
+		err := fn(w)
+		if err != nil {
+			fail(err)
+		}
+		return err
+	})
+	if err != nil && !reported.Load() {
+		fail(err)
 	}
 	return nil
 }

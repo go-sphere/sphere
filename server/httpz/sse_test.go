@@ -670,3 +670,56 @@ func TestWithSSERetryWriteFailureCancelsProducer(t *testing.T) {
 		t.Fatal("producer still blocked after the retry frame failed")
 	}
 }
+
+// asyncStreamCtx mimics a fiber-style Streamer: Stream returns nil at once and
+// runs fn later on another goroutine, dropping fn's error.
+// baseContext lets asyncStreamCtx embed httpx.Context without the embedded
+// field's name colliding with the Context method it overrides.
+type baseContext = httpx.Context
+
+type asyncStreamCtx struct {
+	baseContext
+	req context.Context
+	w   io.Writer
+}
+
+func (c asyncStreamCtx) Context() context.Context { return c.req }
+func (c asyncStreamCtx) SetHeader(string, string) {}
+func (c asyncStreamCtx) Stream(_ int, _ string, fn func(io.Writer) error) error {
+	go func() { _ = fn(c.w) }()
+	return nil
+}
+
+type errWriter struct{}
+
+func (errWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+// TestWithSSERetryFailureCancelsProducerOnAsyncStreamer pins that a retry frame
+// failing inside a callback whose error the adapter drops (fiber) still cancels
+// the producer.
+func TestWithSSERetryFailureCancelsProducerOnAsyncStreamer(t *testing.T) {
+	sendErr := make(chan error, 1)
+	handler := WithSSE(func(httpx.Context) (SSEStream[sseMsg], error) {
+		return func(send func(sseMsg) error) error {
+			if err := send(sseMsg{Msg: "first"}); err != nil {
+				return err
+			}
+			err := send(sseMsg{Msg: "second"})
+			sendErr <- err
+			return err
+		}, nil
+	}, WithSSEHeartbeat(0), WithSSERetry(time.Second))
+
+	ctx := asyncStreamCtx{req: t.Context(), w: errWriter{}}
+	if err := handler(ctx); err != nil {
+		t.Fatalf("handler = %v", err)
+	}
+	select {
+	case err := <-sendErr:
+		if err == nil {
+			t.Fatal("second send = nil, want the cancellation cause")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("producer still blocked after the retry frame failed")
+	}
+}
