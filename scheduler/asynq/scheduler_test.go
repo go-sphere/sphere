@@ -585,11 +585,13 @@ func (l *shutdownPanicLogger) record(args []any) string {
 	return msg
 }
 
-func (l *shutdownPanicLogger) saw(msg string) bool {
+func (l *shutdownPanicLogger) index(msg string) int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return slices.Contains(l.seen, msg)
+	return slices.Index(l.seen, msg)
 }
+
+func (l *shutdownPanicLogger) saw(msg string) bool { return l.index(msg) >= 0 }
 
 func (l *shutdownPanicLogger) Debug(args ...any) { l.record(args) }
 func (l *shutdownPanicLogger) Info(args ...any) {
@@ -619,6 +621,10 @@ func TestStopReportsTeardownPanic(t *testing.T) {
 	}
 	if !logger.saw("Starting graceful shutdown") {
 		t.Fatal("server.Shutdown did not run after the cron step panicked")
+	}
+	// The server stops pulling tasks before cron shutdown can stall on Redis.
+	if stopped, cron := logger.index("Processor stopped"), logger.index("Scheduler shutting down"); stopped < 0 || stopped > cron {
+		t.Fatalf("processor stopped at %d, cron shutdown at %d; want the processor first", stopped, cron)
 	}
 	if got := s.state.Load(); got == stateClosed {
 		t.Fatal("state = closed after a failed teardown")

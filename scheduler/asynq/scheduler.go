@@ -504,14 +504,15 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 		// The whole teardown runs off the lock and off the caller's goroutine:
 		// cron.Shutdown and server.Stop wait on Redis I/O and ignore ctx, so
 		// running them here would hold mu and defeat the ctx select below.
-		// Each step recovers on its own so a panic in one (a logger, say) still
-		// lets the remaining steps run, and is reported through stopErr instead
-		// of letting Stop claim a clean drain.
+		// server.Stop goes first so no new task is pulled while cron.Shutdown
+		// waits on Redis. Each step recovers on its own so a panic in one (a
+		// logger, say) still lets the remaining steps run, and is reported
+		// through stopErr instead of letting Stop claim a clean drain.
 		done := make(chan struct{})
 		safe.Go(func() {
 			defer close(done)
 			var errs []error
-			for _, step := range []func(){s.cron.Shutdown, s.server.Stop, s.server.Shutdown} {
+			for _, step := range []func(){s.server.Stop, s.cron.Shutdown, s.server.Shutdown} {
 				if err := runStep(step); err != nil {
 					errs = append(errs, err)
 				}
