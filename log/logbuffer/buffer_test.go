@@ -266,3 +266,57 @@ func TestBufferStoresErrorAttrsAsMessages(t *testing.T) {
 		})
 	}
 }
+
+type panickingError struct{}
+
+func (panickingError) Error() string { panic("broken error") }
+
+type derefError struct{ msg string }
+
+func (e *derefError) Error() string { return e.msg }
+
+// TestBufferTypedNilErrorKeepsLaterAttrs pins that a typed nil error pointer is
+// recorded as nil and that a panicking attr does not drop the attrs after it.
+func TestBufferTypedNilErrorKeepsLaterAttrs(t *testing.T) {
+	var typedNil *derefError
+	b := New(2)
+	b.Log(context.Background(), log.LevelError, "failed",
+		log.Any("cause", typedNil),
+		log.Any("broken", panickingError{}),
+		log.String("request_id", "r1"))
+
+	entries, _ := b.History(0, 1, log.LevelDebug)
+	if len(entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(entries))
+	}
+	attrs := entries[0].Attrs
+	if v, ok := attrs["cause"]; !ok || v != nil {
+		t.Fatalf("cause = %#v (present %v), want nil", v, ok)
+	}
+	if attrs["request_id"] != "r1" {
+		t.Fatalf("request_id = %#v, want it kept after earlier attrs: %#v", attrs["request_id"], attrs)
+	}
+	if _, ok := attrs["attr_error"]; !ok {
+		t.Fatalf("attr_error missing for the panicking attr: %#v", attrs)
+	}
+}
+
+// TestBufferPresetErrorAttrsAreMessages pins that error values in preset attrs,
+// from New and from With, serialize to their message like per-call attrs.
+func TestBufferPresetErrorAttrsAreMessages(t *testing.T) {
+	b := New(2, log.WithAttrs(map[string]any{"cause": errors.New("boom")}))
+	derived := b.With(log.WithAttrs(map[string]any{"other": fmt.Errorf("ctx: %w", errors.New("bang"))}))
+	derived.Log(context.Background(), log.LevelError, "failed")
+
+	entries, _ := b.History(0, 1, log.LevelDebug)
+	if len(entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(entries))
+	}
+	raw, err := json.Marshal(entries[0].Attrs)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if want := `{"cause":"boom","other":"ctx: bang"}`; string(raw) != want {
+		t.Fatalf("attrs JSON = %s, want %s", raw, want)
+	}
+}

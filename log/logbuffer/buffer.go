@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"reflect"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -366,22 +367,44 @@ func (b *Buffer) collectLocked(fromSeq uint64, limit int, minLevel log.Level) []
 
 // mergeAttrs resolves preset attrs and per-call slog attrs into one map.
 // Rendering arbitrary attr values can panic (custom Stringer/LogValuer); a
-// panicking value degrades to an attr_error entry, mirroring StdioBackend.
+// panicking value degrades to an attr_error entry, mirroring StdioBackend, and
+// the attrs after it are still recorded.
 func mergeAttrs(preset map[string]any, attrs []log.Attr) (out map[string]any) {
 	if len(preset) == 0 && len(attrs) == 0 {
 		return nil
 	}
 	out = make(map[string]any, len(preset)+len(attrs))
-	maps.Copy(out, preset)
-	defer func() {
-		if r := recover(); r != nil {
-			out["attr_error"] = fmt.Sprint(r)
-		}
-	}()
+	for k, v := range preset {
+		setSafe(out, k, func() { out[k] = renderValue(v) })
+	}
 	for _, attr := range attrs {
-		addAttr(out, attr)
+		setSafe(out, attr.Key, func() { addAttr(out, attr) })
 	}
 	return out
+}
+
+// setSafe runs fn, turning a panic into an attr_error entry in dst.
+func setSafe(dst map[string]any, key string, fn func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			dst["attr_error"] = fmt.Sprintf("%s: %v", key, r)
+		}
+	}()
+	fn()
+}
+
+// renderValue keeps the message of an error value: errors are usually structs
+// without exported fields, which JSON renders as {}. A typed nil error pointer
+// becomes nil instead of calling Error on it.
+func renderValue(v any) any {
+	err, ok := v.(error)
+	if !ok {
+		return v
+	}
+	if rv := reflect.ValueOf(err); rv.Kind() == reflect.Pointer && rv.IsNil() {
+		return nil
+	}
+	return err.Error()
 }
 
 // addAttr resolves one slog attr into dst, flattening groups into nested maps.
@@ -405,13 +428,7 @@ func addAttr(dst map[string]any, attr log.Attr) {
 	if attr.Key == "" {
 		return
 	}
-	// Error values are usually structs without exported fields, which JSON
-	// renders as {}, so keep the message.
-	if err, ok := value.Any().(error); ok && err != nil {
-		dst[attr.Key] = err.Error()
-		return
-	}
-	dst[attr.Key] = value.Any()
+	dst[attr.Key] = renderValue(value.Any())
 }
 
 // LevelString renders a log.Level as its lowercase name.
