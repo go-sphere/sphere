@@ -13,13 +13,6 @@ import (
 
 const scanBatchSize = 256
 
-// ErrorType is returned by MultiGet if an MGET element is neither nil nor a
-// string. It is a defensive guard, not a signal callers can rely on: Redis
-// reports a key holding a non-string value as a nil element (a miss), and
-// go-redis decodes MGET elements as string or nil, so today this error cannot
-// occur and non-string values are indistinguishable from missing keys.
-var ErrorType = fmt.Errorf("type error")
-
 // ByteCache is a Redis-backed cache implementation for storing raw byte data.
 // It provides direct access to Redis operations without any encoding/decoding overhead.
 //
@@ -117,12 +110,14 @@ func (c *ByteCache) MultiGet(ctx context.Context, keys []string) (map[string][]b
 		if vals[i] != nil {
 			raw, ok := vals[i].(string)
 			if !ok {
-				return nil, ErrorType
+				// go-redis decodes MGET elements as string or nil, so this is
+				// a defensive guard against a protocol change.
+				return nil, fmt.Errorf("cache/redis: unexpected MGET element type %T for key %q", vals[i], key)
 			}
 			result[key] = []byte(raw)
 		}
 		// A nil element means the key is missing or holds a non-string value:
-		// both are reported as a miss (see ErrorType).
+		// Redis reports both the same way, so both are a miss.
 	}
 	return result, nil
 }

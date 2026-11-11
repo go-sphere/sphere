@@ -8,6 +8,29 @@ points at the ones most likely to surprise an upgrade.
 
 ## Unreleased
 
+### Breaking changes
+
+Each is described under its own heading in `compat/behavior-changes.md`.
+
+- `logbuffer`: `Entry.Attrs` captures values when they are logged. Scalars,
+  time values and errors (as text) are kept; every other value becomes the
+  `json.RawMessage` of its JSON encoding, or text when it cannot be encoded.
+  The entry JSON is unchanged, but code that type-asserted maps, slices or
+  structs in `Entry.Attrs` must decode the raw JSON instead. The buffer used to
+  hold the caller's live values, so mutating a logged map could crash the
+  process while the log tail serialized it.
+- `urlhandler.NewHandler` requires an absolute http or https base with a host;
+  qiniu with an empty or relative `PublicBase` and a fileserver with a relative
+  `GetBase` fail at construction instead of producing URLs that map back to the
+  wrong key.
+- `s3.GenerateUploadAuth` signs a Content-Type derived from the file extension
+  into the presigned PUT and returns it in `UploadAuthorization.Headers`
+  (active content and unknown extensions get `application/octet-stream`).
+  Clients must send those headers, or the upload fails with 403.
+- Removed unused exported identifiers: `cache.IsZero`, `log.Field`,
+  `cache/redis.ErrorType`, `mq/memory.ErrNoMessage` and
+  `captcha.VerificationStorage`.
+
 ### Added
 
 - `stack.New` / `stack.Apply` (`server/middleware/stack`): assemble the
@@ -47,6 +70,10 @@ points at the ones most likely to surprise an upgrade.
 - `httpz.HandlePanic`, the recover tail shared by `httpz.WithRecover` and
   `logger.RecoveryLog`; `logger.RecoveryLogErr` and `logger.PanicError`, an
   opt-in form of `RecoveryLog` that returns the recovered panic as an error.
+- `log.MultiBackend` and the `WrapBackendWithContextMerge` backend implement
+  `log.SlogBackend` by forwarding to the wrapped backend (the first child that
+  has one), so wrapping a zap backend no longer loses the slog bridge; zapx's
+  slog handler inherits the backend's caller and stack settings.
 
 ### Changed
 
@@ -107,9 +134,35 @@ points at the ones most likely to surprise an upgrade.
   of `ErrDestExists`. `s3` `CopyFile` of a key onto itself no longer sends a
   `CopyObject` that S3 rejects: it succeeds with overwrite and fails with
   `ErrDestExists` without.
+- `jwtauth.NewRBACClaims` sets `iat` instead of `nbf`, so a fresh token is
+  not rejected by a server whose clock runs behind the issuer's.
+- `httpz`: a custom error parser's non-empty message is written as is; an
+  `httpx.MessageError` in the chain only fills in an empty message.
+- `log`: levels outside Debug–Error clamp to the nearest level in every
+  backend.
+- `boot.Run` stops handling signals after the first shutdown signal, so a
+  second Ctrl-C terminates a shutdown that hangs.
+- `s3` and `qiniu` `ListFiles` skip keys that are not in `NormalizeKey` form
+  (such as console folder markers), which no other method could address.
+- `reverseproxy`: a cache miss cleans up the orphaned body object in the
+  background, at most once a minute per key and with bounded concurrency,
+  instead of a synchronous storage delete on every miss.
+- `mq/memory` `PubSub` reports dropped messages in one warning per topic at
+  most every 10s, with the number dropped, instead of one line per message.
 
 ### Fixed
 
+- `log`: with caller reporting on, zapx and the stdio backend report the
+  user's call site through any number of `MultiBackend` and context-merge
+  wrappers, instead of a line inside the log package.
+- `qiniu` `UploadFile` streams long unseekable bodies through the resumable
+  uploader instead of reading the whole body into memory.
+- `s3` `UploadFile` sends a body that fits in one part as a single
+  `PutObject` instead of always making three multipart requests and a full
+  part-size buffer; `CopyFile`/`MoveFile` copy sources over 5 GiB with a
+  multipart copy instead of failing.
+- `mcache` reads share a read lock and take the write lock only to delete an
+  expired entry.
 - `httpz.WithJson`/`WithText` no longer append the success envelope to a
   response the handler already committed itself (a redirect or a file).
 - `cors` appends `Origin` to `Vary` instead of replacing headers an outer

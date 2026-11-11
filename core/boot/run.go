@@ -61,6 +61,9 @@ func run(ctx context.Context, t task.Task, options *options) error {
 
 	select {
 	case sig := <-quit:
+		// Hand later signals back to the OS default so a second one can
+		// terminate a shutdown that hangs.
+		signal.Stop(quit)
 		shutdownReason = fmt.Sprintf("signal %v", sig)
 		log.Infof("Received shutdown signal: %v", sig)
 	case err, ok := <-startErr:
@@ -137,7 +140,10 @@ func run(ctx context.Context, t task.Task, options *options) error {
 // The exported Run always uses context.Background(); it stops on SIGTERM,
 // SIGQUIT, or SIGINT (override with WithShutdownSignals) or when Start
 // returns. Passing no signals to WithShutdownSignals disables boot's signal
-// handling rather than subscribing to every signal.
+// handling rather than subscribing to every signal. Once the first shutdown
+// signal arrives, Run stops handling signals, so a second one gets the
+// operating system's default action (for SIGINT and SIGTERM, terminating the
+// process) even while shutdown is still in progress.
 //
 // A clean signal-triggered shutdown returns nil. It returns non-nil when a hook,
 // a task's Stop, or a task's Start reports a failure, including failures that

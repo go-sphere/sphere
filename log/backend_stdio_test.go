@@ -237,3 +237,33 @@ func TestStdioBackendRendersPresetAttrsInKeyOrder(t *testing.T) {
 		t.Errorf("child line = %q", lines[1])
 	}
 }
+
+// TestStdioBackendClampsOutOfRangeLevels pins that a level below LevelDebug is
+// written as debug and one above LevelError as error, on error's stream.
+func TestStdioBackendClampsOutOfRangeLevels(t *testing.T) {
+	b := NewStdioBackend()
+	out := captureStdout(t, func() {
+		b.Log(context.Background(), Level(-1), "low")
+	})
+	if !strings.Contains(out, "level=debug msg=low") {
+		t.Errorf("below-debug line = %q, want level=debug", out)
+	}
+	errOut := captureStderr(t, func() {
+		b.Log(context.Background(), Level(127), "high")
+	})
+	if !strings.Contains(errOut, "level=error msg=high") {
+		t.Errorf("above-error line = %q, want level=error on stderr", errOut)
+	}
+}
+
+// TestStdioBackendClampsStackLevel pins that a stack level above LevelError
+// attaches stacks at error, as the zapx backend does.
+func TestStdioBackendClampsStackLevel(t *testing.T) {
+	b := NewStdioBackend(WithStackAt(Level(127)))
+	errOut := captureStderr(t, func() {
+		b.Log(context.Background(), LevelError, "stack expected")
+	})
+	if !strings.Contains(errOut, "stack=") {
+		t.Errorf("error entry should carry a stack, got: %q", errOut)
+	}
+}

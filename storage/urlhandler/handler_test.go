@@ -51,6 +51,12 @@ func TestNewHandler(t *testing.T) {
 			publicURL: "://invalid",
 			wantErr:   true,
 		},
+		{name: "empty base", publicURL: "", wantErr: true},
+		{name: "path-only base", publicURL: "/files", wantErr: true},
+		{name: "protocol-relative base", publicURL: "//cdn.example.com/assets", wantErr: true},
+		{name: "base without scheme", publicURL: "cdn.example.com/assets", wantErr: true},
+		{name: "non-http scheme", publicURL: "ftp://cdn.example.com/assets", wantErr: true},
+		{name: "http scheme without host", publicURL: "https:///assets", wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -383,14 +389,6 @@ func TestHandler_ExtractKeyFromURLWithMode(t *testing.T) {
 		{
 			name:      "same host with another HTTP scheme",
 			publicURL: "https://localhost:8080",
-			uri:       "http://localhost:8080/test.jpg",
-			strict:    true,
-			want:      "test.jpg",
-			wantErr:   false,
-		},
-		{
-			name:      "protocol-relative base accepts either scheme",
-			publicURL: "//localhost:8080",
 			uri:       "http://localhost:8080/test.jpg",
 			strict:    true,
 			want:      "test.jpg",

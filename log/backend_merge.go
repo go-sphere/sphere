@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"log/slog"
 	"maps"
 	"slices"
 )
@@ -71,8 +72,8 @@ func MergeAttrs(base []Attr, explicit []Attr) []Attr {
 // Log context and merges the result before the explicit attrs, which win on
 // key collisions (see MergeAttrs). If backend or extractor is nil it returns
 // backend unchanged. The wrapper keeps the extractor across With, forwards
-// Sync, and implements Close by forwarding to the wrapped backend when it has
-// one. Only the Context logging methods carry a caller context; the others
+// Sync, and implements Close and SlogBackend by forwarding to the wrapped
+// backend. Only the Context logging methods carry a caller context; the others
 // pass context.Background to the extractor.
 func WrapBackendWithContextMerge(backend Backend, extractor ContextAttrExtractor) Backend {
 	if backend == nil || extractor == nil {
@@ -116,4 +117,14 @@ func (b *contextMergeBackend) Close() error {
 		return closer.Close()
 	}
 	return nil
+}
+
+// SlogLogger forwards to the wrapped backend's slog bridge, or returns
+// slog.Default() when it has none, so installing the result leaves slog
+// unchanged. Records logged through it do not pass through the extractor.
+func (b *contextMergeBackend) SlogLogger(options ...Option) *slog.Logger {
+	if sb, ok := b.next.(SlogBackend); ok {
+		return sb.SlogLogger(options...)
+	}
+	return slog.Default()
 }

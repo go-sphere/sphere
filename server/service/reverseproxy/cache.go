@@ -10,8 +10,10 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/go-sphere/sphere/cache"
+	"github.com/go-sphere/sphere/core/safe"
 	"github.com/go-sphere/sphere/storage"
 )
 
@@ -43,12 +45,12 @@ type Cache interface {
 
 // CommonCache stores response headers in a ByteCache and bodies in Storage.
 // Each entry is a JSON header blob under the cache key plus a body object named
-// by the SHA-256 of the key. Construct it with NewByteCache. Its only locking
-// keeps a miss's body cleanup (see NewByteCache) off a key this CommonCache is
-// saving; otherwise it is as safe for concurrent use as its backends. The
-// guard is per process: instances sharing backends can still clean up a body
-// another instance is saving, which leaves that entry unreadable until it is
-// saved again. It never closes its backends.
+// by the SHA-256 of the key. Construct it with NewByteCache. Its locking keeps
+// a miss's body cleanup (see NewByteCache) off a key this CommonCache is saving
+// and bounds how often and how many cleanups run; otherwise it is as safe for
+// concurrent use as its backends. The guard is per process: instances sharing
+// backends can still clean up a body another instance is saving, which leaves
+// that entry unreadable until it is saved again. It never closes its backends.
 type CommonCache struct {
 	cache           cache.ByteCache
 	storage         storage.Storage
@@ -56,6 +58,71 @@ type CommonCache struct {
 
 	mu       sync.Mutex
 	keyLocks map[string]*keyLock // per-key Save/cleanup guards in use
+
+	cleanups orphanCleanups
+}
+
+// Limits on the orphan-body cleanup a miss schedules: a key is cleaned at most
+// once per orphanCleanupWindow, at most orphanCleanupMaxKeys keys are
+// remembered for that, at most orphanCleanupMaxRunning cleanups run at once
+// (a miss beyond that skips its cleanup), and each is bounded by
+// orphanCleanupTimeout.
+var (
+	orphanCleanupWindow     = time.Minute
+	orphanCleanupMaxKeys    = 4096
+	orphanCleanupMaxRunning = 8
+	orphanCleanupTimeout    = 10 * time.Second
+)
+
+// orphanCleanups records which keys had a cleanup scheduled recently and how
+// many cleanups are running.
+type orphanCleanups struct {
+	mu      sync.Mutex
+	recent  map[string]struct{}
+	order   []scheduledCleanup // the keys in recent, oldest first
+	running int
+}
+
+type scheduledCleanup struct {
+	key string
+	at  time.Time
+}
+
+// claim reports whether a cleanup of key may start now. On true it records key
+// and counts the cleanup as running; the caller must call done when it ends.
+func (o *orphanCleanups) claim(key string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	now := time.Now()
+	// order is sorted by time, so the expired records form a prefix.
+	for len(o.order) > 0 && now.Sub(o.order[0].at) >= orphanCleanupWindow {
+		o.dropOldest()
+	}
+	if _, ok := o.recent[key]; ok || o.running >= orphanCleanupMaxRunning {
+		return false
+	}
+	for len(o.order) > 0 && len(o.order) >= orphanCleanupMaxKeys {
+		o.dropOldest()
+	}
+	if o.recent == nil {
+		o.recent = make(map[string]struct{})
+	}
+	o.recent[key] = struct{}{}
+	o.order = append(o.order, scheduledCleanup{key: key, at: now})
+	o.running++
+	return true
+}
+
+func (o *orphanCleanups) dropOldest() {
+	delete(o.recent, o.order[0].key)
+	o.order[0] = scheduledCleanup{}
+	o.order = o.order[1:]
+}
+
+func (o *orphanCleanups) done() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.running--
 }
 
 // keyLock orders Save against orphan cleanup for one key: Save holds it
@@ -93,10 +160,13 @@ func (c *CommonCache) releaseKeyLock(key string, l *keyLock) {
 // NewByteCache returns a CommonCache. setCacheOptions apply when saving header blobs.
 // Use them (for example cache.WithExpiration) to bound how long an entry is
 // replayed. Storage has no expiry of its own, so a body object outlives its
-// expired header blob until the key is next looked up: a miss on key (Exists,
-// Load, Header, or Delete) deletes the body object best-effort unless a Save
-// of key is in progress, and a later Save overwrites it. A body whose key is
-// never looked up or saved again stays until the storage removes it.
+// expired header blob until the key is next looked up or saved. A miss on key
+// in Exists, Load, or Header returns at once and deletes the body object
+// best-effort in the background, at most once a minute per key and skipped
+// while too many such deletes are already running; a miss in Delete deletes it
+// before returning. Neither removes the body of a Save of key in progress, and
+// a later Save overwrites it. A body whose key is never looked up or saved
+// again stays until the storage removes it.
 // The caller keeps ownership of cache and storage.
 func NewByteCache(cache cache.ByteCache, storage storage.Storage, setCacheOptions ...cache.Option) *CommonCache {
 	return &CommonCache{
@@ -231,14 +301,15 @@ func (c *CommonCache) Header(ctx context.Context, key string) (http.Header, erro
 }
 
 // header returns the stored header blob as-is, internal entries included. A
-// miss also deletes the body object an expired blob may have left behind.
+// miss also schedules cleanup of the body object an expired blob may have left
+// behind.
 func (c *CommonCache) header(ctx context.Context, key string) (http.Header, error) {
 	headerRaw, found, err := c.cache.Get(ctx, key)
 	if err != nil {
 		return nil, err
 	}
 	if !found {
-		c.deleteOrphanBody(ctx, key)
+		c.scheduleOrphanCleanup(ctx, key)
 		return nil, ErrCacheNotFound
 	}
 	header := http.Header{}
@@ -247,6 +318,21 @@ func (c *CommonCache) header(ctx context.Context, key string) (http.Header, erro
 		return nil, err
 	}
 	return header, nil
+}
+
+// scheduleOrphanCleanup runs deleteOrphanBody for key in the background, on a
+// context detached from ctx and bounded by orphanCleanupTimeout, unless the
+// orphanCleanups limits skip it.
+func (c *CommonCache) scheduleOrphanCleanup(ctx context.Context, key string) {
+	if !c.cleanups.claim(key) {
+		return
+	}
+	safe.Go(func() {
+		defer c.cleanups.done()
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), orphanCleanupTimeout)
+		defer cancel()
+		c.deleteOrphanBody(cleanupCtx, key)
+	})
 }
 
 // deleteOrphanBody removes the body object Save would have stored for key. It

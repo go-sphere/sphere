@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -28,6 +29,7 @@ import (
 func newFakeClient(t *testing.T, conf Config) (*Client, *fakes3.Server) {
 	t.Helper()
 	fake := fakes3.New(t, "bucket")
+	fake.SecretKey = "test-sk"
 	conf.Endpoint = fake.Endpoint()
 	conf.AccessKeyID = "test-ak"
 	conf.SecretAccessKey = "test-sk"
@@ -193,6 +195,41 @@ func TestS3ClientCopyMoveOverwrite(t *testing.T) {
 	}
 }
 
+// A source above the single-request copy limit is copied part by part with
+// UploadPartCopy, keeping its Content-Type; a smaller one uses CopyObject.
+func TestS3ClientCopyFileLargeSourceUsesMultipartCopy(t *testing.T) {
+	saved := maxCopyObjectSize
+	maxCopyObjectSize = 4
+	t.Cleanup(func() { maxCopyObjectSize = saved })
+
+	client, fake := newFakeClient(t, Config{})
+	ctx := t.Context()
+	fake.Put("big.bin", []byte("0123456789"), "application/x-test")
+	fake.Put("small.bin", []byte("0123"), "application/x-test")
+
+	if err := client.CopyFile(ctx, "big.bin", "big-copy.bin", false); err != nil {
+		t.Fatalf("CopyFile(big) error = %v", err)
+	}
+	want := []string{"HeadObject", "HeadObject", "CreateMultipartUpload", "UploadPartCopy", "UploadPartCopy", "UploadPartCopy", "CompleteMultipartUpload"}
+	if got := fake.Ops(); !slices.Equal(got, want) {
+		t.Fatalf("requests = %v, want %v", got, want)
+	}
+	if obj, _ := fake.Object("big-copy.bin"); string(obj.Data) != "0123456789" || obj.MIME != "application/x-test" {
+		t.Fatalf("copy = %q (%s), want the source bytes and type", obj.Data, obj.MIME)
+	}
+
+	if err := client.MoveFile(ctx, "small.bin", "small-moved.bin", true); err != nil {
+		t.Fatalf("MoveFile(small) error = %v", err)
+	}
+	want = append(want, "HeadObject", "CopyObject", "DeleteObject")
+	if got := fake.Ops(); !slices.Equal(got, want) {
+		t.Fatalf("requests = %v, want %v", got, want)
+	}
+	if obj, _ := fake.Object("small-moved.bin"); string(obj.Data) != "0123" {
+		t.Fatalf("moved = %q, want %q", obj.Data, "0123")
+	}
+}
+
 func TestS3ClientListFilesPaging(t *testing.T) {
 	client, fake := newFakeClient(t, Config{})
 	// A small server page forces minio-go through continuation tokens inside a
@@ -352,11 +389,7 @@ func TestS3ClientGenerateUploadAuthTTL(t *testing.T) {
 			}
 
 			// The presigned URL addresses the issued key on the bucket.
-			req, err := http.NewRequestWithContext(t.Context(), res.Authorization.Method, res.Authorization.Value, strings.NewReader("png"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := putPresigned(t, res.Authorization, res.Authorization.Headers, "png")
 			if err != nil {
 				t.Fatalf("PUT presigned URL: %v", err)
 			}
@@ -366,6 +399,89 @@ func TestS3ClientGenerateUploadAuthTTL(t *testing.T) {
 			}
 			if obj, ok := fake.Object(res.File.Key); !ok || string(obj.Data) != "png" {
 				t.Fatalf("presigned upload did not land at %q", res.File.Key)
+			}
+		})
+	}
+}
+
+// putPresigned sends body to the presigned upload URL in auth with headers.
+func putPresigned(t *testing.T, auth storage.UploadAuthorization, headers map[string]string, body string) (*http.Response, error) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), auth.Method, auth.Value, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, value := range headers {
+		req.Header.Set(name, value)
+	}
+	return http.DefaultClient.Do(req)
+}
+
+// The presigned PUT signs the Content-Type derived from the file name, and
+// types a browser would run or render as a document are signed as
+// application/octet-stream, so a direct upload cannot publish them under the
+// public base.
+func TestS3ClientGenerateUploadAuthSignsContentType(t *testing.T) {
+	tests := []struct {
+		fileName string
+		want     string
+	}{
+		{fileName: "avatar.png", want: "image/png"},
+		{fileName: "clip.mp4", want: mime.TypeByExtension(".mp4")},
+		{fileName: "page.html", want: "application/octet-stream"},
+		{fileName: "page.htm", want: "application/octet-stream"},
+		{fileName: "doc.xhtml", want: "application/octet-stream"},
+		{fileName: "icon.svg", want: "application/octet-stream"},
+		{fileName: "feed.xml", want: "application/octet-stream"},
+		{fileName: "app.js", want: "application/octet-stream"},
+		{fileName: "app.mjs", want: "application/octet-stream"},
+		{fileName: "no-extension", want: "application/octet-stream"},
+		{fileName: "unknown.zzz", want: "application/octet-stream"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.fileName, func(t *testing.T) {
+			if tt.want == "" {
+				t.Skip("no MIME type registered for the extension on this system")
+			}
+			client, fake := newFakeClient(t, Config{UploadNaming: storage.UploadNamingStrategyOriginal})
+			res, err := client.GenerateUploadAuth(t.Context(), storage.UploadAuthRequest{FileName: tt.fileName})
+			if err != nil {
+				t.Fatalf("GenerateUploadAuth() error = %v", err)
+			}
+			auth := res.Authorization
+			if got := auth.Headers["Content-Type"]; got != tt.want {
+				t.Fatalf("Headers[Content-Type] = %q, want %q", got, tt.want)
+			}
+			u, err := url.Parse(auth.Value)
+			if err != nil {
+				t.Fatalf("parse presigned URL: %v", err)
+			}
+			if signed := strings.Split(u.Query().Get("X-Amz-SignedHeaders"), ";"); !slices.Contains(signed, "content-type") {
+				t.Fatalf("X-Amz-SignedHeaders = %v, want content-type signed", signed)
+			}
+
+			resp, err := putPresigned(t, auth, map[string]string{"Content-Type": "text/html"}, "<script>")
+			if err != nil {
+				t.Fatalf("PUT with another Content-Type: %v", err)
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusForbidden {
+				t.Fatalf("PUT with another Content-Type status = %d, want %d", resp.StatusCode, http.StatusForbidden)
+			}
+			if _, ok := fake.Object(res.File.Key); ok {
+				t.Fatal("PUT with another Content-Type stored the object")
+			}
+
+			resp, err = putPresigned(t, auth, auth.Headers, "body")
+			if err != nil {
+				t.Fatalf("PUT with the signed headers: %v", err)
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("PUT with the signed headers status = %d", resp.StatusCode)
+			}
+			if obj, ok := fake.Object(res.File.Key); !ok || obj.MIME != tt.want {
+				t.Fatalf("stored MIME = %q (exists %v), want %q", obj.MIME, ok, tt.want)
 			}
 		})
 	}
@@ -445,8 +561,73 @@ func TestNewClientPartSize(t *testing.T) {
 	}
 }
 
+// UploadFile sends a body that ends within PartSize as one PutObject and only
+// switches to a multipart upload for a longer one.
+func TestS3ClientUploadFileRequests(t *testing.T) {
+	multipart := func(parts int) []string {
+		ops := []string{"CreateMultipartUpload"}
+		for range parts {
+			ops = append(ops, "UploadPart")
+		}
+		return append(ops, "CompleteMultipartUpload")
+	}
+	tests := []struct {
+		name string
+		size int
+		want []string
+	}{
+		{name: "empty", size: 0, want: []string{"PutObject"}},
+		{name: "small", size: 10, want: []string{"PutObject"}},
+		{name: "exactly one part", size: minPartSize, want: []string{"PutObject"}},
+		{name: "one byte over a part", size: minPartSize + 1, want: multipart(2)},
+		{name: "several parts", size: 2*minPartSize + 7, want: multipart(3)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, fake := newFakeClient(t, Config{PartSize: minPartSize})
+			data := bytes.Repeat([]byte("0123456789"), tt.size/10+1)[:tt.size]
+			// io.MultiReader hides the length, as a request body would.
+			key, err := client.UploadFile(t.Context(), io.MultiReader(bytes.NewReader(data)), "dir/file.txt")
+			if err != nil {
+				t.Fatalf("UploadFile() error = %v", err)
+			}
+			if key != "dir/file.txt" {
+				t.Fatalf("UploadFile() key = %q", key)
+			}
+			if got := fake.Ops(); !slices.Equal(got, tt.want) {
+				t.Fatalf("requests = %v, want %v", got, tt.want)
+			}
+			obj, ok := fake.Object("dir/file.txt")
+			if !ok || !bytes.Equal(obj.Data, data) {
+				t.Fatalf("stored object mismatch: ok=%v len=%d, want len %d", ok, len(obj.Data), len(data))
+			}
+			if want := mime.TypeByExtension(".txt"); obj.MIME != want {
+				t.Fatalf("stored MIME = %q, want %q", obj.MIME, want)
+			}
+		})
+	}
+}
+
+// A reader that fails after the first part aborts the multipart upload and
+// leaves the stored object alone.
+func TestS3ClientFailedMultipartUploadAborts(t *testing.T) {
+	client, fake := newFakeClient(t, Config{PartSize: minPartSize})
+	fake.Put("doc.txt", []byte("original"), "text/plain")
+
+	failing := io.MultiReader(bytes.NewReader(make([]byte, minPartSize+10)), iotest.ErrReader(errors.New("stream dropped")))
+	if _, err := client.UploadFile(t.Context(), failing, "doc.txt"); err == nil {
+		t.Fatal("UploadFile(failing reader) succeeded, want an error")
+	}
+	if want := []string{"CreateMultipartUpload", "UploadPart", "AbortMultipartUpload"}; !slices.Equal(fake.Ops(), want) {
+		t.Fatalf("requests = %v, want %v", fake.Ops(), want)
+	}
+	if obj, ok := fake.Object("doc.txt"); !ok || string(obj.Data) != "original" {
+		t.Fatalf("stored object = %q exists=%v after failed upload, want %q", obj.Data, ok, "original")
+	}
+}
+
 // UploadFile has no length for its reader, so the configured PartSize is what
-// bounds minio-go's per-upload buffer.
+// bounds the per-upload buffer.
 func TestS3ClientUploadFileUsesPartSize(t *testing.T) {
 	client, fake := newFakeClient(t, Config{PartSize: minPartSize})
 	data := bytes.Repeat([]byte("x"), 2*minPartSize+1)

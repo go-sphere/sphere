@@ -6,11 +6,15 @@ import (
 	"sync/atomic"
 )
 
-// ScriptTask is a task.Task whose Start and Stop delegate to callbacks and
-// that records whether each was entered. Create it with NewScriptTask; the
-// zero value is not usable. The state accessors (Started, Stopped, IsStarted,
-// IsStopped) are safe for concurrent use; the callbacks themselves are called
-// without additional synchronization.
+// ScriptTask is a test double: a task.Task whose Start and Stop delegate to
+// callbacks and that records whether each was entered. With a nil onStart,
+// Stop deliberately does not unblock Start; only cancelling Start's context
+// does. That breaks the task.Task requirement that Stop can unblock Start, so
+// ScriptTask is unsuitable as a production task; use task.NewFunc there.
+// Create it with NewScriptTask; the zero value is not usable. The state
+// accessors (Started, Stopped, IsStarted, IsStopped) are safe for concurrent
+// use; the callbacks themselves are called without additional
+// synchronization.
 type ScriptTask struct {
 	id string
 

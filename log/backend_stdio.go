@@ -6,25 +6,22 @@ import (
 	"io"
 	"maps"
 	"os"
-	"runtime"
 	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-)
 
-// stdioCallerSkip is the number of stack frames between callerLocation and the
-// user code that invoked a logging method through the standard logger facade
-// (callerLocation -> Log -> facade method -> caller). Because wrapper backends
-// such as MultiBackend add extra frames, the reported location is best-effort.
-const stdioCallerSkip = 3
+	"github.com/go-sphere/sphere/log/internal/callsite"
+)
 
 // StdioBackend writes logfmt lines with a UTC RFC3339 timestamp. Entries
 // below the minimum level are dropped. LevelError and above go to stderr;
 // other levels go to stdout. It honors WithMinLevel, WithName, WithAttrs,
-// AddCaller/DisableCaller (best-effort location), and WithStackAt.
+// AddCaller/DisableCaller, and WithStackAt. The caller is the first stack
+// frame outside the log package tree, so it stays the user's call site through
+// MultiBackend and WrapBackendWithContextMerge.
 //
 // The zero value is usable and logs every level without a name or caller;
 // it is the initial global backend. A StdioBackend is safe for concurrent
@@ -54,15 +51,17 @@ func NewStdioBackend(options ...Option) *StdioBackend {
 	return b.apply(options...)
 }
 
-// Log writes one line for level and msg unless level is below the minimum.
+// Log writes one line for level and msg unless level is below the minimum. A
+// level outside LevelDebug..LevelError is clamped to the nearest of them first.
 // The context is ignored.
 func (b *StdioBackend) Log(_ context.Context, level Level, msg string, attrs ...Attr) {
+	level = min(max(level, LevelDebug), LevelError)
 	if level < b.minLevel {
 		return
 	}
 	var caller string
 	if b.addCaller {
-		caller = callerLocation(stdioCallerSkip)
+		caller = callerLocation()
 	}
 	if b.stackAt != nil && level >= *b.stackAt {
 		attrs = append(attrs[:len(attrs):len(attrs)], String("stack", string(debug.Stack())))
@@ -144,7 +143,7 @@ func (b *StdioBackend) apply(options ...Option) *StdioBackend {
 	// AddStackAt controls stack trace attachment, not filtering, matching the
 	// zapx backend's zap.AddStacktrace semantics.
 	if o.AddStackAt != nil {
-		l := *o.AddStackAt
+		l := min(max(*o.AddStackAt, LevelDebug), LevelError)
 		b.stackAt = &l
 	}
 	// MinLevel is the only level filter for this backend.
@@ -214,15 +213,16 @@ func writerForLevel(level Level) io.Writer {
 	return os.Stdout
 }
 
-// callerLocation returns a "file:line" string for the caller at the given stack
-// skip depth, using only the base file name. It returns "" when unavailable.
-func callerLocation(skip int) string {
-	_, file, line, ok := runtime.Caller(skip)
-	if !ok {
+// callerLocation returns "file:line" for the first stack frame outside the log
+// package tree, using only the base file name. It returns "" when unavailable.
+func callerLocation() string {
+	frame, ok := callsite.Frame()
+	if !ok || frame.File == "" {
 		return ""
 	}
+	file := frame.File
 	if idx := strings.LastIndexByte(file, '/'); idx >= 0 {
 		file = file[idx+1:]
 	}
-	return file + ":" + strconv.Itoa(line)
+	return file + ":" + strconv.Itoa(frame.Line)
 }

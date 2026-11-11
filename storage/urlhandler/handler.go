@@ -34,12 +34,16 @@ type Handler struct {
 
 // NewHandler creates a new URL handler with the specified public base URL,
 // such as "https://cdn.example.com/assets". A trailing slash is ignored.
-// It returns an error only when public cannot be parsed by url.Parse; it does
-// not require a scheme or host.
+// It returns an error when public cannot be parsed, or is not an absolute
+// http or https URL with a host: keys only round-trip through
+// ExtractKeyFromURL against such a base.
 func NewHandler(public string) (*Handler, error) {
 	base, err := url.Parse(public)
 	if err != nil {
 		return nil, err
+	}
+	if (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" {
+		return nil, fmt.Errorf("urlhandler: public base %q must be an absolute http or https URL", public)
 	}
 	baseStr := base.String()
 	baseStr = strings.TrimSuffix(baseStr, "/")

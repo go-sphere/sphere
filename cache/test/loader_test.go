@@ -13,28 +13,6 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-func TestIsZero(t *testing.T) {
-	t.Parallel()
-
-	type sample struct {
-		A int
-		B string
-	}
-
-	if !cache.IsZero(0) {
-		t.Fatalf("expected zero int")
-	}
-	if cache.IsZero(1) {
-		t.Fatalf("expected non-zero int")
-	}
-	if !cache.IsZero(sample{}) {
-		t.Fatalf("expected zero struct")
-	}
-	if cache.IsZero(sample{A: 1}) {
-		t.Fatalf("expected non-zero struct")
-	}
-}
-
 func TestSetOptions(t *testing.T) {
 	t.Parallel()
 

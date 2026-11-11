@@ -83,6 +83,11 @@ func (o *options) cacheCtx(ctx context.Context) (context.Context, context.Cancel
 // with HTTP 429; a cache read or write failure fails it with HTTP 500. The
 // middleware never closes the cache.
 //
+// createLimiter must not return a limiter whose Limit and Burst are both zero:
+// it cannot be told apart from a limiter corrupted by a codec-backed cache (see
+// WithCache), so every request for its key fails with HTTP 500. To reject all
+// requests, use a middleware that returns 429 instead.
+//
 // createLimiter runs once per key, inside a singleflight whose result every
 // concurrent waiter for that key shares, and it receives the triggering
 // request's context. It must therefore not depend on that request's

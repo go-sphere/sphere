@@ -161,6 +161,62 @@ func testFileListerContract(t *testing.T, store storage.Storage) {
 	})
 }
 
+// TestFileListerSkipsUnaddressableKeys runs the listers whose backend can hold
+// keys that storage.NormalizeKey rejects or rewrites (written by other tools,
+// such as an S3 console folder marker). Listing them would hand out keys that
+// every other method resolves to a different object, so they are skipped,
+// whatever page boundary they fall on.
+func TestFileListerSkipsUnaddressableKeys(t *testing.T) {
+	tests := []struct {
+		name string
+		new  func(t *testing.T) (storage.FileLister, func(key string))
+	}{
+		{name: "s3", new: func(t *testing.T) (storage.FileLister, func(key string)) {
+			client, fake := newFakeS3StorageWithServer(t)
+			return client, func(key string) { fake.Put(key, []byte("x"), "") }
+		}},
+		{name: "qiniu", new: func(t *testing.T) (storage.FileLister, func(key string)) {
+			client, fake := newFakeQiniuStorageWithServer(t)
+			return client, func(key string) { fake.Put(key, []byte("x"), "") }
+		}},
+	}
+	addressable := []string{"raw/a.txt", "raw/e.txt", "raw/h.txt"}
+	unaddressable := []string{"/lead.txt", "raw/b/", "raw/c//d.txt", "raw/d/./x.txt", "raw/f/../g.txt", "raw/g/"}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			lister, seed := tt.new(t)
+			for _, key := range append(append([]string{}, addressable...), unaddressable...) {
+				seed(key)
+			}
+			for _, limit := range []int{1, 2, 3, 100} {
+				var got []string
+				cursor := ""
+				for pages := 0; ; pages++ {
+					if pages > 20 {
+						t.Fatalf("limit %d: listing did not terminate", limit)
+					}
+					keys, next, err := lister.ListFiles(ctx, "", cursor, limit)
+					if err != nil {
+						t.Fatalf("limit %d: ListFiles() error = %v", limit, err)
+					}
+					if len(keys) > limit {
+						t.Fatalf("limit %d: page has %d keys", limit, len(keys))
+					}
+					got = append(got, keys...)
+					if next == "" {
+						break
+					}
+					cursor = next
+				}
+				if strings.Join(got, ",") != strings.Join(addressable, ",") {
+					t.Fatalf("limit %d: listed %q, want %q", limit, got, addressable)
+				}
+			}
+		})
+	}
+}
+
 // TestOptionalCapabilitiesAreProbed documents that the optional capabilities are
 // detected by type assertion and are absent on backends that cannot serve them
 // cheaply (kvcache here).

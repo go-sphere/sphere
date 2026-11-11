@@ -41,8 +41,9 @@
 //
 // # Behavior
 //
-//   - PutBase and GetBase are required. KeyTTL of 0 becomes 5 minutes and is
-//     also the ceiling for UploadAuthRequest.TTL.
+//   - PutBase and GetBase are required; GetBase must be an absolute http(s)
+//     URL. KeyTTL of 0 becomes 5 minutes and is also the ceiling for
+//     UploadAuthRequest.TTL.
 //   - A token is spent on its first PUT, even if storing the body fails.
 //   - Downloads set X-Content-Type-Options: nosniff and
 //     Content-Disposition: attachment unless [WithInlineDownload] is used.

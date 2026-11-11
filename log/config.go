@@ -47,7 +47,9 @@ func WithName(name string) Option {
 }
 
 // AddCaller enables caller information in log entries.
-// This includes file names and line numbers where the log call was made.
+// This includes file names and line numbers where the log call was made. The
+// built-in backends report the first stack frame outside the log package tree,
+// so wrappers such as MultiBackend do not shift it.
 func AddCaller() Option {
 	return func(o *Options) {
 		o.AddCaller = AddCallerStatusEnable

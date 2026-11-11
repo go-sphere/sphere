@@ -1237,16 +1237,99 @@ Gateway Timeout; it was 500. An `httpx.StatusError` in the chain still wins, and
 inherit the change; clients or alerts keyed on 500 for timeouts must also
 accept 504.
 
-## Known issue requiring an upstream fix
+### Reverse-proxy cache keys include the Host
 
-`WithRecover` can emit two JSON documents in one response when a handler panics
-*after* it has already written its body: the second write appends rather than
-replaces, leaving a 200 with a concatenated payload. This cannot be fixed here.
-`httpx.Responder` documents that a response becomes committed once written, but
-`httpx.Context` exposes no way to query that state, so `AbortWithJsonError` has
-no way to know it must stay silent. The fix belongs in `go-sphere/httpx`.
-Re-checked against httpx v0.0.5: still open, the contract is documented on
-`Context` but there is still no accessor for it.
+Contract test: `server/service/reverseproxy`: the default-key tests in
+`proxy_test.go`.
+
+The default cache key is the inbound Host followed by the request URI; it was
+the URI alone, which let one request with a forged Host (forwarded upstream as
+`X-Forwarded-Host`) store the page every client is served. Entries stored under
+the old key are no longer found, and their bodies stay in storage until removed.
+
+### Call-site log attrs win over context attrs
+
+Contract test: `log`: `TestContextAttrsYieldToCallSiteAttrs`.
+
+An attr passed at the call site wins over a `ContextWithAttrs` attr with the
+same key, and each key appears once per entry. With
+`WrapBackendWithContextMerge` the context value used to win; without it both
+were written, giving duplicate JSON keys in zap.
+
+### `logbuffer` captures attr values when they are logged
+
+Contract tests: `log/logbuffer`: `TestBufferCapturesValuesWhenLogged`,
+`TestBufferEntryJSONIsUnchangedByCapture`.
+
+`Entry.Attrs` keeps nil, strings, booleans, numbers, `time.Time` and
+`time.Duration` as they are and errors as their message; every other value is
+stored as the `json.RawMessage` of its JSON encoding (or as text when it cannot
+be encoded). The buffer used to keep the caller's own maps, slices and pointers
+and encode them later, so a caller mutating a logged map could crash the process
+while the tail serialized it, and history changed after the fact. The JSON of an
+entry is unchanged; code that type-asserted non-scalar values in `Entry.Attrs`
+must decode the `json.RawMessage` instead.
+
+### Out-of-range log levels clamp to the nearest level
+
+Contract tests: `log`: `TestStdioBackendClampsOutOfRangeLevels`; `log/zapx`:
+`TestOutOfRangeLevelsClampToNearest`; `log/logbuffer`:
+`TestBufferClampsOutOfRangeLevels`.
+
+A level below `LevelDebug` is logged as debug and one above `LevelError` as
+error by every backend. zapx used to log both as info, and stdio and logbuffer
+dropped levels below debug and printed others as "unknown".
+
+### Public base URLs must be absolute http(s) URLs
+
+Contract tests: `storage/urlhandler`: `TestNewHandler`; `storage/qiniu`:
+`TestNewClientRequiresAbsolutePublicBase`.
+
+`urlhandler.NewHandler` returns an error unless the base has an http or https
+scheme and a host. A relative base generated URLs that `ExtractKeyFromURL`
+turned into a different key. qiniu with an empty or relative `PublicBase`, and
+a fileserver with a relative `GetBase`, now fail at construction.
+
+### s3 presigned uploads require the signed Content-Type
+
+Contract test: `storage/s3`: `TestS3ClientGenerateUploadAuthSignsContentType`.
+
+`GenerateUploadAuth` signs a Content-Type derived from the file extension into
+the presigned PUT and returns it in `UploadAuthorization.Headers`; active
+content (HTML, SVG, XML, scripts) and unknown extensions get
+`application/octet-stream`, so an upload cannot be served as a page on the
+bucket's origin. Clients must send the returned headers exactly, or S3 answers
+403.
+
+### `ListFiles` returns only addressable keys
+
+Contract test: `storage/test`: `TestFileListerSkipsUnaddressableKeys`.
+
+s3 and qiniu skip keys that are not in `storage.NormalizeKey` form, such as
+console folder markers (`photos/`) or `a//b`. Every other method normalizes its
+key first, so such a key could be listed but not deleted or read, and a
+list-then-delete loop never finished.
+
+### A custom error parser's message wins over `MessageError`
+
+Contract test: `server/httpz`:
+`TestAbortWithJsonError_CustomParserMessageBeatsMessageError`.
+
+When the parser installed with `SetDefaultErrorParser` returns a non-empty
+message, it is written as is; an `httpx.MessageError` in the chain only fills
+in an empty one. It used to replace the parser's message, so a parser could not
+localize or rewrite those errors. Parsers that fall back to `httpz.ParseError`
+are unaffected.
+
+### `NewRBACClaims` sets `iat` instead of `nbf`
+
+Contract test: `server/auth/jwtauth`:
+`TestNewRBACClaimsToleratesIssuerClockAhead`.
+
+Tokens built with `NewRBACClaims` no longer carry `nbf`, which was the issue
+time and rejected a fresh token on a server whose clock ran behind the issuer's.
+They carry `iat`, which `ParseToken` does not validate. Existing tokens with
+`nbf` still validate as before.
 
 ## Known limitations (unchanged since v0.0.3, not regressions)
 

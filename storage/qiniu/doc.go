@@ -40,9 +40,15 @@
 //     Content-Type of token uploads (default DefaultMimeLimit, images and
 //     video); Qiniu does not sniff bytes. Server-side UploadFile is not
 //     restricted and overwrites.
+//   - UploadFile form-uploads a seekable body or one of up to 4 MiB, and sends
+//     a longer non-seekable body as a multipart upload of 4 MiB parts rather
+//     than reading it into memory.
+//   - Config.PublicBase is required and must be an absolute http(s) URL.
+//   - ListFiles skips keys not in storage.NormalizeKey form, so a page may be
+//     short, or empty, while more remain.
 //   - Token lifetime is Config.UploadTTL (default 1 hour), truncated to whole
 //     seconds (minimum one second); UploadAuthRequest.TTL may only shorten it.
-//   - SDK calls (region query, form upload, management, download) use HTTPS.
+//   - SDK calls (region query, uploads, management, download) use HTTPS.
 //   - DeleteFile of a missing key succeeds.
 //   - DownloadFile reports Size from the download response, falling back to a
 //     stat only when the length or content type is unknown; a body that ends

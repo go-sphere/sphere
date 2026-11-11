@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/go-sphere/confstore/codec"
@@ -32,12 +31,6 @@ func decodeError(err error) error {
 // is rejected instead of falling back to a plain Set, which would silently store
 // an entry that never expires, and instead of panicking on a nil calculator.
 var ErrTTLCalculatorType = errors.New("cache: dynamic TTL calculator value type mismatch")
-
-// IsZero checks whether a value is the zero value of its type using deep comparison.
-func IsZero[T any](t T) bool {
-	var zero T
-	return reflect.DeepEqual(t, zero)
-}
 
 // options holds configuration settings for cache operations including TTL, singleflight, and dynamic TTL calculation.
 type options struct {

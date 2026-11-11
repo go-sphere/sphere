@@ -44,31 +44,31 @@ type VerificationCode struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-// VerificationStorage is the in-process store for codes, per-number rate-limit
+// verificationStorage is the in-process store for codes, per-number rate-limit
 // counters, failure counts, and lockouts. Nothing is persisted.
-type VerificationStorage struct {
-	Store map[string][]VerificationCode `json:"store"`
+type verificationStorage struct {
+	Store map[string][]VerificationCode
 
-	MinuteCounts map[string]int `json:"minute_counts"`
-	DailyCounts  map[string]int `json:"daily_counts"`
+	MinuteCounts map[string]int
+	DailyCounts  map[string]int
 
 	// MinuteTimestamps and DailyTimestamps record the start of each number's
 	// current rate-limit window, not the time of its last send. Anchoring them to
 	// the last send would stop the window from ever rolling for a number that
 	// keeps using it.
-	MinuteTimestamps map[string]time.Time `json:"minute_timestamps"`
-	DailyTimestamps  map[string]time.Time `json:"daily_timestamps"`
+	MinuteTimestamps map[string]time.Time
+	DailyTimestamps  map[string]time.Time
 
-	FailedAttempts map[string]int `json:"failed_attempts"`
+	FailedAttempts map[string]int
 
 	// LockedUntil freezes verification attempts for a number after too many
 	// failures. Outstanding codes are kept rather than invalidated, so anyone
 	// who knows a phone number cannot destroy the credential its owner was
 	// just sent.
-	LockedUntil map[string]time.Time `json:"locked_until"`
+	LockedUntil map[string]time.Time
 }
 
-func (s *VerificationStorage) cleanExpired(number string, now time.Time) {
+func (s *verificationStorage) cleanExpired(number string, now time.Time) {
 	captcha, ok := s.Store[number]
 	if !ok {
 		return
@@ -97,15 +97,10 @@ func (s *VerificationStorage) cleanExpired(number string, now time.Time) {
 // window has elapsed and it has no outstanding codes. SaveCode already resets a
 // counter whose window has passed, so removing the entry is equivalent to
 // keeping it and is what bounds the storage maps over time.
-func (s *VerificationStorage) forgetIdle(number string, now time.Time) {
+func (s *verificationStorage) forgetIdle(number string, now time.Time) {
 	if _, ok := s.Store[number]; ok {
 		return
 	}
-	// A failure count or freeze without a code to protect is meaningless. Verify
-	// maintains that invariant, but storage restored from JSON may not, so
-	// enforce it here.
-	delete(s.FailedAttempts, number)
-	delete(s.LockedUntil, number)
 	if last, ok := s.DailyTimestamps[number]; ok && now.Sub(last) < 24*time.Hour {
 		return
 	}
@@ -118,7 +113,7 @@ func (s *VerificationStorage) forgetIdle(number string, now time.Time) {
 // rollWindow resets a rate-limit counter whose window has elapsed and anchors a
 // new window at now. It runs before the limit is checked, so the window rolls on
 // its own schedule and counts never accumulate across windows.
-func (s *VerificationStorage) rollWindow(number string, now time.Time, window time.Duration, counts map[string]int, starts map[string]time.Time) {
+func (s *verificationStorage) rollWindow(number string, now time.Time, window time.Duration, counts map[string]int, starts map[string]time.Time) {
 	start, ok := starts[number]
 	if !ok || now.Sub(start) >= window {
 		counts[number] = 0
@@ -133,7 +128,7 @@ func (s *VerificationStorage) rollWindow(number string, now time.Time, window ti
 type VerificationSystem struct {
 	mu     sync.RWMutex
 	config VerificationConfig
-	store  *VerificationStorage
+	store  *verificationStorage
 }
 
 // NewVerificationSystem creates a new verification system with the provided configuration.
@@ -148,7 +143,7 @@ func NewVerificationSystem(conf VerificationConfig) *VerificationSystem {
 	}
 	return &VerificationSystem{
 		config: conf,
-		store: &VerificationStorage{
+		store: &verificationStorage{
 			Store:            make(map[string][]VerificationCode, DefaultStoreSize),
 			MinuteCounts:     make(map[string]int, DefaultStoreSize),
 			DailyCounts:      make(map[string]int, DefaultStoreSize),

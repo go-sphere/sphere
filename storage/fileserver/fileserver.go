@@ -29,8 +29,8 @@ type Config struct {
 	// PutBase is the absolute URL where RegisterFileUploader's router is
 	// mounted; upload URLs are PutBase joined with a one-time token.
 	PutBase string `json:"put_base" yaml:"put_base"`
-	// GetBase is the public base URL where RegisterFileDownloader's router is
-	// mounted; GenerateURL joins keys onto it.
+	// GetBase is the absolute http(s) public base URL where
+	// RegisterFileDownloader's router is mounted; GenerateURL joins keys onto it.
 	GetBase string `json:"get_base" yaml:"get_base"`
 	// KeyTTL is how long a one-time upload token stays valid, and also the
 	// ceiling for UploadAuthRequest.TTL. A zero value falls back to defaultKeyTTL.
@@ -76,7 +76,7 @@ const uploadTokenNamespace = "sphere-upload-token"
 
 // NewCDNAdapter constructs a FileServer that wraps store with one-time PUT
 // tokens stored in cache under the "sphere-upload-token:" key prefix. PutBase, GetBase, cache, and store are required;
-// a missing one, or an unparsable GetBase, is an error. A zero KeyTTL becomes
+// a missing one, or a GetBase that is not an absolute http(s) URL, is an error. A zero KeyTTL becomes
 // 5 minutes. The cache stays owned by the caller unless WithOwnedCache is
 // given. It is not a CDN or S3 driver; the name is historical.
 func NewCDNAdapter(conf Config, cache cache.ByteCache, store storage.Storage, options ...Option) (*FileServer, error) {

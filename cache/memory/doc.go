@@ -24,6 +24,9 @@
 //     unless [Cache.SetAllowAsyncWrites] enables async writes.
 //   - Ristretto may drop a write under load or by admission policy; that is
 //     reported as success, as caches are allowed to lose entries.
+//   - [NewMemoryCache] is bounded at 2^30 items, effectively unlimited; call
+//     [Cache.UpdateMaxCost] to bound it. [NewByteCache] is bounded at 1 GiB of
+//     value bytes.
 //   - No cache.KeyLister: nscache.NSCache.DelAll over this driver returns
 //     cache.ErrNotSupported unless another lister is in the stack.
 //   - Same-key mutations and GetDel are serialized by 128 striped mutexes, so

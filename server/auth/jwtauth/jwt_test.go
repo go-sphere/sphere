@@ -455,3 +455,28 @@ func TestJwtAuth_RejectsTrailingBytesAfterPayload(t *testing.T) {
 		}
 	}
 }
+
+// TestNewRBACClaimsToleratesIssuerClockAhead pins that tokens built by
+// NewRBACClaims carry no nbf and that iat is not validated, so a server whose
+// clock runs behind the issuer's accepts a fresh token instead of answering
+// 401 until its clock catches up.
+func TestNewRBACClaimsToleratesIssuerClockAhead(t *testing.T) {
+	claims := NewRBACClaims[int64](7, "alice", nil, time.Now().Add(time.Hour))
+	if claims.NotBefore != nil {
+		t.Fatalf("NotBefore = %v, want unset", claims.NotBefore)
+	}
+	if claims.IssuedAt == nil {
+		t.Fatal("IssuedAt is unset")
+	}
+	// The issuer's clock is a minute ahead of this verifier's.
+	claims.IssuedAt = jwt.NewNumericDate(time.Now().Add(time.Minute))
+
+	jwtAuth := NewJwtAuth[RBACClaims[int64]]("secret")
+	token, err := jwtAuth.GenerateToken(context.Background(), claims)
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+	if _, err := jwtAuth.ParseToken(context.Background(), token); err != nil {
+		t.Fatalf("ParseToken: %v", err)
+	}
+}

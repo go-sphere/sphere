@@ -22,7 +22,7 @@ func (v *countingLogValuer) LogValue() slog.Value {
 func TestDisabledLevelSkipsAttrResolution(t *testing.T) {
 	level := zap.NewAtomicLevelAt(zap.InfoLevel)
 	core, logs := observer.New(level)
-	backend := newBackendWithLogger(zap.New(core), "")
+	backend := newBackendFromCore(core)
 	value := &countingLogValuer{}
 
 	backend.Log(t.Context(), corelog.LevelDebug, "disabled", corelog.Any("value", value))
@@ -40,25 +40,30 @@ func TestDisabledLevelSkipsAttrResolution(t *testing.T) {
 	}
 }
 
-func TestLevelFilterPreservesUnknownLevelFallback(t *testing.T) {
-	for _, minimum := range []zapcore.Level{zap.InfoLevel, zap.WarnLevel} {
-		t.Run(minimum.String(), func(t *testing.T) {
-			core, logs := observer.New(minimum)
-			backend := newBackendWithLogger(zap.New(core), "")
+// TestOutOfRangeLevelsClampToNearest pins that a level below LevelDebug is
+// logged as debug and one above LevelError as error, and that the clamped level
+// is what the core filters on.
+func TestOutOfRangeLevelsClampToNearest(t *testing.T) {
+	for _, tc := range []struct {
+		minimum zapcore.Level
+		want    []zapcore.Level
+	}{
+		{minimum: zap.DebugLevel, want: []zapcore.Level{zap.DebugLevel, zap.ErrorLevel}},
+		{minimum: zap.InfoLevel, want: []zapcore.Level{zap.ErrorLevel}},
+	} {
+		t.Run(tc.minimum.String(), func(t *testing.T) {
+			core, logs := observer.New(tc.minimum)
+			backend := newBackendFromCore(core)
 			value := &countingLogValuer{}
 			for _, level := range []corelog.Level{-1, 127} {
-				backend.Log(t.Context(), level, "unknown", corelog.Any("value", value))
+				backend.Log(t.Context(), level, "out of range", corelog.Any("value", value))
 			}
-			want := 0
-			if minimum == zap.InfoLevel {
-				want = 2
+			if value.calls != len(tc.want) || logs.Len() != len(tc.want) {
+				t.Fatalf("resolutions=%d, entries=%d; want both %d", value.calls, logs.Len(), len(tc.want))
 			}
-			if value.calls != want || logs.Len() != want {
-				t.Fatalf("resolutions=%d, entries=%d; want both %d", value.calls, logs.Len(), want)
-			}
-			for _, entry := range logs.All() {
-				if entry.Level != zap.InfoLevel {
-					t.Errorf("level = %v, want info", entry.Level)
+			for i, entry := range logs.All() {
+				if entry.Level != tc.want[i] {
+					t.Errorf("entry %d level = %v, want %v", i, entry.Level, tc.want[i])
 				}
 			}
 		})

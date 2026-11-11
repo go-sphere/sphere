@@ -3,6 +3,7 @@ package logbuffer
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -13,11 +14,25 @@ import (
 	"time"
 
 	"github.com/go-sphere/sphere/log"
+	"github.com/go-sphere/sphere/log/internal/safefmt"
 )
 
 // Entry is one captured log record. Attrs carries the resolved structured
 // fields (both preset With attrs and per-call attrs), so historical and live
 // entries are identical in shape.
+//
+// Attr values are captured when the entry is logged (preset attrs when New or
+// With applies them), so later changes to the logged value do not reach the
+// entry. Each value is one of:
+//   - nil, or a value whose kind is string, bool, or an int, uint or float
+//     kind, kept as logged, as are time.Time and time.Duration;
+//   - an error's message as a string (nil for a typed nil pointer);
+//   - map[string]any for a group, holding values of these same types;
+//   - json.RawMessage holding json.Marshal of any other value;
+//   - a string with the value's fmt text when json.Marshal fails or panics.
+//
+// json.Marshal of an Entry therefore encodes every marshalable value exactly
+// as it would encode the value itself.
 //
 // Attrs is owned by the ring: the same map is retained for History and handed
 // to every subscriber and backfill, so callers must not mutate it.
@@ -127,7 +142,7 @@ func New(capacity int, options ...log.Option) *Buffer {
 	}
 	opts := log.NewOptions(options...)
 	b.name = opts.Name
-	b.attrs = opts.Attrs
+	b.attrs = withPreset(nil, opts.Attrs)
 	if opts.MinLevel != nil {
 		b.minLevel = *opts.MinLevel
 	} else {
@@ -144,8 +159,10 @@ func (b *Buffer) ID() string {
 }
 
 // Log implements log.Backend: it records the entry into the ring and fans it
-// out to live subscribers without ever blocking on a slow one.
+// out to live subscribers without ever blocking on a slow one. A level outside
+// LevelDebug..LevelError is clamped to the nearest of them first.
 func (b *Buffer) Log(_ context.Context, level log.Level, msg string, attrs ...log.Attr) {
+	level = clampLevel(level)
 	if level < b.minLevel {
 		return
 	}
@@ -173,10 +190,7 @@ func (b *Buffer) With(options ...log.Option) log.Backend {
 		v.minLevel = *opts.MinLevel
 	}
 	if len(opts.Attrs) > 0 {
-		merged := make(map[string]any, len(b.attrs)+len(opts.Attrs))
-		maps.Copy(merged, b.attrs)
-		maps.Copy(merged, opts.Attrs)
-		v.attrs = merged
+		v.attrs = withPreset(b.attrs, opts.Attrs)
 	}
 	return v
 }
@@ -190,6 +204,7 @@ type view struct {
 }
 
 func (v *view) Log(_ context.Context, level log.Level, msg string, attrs ...log.Attr) {
+	level = clampLevel(level)
 	if level < v.minLevel {
 		return
 	}
@@ -208,10 +223,7 @@ func (v *view) With(options ...log.Option) log.Backend {
 		next.minLevel = *opts.MinLevel
 	}
 	if len(opts.Attrs) > 0 {
-		merged := make(map[string]any, len(v.attrs)+len(opts.Attrs))
-		maps.Copy(merged, v.attrs)
-		maps.Copy(merged, opts.Attrs)
-		next.attrs = merged
+		next.attrs = withPreset(v.attrs, opts.Attrs)
 	}
 	return next
 }
@@ -365,18 +377,31 @@ func (b *Buffer) collectLocked(fromSeq uint64, limit int, minLevel log.Level) []
 	return out
 }
 
-// mergeAttrs resolves preset attrs and per-call slog attrs into one map.
-// Rendering arbitrary attr values can panic (custom Stringer/LogValuer); a
-// panicking value degrades to an attr_error entry, mirroring StdioBackend, and
-// the attrs after it are still recorded.
+// withPreset returns a copy of base with attrs captured on top of it, or base
+// itself when attrs is empty. A panicking value degrades to an attr_error
+// entry as in mergeAttrs.
+func withPreset(base, attrs map[string]any) map[string]any {
+	if len(attrs) == 0 {
+		return base
+	}
+	out := make(map[string]any, len(base)+len(attrs))
+	maps.Copy(out, base)
+	for k, v := range attrs {
+		setSafe(out, k, func() { out[k] = renderValue(v) })
+	}
+	return out
+}
+
+// mergeAttrs combines already-captured preset attrs with per-call slog attrs,
+// capturing the latter. Rendering arbitrary attr values can panic (custom
+// LogValuer or Error); a panicking value degrades to an attr_error entry,
+// mirroring StdioBackend, and the attrs after it are still recorded.
 func mergeAttrs(preset map[string]any, attrs []log.Attr) (out map[string]any) {
 	if len(preset) == 0 && len(attrs) == 0 {
 		return nil
 	}
 	out = make(map[string]any, len(preset)+len(attrs))
-	for k, v := range preset {
-		setSafe(out, k, func() { out[k] = renderValue(v) })
-	}
+	maps.Copy(out, preset)
 	for _, attr := range attrs {
 		setSafe(out, attr.Key, func() { addAttr(out, attr) })
 	}
@@ -393,18 +418,44 @@ func setSafe(dst map[string]any, key string, fn func()) {
 	fn()
 }
 
-// renderValue keeps the message of an error value: errors are usually structs
-// without exported fields, which JSON renders as {}. A typed nil error pointer
-// becomes nil instead of calling Error on it.
+// renderValue captures v as an Entry attr value (see Entry). An error keeps
+// its message: errors are usually structs without exported fields, which JSON
+// renders as {}. A typed nil error pointer becomes nil instead of calling
+// Error on it.
 func renderValue(v any) any {
-	err, ok := v.(error)
-	if !ok {
+	if err, ok := v.(error); ok {
+		if rv := reflect.ValueOf(err); rv.Kind() == reflect.Pointer && rv.IsNil() {
+			return nil
+		}
+		return err.Error()
+	}
+	switch v.(type) {
+	case nil, time.Time, time.Duration:
 		return v
 	}
-	if rv := reflect.ValueOf(err); rv.Kind() == reflect.Pointer && rv.IsNil() {
-		return nil
+	switch reflect.ValueOf(v).Kind() {
+	case reflect.String, reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64:
+		return v
+	default:
 	}
-	return err.Error()
+	if raw, ok := marshal(v); ok {
+		return json.RawMessage(raw)
+	}
+	return safefmt.Sprint(v)
+}
+
+// marshal reports json.Marshal(v), treating a panic like an error.
+func marshal(v any) (raw []byte, ok bool) {
+	defer func() {
+		if recover() != nil {
+			raw, ok = nil, false
+		}
+	}()
+	raw, err := json.Marshal(v)
+	return raw, err == nil
 }
 
 // addAttr resolves one slog attr into dst, flattening groups into nested maps.
@@ -462,6 +513,10 @@ func ParseLevel(s string) (log.Level, bool) {
 	default:
 		return log.LevelDebug, false
 	}
+}
+
+func clampLevel(level log.Level) log.Level {
+	return min(max(level, log.LevelDebug), log.LevelError)
 }
 
 func joinName(base, next string) string {

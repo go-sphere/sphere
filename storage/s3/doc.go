@@ -33,18 +33,28 @@
 //	if err != nil {
 //		return err
 //	}
-//	// The client PUTs the bytes to auth.Authorization.Value; persist
-//	// auth.File.Key and show auth.File.URL.
+//	// The client PUTs the bytes to auth.Authorization.Value with the headers
+//	// in auth.Authorization.Headers; persist auth.File.Key and show
+//	// auth.File.URL.
 //
 // # Behavior
 //
-//   - Empty PublicBase is derived as http(s)://Endpoint/Bucket.
+//   - Empty PublicBase is derived as http(s)://Endpoint/Bucket; an explicit
+//     one must be an absolute http(s) URL.
 //   - Content-Type on upload comes from the key's extension.
-//   - ListFiles uses StartAfter; the cursor is the last key of the page.
-//   - CopyFile and MoveFile with overwrite false check the destination with a
-//     separate stat, so the guard is best-effort under concurrent writers.
-//     MoveFile is copy then delete and is not atomic; moving onto itself is a
-//     no-op.
+//   - UploadFile sends a body of up to Config.PartSize with one PutObject and
+//     a longer one as a multipart upload, holding at most one part in memory.
+//   - ListFiles uses StartAfter; the cursor is the last key of the page. Keys
+//     not in storage.NormalizeKey form (such as folder markers "a/") are
+//     skipped.
+//   - CopyFile stats the source first and copies a source above 5 GiB with a
+//     multipart copy. CopyFile and MoveFile with overwrite false check the
+//     destination with a separate stat, so the guard is best-effort under
+//     concurrent writers. MoveFile is copy then delete and is not atomic;
+//     moving or copying onto itself makes no copy.
 //   - Presigned URLs live for Config.UploadTTL (default 1 hour);
-//     UploadAuthRequest.TTL may only shorten that.
+//     UploadAuthRequest.TTL may only shorten that. They sign a Content-Type
+//     from the file name's extension, returned in Authorization.Headers;
+//     HTML, SVG, XML, script and other active types are signed as
+//     application/octet-stream.
 package s3

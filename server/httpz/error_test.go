@@ -129,6 +129,33 @@ func TestAbortWithJsonError_CustomParserPreservesMessageAndCode(t *testing.T) {
 	}
 }
 
+// TestAbortWithJsonError_CustomParserMessageBeatsMessageError pins that a
+// custom parser can rewrite (for example localize) the message of an error
+// carrying an httpx.MessageError, and that the MessageError still fills in
+// when the parser returns no message.
+func TestAbortWithJsonError_CustomParserMessageBeatsMessageError(t *testing.T) {
+	t.Cleanup(func() { SetDefaultErrorParser(ParseError) })
+	err := httpx.NewUnauthorizedError("需要登录")
+
+	SetDefaultErrorParser(func(error) (int32, int32, string) {
+		return 0, http.StatusUnauthorized, "login required"
+	})
+	ctx := httpxmock.New(nil)
+	AbortWithJsonError(ctx, err)
+	if got := errorBody(t, ctx).Message; got != "login required" {
+		t.Fatalf("message = %q, want the parser's", got)
+	}
+
+	SetDefaultErrorParser(func(error) (int32, int32, string) {
+		return 0, http.StatusUnauthorized, ""
+	})
+	ctx = httpxmock.New(nil)
+	AbortWithJsonError(ctx, err)
+	if got := errorBody(t, ctx).Message; got != "需要登录" {
+		t.Fatalf("message = %q, want the MessageError's", got)
+	}
+}
+
 func TestAbortWithJsonError_DebugModeExposesError(t *testing.T) {
 	prev := DebugMode()
 	SetDebugMode(true)

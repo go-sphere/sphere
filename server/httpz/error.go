@@ -15,9 +15,9 @@ import (
 // It returns, in order, the application error code, the HTTP status code, and
 // the user-facing message for err. AbortWithJsonError replaces a status outside
 // 100–599 with 500, an empty message with the status text, and a code equal to
-// the status (when err carries no httpx.CodeError) with 0. A non-empty
-// httpx.MessageError message in err's chain takes precedence over the returned
-// message.
+// the status (when err carries no httpx.CodeError) with 0. When the returned
+// message is empty, a non-empty httpx.MessageError message in err's chain is
+// used before the status text.
 type ErrorParser func(error) (int32, int32, string)
 
 // Both globals are read by AbortWithJsonError on every request and may be written
@@ -164,15 +164,17 @@ func buildErrorResponse(err error) (int, ErrorResponse) {
 	if _, ok := errors.AsType[httpx.CodeError](err); !ok && code == status {
 		code = 0
 	}
-	// Message is user-facing. Prefer an explicit MessageError, then the
-	// parser's message (a custom parser is trusted application code), then the
-	// generic status text. The default parser never returns raw err.Error()
-	// text, so driver and database strings cannot leak here
-	// (TestAbortWithJsonError_UnclassifiedDoesNotLeak).
-	if me, ok := errors.AsType[httpx.MessageError](err); ok && me.GetMessage() != "" {
-		message = me.GetMessage()
-	} else if message == "" {
-		message = http.StatusText(int(status))
+	// Message is user-facing. Prefer the parser's message (a custom parser is
+	// trusted application code and may localize or rewrite), then an explicit
+	// MessageError, then the generic status text. The default parser never
+	// returns raw err.Error() text, so driver and database strings cannot leak
+	// here (TestAbortWithJsonError_UnclassifiedDoesNotLeak).
+	if message == "" {
+		if me, ok := errors.AsType[httpx.MessageError](err); ok && me.GetMessage() != "" {
+			message = me.GetMessage()
+		} else {
+			message = http.StatusText(int(status))
+		}
 	}
 	resp := ErrorResponse{
 		Code:    int(code),

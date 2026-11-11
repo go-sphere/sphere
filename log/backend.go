@@ -6,7 +6,8 @@ import (
 )
 
 // Level is a backend-agnostic log level. Higher values are more severe;
-// filters compare with < and >=.
+// filters compare with < and >=. The built-in backends clamp an entry level
+// outside LevelDebug..LevelError to the nearest of them.
 type Level int8
 
 // Supported levels, in increasing severity.
@@ -33,7 +34,9 @@ type Backend interface {
 // SlogBackend is an optional capability for backends that can expose a
 // *slog.Logger. boot.WithLoggerBackend type-asserts it and, when present,
 // installs SlogLogger() as the default slog logger so the standard library's
-// slog output goes through the same backend. zapx.Backend implements it.
+// slog output goes through the same backend. zapx.Backend implements it, and
+// MultiBackend and the WrapBackendWithContextMerge wrapper forward it from what
+// they wrap.
 type SlogBackend interface {
 	SlogLogger(options ...Option) *slog.Logger
 }

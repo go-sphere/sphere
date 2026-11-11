@@ -18,6 +18,7 @@
 //
 // # Rules
 //
+//   - The public base must be an absolute http or https URL with a host.
 //   - GenerateURL ignores the params argument that storage.URLHandler allows.
 //   - Keys that already start with http:// or https:// are returned unchanged
 //     by GenerateURL.

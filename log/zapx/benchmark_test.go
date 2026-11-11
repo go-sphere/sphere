@@ -1,4 +1,4 @@
-package zapx
+package zapx_test
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	corelog "github.com/go-sphere/sphere/log"
+	"github.com/go-sphere/sphere/log/zapx"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -137,13 +138,16 @@ func loggerComparisons() []loggerComparison {
 	}
 }
 
-func newComparisonLogger(w io.Writer, caller bool) *zap.Logger {
+func newComparisonCore(w io.Writer) zapcore.Core {
 	// Match the production file encoder, including duration units and time format.
 	cfg := zap.NewProductionEncoderConfig()
 	cfg.TimeKey = "timestamp"
 	cfg.EncodeTime = zapcore.ISO8601TimeEncoder
-	core := zapcore.NewCore(zapcore.NewJSONEncoder(cfg), zapcore.AddSync(w), zap.InfoLevel)
-	return zap.New(core, zap.WithCaller(caller))
+	return zapcore.NewCore(zapcore.NewJSONEncoder(cfg), zapcore.AddSync(w), zap.InfoLevel)
+}
+
+func newComparisonLogger(w io.Writer, caller bool) *zap.Logger {
+	return zap.New(newComparisonCore(w), zap.WithCaller(caller))
 }
 
 func (s loggerComparison) rawLogger(w io.Writer) comparisonZapLogger {
@@ -155,7 +159,11 @@ func (s loggerComparison) rawLogger(w io.Writer) comparisonZapLogger {
 }
 
 func (s loggerComparison) wrappedLogger(w io.Writer) corelog.Logger {
-	l := corelog.NewLogger(newBackendWithLogger(newComparisonLogger(w, s.caller), ""))
+	var options []corelog.Option
+	if s.caller {
+		options = append(options, corelog.AddCaller())
+	}
+	l := corelog.NewLogger(zapx.NewBackendFromCore(newComparisonCore(w), options...))
 	if s.persistent {
 		l = l.With(corelog.WithAttrs(map[string]any{"service": "api", "version": "v1"}))
 	}

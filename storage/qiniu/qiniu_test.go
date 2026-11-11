@@ -44,6 +44,16 @@ func TestNewClientMimeLimit(t *testing.T) {
 	}
 }
 
+func TestNewClientRequiresAbsolutePublicBase(t *testing.T) {
+	t.Parallel()
+
+	for _, base := range []string{"", "/files", "cdn.example.com"} {
+		if _, err := NewClient(Config{PublicBase: base}); err == nil {
+			t.Errorf("NewClient(PublicBase %q) error = nil, want an error", base)
+		}
+	}
+}
+
 func TestGenerateImageURL(t *testing.T) {
 	t.Parallel()
 

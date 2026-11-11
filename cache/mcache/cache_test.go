@@ -2,6 +2,7 @@ package mcache
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -141,5 +142,67 @@ func TestCountAndTrimReclaimExpired(t *testing.T) {
 	c.Trim()
 	if len(c.store) != 1 || len(c.expiration) != 0 {
 		t.Fatalf("Trim must drop expired entries: store=%d expiration=%d", len(c.store), len(c.expiration))
+	}
+}
+
+// TestReadsShareReadLock pins that reads of unexpired entries need only the
+// read lock: with another reader holding it, Get, MultiGet and Exists still
+// complete instead of queueing behind each other.
+func TestReadsShareReadLock(t *testing.T) {
+	ctx := context.Background()
+	c := NewByteCache()
+	if err := c.Set(ctx, "k", []byte("v")); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	c.rw.RLock()
+	done := make(chan error, 1)
+	go func() {
+		if _, found, err := c.Get(ctx, "k"); err != nil || !found {
+			done <- fmt.Errorf("Get = (found=%v, err=%v)", found, err)
+			return
+		}
+		if got, err := c.MultiGet(ctx, []string{"k"}); err != nil || len(got) != 1 {
+			done <- fmt.Errorf("MultiGet = (%v, %v)", got, err)
+			return
+		}
+		if found, err := c.Exists(ctx, "k"); err != nil || !found {
+			done <- fmt.Errorf("Exists = (%v, %v)", found, err)
+			return
+		}
+		done <- nil
+	}()
+	select {
+	case err := <-done:
+		c.rw.RUnlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		c.rw.RUnlock()
+		t.Fatalf("reads blocked while another reader held the read lock (after release: %v)", <-done)
+	}
+}
+
+// TestDeleteExpiredKeepsRefreshedEntry pins the re-check under the write
+// lock: an entry a read saw as expired but that was rewritten before the
+// delete ran is kept.
+func TestDeleteExpiredKeepsRefreshedEntry(t *testing.T) {
+	ctx := context.Background()
+	c := NewByteCache()
+	if err := c.SetWithTTL(ctx, "k", []byte("old"), time.Millisecond); err != nil {
+		t.Fatalf("SetWithTTL: %v", err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	// A reader has seen "k" expired; a writer refreshes it before the reader
+	// takes the write lock.
+	if err := c.SetWithTTL(ctx, "k", []byte("new"), time.Hour); err != nil {
+		t.Fatalf("SetWithTTL refresh: %v", err)
+	}
+	c.deleteExpired([]string{"k"})
+
+	got, found, err := c.Get(ctx, "k")
+	if err != nil || !found || string(got) != "new" {
+		t.Fatalf("Get = (%q, %v, %v), want (\"new\", true, nil)", got, found, err)
 	}
 }

@@ -25,7 +25,8 @@
 // There is no background janitor: expired entries are dropped on
 // Get/GetDel/MultiGet and bulk-reclaimed by [Map.Trim]. There is no capacity
 // cap. Close is a no-op; later operations still succeed. []byte values are
-// cloned; other types are stored as the caller's value. Get takes a write
-// lock so it can delete expired keys; [Map.Count] is a cheap read and does not
-// reclaim, so keep Trim on a timer in long-running processes.
+// cloned; other types are stored as the caller's value. Get, MultiGet and
+// Exists read under a read lock and take the write lock only to delete an
+// entry they found expired; [Map.Count] is a cheap read and does not reclaim,
+// so keep Trim on a timer in long-running processes.
 package mcache

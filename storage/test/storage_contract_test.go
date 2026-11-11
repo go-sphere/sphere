@@ -73,6 +73,12 @@ func storageFactories() []storageFactory {
 // newFakeS3Storage runs the s3 driver against an in-process S3 endpoint.
 func newFakeS3Storage(t *testing.T) *s3.Client {
 	t.Helper()
+	client, _ := newFakeS3StorageWithServer(t)
+	return client
+}
+
+func newFakeS3StorageWithServer(t *testing.T) (*s3.Client, *fakes3.Server) {
+	t.Helper()
 	fake := fakes3.New(t, "contract")
 	client, err := s3.NewClient(s3.Config{
 		Endpoint:        fake.Endpoint(),
@@ -83,12 +89,18 @@ func newFakeS3Storage(t *testing.T) *s3.Client {
 	if err != nil {
 		t.Fatalf("new s3 storage: %v", err)
 	}
-	return client
+	return client, fake
 }
 
 // newFakeQiniuStorage runs the qiniu driver, through the real SDK, against
 // in-process emulations of the Kodo uc/up/rs/rsf/io endpoints.
 func newFakeQiniuStorage(t *testing.T) *qiniu.Client {
+	t.Helper()
+	client, _ := newFakeQiniuStorageWithServer(t)
+	return client
+}
+
+func newFakeQiniuStorageWithServer(t *testing.T) (*qiniu.Client, *fakeqiniu.Server) {
 	t.Helper()
 	fake := fakeqiniu.New(t, "contract")
 	client, err := qiniu.NewClient(qiniu.Config{
@@ -100,7 +112,7 @@ func newFakeQiniuStorage(t *testing.T) *qiniu.Client {
 	if err != nil {
 		t.Fatalf("new qiniu storage: %v", err)
 	}
-	return client
+	return client, fake
 }
 
 func TestStorageCoreContract(t *testing.T) {

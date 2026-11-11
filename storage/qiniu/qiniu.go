@@ -1,6 +1,7 @@
 package qiniu
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -36,7 +37,7 @@ type Config struct {
 	// DefaultMimeLimit; set it to AnyMimeLimit to accept every content type.
 	MimeLimit string `json:"mime_limit" yaml:"mime_limit"`
 
-	PublicBase string `json:"public_base" yaml:"public_base"` // Public base URL (bucket domain) for GenerateURL
+	PublicBase string `json:"public_base" yaml:"public_base"` // Required absolute http(s) base URL (bucket domain) for GenerateURL
 }
 
 const (
@@ -81,7 +82,7 @@ func (n *Client) sdkConfig() *qiniuStorage.Config {
 // It initializes the URL handler for public file access and sets up authentication.
 // It does not contact Qiniu, so bad credentials surface on the first operation.
 // An empty MimeLimit becomes DefaultMimeLimit.
-// Returns an error if the public base URL is invalid.
+// It returns an error unless PublicBase is an absolute http or https URL.
 func NewClient(conf Config) (*Client, error) {
 	handler, err := urlhandler.NewHandler(conf.PublicBase)
 	if err != nil {
@@ -183,6 +184,11 @@ func (n *Client) serverUploadToken(key string) string {
 // UploadFile uploads data from a reader to Qiniu Cloud Object Storage with the specified key.
 // It uses a key-scoped token, so it overwrites an existing object, and
 // Config.MimeLimit does not apply. It returns the stored key.
+//
+// A seekable file is sent with one form upload, streamed from file. Any other
+// reader is buffered up to 4 MiB: a body that ends within that is
+// form-uploaded, and a longer one is sent as a multipart upload of 4 MiB parts,
+// so memory stays bounded by the SDK's part queue whatever the body's length.
 func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
@@ -190,12 +196,44 @@ func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 	}
 	upToken := n.serverUploadToken(key)
 	ret := qiniuStorage.PutRet{}
-	formUploader := qiniuStorage.NewFormUploader(n.sdkConfig())
-	err = formUploader.Put(ctx, &ret, upToken, key, file, -1, nil)
+	if seeker, ok := file.(io.ReadSeeker); ok && canSeek(seeker) {
+		err = qiniuStorage.NewFormUploader(n.sdkConfig()).Put(ctx, &ret, upToken, key, seeker, -1, nil)
+	} else {
+		err = n.uploadStream(ctx, &ret, upToken, key, file)
+	}
 	if err != nil {
 		return "", err
 	}
 	return ret.Key, nil
+}
+
+// resumablePartSize is the part size of UploadFile's multipart uploads, and
+// the most of a non-seekable body it buffers before choosing between a form
+// upload and a multipart upload.
+const resumablePartSize = 4 << 20
+
+// uploadStream uploads a body that cannot seek. The SDK's form uploader would
+// read such a body into memory whole, so only a body that fits one part is
+// form-uploaded; a longer one goes through the resumable (multipart) uploader,
+// which reads it part by part.
+func (n *Client) uploadStream(ctx context.Context, ret *qiniuStorage.PutRet, upToken, key string, file io.Reader) error {
+	head, err := io.ReadAll(io.LimitReader(file, resumablePartSize+1))
+	if err != nil {
+		return err
+	}
+	if len(head) <= resumablePartSize {
+		return qiniuStorage.NewFormUploader(n.sdkConfig()).Put(ctx, ret, upToken, key, bytes.NewReader(head), int64(len(head)), nil)
+	}
+	body := io.MultiReader(bytes.NewReader(head), file)
+	return qiniuStorage.NewResumeUploaderV2(n.sdkConfig()).PutWithoutSize(ctx, ret, upToken, key, body,
+		&qiniuStorage.RputV2Extra{PartSize: resumablePartSize})
+}
+
+// canSeek reports whether seeker really seeks; a pipe wrapped in *os.File
+// satisfies io.Seeker but fails to.
+func canSeek(seeker io.Seeker) bool {
+	_, err := seeker.Seek(0, io.SeekCurrent)
+	return err == nil
 }
 
 // UploadLocalFile uploads an existing local file to Qiniu Cloud Object Storage with the specified key.
@@ -242,6 +280,8 @@ func (n *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 // It implements storage.FileLister on top of the Qiniu list API, using the
 // marker as the cursor. The returned next cursor is non-empty only when more
 // objects remain. limit is clamped to 1000; a non-positive limit means 1000.
+// Keys not in storage.NormalizeKey form are skipped, so a page can hold fewer
+// keys than the backend returned, or none, while more remain.
 func (n *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int) ([]string, string, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 1000
@@ -262,7 +302,9 @@ func (n *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 	}
 	keys := make([]string, 0, len(ret.Items))
 	for _, item := range ret.Items {
-		keys = append(keys, item.Key)
+		if isAddressableKey(item.Key) {
+			keys = append(keys, item.Key)
+		}
 	}
 	next := ""
 	if hasNext {
@@ -445,6 +487,13 @@ func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 		return err
 	}
 	return nil
+}
+
+// isAddressableKey reports whether the rest of the API can reach key: it must
+// already be in storage.NormalizeKey form, which every method applies.
+func isAddressableKey(key string) bool {
+	normalized, err := storage.NormalizeKey(key)
+	return err == nil && normalized == key
 }
 
 // isNotFoundError reports a missing key on the bucket-management (rs) API, which

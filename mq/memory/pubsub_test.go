@@ -4,8 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
+
+	"github.com/go-sphere/sphere/log"
 )
 
 // TestBroadcastDropsWhenSubscriberQueueFull pins the back pressure contract: a
@@ -131,4 +136,104 @@ func TestPubSubIgnoresInvalidQueueSize(t *testing.T) {
 			}
 		})
 	}
+}
+
+// dropWarnRecorder is a log.Backend that keeps the "dropped" count of every
+// warning logged for one topic, or -1 for a warning without one.
+type dropWarnRecorder struct {
+	topic string
+
+	mu      sync.Mutex
+	dropped []int64
+}
+
+func (r *dropWarnRecorder) Log(_ context.Context, level log.Level, _ string, attrs ...log.Attr) {
+	if level != log.LevelWarn {
+		return
+	}
+	var topic string
+	var dropped int64 = -1
+	for _, a := range attrs {
+		switch a.Key {
+		case "topic":
+			topic = a.Value.String()
+		case "dropped":
+			dropped = a.Value.Int64()
+		}
+	}
+	if topic != r.topic {
+		return
+	}
+	r.mu.Lock()
+	r.dropped = append(r.dropped, dropped)
+	r.mu.Unlock()
+}
+
+func (r *dropWarnRecorder) Sync() error { return nil }
+
+func (r *dropWarnRecorder) With(...log.Option) log.Backend { return r }
+
+func (r *dropWarnRecorder) warnings() []int64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.dropped)
+}
+
+// TestBroadcastDropWarningsAreThrottled pins that a stalled subscriber
+// produces a bounded number of log lines: one warning per topic per
+// dropWarnInterval, carrying the drops accumulated since the previous one,
+// instead of one line per dropped message.
+func TestBroadcastDropWarningsAreThrottled(t *testing.T) {
+	recorder := &dropWarnRecorder{topic: "stalled"}
+	prev := log.With().Backend()
+	log.InitWithBackends(recorder)
+	t.Cleanup(func() { log.InitWithBackends(prev) })
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		p := NewPubSub[int](WithQueueSize(1))
+		started := make(chan struct{})
+		release := make(chan struct{})
+		// Deferred too, so a failing assertion does not leave the bubble blocked.
+		unblock := sync.OnceFunc(func() { close(release) })
+		defer unblock()
+		if _, err := p.Subscribe(ctx, "stalled", func(_ context.Context, data int) error {
+			if data == 0 {
+				close(started)
+			}
+			<-release
+			return nil
+		}); err != nil {
+			t.Fatalf("Subscribe: %v", err)
+		}
+
+		// Park the handler on message 0; message 1 then fills the one-slot
+		// buffer and every later message is dropped.
+		if err := p.Broadcast(ctx, "stalled", 0); err != nil {
+			t.Fatalf("Broadcast 0: %v", err)
+		}
+		<-started
+		const drops = 1000
+		for i := 1; i <= drops+1; i++ {
+			if err := p.Broadcast(ctx, "stalled", i); err != nil {
+				t.Fatalf("Broadcast %d: %v", i, err)
+			}
+		}
+		if got := recorder.warnings(); !slices.Equal(got, []int64{1}) {
+			t.Fatalf("warnings within one interval = %v, want [1]", got)
+		}
+
+		time.Sleep(dropWarnInterval)
+		if err := p.Broadcast(ctx, "stalled", -1); err != nil {
+			t.Fatalf("Broadcast after interval: %v", err)
+		}
+		if got := recorder.warnings(); !slices.Equal(got, []int64{1, drops}) {
+			t.Fatalf("warnings after interval = %v, want [1 %d]", got, drops)
+		}
+
+		unblock()
+		if err := p.Stop(ctx); err != nil {
+			t.Fatalf("Stop: %v", err)
+		}
+	})
 }

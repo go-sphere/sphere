@@ -8,9 +8,6 @@ import (
 // Attr is a strongly-typed structured log field based on slog's value model.
 type Attr = slog.Attr
 
-// Field is kept as an alias for backward compatibility.
-type Field = Attr
-
 // String creates a structured field with a string value.
 func String(key, value string) Attr {
 	return slog.String(key, value)

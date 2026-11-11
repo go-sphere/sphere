@@ -81,31 +81,30 @@ func mapToSlogAttrs(attrs map[string]any) []slog.Attr {
 	return out
 }
 
+// logLevelToZapLevel maps level to zap, clamping a level outside
+// LevelDebug..LevelError to the nearest of them.
 func logLevelToZapLevel(level corelog.Level) zapcore.Level {
-	switch level {
+	switch min(max(level, corelog.LevelDebug), corelog.LevelError) {
 	case corelog.LevelDebug:
 		return zapcore.DebugLevel
 	case corelog.LevelInfo:
 		return zapcore.InfoLevel
 	case corelog.LevelWarn:
 		return zapcore.WarnLevel
-	case corelog.LevelError:
-		return zapcore.ErrorLevel
 	default:
 		return zapcore.ErrorLevel
 	}
 }
 
+// logLevelToSlogLevel maps level to slog, clamping like logLevelToZapLevel.
 func logLevelToSlogLevel(level corelog.Level) slog.Level {
-	switch level {
+	switch min(max(level, corelog.LevelDebug), corelog.LevelError) {
 	case corelog.LevelDebug:
 		return slog.LevelDebug
 	case corelog.LevelInfo:
 		return slog.LevelInfo
 	case corelog.LevelWarn:
 		return slog.LevelWarn
-	case corelog.LevelError:
-		return slog.LevelError
 	default:
 		return slog.LevelError
 	}

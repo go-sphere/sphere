@@ -9,8 +9,10 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/go-sphere/sphere/storage"
@@ -433,5 +435,69 @@ func TestClientUsesHTTPSByDefault(t *testing.T) {
 	}
 	if _, ok := fake.Object("b.txt"); ok {
 		t.Fatal("upload reached the http-only fake")
+	}
+}
+
+// UploadFile streams a long body that cannot seek through a multipart upload
+// instead of reading it into memory for a form upload; a seekable body or a
+// short one is form-uploaded. Either way the upload replaces an existing key.
+func TestClientUploadFileStreamsLongBodies(t *testing.T) {
+	const partSize = 4 << 20
+	multipart := []string{"InitiateMultipartUpload", "UploadPart", "UploadPart", "CompleteMultipartUpload"}
+	tests := []struct {
+		name     string
+		size     int
+		seekable bool
+		want     []string
+	}{
+		{name: "empty stream", size: 0, want: []string{"PostObject"}},
+		{name: "short stream", size: 10, want: []string{"PostObject"}},
+		{name: "stream of exactly one part", size: partSize, want: []string{"PostObject"}},
+		{name: "long stream", size: partSize + 1, want: multipart},
+		{name: "long seekable body", size: partSize + 1, seekable: true, want: []string{"PostObject"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, fake := newFakeClient(t, Config{})
+			fake.Put("doc.txt", []byte("original"), "text/plain")
+			data := bytes.Repeat([]byte("0123456789"), tt.size/10+1)[:tt.size]
+			var body io.Reader = bytes.NewReader(data)
+			if !tt.seekable {
+				// io.MultiReader hides Seek, as a request body would.
+				body = io.MultiReader(body)
+			}
+
+			key, err := client.UploadFile(t.Context(), body, "doc.txt")
+			if err != nil {
+				t.Fatalf("UploadFile() error = %v", err)
+			}
+			if key != "doc.txt" {
+				t.Fatalf("UploadFile() key = %q", key)
+			}
+			if got := fake.Ops(); !slices.Equal(got, tt.want) {
+				t.Fatalf("upload requests = %v, want %v", got, tt.want)
+			}
+			if obj, ok := fake.Object("doc.txt"); !ok || !bytes.Equal(obj.Data, data) {
+				t.Fatalf("stored object mismatch: ok=%v len=%d, want len %d", ok, len(obj.Data), len(data))
+			}
+		})
+	}
+}
+
+// A long stream that fails part way leaves the existing object in place: the
+// multipart upload is never completed.
+func TestClientUploadFileFailedStreamKeepsObject(t *testing.T) {
+	client, fake := newFakeClient(t, Config{})
+	fake.Put("doc.txt", []byte("original"), "text/plain")
+
+	failing := io.MultiReader(bytes.NewReader(make([]byte, 5<<20)), iotest.ErrReader(errors.New("stream dropped")))
+	if _, err := client.UploadFile(t.Context(), failing, "doc.txt"); err == nil {
+		t.Fatal("UploadFile(failing reader) succeeded, want an error")
+	}
+	if slices.Contains(fake.Ops(), "CompleteMultipartUpload") {
+		t.Fatalf("upload requests = %v, want no completion", fake.Ops())
+	}
+	if obj, ok := fake.Object("doc.txt"); !ok || string(obj.Data) != "original" {
+		t.Fatalf("stored object = %q exists=%v, want %q", obj.Data, ok, "original")
 	}
 }

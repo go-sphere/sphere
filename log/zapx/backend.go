@@ -8,6 +8,7 @@ import (
 	"os"
 
 	corelog "github.com/go-sphere/sphere/log"
+	"github.com/go-sphere/sphere/log/internal/callsite"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
@@ -18,12 +19,17 @@ import (
 // log.SlogBackend and io.Closer. Create it with NewBackend; the zero value is
 // not usable. A Backend is safe for concurrent use. A panic while encoding an
 // attribute value is recovered and logged as an attr_error field instead.
+//
+// With log.AddCaller, entries written through Log carry the first stack frame
+// outside the log package tree as their caller, so the user's call site is
+// reported through MultiBackend and WrapBackendWithContextMerge as well.
 type Backend struct {
-	// zapLogger is the raw zap logger exposed to callers via ZapLogger().
-	// It does not include backend-specific caller skip adjustments.
+	// zapLogger is the raw zap logger exposed to callers via ZapLogger(). zap
+	// computes its caller itself, so it is correct for direct zap calls.
 	zapLogger *zap.Logger
-	// coreLogger is used by Backend.Log and pre-applies caller skip so core log APIs
-	// report the user's call site instead of wrapper frames.
+	// coreLogger is used by Backend.Log. zap's own caller lookup is disabled on
+	// it, because Log sets the entry caller itself; the caller skip only trims
+	// Backend.Log and the facade method from stack traces.
 	coreLogger *zap.Logger
 	// file is the rotating log writer opened by NewBackend, or nil when this
 	// backend was derived through With. Only the backend that opened the writer
@@ -35,13 +41,15 @@ type Backend struct {
 	// every record routed through SlogHandler would lose its origin. Persistent
 	// attrs do not need this: With pushes them down into the Core.
 	name string
+	// addCaller and stackAt are the resolved caller and stack options, kept
+	// because zap does not expose them and SlogHandler inherits them.
+	addCaller bool
+	stackAt   *corelog.Level
 }
 
-// coreCallerOffset compensates for:
-// 1) Backend.write, which issues the actual zap call
-// 2) Backend.Log itself
-// 3) core logger call sites (both package-level log.* and logger instance methods).
-const coreCallerOffset = 3
+// coreCallerOffset is the number of frames between zap's Check and the user
+// on the direct path: Backend.Log and the facade method.
+const coreCallerOffset = 2
 
 // NewBackend creates a zap-based backend from conf and options. It never
 // fails: an invalid conf.Level falls back to info, and a config with the
@@ -50,23 +58,17 @@ const coreCallerOffset = 3
 // Backend and should Sync then Close it at shutdown. log.WithMinLevel is
 // ignored.
 func NewBackend(conf Config, options ...corelog.Option) *Backend {
-	resolved := corelog.NewOptions(options...)
 	core, file := newCore(conf)
-	logger := zap.New(core).Named(resolved.Name).WithOptions(zapOptions(resolved)...)
-	if len(resolved.Attrs) > 0 {
-		logger = logger.With(MapToZapFields(resolved.Attrs)...)
-	}
-	backend := newBackendWithLogger(logger, resolved.Name)
+	backend := newBackendFromCore(core, options...)
 	backend.file = file
 	return backend
 }
 
-func newBackendWithLogger(zapLogger *zap.Logger, name string) *Backend {
-	return &Backend{
-		zapLogger:  zapLogger,
-		coreLogger: zapLogger.WithOptions(zap.AddCallerSkip(coreCallerOffset)),
-		name:       name,
-	}
+// newBackendFromCore builds a Backend over core with options resolved as in
+// NewBackend. The returned backend owns no file.
+func newBackendFromCore(core zapcore.Core, options ...corelog.Option) *Backend {
+	root := &Backend{zapLogger: zap.New(core)}
+	return root.with(options...)
 }
 
 // joinName mirrors zap's own naming, which joins segments with a dot.
@@ -87,19 +89,37 @@ func joinName(base, next string) string {
 // lazy, so a value's MarshalJSON or Stringer runs when the entry is encoded.
 // Encoding fills a buffer before writing, so a panic partway through leaves
 // nothing on the output and the replacement entry is the only one emitted.
+//
+// A level outside LevelDebug..LevelError is clamped to the nearest of them.
+// Attrs are not resolved when the level is disabled, so an expensive LogValuer
+// costs nothing then.
 func (z *Backend) Log(ctx context.Context, level corelog.Level, msg string, attrs ...corelog.Attr) {
-	logger := z.coreLogger
-	// Match write's fallback before filtering, and avoid resolving attrs for
-	// disabled levels. In particular, LogValuer may do expensive work.
-	if level < corelog.LevelDebug || level > corelog.LevelError {
-		level = corelog.LevelInfo
-	}
-	if !logger.Core().Enabled(logLevelToZapLevel(level)) {
+	zapLevel := logLevelToZapLevel(level)
+	ce := z.coreLogger.Check(zapLevel, msg)
+	if ce == nil {
 		return
+	}
+	var caller zapcore.EntryCaller
+	if z.addCaller {
+		if frame, ok := callsite.Frame(); ok {
+			caller = zapcore.EntryCaller{
+				Defined:  true,
+				PC:       frame.PC,
+				File:     frame.File,
+				Line:     frame.Line,
+				Function: frame.Function,
+			}
+		}
+		ce.Caller = caller
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			z.write(logger, level, msg, []zap.Field{zap.String("attr_error", fmt.Sprint(r))})
+			if fallback := z.coreLogger.Check(zapLevel, msg); fallback != nil {
+				if z.addCaller {
+					fallback.Caller = caller
+				}
+				fallback.Write(zap.String("attr_error", fmt.Sprint(r)))
+			}
 		}
 	}()
 
@@ -107,22 +127,7 @@ func (z *Backend) Log(ctx context.Context, level corelog.Level, msg string, attr
 	for _, a := range attrs {
 		fields = append(fields, AttrToZapField(a))
 	}
-	z.write(logger, level, msg, fields)
-}
-
-func (z *Backend) write(logger *zap.Logger, level corelog.Level, msg string, fields []zap.Field) {
-	switch level {
-	case corelog.LevelDebug:
-		logger.Debug(msg, fields...)
-	case corelog.LevelInfo:
-		logger.Info(msg, fields...)
-	case corelog.LevelWarn:
-		logger.Warn(msg, fields...)
-	case corelog.LevelError:
-		logger.Error(msg, fields...)
-	default:
-		logger.Info(msg, fields...)
-	}
+	ce.Write(fields...)
 }
 
 // With returns a derived backend that shares the parent's sinks. The derived
@@ -142,7 +147,24 @@ func (z *Backend) with(options ...corelog.Option) *Backend {
 	if len(resolved.Attrs) > 0 {
 		logger = logger.With(MapToZapFields(resolved.Attrs)...)
 	}
-	return newBackendWithLogger(logger, joinName(z.name, resolved.Name))
+	next := &Backend{
+		zapLogger:  logger,
+		coreLogger: logger.WithOptions(zap.WithCaller(false), zap.AddCallerSkip(coreCallerOffset)),
+		name:       joinName(z.name, resolved.Name),
+		addCaller:  z.addCaller,
+		stackAt:    z.stackAt,
+	}
+	switch resolved.AddCaller {
+	case corelog.AddCallerStatusEnable:
+		next.addCaller = true
+	case corelog.AddCallerStatusDisable:
+		next.addCaller = false
+	default:
+	}
+	if resolved.AddStackAt != nil {
+		next.stackAt = resolved.AddStackAt
+	}
+	return next
 }
 
 // Sync flushes buffered zap entries. Call Sync before Close if file entries
@@ -166,15 +188,21 @@ func (z *Backend) Close() error {
 	return z.file.Close()
 }
 
-// SlogHandler returns a slog.Handler on this backend's zap core. The logger
-// name is applied here because the core does not store it.
+// SlogHandler returns a slog.Handler on this backend's zap core. It inherits
+// the backend's name, caller and stack settings; options are applied on top.
+// The caller is the slog call site.
 func (z *Backend) SlogHandler(options ...corelog.Option) slog.Handler {
 	resolved := corelog.NewOptions(options...)
-	// Carry this backend's own name into the bridge. The handler is built from
-	// the Core, which does not hold the name, so records would otherwise arrive
-	// unattributed — including on the boot.WithLoggerBackend path, which calls
-	// SlogLogger with no options at all.
+	// The handler is built from the Core, which holds none of these settings,
+	// so they are carried over here — including on the boot.WithLoggerBackend
+	// path, which calls SlogLogger with no options at all.
 	resolved.Name = joinName(z.name, resolved.Name)
+	if resolved.AddCaller == corelog.AddCallerStatusKeep && z.addCaller {
+		resolved.AddCaller = corelog.AddCallerStatusEnable
+	}
+	if resolved.AddStackAt == nil {
+		resolved.AddStackAt = z.stackAt
+	}
 	var h slog.Handler = zapslog.NewHandler(z.zapLogger.Core(), zapSlogOptions(resolved)...)
 	if len(resolved.Attrs) > 0 {
 		h = h.WithAttrs(mapToSlogAttrs(resolved.Attrs))

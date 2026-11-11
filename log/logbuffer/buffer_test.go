@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math"
 	"strings"
 	"sync"
@@ -318,5 +319,151 @@ func TestBufferPresetErrorAttrsAreMessages(t *testing.T) {
 	}
 	if want := `{"cause":"boom","other":"ctx: bang"}`; string(raw) != want {
 		t.Fatalf("attrs JSON = %s, want %s", raw, want)
+	}
+}
+
+// TestBufferClampsOutOfRangeLevels pins that a level below LevelDebug is
+// recorded as debug and one above LevelError as error, and that filters see
+// the clamped level.
+func TestBufferClampsOutOfRangeLevels(t *testing.T) {
+	b := New(8)
+	b.Log(context.Background(), log.Level(-1), "low")
+	b.Log(context.Background(), log.Level(127), "high")
+	b.With(log.WithName("v")).Log(context.Background(), log.Level(-1), "view low")
+
+	entries, _ := b.History(0, 10, log.LevelDebug)
+	if len(entries) != 3 || entries[0].Level != "debug" || entries[1].Level != "error" || entries[2].Level != "debug" {
+		t.Fatalf("entries = %+v, want debug, error, debug", entries)
+	}
+	errorsOnly, _ := b.History(0, 10, log.LevelError)
+	if len(errorsOnly) != 1 || errorsOnly[0].Message != "high" {
+		t.Fatalf("error-level history = %+v, want only the clamped high entry", errorsOnly)
+	}
+}
+
+// TestBufferCapturesValuesWhenLogged pins that an entry holds the value an
+// attr had when it was logged: a caller that mutates a map afterwards, under
+// its own lock, must change neither history nor what a concurrent reader
+// serializes (run with -race).
+func TestBufferCapturesValuesWhenLogged(t *testing.T) {
+	b := New(4)
+	var mu sync.Mutex
+	state := map[string]int{"n": 0}
+	mu.Lock()
+	b.Log(context.Background(), log.LevelInfo, "snapshot", log.Any("state", state), log.Group("g", log.Any("inner", state)))
+	mu.Unlock()
+
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for i := range 1000 {
+			mu.Lock()
+			state["n"] = i + 1
+			mu.Unlock()
+		}
+	})
+	for range 100 {
+		entries, _ := b.History(0, 1, log.LevelDebug)
+		if _, err := json.Marshal(entries[0].Attrs); err != nil {
+			t.Fatalf("json.Marshal: %v", err)
+		}
+	}
+	wg.Wait()
+
+	entries, _ := b.History(0, 1, log.LevelDebug)
+	raw, err := json.Marshal(entries[0].Attrs)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if want := `{"g":{"inner":{"n":0}},"state":{"n":0}}`; string(raw) != want {
+		t.Fatalf("attrs JSON = %s, want %s", raw, want)
+	}
+}
+
+type panickingJSON struct{}
+
+func (panickingJSON) MarshalJSON() ([]byte, error) { panic("marshal boom") }
+
+type failingJSON struct{ N int }
+
+func (failingJSON) MarshalJSON() ([]byte, error) { return nil, errors.New("marshal failed") }
+
+// TestBufferFallsBackToTextWhenMarshalFails pins that a value whose MarshalJSON
+// panics or fails, or that JSON cannot encode, is kept as its text instead, and
+// that the attrs around it are unaffected.
+func TestBufferFallsBackToTextWhenMarshalFails(t *testing.T) {
+	b := New(2)
+	b.Log(context.Background(), log.LevelError, "failed",
+		log.Any("panics", panickingJSON{}),
+		log.Any("fails", failingJSON{N: 7}),
+		log.Any("channel", make(chan int)),
+		log.String("request_id", "r1"))
+
+	entries, _ := b.History(0, 1, log.LevelDebug)
+	attrs := entries[0].Attrs
+	if got, ok := attrs["panics"].(string); !ok || got != "{}" {
+		t.Errorf("panics = %#v, want the text fallback %q", attrs["panics"], "{}")
+	}
+	if got, ok := attrs["fails"].(string); !ok || got != "{7}" {
+		t.Errorf("fails = %#v, want the text fallback %q", attrs["fails"], "{7}")
+	}
+	if got, ok := attrs["channel"].(string); !ok || !strings.HasPrefix(got, "0x") {
+		t.Errorf("channel = %#v, want its text", attrs["channel"])
+	}
+	if attrs["request_id"] != "r1" {
+		t.Errorf("request_id = %#v, want r1", attrs["request_id"])
+	}
+	if _, err := json.Marshal(entries[0]); err != nil {
+		t.Fatalf("json.Marshal(entry): %v", err)
+	}
+}
+
+type jsonPoint struct {
+	X, Y int
+	Tag  string `json:"tag,omitempty"`
+}
+
+// TestBufferEntryJSONIsUnchangedByCapture pins that capturing values at log
+// time does not change how an entry serializes: every marshalable value
+// encodes exactly as it would have if the live value were stored.
+func TestBufferEntryJSONIsUnchangedByCapture(t *testing.T) {
+	when := time.Date(2026, 1, 2, 3, 4, 5, 6, time.UTC)
+	values := map[string]any{
+		"nil":      nil,
+		"string":   "a <b> & c",
+		"bool":     true,
+		"int":      -3,
+		"uint8":    uint8(7),
+		"float":    1.5,
+		"time":     when,
+		"duration": 5 * time.Second,
+		"bytes":    []byte("hi"),
+		"slice":    []any{1, "x", nil},
+		"map":      map[string]any{"z": 1, "a": []int{1, 2}, "html": "<&>"},
+		"struct":   jsonPoint{X: 1, Y: 2},
+		"pointer":  &jsonPoint{X: 3, Tag: "t"},
+		"nilmap":   map[string]int(nil),
+	}
+	attrs := make([]log.Attr, 0, len(values))
+	for k, v := range values {
+		attrs = append(attrs, log.Any(k, v))
+	}
+	attrs = append(attrs, log.Group("group", log.Any("struct", jsonPoint{X: 9})))
+
+	b := New(1)
+	b.Log(context.Background(), log.LevelInfo, "values", attrs...)
+	entries, _ := b.History(0, 1, log.LevelDebug)
+
+	want := maps.Clone(values)
+	want["group"] = map[string]any{"struct": jsonPoint{X: 9}}
+	wantJSON, err := json.Marshal(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotJSON, err := json.Marshal(entries[0].Attrs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(gotJSON) != string(wantJSON) {
+		t.Fatalf("attrs JSON =\n%s\nwant\n%s", gotJSON, wantJSON)
 	}
 }

@@ -71,10 +71,12 @@ func WithShutdownTimeout(d time.Duration) Option {
 }
 
 // WithShutdownSignals replaces the default shutdown signals
-// (SIGTERM, SIGQUIT, SIGINT). Passing no signals disables boot's signal
-// handling: the exported Run then stops only when the task returns. The
-// operating system's default handling of those signals still applies
-// (SIGINT typically terminates the process).
+// (SIGTERM, SIGQUIT, SIGINT). The first of them starts a graceful shutdown;
+// Run then stops handling them, so a repeat gets the operating system's
+// default action and can kill a shutdown that hangs. Passing no signals
+// disables boot's signal handling: the exported Run then stops only when the
+// task returns. The operating system's default handling of those signals
+// still applies (SIGINT typically terminates the process).
 //
 // An empty list does not subscribe to every signal. signal.Notify with no
 // arguments would, including SIGURG used by the Go runtime.

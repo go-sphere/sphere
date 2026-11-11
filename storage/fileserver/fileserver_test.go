@@ -91,6 +91,13 @@ func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
 			t.Fatal("expected error, got nil")
 		}
 	})
+
+	t.Run("relative get base", func(t *testing.T) {
+		_, err := NewCDNAdapter(Config{PutBase: "https://example.com", GetBase: "/files"}, memory.NewByteCache(), noopStorage{})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
 }
 
 func TestFileServerCloseOwnsCacheOnlyWhenAsked(t *testing.T) {

@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"fmt"
@@ -32,7 +33,7 @@ type Config struct {
 	Bucket string `json:"bucket" yaml:"bucket"`
 	// UseSSL selects https for the API and for the derived PublicBase.
 	UseSSL bool `json:"use_ssl" yaml:"use_ssl"`
-	// PublicBase is the base URL for GenerateURL. Empty means
+	// PublicBase is the absolute http(s) base URL for GenerateURL. Empty means
 	// "http(s)://Endpoint/Bucket" (path-style).
 	PublicBase string `json:"public_base" yaml:"public_base"`
 	// Dir is the prefix directory for keys created by GenerateUploadAuth.
@@ -46,9 +47,9 @@ type Config struct {
 	// defaultUploadTTL.
 	UploadTTL time.Duration `json:"upload_ttl" yaml:"upload_ttl"`
 	// PartSize is the multipart part size for UploadFile, whose reader has an
-	// unknown length. minio-go buffers one part in memory per upload, and
-	// without a part size it sizes parts for a 5 TiB object (~537 MiB each).
-	// The largest object UploadFile accepts is PartSize * 10000. A zero value
+	// unknown length. UploadFile buffers at most one part in memory per upload
+	// and sends a body no longer than PartSize with a single PutObject. The
+	// largest object UploadFile accepts is PartSize * 10000. A zero value
 	// falls back to defaultPartSize; the minimum is 5 MiB.
 	PartSize uint64 `json:"part_size" yaml:"part_size"`
 }
@@ -62,9 +63,18 @@ const (
 	defaultPartSize = 16 << 20
 	// minPartSize is the smallest part S3 accepts.
 	minPartSize = 5 << 20
+	// maxUploadParts is the most parts an S3 multipart upload may have.
+	maxUploadParts = 10000
+	// initialPartBuffer is the first allocation UploadFile makes for a body.
+	initialPartBuffer = 64 << 10
 	// maxListKeys is the most keys S3 returns per ListObjectsV2 request.
 	maxListKeys = 1000
 )
+
+// maxCopyObjectSize is the largest source CopyFile copies with one CopyObject
+// request, which S3 caps at 5 GiB; larger sources are copied in parts of at
+// most this size. A var so tests can lower it.
+var maxCopyObjectSize int64 = 5 << 30
 
 // Client is a minio-go storage.CDNStorage: presigned PUT upload auth and
 // the core Storage operations. It also implements storage.FileStater and
@@ -80,8 +90,8 @@ type Client struct {
 // derived from endpoint+bucket. The minio client is constructed here; this
 // type has no Close. NewClient does not contact the server, so bad
 // credentials or a missing bucket surface on the first operation. It returns
-// an error for a PartSize below 5 MiB, an invalid Endpoint, or an unparsable
-// PublicBase.
+// an error for a PartSize below 5 MiB, an invalid Endpoint, or a PublicBase
+// that is not an absolute http or https URL.
 func NewClient(conf Config) (*Client, error) {
 	conf.PartSize = cmp.Or(conf.PartSize, defaultPartSize)
 	if conf.PartSize < minPartSize {
@@ -117,6 +127,13 @@ func NewClient(conf Config) (*Client, error) {
 // the presigned URL, storage key, and public access URL. The presigned URL
 // validity defaults to Config.UploadTTL (else defaultUploadTTL); req.TTL may
 // shorten it but never extend it.
+//
+// The URL signs a Content-Type, returned in Authorization.Headers; the client
+// must send it unchanged or S3 rejects the upload. It is the type of the
+// file name's extension, or application/octet-stream when the extension is
+// unknown or names a type a browser would run or render as a document (HTML,
+// XHTML, SVG, XML, XSL, script, Flash), so a direct upload cannot publish
+// active content under the public base.
 func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthRequest) (storage.UploadAuthResult, error) {
 	fileName, err := storage.BuildUploadFileName(req.FileName, s.config.UploadNaming)
 	if err != nil {
@@ -131,18 +148,23 @@ func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthR
 		return storage.UploadAuthResult{}, err
 	}
 
-	preSignedURL, err := s.client.PresignedPutObject(ctx,
+	contentType := uploadContentType(key)
+	preSignedURL, err := s.client.PresignHeader(ctx,
+		http.MethodPut,
 		s.config.Bucket,
 		key,
-		storage.ResolveUploadTTL(req.TTL, s.config.UploadTTL, defaultUploadTTL))
+		storage.ResolveUploadTTL(req.TTL, s.config.UploadTTL, defaultUploadTTL),
+		nil,
+		http.Header{"Content-Type": {contentType}})
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
 	return storage.UploadAuthResult{
 		Authorization: storage.UploadAuthorization{
-			Type:   storage.UploadAuthorizationTypeURL,
-			Value:  preSignedURL.String(),
-			Method: http.MethodPut,
+			Type:    storage.UploadAuthorizationTypeURL,
+			Value:   preSignedURL.String(),
+			Method:  http.MethodPut,
+			Headers: map[string]string{"Content-Type": contentType},
 		},
 		File: storage.UploadFileInfo{
 			Key: key,
@@ -152,22 +174,105 @@ func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthR
 }
 
 // UploadFile uploads data from a reader to S3-compatible storage with the specified key.
-// The length is unknown, so the body is sent as a multipart upload buffering
-// one Config.PartSize part in memory. Content-Type comes from the key's
-// extension. It returns the normalized key.
+// The body is buffered up to Config.PartSize, in a buffer that grows with the
+// data rather than being allocated up front. A body that ends within that is
+// sent with a single PutObject; a longer one as a multipart upload of
+// Config.PartSize parts that reuses the buffer, so an upload holds at most one
+// part in memory. A failed multipart upload is aborted and leaves any existing
+// object in place. Content-Type comes from the key's extension. It returns the
+// normalized key.
 func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
 	}
-	info, err := s.client.PutObject(ctx, s.config.Bucket, key, file, -1, minio.PutObjectOptions{
+	opts := minio.PutObjectOptions{
 		ContentType: mime.TypeByExtension(filepath.Ext(key)),
 		PartSize:    s.config.PartSize,
-	})
+	}
+	partSize := int(s.config.PartSize)
+	buf, n, err := readPart(file, make([]byte, min(initialPartBuffer, partSize)), partSize)
 	if err != nil {
 		return "", err
 	}
-	return info.Key, nil
+	if n == partSize {
+		// A full part may or may not be the whole body; one more byte decides.
+		var probe [1]byte
+		read, err := io.ReadFull(file, probe[:])
+		switch {
+		case read == 1:
+			rest := io.MultiReader(bytes.NewReader(probe[:]), file)
+			if err := s.uploadMultipart(ctx, key, buf, n, rest, opts); err != nil {
+				return "", err
+			}
+			return key, nil
+		case err != io.EOF:
+			return "", err
+		}
+	}
+	if _, err := s.client.PutObject(ctx, s.config.Bucket, key, bytes.NewReader(buf[:n]), int64(n), opts); err != nil {
+		return "", err
+	}
+	return key, nil
+}
+
+// uploadMultipart stores the first n bytes of buf followed by rest under key
+// as a multipart upload of Config.PartSize parts, reading each further part
+// into buf once the previous one is sent. On failure the upload is aborted,
+// even when ctx is done, so its parts do not linger.
+func (s *Client) uploadMultipart(ctx context.Context, key string, buf []byte, n int, rest io.Reader, opts minio.PutObjectOptions) (err error) {
+	core := minio.Core{Client: s.client}
+	uploadID, err := core.NewMultipartUpload(ctx, s.config.Bucket, key, opts)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = core.AbortMultipartUpload(context.WithoutCancel(ctx), s.config.Bucket, key, uploadID)
+		}
+	}()
+	var parts []minio.CompletePart
+	for number := 1; n > 0; number++ {
+		if number > maxUploadParts {
+			return fmt.Errorf("s3: upload of %q exceeds %d parts of %d bytes", key, maxUploadParts, s.config.PartSize)
+		}
+		var uploaded minio.ObjectPart
+		uploaded, err = core.PutObjectPart(ctx, s.config.Bucket, key, uploadID, number, bytes.NewReader(buf[:n]), int64(n), minio.PutObjectPartOptions{})
+		if err != nil {
+			return err
+		}
+		parts = append(parts, minio.CompletePart{PartNumber: number, ETag: uploaded.ETag})
+		if buf, n, err = readPart(rest, buf, int(s.config.PartSize)); err != nil {
+			return err
+		}
+	}
+	_, err = core.CompleteMultipartUpload(ctx, s.config.Bucket, key, uploadID, parts, minio.PutObjectOptions{})
+	return err
+}
+
+// readPart fills buf from r until size bytes are read or r is exhausted, and
+// returns the buffer, which may have been replaced by a larger one, with the
+// number of bytes read; io.EOF is not an error. The buffer doubles as needed,
+// never beyond size, so starting from a small one a short body costs only
+// about its own length.
+func readPart(r io.Reader, buf []byte, size int) ([]byte, int, error) {
+	filled := 0
+	for filled < size {
+		if filled == len(buf) {
+			grown := make([]byte, min(max(2*len(buf), initialPartBuffer), size))
+			copy(grown, buf)
+			buf = grown
+		}
+		n, err := r.Read(buf[filled:])
+		filled += n
+		if err == io.EOF {
+			return buf, filled, nil
+		}
+		if err != nil {
+			return buf, filled, err
+		}
+	}
+	return buf, filled, nil
 }
 
 // UploadLocalFile uploads an existing local file to S3-compatible storage with the specified key.
@@ -211,8 +316,9 @@ func (s *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 // It implements storage.FileLister on top of the S3 ListObjects API using
 // StartAfter as an exclusive cursor. The returned next cursor is the last key
 // of the page when more objects remain, otherwise empty. A non-positive limit
-// means 1000. It fails with ctx.Err() when ctx ends before the listing is
-// exhausted rather than returning a truncated page with an empty cursor.
+// means 1000. Keys not in storage.NormalizeKey form are skipped. It fails with
+// ctx.Err() when ctx ends before the listing is exhausted rather than
+// returning a truncated page with an empty cursor.
 func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int) ([]string, string, error) {
 	if limit <= 0 {
 		limit = 1000
@@ -233,6 +339,9 @@ func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 	for object := range ch {
 		if object.Err != nil {
 			return nil, "", object.Err
+		}
+		if !isAddressableKey(object.Key) {
+			continue
 		}
 		if len(keys) >= limit {
 			// One object beyond the requested page means more remain; stop the
@@ -357,6 +466,10 @@ func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 // with storageerr.ErrDestExists. Copying a key onto itself leaves the object
 // unchanged and makes no copy request.
 //
+// The source is stat'ed first. A source of up to 5 GiB is copied with one
+// CopyObject request; a larger one, which CopyObject refuses, with a multipart
+// copy of 5 GiB parts that carries over its Content-Type and metadata.
+//
 // When overwrite is false the destination is checked with a separate stat call
 // before copying. The S3 CopyObject API has no portable conditional (there is
 // no If-None-Match on the copy destination), so this guard is best-effort only
@@ -371,27 +484,41 @@ func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return err
 	}
+	source, err := s.client.StatObject(ctx, s.config.Bucket, sourceKey, minio.StatObjectOptions{})
+	if err != nil {
+		if isNoSuchKeyError(err) {
+			return storageerr.ErrNotFound
+		}
+		return err
+	}
 	// S3 rejects a copy of an object onto itself that changes no metadata, so
 	// the result is decided without one: the destination is the source.
 	if sourceKey == destinationKey {
-		return s.existingDestinationResult(ctx, sourceKey, overwrite)
+		if !overwrite {
+			return storageerr.ErrDestExists
+		}
+		return nil
 	}
 	if !overwrite {
 		_, err := s.client.StatObject(ctx, s.config.Bucket, destinationKey, minio.StatObjectOptions{})
 		if err == nil {
-			return s.existingDestinationResult(ctx, sourceKey, false)
+			return storageerr.ErrDestExists
 		}
 		if !isNoSuchKeyError(err) {
 			return err
 		}
 	}
-	_, err = s.client.CopyObject(ctx, minio.CopyDestOptions{
-		Bucket: s.config.Bucket,
-		Object: destinationKey,
-	}, minio.CopySrcOptions{
-		Bucket: s.config.Bucket,
-		Object: sourceKey,
-	})
+	if source.Size > maxCopyObjectSize {
+		err = s.copyMultipart(ctx, sourceKey, source, destinationKey)
+	} else {
+		_, err = s.client.CopyObject(ctx, minio.CopyDestOptions{
+			Bucket: s.config.Bucket,
+			Object: destinationKey,
+		}, minio.CopySrcOptions{
+			Bucket: s.config.Bucket,
+			Object: sourceKey,
+		})
+	}
 	if err != nil {
 		if isNoSuchKeyError(err) {
 			return storageerr.ErrNotFound
@@ -401,21 +528,77 @@ func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	return nil
 }
 
-// existingDestinationResult is the outcome of a copy whose destination already
-// exists, without performing it: storageerr.ErrNotFound when sourceKey is
-// missing, storageerr.ErrDestExists when overwrite is false, otherwise nil.
-func (s *Client) existingDestinationResult(ctx context.Context, sourceKey string, overwrite bool) error {
-	exists, err := s.IsFileExists(ctx, sourceKey)
+// copyMultipart copies sourceKey, described by source, to destinationKey with
+// UploadPartCopy requests of at most maxCopyObjectSize bytes. A multipart
+// upload takes its headers from its initiation rather than from the source,
+// so Content-Type, the other standard headers and user metadata are passed
+// there. Every part is pinned to the source's ETag, so a source replaced
+// mid-copy fails the copy instead of mixing versions. On failure the upload
+// is aborted, even when ctx is done.
+func (s *Client) copyMultipart(ctx context.Context, sourceKey string, source minio.ObjectInfo, destinationKey string) (err error) {
+	core := minio.Core{Client: s.client}
+	uploadID, err := core.NewMultipartUpload(ctx, s.config.Bucket, destinationKey, minio.PutObjectOptions{
+		ContentType:        source.ContentType,
+		ContentEncoding:    source.Metadata.Get("Content-Encoding"),
+		ContentDisposition: source.Metadata.Get("Content-Disposition"),
+		ContentLanguage:    source.Metadata.Get("Content-Language"),
+		CacheControl:       source.Metadata.Get("Cache-Control"),
+		UserMetadata:       source.UserMetadata,
+	})
 	if err != nil {
 		return err
 	}
-	if !exists {
-		return storageerr.ErrNotFound
+	defer func() {
+		if err != nil {
+			_ = core.AbortMultipartUpload(context.WithoutCancel(ctx), s.config.Bucket, destinationKey, uploadID)
+		}
+	}()
+	ifMatch := map[string]string{"x-amz-copy-source-if-match": source.ETag}
+	var parts []minio.CompletePart
+	for number, offset := 1, int64(0); offset < source.Size; number, offset = number+1, offset+maxCopyObjectSize {
+		var part minio.CompletePart
+		part, err = core.CopyObjectPart(ctx, s.config.Bucket, sourceKey, s.config.Bucket, destinationKey, uploadID,
+			number, offset, min(maxCopyObjectSize, source.Size-offset), ifMatch)
+		if err != nil {
+			return err
+		}
+		parts = append(parts, part)
 	}
-	if !overwrite {
-		return storageerr.ErrDestExists
+	_, err = core.CompleteMultipartUpload(ctx, s.config.Bucket, destinationKey, uploadID, parts, minio.PutObjectOptions{})
+	return err
+}
+
+// uploadContentType is the Content-Type signed into a presigned upload of key:
+// the type of its extension, or application/octet-stream when that is unknown
+// or active content.
+func uploadContentType(key string) string {
+	const fallback = "application/octet-stream"
+	contentType := mime.TypeByExtension(filepath.Ext(key))
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil || isActiveContentType(mediaType) {
+		return fallback
 	}
-	return nil
+	return contentType
+}
+
+// isActiveContentType reports whether a browser navigating to a response of
+// mediaType (lowercase, without parameters) would run script or render it as
+// a document that can.
+func isActiveContentType(mediaType string) bool {
+	_, subtype, _ := strings.Cut(mediaType, "/")
+	return strings.Contains(subtype, "html") ||
+		strings.Contains(subtype, "script") ||
+		strings.Contains(subtype, "svg") ||
+		strings.Contains(subtype, "xsl") ||
+		subtype == "xml" || strings.HasPrefix(subtype, "xml-") || strings.HasSuffix(subtype, "+xml") ||
+		subtype == "x-shockwave-flash"
+}
+
+// isAddressableKey reports whether the rest of the API can reach key: it must
+// already be in storage.NormalizeKey form, which every method applies.
+func isAddressableKey(key string) bool {
+	normalized, err := storage.NormalizeKey(key)
+	return err == nil && normalized == key
 }
 
 func isNoSuchKeyError(err error) bool {

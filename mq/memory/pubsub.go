@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/mq"
@@ -36,6 +37,16 @@ func (s *subscription[T]) requestStop() {
 	s.stop.Do(s.cancel)
 }
 
+// dropWarnInterval is the minimum gap between two dropped-message warnings
+// for the same topic.
+var dropWarnInterval = 10 * time.Second
+
+// topicDrops counts messages dropped on one topic since the last warning.
+type topicDrops struct {
+	pending  int
+	lastWarn time.Time
+}
+
 // PubSub implements process-local best-effort publish-subscribe delivery.
 // Each subscription has a bounded buffer; Broadcast drops rather than blocks
 // when one subscriber falls behind. Create it with NewPubSub; the zero value
@@ -50,6 +61,11 @@ type PubSub[T any] struct {
 	done     chan struct{}
 	stopOnce sync.Once
 	handlers sync.WaitGroup
+
+	// dropsMu guards drops. It is taken with mu held (read or write), never
+	// the other way round.
+	dropsMu sync.Mutex
+	drops   map[string]*topicDrops
 }
 
 // NewPubSub creates an in-memory PubSub. The default per-subscription buffer
@@ -61,6 +77,7 @@ func NewPubSub[T any](opt ...Option) *PubSub[T] {
 		queueSize:  opts.queueSize,
 		topics:     make(map[string][]*subscription[T]),
 		done:       make(chan struct{}),
+		drops:      make(map[string]*topicDrops),
 	}
 }
 
@@ -87,28 +104,75 @@ func (p *PubSub[T]) Start(ctx context.Context) error {
 }
 
 // Broadcast delivers data to every current subscriber without blocking. A
-// full subscriber buffer drops the message and logs a warning.
+// message that does not fit a subscriber's full buffer is dropped for that
+// subscriber. Drops are counted per topic and reported in one warning per
+// topic at most every 10s, carrying the number dropped since the previous one.
 func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
 		return mq.ErrPubSubClosed
 	}
-	subscribers := slices.Clone(p.topics[topic])
-	p.mu.RUnlock()
 	if err := ctx.Err(); err != nil {
+		p.mu.RUnlock()
 		return err
 	}
 
-	for _, sub := range subscribers {
+	// The sends never block, so they run under the read lock rather than on a
+	// copy of the subscriber slice.
+	dropped := 0
+	for _, sub := range p.topics[topic] {
 		select {
 		case <-sub.ctx.Done():
 		case sub.ch <- data:
 		default:
-			log.Warn("pubsub broadcast dropped message: subscriber queue full", log.String("topic", topic))
+			dropped++
 		}
 	}
+	warn := 0
+	if dropped > 0 {
+		warn = p.recordDrops(topic, dropped)
+	}
+	p.mu.RUnlock()
+
+	if warn > 0 {
+		log.Warn("pubsub broadcast dropped messages: subscriber queue full",
+			log.String("topic", topic),
+			log.Int("dropped", warn),
+		)
+	}
 	return nil
+}
+
+// recordDrops adds n to topic's drop count. When a warning is due it resets
+// the count and returns how many drops to report, otherwise it returns 0. The
+// caller holds p.mu, so the entry cannot outlive the topic: remove and
+// StopTopic delete it under the write lock.
+func (p *PubSub[T]) recordDrops(topic string, n int) int {
+	now := time.Now()
+	p.dropsMu.Lock()
+	defer p.dropsMu.Unlock()
+
+	d := p.drops[topic]
+	if d == nil {
+		d = &topicDrops{}
+		p.drops[topic] = d
+	}
+	d.pending += n
+	if !d.lastWarn.IsZero() && now.Sub(d.lastWarn) < dropWarnInterval {
+		return 0
+	}
+	report := d.pending
+	d.pending = 0
+	d.lastWarn = now
+	return report
+}
+
+// forgetDrops discards topic's drop state. The caller holds p.mu for writing.
+func (p *PubSub[T]) forgetDrops(topic string) {
+	p.dropsMu.Lock()
+	delete(p.drops, topic)
+	p.dropsMu.Unlock()
 }
 
 // Subscribe registers handler on topic. ctx controls the subscription's full
@@ -199,6 +263,7 @@ func (p *PubSub[T]) remove(target *subscription[T]) {
 		subs = slices.Delete(subs, i, i+1)
 		if len(subs) == 0 {
 			delete(p.topics, target.topic)
+			p.forgetDrops(target.topic)
 		} else {
 			p.topics[target.topic] = subs
 		}
@@ -216,6 +281,7 @@ func (p *PubSub[T]) StopTopic(topic string) (<-chan struct{}, error) {
 	p.mu.Lock()
 	subs := p.topics[topic]
 	delete(p.topics, topic)
+	p.forgetDrops(topic)
 	p.mu.Unlock()
 
 	for _, sub := range subs {

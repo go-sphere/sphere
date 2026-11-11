@@ -1,5 +1,7 @@
-// Package scripttask is a callback-backed task.Task for scripts and tests that
-// also exposes Started/Stopped signals.
+// Package scripttask is a callback-backed task.Task test double that exposes
+// Started/Stopped signals. It is not meant for production: with a nil onStart,
+// Stop deliberately does not unblock Start, which the task.Task contract
+// requires. Production code should use task.NewFunc.
 //
 // [NewScriptTask](id, onStart, onStop) returns a [ScriptTask]. Start runs
 // onStart, or blocks on ctx.Done when onStart is nil. Stop runs onStop; it does
@@ -8,8 +10,7 @@
 // or task.Manager, which cancel the run context. onStop is not wrapped in
 // Once: callers must make it idempotent. [ScriptTask.Started] and
 // [ScriptTask.Stopped] close when Start or Stop is first entered, not when
-// the hook returns. For a plain callback task without signals, task.NewFunc
-// is the lighter alternative.
+// the hook returns.
 //
 // # Usage
 //

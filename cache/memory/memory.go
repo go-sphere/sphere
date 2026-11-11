@@ -57,6 +57,10 @@ type Cache[T any] struct {
 // The cache uses a fixed cost of 1 per item and does not calculate actual memory usage,
 // so MaxCost (see UpdateMaxCost) is a number of items.
 //
+// The default bound is 2^30 items, which is effectively unlimited: entries
+// stored without a TTL are never evicted for size. Call UpdateMaxCost to bound
+// a cache whose key space can grow.
+//
 // Construction cannot fail: ristretto.NewCache only errors when NumCounters,
 // MaxCost, or BufferItems is zero or negative, and the constants used here are
 // positive. The error is deliberately ignored so a nil backend can never be

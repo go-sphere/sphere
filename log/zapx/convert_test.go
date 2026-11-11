@@ -55,7 +55,7 @@ func TestGroupAttrsKeepTypedEncoding(t *testing.T) {
 
 	var buf bytes.Buffer
 	core := zapcore.NewCore(zapcore.NewJSONEncoder(encCfg), zapcore.AddSync(&buf), zapcore.DebugLevel)
-	backend := newBackendWithLogger(zap.New(core), "")
+	backend := newBackendFromCore(core)
 
 	backend.Log(context.Background(), corelog.LevelInfo, "grouped",
 		corelog.Duration("top", 5*time.Second),

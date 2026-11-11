@@ -17,15 +17,19 @@
 // own status codes (612 missing key, 614 destination exists); downloads of a
 // missing key answer HTTP 404; upload tokens are verified (signature,
 // deadline, scope, insertOnly), and a bucket-only scope is insert-only, so an
-// upload that would replace different content fails with 614.
+// upload that would replace different content fails with 614. Both form
+// upload and multipart upload (resumable upload v2) are served; Ops records
+// which one each upload request used.
 package fakeqiniu
 
 import (
 	"bytes"
 	"crypto/hmac"
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -65,9 +69,18 @@ type Server struct {
 	api *httptest.Server // up + rs + rsf
 	io  *httptest.Server // source download
 
-	mu      sync.Mutex
-	objects map[string]Object
-	ioHook  func(*http.Request)
+	mu         sync.Mutex
+	objects    map[string]Object
+	ioHook     func(*http.Request)
+	uploads    map[string]*multipartUpload
+	nextUpload int
+	ops        []string
+}
+
+// multipartUpload is an in-progress resumable upload v2.
+type multipartUpload struct {
+	key   string
+	parts map[int64][]byte
 }
 
 var (
@@ -96,6 +109,7 @@ func New(tb testing.TB, bucket string) *Server {
 		SecretKey: "fake-sk-" + rand.Text(),
 		Bucket:    bucket,
 		objects:   map[string]Object{},
+		uploads:   map[string]*multipartUpload{},
 	}
 	s.api = httptest.NewServer(withReqID(http.HandlerFunc(s.serveAPI)))
 	s.io = httptest.NewServer(withReqID(http.HandlerFunc(s.serveIO)))
@@ -130,6 +144,16 @@ func (s *Server) Put(key string, data []byte, mimeType string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.objects[key] = Object{Data: bytes.Clone(data), MIME: mimeType, PutTime: time.Now().UnixNano() / 100}
+}
+
+// Ops returns the upload operation name of every upload request received so
+// far, in order: PostObject for a form upload, and InitiateMultipartUpload,
+// UploadPart, CompleteMultipartUpload or AbortMultipartUpload for a
+// multipart upload.
+func (s *Server) Ops() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.ops)
 }
 
 // SetIOHook installs fn to run before every download (io) request is served,
@@ -216,6 +240,10 @@ func serveUC(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost && r.URL.Path == "/" {
 		s.serveUpload(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/buckets/") {
+		s.serveMultipart(w, r)
 		return
 	}
 	if !strings.HasPrefix(r.Header.Get("Authorization"), "Qiniu "+s.AccessKey+":") {
@@ -346,6 +374,9 @@ func (s *Server) serveList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveUpload(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	s.ops = append(s.ops, "PostObject")
+	s.mu.Unlock()
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		writeError(w, http.StatusBadRequest, "bad multipart: "+err.Error())
 		return
@@ -380,7 +411,12 @@ func (s *Server) serveUpload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "read file")
 		return
 	}
-	mimeType := header.Header.Get("Content-Type")
+	s.store(w, policy, keyScoped, key, data, header.Header.Get("Content-Type"))
+}
+
+// store publishes an uploaded object under key, applying the token policy's
+// MIME limit and overwrite rules, and answers the upload request.
+func (s *Server) store(w http.ResponseWriter, policy Policy, keyScoped bool, key string, data []byte, mimeType string) {
 	if mimeType == "" || mimeType == "application/octet-stream" {
 		mimeType = mime.TypeByExtension(path.Ext(key))
 	}
@@ -403,6 +439,122 @@ func (s *Server) serveUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	s.objects[key] = Object{Data: data, MIME: mimeType, PutTime: time.Now().UnixNano() / 100}
 	writeJSON(w, http.StatusOK, map[string]any{"key": key, "hash": etag(data)})
+}
+
+// serveMultipart serves resumable upload v2:
+// /buckets/<bucket>/objects/<base64 key>/uploads[/<uploadId>[/<partNumber>]].
+func (s *Server) serveMultipart(w http.ResponseWriter, r *http.Request) {
+	segments := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	if len(segments) < 5 || len(segments) > 7 || segments[2] != "objects" || segments[4] != "uploads" {
+		writeError(w, http.StatusNotFound, "unknown upload path "+r.URL.Path)
+		return
+	}
+	if segments[1] != s.Bucket {
+		writeError(w, 631, "no such bucket")
+		return
+	}
+	rawKey, err := base64.URLEncoding.DecodeString(segments[3])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid object name")
+		return
+	}
+	key := string(rawKey)
+	policy, err := s.VerifyUploadToken(strings.TrimPrefix(r.Header.Get("Authorization"), "UpToken "))
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if time.Now().Unix() > policy.Deadline {
+		writeError(w, http.StatusUnauthorized, "expired token")
+		return
+	}
+	bucket, scopedKey, keyScoped := strings.Cut(policy.Scope, ":")
+	if bucket != s.Bucket || (keyScoped && key != scopedKey) {
+		writeError(w, http.StatusForbidden, "key doesn't match with scope")
+		return
+	}
+
+	switch {
+	case r.Method == http.MethodPost && len(segments) == 5:
+		s.mu.Lock()
+		s.ops = append(s.ops, "InitiateMultipartUpload")
+		s.nextUpload++
+		id := "upload-" + strconv.Itoa(s.nextUpload)
+		s.uploads[id] = &multipartUpload{key: key, parts: map[int64][]byte{}}
+		s.mu.Unlock()
+		writeJSON(w, http.StatusOK, map[string]any{"uploadId": id, "expireAt": time.Now().Add(time.Hour).Unix()})
+
+	case r.Method == http.MethodPut && len(segments) == 7:
+		number, err := strconv.ParseInt(segments[6], 10, 64)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid part number")
+			return
+		}
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "read part")
+			return
+		}
+		sum := md5.Sum(data)
+		if want := r.Header.Get("Content-MD5"); want != "" && want != hex.EncodeToString(sum[:]) {
+			writeError(w, http.StatusBadRequest, "part md5 mismatch")
+			return
+		}
+		s.mu.Lock()
+		s.ops = append(s.ops, "UploadPart")
+		upload := s.uploads[segments[5]]
+		if upload != nil && upload.key == key {
+			upload.parts[number] = data
+		}
+		s.mu.Unlock()
+		if upload == nil || upload.key != key {
+			writeError(w, 612, "no such upload")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"etag": etag(data), "md5": hex.EncodeToString(sum[:])})
+
+	case r.Method == http.MethodPost && len(segments) == 6:
+		var body struct {
+			Parts []struct {
+				PartNumber int64  `json:"partNumber"`
+				Etag       string `json:"etag"`
+			} `json:"parts"`
+			MimeType string `json:"mimeType"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid complete body")
+			return
+		}
+		s.mu.Lock()
+		s.ops = append(s.ops, "CompleteMultipartUpload")
+		upload := s.uploads[segments[5]]
+		delete(s.uploads, segments[5])
+		s.mu.Unlock()
+		if upload == nil || upload.key != key {
+			writeError(w, 612, "no such upload")
+			return
+		}
+		var data bytes.Buffer
+		for _, part := range body.Parts {
+			chunk, ok := upload.parts[part.PartNumber]
+			if !ok || etag(chunk) != part.Etag {
+				writeError(w, http.StatusBadRequest, "invalid part "+strconv.FormatInt(part.PartNumber, 10))
+				return
+			}
+			data.Write(chunk)
+		}
+		s.store(w, policy, keyScoped, key, data.Bytes(), body.MimeType)
+
+	case r.Method == http.MethodDelete && len(segments) == 6:
+		s.mu.Lock()
+		s.ops = append(s.ops, "AbortMultipartUpload")
+		delete(s.uploads, segments[5])
+		s.mu.Unlock()
+		writeJSON(w, http.StatusOK, map[string]any{})
+
+	default:
+		writeError(w, http.StatusNotFound, "unknown upload path "+r.URL.Path)
+	}
 }
 
 func (s *Server) serveIO(w http.ResponseWriter, r *http.Request) {

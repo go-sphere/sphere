@@ -3,10 +3,15 @@ package reverseproxy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/go-sphere/sphere/storage"
 )
@@ -211,6 +216,7 @@ func TestCommonCache_ExpiredHeaderDoesNotOrphanBody(t *testing.T) {
 			if err := tc.miss(ctx, c, key); !errors.Is(err, ErrCacheNotFound) {
 				t.Fatalf("%s after expiry = %v, want ErrCacheNotFound", tc.name, err)
 			}
+			waitOrphanCleanups(t, c)
 			exists, err := c.storage.IsFileExists(ctx, storageObjectName(key))
 			if err != nil {
 				t.Fatalf("IsFileExists: %v", err)
@@ -261,5 +267,204 @@ func TestCommonCache_MissDuringSaveKeepsBody(t *testing.T) {
 	defer ignoreCloseError(body.Close)
 	if got, err := io.ReadAll(body); err != nil || string(got) != "body" {
 		t.Fatalf("body = %q, %v; want %q", got, err, "body")
+	}
+}
+
+// blockingDeleteStorage counts DeleteFile calls and, when release is set,
+// holds each one until release is closed.
+type blockingDeleteStorage struct {
+	storage.Storage
+	deletes atomic.Int32
+	release chan struct{}
+}
+
+func (s *blockingDeleteStorage) DeleteFile(ctx context.Context, key string) error {
+	s.deletes.Add(1)
+	if s.release != nil {
+		<-s.release
+	}
+	return s.Storage.DeleteFile(ctx, key)
+}
+
+// TestCommonCache_MissDoesNotWaitForCleanup pins that the orphan-body cleanup
+// a miss triggers runs off the caller's path: a slow storage delete must not
+// delay the miss.
+func TestCommonCache_MissDoesNotWaitForCleanup(t *testing.T) {
+	c := setupTestCache(t)
+	store := &blockingDeleteStorage{Storage: c.storage, release: make(chan struct{})}
+	c.storage = store
+
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := c.Load(context.Background(), "/missing")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrCacheNotFound) {
+			t.Errorf("Load = %v, want ErrCacheNotFound", err)
+		}
+	case <-time.After(time.Second):
+		t.Error("Load waited for the storage delete")
+	}
+	close(store.release)
+	waitOrphanCleanups(t, c)
+	if got := store.deletes.Load(); got != 1 {
+		t.Fatalf("DeleteFile calls = %d, want 1", got)
+	}
+}
+
+// TestServeCacheReverseProxy_UncacheableMissCleansUpOncePerWindow pins that a
+// URL that is never stored does not cost a storage delete on every request:
+// repeated misses clean the key up once per window.
+func TestServeCacheReverseProxy_UncacheableMissCleansUpOncePerWindow(t *testing.T) {
+	c := setupTestCache(t)
+	store := &blockingDeleteStorage{Storage: c.storage}
+	c.storage = store
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("private"))
+	}))
+	defer backend.Close()
+	backendURL, _ := url.Parse(backend.URL)
+	proxy, err := CreateCacheReverseProxy(c, WithTargetURL(backendURL))
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+	handler := ServeCacheReverseProxy(c, proxy)
+
+	for range 10 {
+		req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+		req.Header.Set("Authorization", "Bearer token")
+		rec := httptest.NewRecorder()
+		handler(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rec.Code)
+		}
+		waitOrphanCleanups(t, c)
+	}
+	if got := store.deletes.Load(); got != 1 {
+		t.Fatalf("DeleteFile calls for 10 misses = %d, want 1", got)
+	}
+}
+
+// waitOrphanCleanups waits until no background orphan cleanup of c is running.
+func waitOrphanCleanups(t *testing.T, c *CommonCache) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		c.cleanups.mu.Lock()
+		running := c.cleanups.running
+		c.cleanups.mu.Unlock()
+		if running == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d orphan cleanups still running", running)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// setOrphanCleanupLimits overrides the cleanup limits for one test. Tests that
+// call it must not run in parallel.
+func setOrphanCleanupLimits(t *testing.T, window time.Duration, maxKeys, maxRunning int) {
+	t.Helper()
+	oldWindow, oldKeys, oldRunning := orphanCleanupWindow, orphanCleanupMaxKeys, orphanCleanupMaxRunning
+	orphanCleanupWindow, orphanCleanupMaxKeys, orphanCleanupMaxRunning = window, maxKeys, maxRunning
+	t.Cleanup(func() {
+		orphanCleanupWindow, orphanCleanupMaxKeys, orphanCleanupMaxRunning = oldWindow, oldKeys, oldRunning
+	})
+}
+
+// TestCommonCache_OrphanCleanupWindowExpires pins that the per-key limit is a
+// window, not a one-off: once it has passed, the next miss cleans up again.
+func TestCommonCache_OrphanCleanupWindowExpires(t *testing.T) {
+	setOrphanCleanupLimits(t, 50*time.Millisecond, 16, 4)
+	c := setupTestCache(t)
+	store := &blockingDeleteStorage{Storage: c.storage}
+	c.storage = store
+
+	miss := func() {
+		if _, err := c.Exists(context.Background(), "/missing"); !errors.Is(err, ErrCacheNotFound) {
+			t.Fatalf("Exists = %v, want ErrCacheNotFound", err)
+		}
+		waitOrphanCleanups(t, c)
+	}
+	miss()
+	miss()
+	if got := store.deletes.Load(); got != 1 {
+		t.Fatalf("DeleteFile calls within the window = %d, want 1", got)
+	}
+	time.Sleep(60 * time.Millisecond)
+	miss()
+	if got := store.deletes.Load(); got != 2 {
+		t.Fatalf("DeleteFile calls after the window = %d, want 2", got)
+	}
+}
+
+// TestCommonCache_OrphanCleanupConcurrencyIsBounded pins that misses beyond the
+// running limit skip their cleanup instead of queueing it, and that a skipped
+// key is not remembered, so a later miss can still clean it up.
+func TestCommonCache_OrphanCleanupConcurrencyIsBounded(t *testing.T) {
+	const maxRunning = 3
+	setOrphanCleanupLimits(t, time.Minute, 64, maxRunning)
+	c := setupTestCache(t)
+	store := &blockingDeleteStorage{Storage: c.storage, release: make(chan struct{})}
+	c.storage = store
+
+	for i := range maxRunning + 5 {
+		if _, err := c.Exists(context.Background(), fmt.Sprintf("/missing-%d", i)); !errors.Is(err, ErrCacheNotFound) {
+			t.Fatalf("Exists = %v, want ErrCacheNotFound", err)
+		}
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for store.deletes.Load() < maxRunning && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	c.cleanups.mu.Lock()
+	running, remembered := c.cleanups.running, len(c.cleanups.recent)
+	c.cleanups.mu.Unlock()
+	if running != maxRunning || remembered != maxRunning {
+		t.Fatalf("running = %d, remembered = %d, want %d each", running, remembered, maxRunning)
+	}
+	close(store.release)
+	waitOrphanCleanups(t, c)
+	if got := store.deletes.Load(); got != maxRunning {
+		t.Fatalf("DeleteFile calls = %d, want %d", got, maxRunning)
+	}
+
+	// A key skipped for lack of capacity is cleaned up by its next miss.
+	if _, err := c.Exists(context.Background(), fmt.Sprintf("/missing-%d", maxRunning)); !errors.Is(err, ErrCacheNotFound) {
+		t.Fatalf("Exists = %v, want ErrCacheNotFound", err)
+	}
+	waitOrphanCleanups(t, c)
+	if got := store.deletes.Load(); got != maxRunning+1 {
+		t.Fatalf("DeleteFile calls after retry = %d, want %d", got, maxRunning+1)
+	}
+}
+
+// TestCommonCache_OrphanCleanupRecordIsBounded pins that the record of
+// recently cleaned keys stays within its cap, dropping the oldest keys first.
+func TestCommonCache_OrphanCleanupRecordIsBounded(t *testing.T) {
+	const maxKeys = 4
+	setOrphanCleanupLimits(t, time.Minute, maxKeys, 64)
+	c := setupTestCache(t)
+
+	for i := range 10 {
+		if _, err := c.Exists(context.Background(), fmt.Sprintf("/missing-%d", i)); !errors.Is(err, ErrCacheNotFound) {
+			t.Fatalf("Exists = %v, want ErrCacheNotFound", err)
+		}
+	}
+	waitOrphanCleanups(t, c)
+	c.cleanups.mu.Lock()
+	defer c.cleanups.mu.Unlock()
+	if len(c.cleanups.recent) != maxKeys || len(c.cleanups.order) != maxKeys {
+		t.Fatalf("record holds %d keys (%d ordered), want %d", len(c.cleanups.recent), len(c.cleanups.order), maxKeys)
+	}
+	for i := 10 - maxKeys; i < 10; i++ {
+		if _, ok := c.cleanups.recent[fmt.Sprintf("/missing-%d", i)]; !ok {
+			t.Fatalf("newest key /missing-%d was dropped", i)
+		}
 	}
 }

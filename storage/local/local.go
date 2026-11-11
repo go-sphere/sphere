@@ -428,9 +428,8 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 // The check is not atomic with that rename: a concurrent writer can create the
 // destination in the window between the two, and its content is then replaced
 // despite overwrite being off. The no-overwrite guarantee is therefore exact
-// against a single writer and best-effort against concurrent ones — the same
-// shape the s3 and kvcache drivers have, neither of which has an atomic
-// conditional write available either.
+// against a single writer and best-effort against concurrent ones, as it is
+// on the s3 and kvcache drivers.
 func (c *Client) checkOverwrite(path string, overwrite bool) error {
 	_, err := os.Stat(path)
 	if err != nil {

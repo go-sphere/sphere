@@ -9,8 +9,11 @@ package httpz
 // nil pointer/map/slice still appears as "data":null.
 type DataResponse[T any] struct {
 	Success bool `json:"success" default:"true"`
-	Code    int  `json:"code,omitempty" default:"0"`
-	Data    T    `json:"data"`
+	// Code is an optional application-specific code for a successful result.
+	// WithJson never sets it, so it is omitted unless a handler that builds
+	// the envelope itself fills it in.
+	Code int `json:"code,omitempty" default:"0"`
+	Data T   `json:"data"`
 }
 
 // ErrorResponse is the error envelope written by AbortWithJsonError.

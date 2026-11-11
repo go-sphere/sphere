@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 )
 
 type nopBackend struct{}
@@ -96,6 +97,18 @@ func (m *MultiBackend) Close() error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// SlogLogger implements SlogBackend with the slog bridge of the first child
+// that has one, passing options through. When no child has one it returns
+// slog.Default(), so installing the result leaves slog unchanged.
+func (m *MultiBackend) SlogLogger(options ...Option) *slog.Logger {
+	for _, b := range m.backends {
+		if sb, ok := b.(SlogBackend); ok {
+			return sb.SlogLogger(options...)
+		}
+	}
+	return slog.Default()
 }
 
 // With derives every child with options and combines the results with

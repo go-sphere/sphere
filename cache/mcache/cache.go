@@ -111,18 +111,40 @@ func (t *Map[K, S]) MultiSetWithTTL(ctx context.Context, valMap map[K]S, expirat
 	return nil
 }
 
+// Get reads under the read lock. An entry found past its TTL is reported as a
+// miss and deleted under the write lock, unless a concurrent write refreshed
+// it in between.
 func (t *Map[K, S]) Get(ctx context.Context, key K) (S, bool, error) {
-	t.rw.Lock()
-	defer t.rw.Unlock()
+	t.rw.RLock()
+	val, ok := t.store[key]
+	exp, hasTTL := t.expiration[key]
+	expired := hasTTL && time.Now().After(exp)
+	if ok && !expired {
+		val = cloneValue(val)
+	}
+	t.rw.RUnlock()
 
-	if exp, ok := t.expiration[key]; ok && time.Now().After(exp) {
-		delete(t.store, key)
-		delete(t.expiration, key)
+	if expired {
+		t.deleteExpired([]K{key})
 		var zeroValue S
 		return zeroValue, false, nil
 	}
-	val, ok := t.store[key]
-	return cloneValue(val), ok, nil
+	return val, ok, nil
+}
+
+// deleteExpired deletes each key that is still past its TTL once the write
+// lock is held. A key refreshed by a write since the caller's read is kept.
+func (t *Map[K, S]) deleteExpired(keys []K) {
+	t.rw.Lock()
+	defer t.rw.Unlock()
+
+	now := time.Now()
+	for _, key := range keys {
+		if exp, ok := t.expiration[key]; ok && now.After(exp) {
+			delete(t.store, key)
+			delete(t.expiration, key)
+		}
+	}
 }
 
 func (t *Map[K, S]) GetDel(ctx context.Context, key K) (S, bool, error) {
@@ -143,25 +165,28 @@ func (t *Map[K, S]) GetDel(ctx context.Context, key K) (S, bool, error) {
 	return cloneValue(val), ok, nil
 }
 
+// MultiGet reads under the read lock like Get; entries found past their TTL
+// are omitted and deleted under the write lock afterwards.
 func (t *Map[K, S]) MultiGet(ctx context.Context, keys []K) (map[K]S, error) {
-	t.rw.Lock()
-	defer t.rw.Unlock()
-
 	result := make(map[K]S, len(keys))
-	now := time.Now()
+	var expired []K
 
+	t.rw.RLock()
+	now := time.Now()
 	for _, key := range keys {
 		if exp, ok := t.expiration[key]; ok && now.After(exp) {
-			delete(t.store, key)
-			delete(t.expiration, key)
+			expired = append(expired, key)
 			continue
 		}
-
 		if val, ok := t.store[key]; ok {
 			result[key] = cloneValue(val)
 		}
 	}
+	t.rw.RUnlock()
 
+	if len(expired) > 0 {
+		t.deleteExpired(expired)
+	}
 	return result, nil
 }
 
@@ -254,6 +279,7 @@ func (t *Map[K, S]) Trim() {
 	}
 }
 
+// Exists reports whether key holds an unexpired entry, with Get's locking.
 func (t *Map[K, S]) Exists(ctx context.Context, key K) (bool, error) {
 	_, ok, err := t.Get(ctx, key)
 	return ok, err

@@ -51,9 +51,9 @@ type UploadAuthorization struct {
 	Value string `json:"value" yaml:"value"`
 	// Method is the HTTP method the client should use (PUT or POST).
 	Method string `json:"method" yaml:"method"`
-	// Headers is a reserved field for extra headers a client must send with the
-	// upload request. No driver populates it today; it is kept intentionally as a
-	// stable extension point, so do not remove it as "dead code".
+	// Headers are request headers the client must send with the upload exactly
+	// as given; they may be part of the authorization's signature. The s3
+	// driver sets Content-Type here; other drivers leave it empty.
 	Headers map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
 }
 
@@ -185,6 +185,11 @@ type FileLister interface {
 	// return a backend-specific marker, so never construct one. limit is an
 	// upper bound a driver may lower to its own maximum (Qiniu caps at 1000),
 	// so a short page does not mean the listing is finished either.
+	//
+	// Only keys already in NormalizeKey form are returned. A backend object
+	// whose key NormalizeKey rejects or rewrites, such as an S3 folder marker
+	// "a/" or a key "a//b" written by another tool, is skipped: every other
+	// method would resolve it to a different object.
 	ListFiles(ctx context.Context, prefix, cursor string, limit int) (keys []string, next string, err error)
 }
 

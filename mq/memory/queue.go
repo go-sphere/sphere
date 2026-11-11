@@ -6,13 +6,9 @@ import (
 	"sync"
 )
 
-var (
-	// ErrNoMessage is unused; TryConsume reports an empty queue as (zero, false, nil).
-	ErrNoMessage = errors.New("memory mq: no message available")
-	// ErrQueueClosed is returned after Close: Publish fails immediately;
-	// Consume and TryConsume return it once remaining messages are drained.
-	ErrQueueClosed = errors.New("memory mq: queue is closed")
-)
+// ErrQueueClosed is returned after Close: Publish fails immediately;
+// Consume and TryConsume return it once remaining messages are drained.
+var ErrQueueClosed = errors.New("memory mq: queue is closed")
 
 // Queue implements an in-memory point-to-point message queue with typed message support.
 // It provides FIFO message delivery to exactly one consumer per topic. Topics
