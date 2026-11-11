@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"slices"
 	"time"
 
 	"github.com/go-sphere/httpx"
@@ -18,9 +19,10 @@ import (
 // Duration attributes are http.request.method (non-standard methods become
 // "_OTHER"), http.route (the matched pattern, or [UnmatchedRoute]),
 // http.response.status_code, error.type for 5xx or "panic", and url.scheme when
-// [WithURLScheme] is set. The status is the one [NewTracing] records. On a
-// panic the duration is recorded with error.type "panic" and no status, the
-// in-flight count is restored, and the panic continues.
+// [WithURLScheme] is set. The status is the one [NewTracing] records, and like
+// the span a request failed by its own client's cancellation gets no
+// error.type. On a panic the duration is recorded with error.type "panic" and
+// no status, the in-flight count is restored, and the panic continues.
 //
 // Instruments come from the meter provider (the global one by default) unless
 // replaced with [WithDurationHistogram] or [WithActiveRequests]; passing nil
@@ -58,6 +60,19 @@ func NewMetrics(opts ...Option) (httpx.Middleware, error) {
 	if dur == nil && active == nil {
 		return func(next httpx.Handler) httpx.Handler { return next }, nil
 	}
+	// The in-flight attributes depend only on the normalized method, so their
+	// sets are built once here rather than on every request.
+	var activeOpts map[string]metric.AddOption
+	if active != nil {
+		activeOpts = make(map[string]metric.AddOption, len(standardMethods)+1)
+		for _, m := range append(slices.Clone(standardMethods), otherMethod) {
+			kvs := []attribute.KeyValue{methodAttr(m)}
+			if cfg.scheme != "" {
+				kvs = append(kvs, schemeAttr(cfg.scheme))
+			}
+			activeOpts[m] = metric.WithAttributeSet(attribute.NewSet(kvs...))
+		}
+	}
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
 			if cfg.skip != nil && cfg.skip(ctx) {
@@ -69,12 +84,7 @@ func NewMetrics(opts ...Option) (httpx.Middleware, error) {
 
 			var activeOpt metric.AddOption
 			if active != nil && active.Enabled(rc) {
-				kvs := make([]attribute.KeyValue, 0, 2)
-				kvs = append(kvs, methodAttr(method))
-				if cfg.scheme != "" {
-					kvs = append(kvs, schemeAttr(cfg.scheme))
-				}
-				activeOpt = metric.WithAttributeSet(attribute.NewSet(kvs...))
+				activeOpt = activeOpts[method]
 				active.Add(rc, 1, activeOpt)
 			}
 
@@ -100,7 +110,7 @@ func NewMetrics(opts ...Option) (httpx.Middleware, error) {
 						kvs = append(kvs, statusAttr(status))
 					}
 				}
-				if kv, ok := errorTypeAttr(status, panicked); ok {
+				if kv, ok := errorTypeAttr(status, panicked); ok && (panicked || !clientCanceled(ctx, err)) {
 					kvs = append(kvs, kv)
 				}
 				if cfg.scheme != "" {

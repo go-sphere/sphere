@@ -88,3 +88,14 @@ func waitWaiters(t *testing.T, s *Scheduler, n int) {
 	}
 	t.Fatalf("stop waiters did not reach %d", n)
 }
+
+// TestWithLoggerNilIsIgnored pins that WithLogger(nil) keeps the default
+// adapter. robfig's SkipIfStillRunning logs outside any recover in the job
+// goroutine, so a nil logger would crash the process on the first overlap.
+func TestWithLoggerNilIsIgnored(t *testing.T) {
+	o := options{logger: cronLogger{}}
+	WithLogger(nil)(&o)
+	if o.logger == nil {
+		t.Fatal("WithLogger(nil) replaced the default logger with nil")
+	}
+}

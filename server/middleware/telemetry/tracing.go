@@ -17,7 +17,9 @@ const scopeName = "github.com/go-sphere/sphere/server/middleware/telemetry"
 func newConfig(opts []Option) *config {
 	c := &config{}
 	for _, opt := range opts {
-		opt(c)
+		if opt != nil {
+			opt(c)
+		}
 	}
 	return c
 }

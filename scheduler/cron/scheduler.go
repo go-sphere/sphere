@@ -178,12 +178,11 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		return scheduler.ErrAfterStart
 	}
 
-	// Handlers get a context of their own instead of runCtx. task.Group cancels
-	// the context it passes to Start before it invokes Stop, so deriving handler
-	// contexts from it handed every in-flight job a dead context the moment
-	// shutdown began and reduced the drain below to a formality. WithoutCancel
-	// keeps the parent's values but not its cancellation; cancelRun releases the
-	// handlers once the drain has finished.
+	// Handlers get a context of their own instead of runCtx: task.Group cancels
+	// the context it passes to Start before it invokes Stop, and in-flight jobs
+	// must keep a live context while Stop drains them. WithoutCancel keeps the
+	// parent's values but not its cancellation; cancelRun releases the handlers
+	// once the drain has finished.
 	runCtx, cancel := context.WithCancel(ctx)
 	handlerCtx, handlerCancel := context.WithCancel(context.WithoutCancel(ctx))
 	s.handlerCtx = handlerCtx
@@ -193,11 +192,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Unlock()
 
 	<-runCtx.Done()
-	// Stop is the cleanup half of the Task contract. Returning here lets the
-	// runner (Group, boot.Run) apply its shutdown budget to Stop. A Start that
-	// called Stop with a detached context made that budget unreachable: the
-	// runner waited on Start, which waited on an unbounded drain. Cancelling
-	// the parent context without Stop leaves the runtime live — call Stop.
+	// Stop is the cleanup half of the Task contract. Returning here instead of
+	// draining lets the runner (Group, boot.Run) apply its shutdown budget to
+	// Stop. Cancelling the parent context without Stop leaves the runtime live.
 	return runCtx.Err()
 }
 

@@ -479,3 +479,11 @@ func TestNewOptionsDefaultCache(t *testing.T) {
 		}
 	})
 }
+
+func TestNewOptionsSkipsNilOptions(t *testing.T) {
+	custom := &errCache{}
+	opts := newOptions(nil, WithCache(custom), nil)
+	if opts.cache != cache.Cache[*rate.Limiter](custom) || opts.setTimeout != 5*time.Second {
+		t.Fatalf("options = %+v, want the custom cache and the default timeout", opts)
+	}
+}

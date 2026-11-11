@@ -27,9 +27,8 @@ type Config struct {
 
 const (
 	// defaultFileMode is applied to newly created files. Writes go through
-	// os.CreateTemp, which opens at 0o600, so the mode is set explicitly to stay
-	// consistent with the os.Create-based writes this replaced. Overwrites keep
-	// the existing file's permissions instead.
+	// os.CreateTemp, which opens at 0o600, so the mode is set explicitly.
+	// Overwrites keep the existing file's permissions instead.
 	defaultFileMode os.FileMode = 0o644
 	// tmpFilePrefix marks the in-progress temporary files written by
 	// writeFileAtomic. ListFiles hides them so a crash mid-write cannot leave
@@ -177,10 +176,8 @@ func (c *Client) fixFilePath(key string) (string, error) {
 // already replaced what was there): the write happened, but it may not survive
 // a power loss.
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
-	// Returned below instead of the caller's original: this driver stores under
-	// the normalized form, and handing back the raw key meant a value persisted
-	// by the caller resolved here — where it was normalized again on the way in —
-	// but addressed nothing on a backend that keeps keys verbatim.
+	// The normalized key is the one returned: it addresses this object on
+	// every driver, while the caller's spelling may not.
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
@@ -273,10 +270,11 @@ func (c *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 // forward slashes and are returned in lexical order. The cursor is exclusive:
 // pass the previous next value to resume after the last returned key.
 //
-// Every call walks and sorts the whole root directory before applying the
-// cursor, so paging a large tree costs O(total files) per page. That is
-// acceptable for the local driver's development and small-deployment use, but
-// it does not scale the way the object-store drivers' native listings do.
+// Every call walks the directories that can hold keys under prefix (others are
+// skipped) and sorts all matching keys before applying the cursor, so a page
+// costs O(matching files) rather than O(limit). That is acceptable for the
+// local driver's development and small-deployment use, but it does not scale
+// the way the object-store drivers' native listings do.
 // Symlinks are skipped: the walk only reports regular files, even though a
 // symlink to one inside the root remains readable through DownloadFile.
 func (c *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int) ([]string, string, error) {
@@ -340,7 +338,7 @@ func (c *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 	}
 	sort.Strings(all)
 
-	keys := make([]string, 0, limit)
+	keys := make([]string, 0, min(limit, len(all)))
 	next := ""
 	for _, key := range all {
 		if cursor != "" && key <= cursor {

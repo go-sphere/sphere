@@ -64,7 +64,10 @@ func (cp *ChanPool[T]) Get() T {
 }
 
 // Put retains obj if Accept allows it, Reset has run, and the pool is neither
-// closed nor full. False means the object was not pooled and Close was not called.
+// closed nor full. False means the object was not pooled and Close was not
+// called. Reset runs before the closed and full checks, so a false result
+// after Accept passed means obj was already reset and Reset's result was
+// dropped.
 func (cp *ChanPool[T]) Put(obj T) bool {
 	if cp.accept != nil && !cp.accept(obj) {
 		return false

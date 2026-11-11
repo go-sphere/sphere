@@ -404,6 +404,35 @@ func TestWithRecoverAfterCommit(t *testing.T) {
 	}
 }
 
+// TestWrappersSuccessAfterCommit pins that a handler which wrote the response
+// itself and then returned successfully gets no envelope appended to it.
+func TestWrappersSuccessAfterCommit(t *testing.T) {
+	cases := map[string]httpx.Handler{
+		"WithJson": WithJson(func(ctx httpx.Context) (any, error) {
+			_ = ctx.Text(http.StatusOK, "sent")
+			return nil, nil
+		}),
+		"WithText": WithText(func(ctx httpx.Context) (string, error) {
+			_ = ctx.Text(http.StatusOK, "sent")
+			return "", nil
+		}),
+	}
+	for name, handler := range cases {
+		t.Run(name, func(t *testing.T) {
+			ctx := httpxmock.New(nil)
+			if err := handler(ctx); err != nil {
+				t.Fatalf("handler: %v", err)
+			}
+			if got := ctx.BodyString(); got != "sent" {
+				t.Errorf("body = %q, want %q", got, "sent")
+			}
+			if n := len(ctx.Writes()); n != 1 {
+				t.Errorf("writes = %d, want 1", n)
+			}
+		})
+	}
+}
+
 // TestAbortWithJsonErrorAfterCommit pins the guard on the engine error-handler
 // path too, where AbortWithJsonError is called directly.
 func TestAbortWithJsonErrorAfterCommit(t *testing.T) {

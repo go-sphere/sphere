@@ -2,12 +2,14 @@ package httpz
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 )
 
 // Fs returns a fs.FS from a local directory if it exists, otherwise from
-// fs.Sub(files, emPath). It errors when neither source is usable.
+// fs.Sub(files, emPath). It errors when neither source is usable, including
+// when emPath does not name a directory in files.
 //
 // local is ignored when empty, missing, or not a directory. The usual pattern
 // serves an embedded asset tree in production and lets a developer override it
@@ -34,6 +36,15 @@ func Fs(local string, files fs.FS, emPath string) (fs.FS, error) {
 		sub, err := fs.Sub(files, emPath)
 		if err != nil {
 			return nil, err
+		}
+		// fs.Sub only validates the path syntax; a misspelled emPath would
+		// otherwise yield an empty tree that answers 404 for everything.
+		info, err := fs.Stat(sub, ".")
+		if err != nil {
+			return nil, err
+		}
+		if !info.IsDir() {
+			return nil, fmt.Errorf("embedded path %q is not a directory", emPath)
 		}
 		return sub, nil
 	}

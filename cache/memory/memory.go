@@ -12,8 +12,15 @@ import (
 )
 
 const (
-	defaultMaxCost     = 1 << 30 // 1GB
-	defaultNumCounters = 1e7
+	// defaultMaxCost is in the unit of the cache's cost: 2^30 items for
+	// NewMemoryCache, 2^30 value bytes (1 GiB) for NewByteCache, and whatever
+	// the cost function measures for NewMemoryCacheWithCost.
+	defaultMaxCost = 1 << 30
+	// defaultNumCounters sizes ristretto's admission counters, which are
+	// allocated up front (about 4 MB per cache at this size). ristretto
+	// recommends 10x the expected item count, so this suits caches of up to
+	// about 100k live entries; use NewMemoryCacheWithRistretto for larger ones.
+	defaultNumCounters = 1e6
 	defaultBufferItems = 64
 	numGetDelShards    = 128
 )

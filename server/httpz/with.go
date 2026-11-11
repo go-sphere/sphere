@@ -73,12 +73,16 @@ func WithRecover(message string, handler func(ctx httpx.Context) error) httpx.Ha
 //
 // The success status is 200 unless the handler set a status in the 200–599
 // range through ctx.Status (for example 201). A status of 204 or 304 is
-// written with no body instead of the envelope.
+// written with no body instead of the envelope. When the handler already
+// committed the response itself (a redirect, a file), nothing more is written.
 func WithJson[T any](handler func(ctx httpx.Context) (T, error)) httpx.Handler {
 	return WithRecover("WithJson panic", func(ctx httpx.Context) error {
 		data, err := handler(ctx)
 		if err != nil {
 			return err
+		}
+		if ctx.Committed() {
+			return nil
 		}
 		// Respect a status code the handler may have set via ctx.Status
 		// (e.g. 201 Created); StatusCode is part of the httpx.Context contract.
@@ -102,12 +106,17 @@ func WithJson[T any](handler func(ctx httpx.Context) (T, error)) httpx.Handler {
 // WithText wraps a (string, error) handler as an httpx handler that writes
 // the string as a text response with status 200 on success and
 // AbortWithJsonError on failure. Unlike WithJson it does not honor a status set
-// through ctx.Status. Panics are handled as described on WithRecover.
+// through ctx.Status. As with WithJson, nothing is written when the handler
+// already committed the response. Panics are handled as described on
+// WithRecover.
 func WithText(handler func(ctx httpx.Context) (string, error)) httpx.Handler {
 	return WithRecover("WithText panic", func(ctx httpx.Context) error {
 		data, err := handler(ctx)
 		if err != nil {
 			return err
+		}
+		if ctx.Committed() {
+			return nil
 		}
 		return ctx.Text(200, data)
 	})

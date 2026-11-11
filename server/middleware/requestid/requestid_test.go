@@ -96,3 +96,10 @@ func TestCustomHeaderAndGenerator(t *testing.T) {
 		t.Fatalf("header = %q", got)
 	}
 }
+
+func TestNilOptionIsSkipped(t *testing.T) {
+	t.Parallel()
+	if _, s := run(t, "client-id", nil); s.ctx != "client-id" {
+		t.Fatalf("id = %q, want the client-supplied one", s.ctx)
+	}
+}

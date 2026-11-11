@@ -199,15 +199,19 @@ type FileDeleter interface {
 // FileMoverCopier provides file moving and copying operations within the storage backend.
 type FileMoverCopier interface {
 	// MoveFile relocates a file from source to destination key.
-	// A missing source fails with storageerr.ErrNotFound. If overwrite is false
-	// and the destination exists, it fails with storageerr.ErrDestExists; the
-	// check is best-effort against concurrent writers on most drivers. Moving a
-	// key onto itself is a no-op when the source exists.
+	// A missing source fails with storageerr.ErrNotFound, even when the
+	// destination exists. If overwrite is false and the destination exists, it
+	// fails with storageerr.ErrDestExists; the check is best-effort against
+	// concurrent writers on most drivers. Moving a key onto itself is a no-op
+	// when the source exists.
 	MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error
 
 	// CopyFile duplicates a file from source to destination key.
-	// A missing source fails with storageerr.ErrNotFound. If overwrite is false
-	// and the destination exists, it fails with storageerr.ErrDestExists.
+	// A missing source fails with storageerr.ErrNotFound, even when the
+	// destination exists. If overwrite is false and the destination exists, it
+	// fails with storageerr.ErrDestExists. Copying a key onto itself leaves the
+	// object unchanged: it succeeds with overwrite and fails with
+	// storageerr.ErrDestExists without.
 	CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error
 }
 

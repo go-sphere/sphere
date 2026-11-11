@@ -62,6 +62,8 @@ const (
 	defaultPartSize = 16 << 20
 	// minPartSize is the smallest part S3 accepts.
 	minPartSize = 5 << 20
+	// maxListKeys is the most keys S3 returns per ListObjectsV2 request.
+	maxListKeys = 1000
 )
 
 // Client is a minio-go storage.CDNStorage: presigned PUT upload auth and
@@ -223,8 +225,10 @@ func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 		Prefix:     strings.TrimPrefix(prefix, "/"),
 		StartAfter: strings.TrimPrefix(cursor, "/"),
 		Recursive:  true,
+		// One key past the page is enough to tell whether more remain.
+		MaxKeys: min(limit, maxListKeys-1) + 1,
 	})
-	keys := make([]string, 0, limit)
+	keys := make([]string, 0, min(limit, maxListKeys))
 	next := ""
 	for object := range ch {
 		if object.Err != nil {
@@ -348,8 +352,10 @@ func (s *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 }
 
 // CopyFile duplicates a file from source to destination key within the S3 bucket.
-// A missing source fails with storageerr.ErrNotFound and an existing
-// destination with overwrite false fails with storageerr.ErrDestExists.
+// A missing source fails with storageerr.ErrNotFound, even when the
+// destination exists, and an existing destination with overwrite false fails
+// with storageerr.ErrDestExists. Copying a key onto itself leaves the object
+// unchanged and makes no copy request.
 //
 // When overwrite is false the destination is checked with a separate stat call
 // before copying. The S3 CopyObject API has no portable conditional (there is
@@ -365,10 +371,15 @@ func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return err
 	}
+	// S3 rejects a copy of an object onto itself that changes no metadata, so
+	// the result is decided without one: the destination is the source.
+	if sourceKey == destinationKey {
+		return s.existingDestinationResult(ctx, sourceKey, overwrite)
+	}
 	if !overwrite {
 		_, err := s.client.StatObject(ctx, s.config.Bucket, destinationKey, minio.StatObjectOptions{})
 		if err == nil {
-			return storageerr.ErrDestExists
+			return s.existingDestinationResult(ctx, sourceKey, false)
 		}
 		if !isNoSuchKeyError(err) {
 			return err
@@ -386,6 +397,23 @@ func (s *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 			return storageerr.ErrNotFound
 		}
 		return err
+	}
+	return nil
+}
+
+// existingDestinationResult is the outcome of a copy whose destination already
+// exists, without performing it: storageerr.ErrNotFound when sourceKey is
+// missing, storageerr.ErrDestExists when overwrite is false, otherwise nil.
+func (s *Client) existingDestinationResult(ctx context.Context, sourceKey string, overwrite bool) error {
+	exists, err := s.IsFileExists(ctx, sourceKey)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return storageerr.ErrNotFound
+	}
+	if !overwrite {
+		return storageerr.ErrDestExists
 	}
 	return nil
 }

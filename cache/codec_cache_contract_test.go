@@ -96,6 +96,29 @@ func TestCodecCacheCorruptEntry(t *testing.T) {
 	}
 }
 
+// TestCodecCacheGetDelCorruptEntry pins that GetDel consumes an undecodable
+// entry and reports it like Get does: ErrDecode and the zero value, never a
+// partially decoded one, but found=true because the entry is gone.
+func TestCodecCacheGetDelCorruptEntry(t *testing.T) {
+	t.Parallel()
+
+	type pair struct {
+		A int
+		B string
+	}
+	ctx := t.Context()
+	inner := mcache.NewByteCache()
+	typed := cache.NewJsonCache[pair](inner)
+	// A decodes before B fails, so a partial decode would leave A set.
+	seedRaw(t, inner, map[string]string{"bad": `{"A":7,"B":3}`})
+
+	val, found, err := typed.GetDel(ctx, "bad")
+	if !errors.Is(err, cache.ErrDecode) || !found || val != (pair{}) {
+		t.Fatalf("GetDel(bad) = (%+v, %v, %v), want (zero, true, ErrDecode)", val, found, err)
+	}
+	assertExists(t, inner, "bad", false)
+}
+
 func TestCodecCacheBackendReadErrors(t *testing.T) {
 	t.Parallel()
 

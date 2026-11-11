@@ -15,10 +15,10 @@ import (
 
 // ErrDecode wraps the codec error returned when a stored entry exists but
 // cannot be decoded into the requested type (an older schema, or another type
-// sharing the key). GetObject, GetJson and CodecCache.Get return it joined with
-// the codec's own error, so errors.Is(err, ErrDecode) and errors.As on the
-// codec error type both work. The read-through loaders (GetEx, GetObjectEx,
-// GetJsonEx) treat it as a miss.
+// sharing the key). GetObject, GetJson, CodecCache.Get and CodecCache.GetDel
+// return it joined with the codec's own error, so errors.Is(err, ErrDecode) and
+// errors.As on the codec error type both work. The read-through loaders (GetEx,
+// GetObjectEx, GetJsonEx) treat it as a miss.
 var ErrDecode = errors.New("cache: undecodable entry")
 
 func decodeError(err error) error {
@@ -79,6 +79,10 @@ func WithNeverExpire() Option {
 
 // WithSingleflight enables singleflight to prevent duplicate concurrent cache loads for the same key.
 // This helps reduce redundant work when multiple goroutines request the same uncached data simultaneously.
+//
+// A caller whose ctx ends while it waits returns ctx.Err() with found=false;
+// the shared build and its cache write keep running for the other callers,
+// the write under the starting caller's ctx without its cancellation.
 //
 // Calls are deduplicated by cache key alone, so a group must not be shared
 // between loads of different value types (the merged result is asserted to T
@@ -258,29 +262,69 @@ func load[T any](
 		var zero T
 		return zero, false, nil
 	}
-	build := func() (T, error) {
+	if opts.singleflight != nil {
+		newObj, err := loadShared(ctx, opts.singleflight, key, setter, builder, options...)
+		return newObj, err == nil, err
+	}
+	newObj, err := builder()
+	if err == nil {
+		_ = setter(ctx, key, newObj, options...)
+	}
+	return newObj, err == nil, err
+}
+
+// loadShared runs builder at most once per key across concurrent callers of
+// group and stores its result. The shared build runs on its own goroutine and
+// writes under ctx stripped of cancellation, so a caller whose ctx ends stops
+// waiting with ctx.Err() while the build and write still complete for the
+// callers that remain. A builder panic is re-raised in every waiting caller.
+func loadShared[T any](
+	ctx context.Context,
+	group *singleflight.Group,
+	key string,
+	setter func(context.Context, string, T, ...Option) error,
+	builder FetchCached[T],
+	options ...Option,
+) (T, error) {
+	writeCtx := context.WithoutCancel(ctx)
+	ch := group.DoChan(key, func() (val any, err error) {
+		// DoChan re-panics on a fresh goroutine, which no caller can recover,
+		// so carry the panic back to the callers instead.
+		defer func() {
+			if r := recover(); r != nil {
+				err = &builderPanic{value: r}
+			}
+		}()
 		nObj, err := builder()
 		if err == nil {
-			_ = setter(ctx, key, nObj, options...)
+			_ = setter(writeCtx, key, nObj, options...)
 		}
 		return nObj, err
-	}
-	if opts.singleflight != nil {
-		originBuild := build
-		build = func() (T, error) {
-			val, err, _ := opts.singleflight.Do(key, func() (any, error) {
-				return originBuild()
-			})
-			if err != nil {
-				var zero T
-				return zero, err
-			}
-			// val is a nil any when T is an interface type and the builder
-			// returned nil, so a plain assertion would panic.
-			obj, _ := val.(T)
-			return obj, nil
+	})
+	var zero T
+	select {
+	case res := <-ch:
+		if p, ok := res.Err.(*builderPanic); ok {
+			panic(p.value)
 		}
+		if res.Err != nil {
+			return zero, res.Err
+		}
+		// Val is a nil any when T is an interface type and the builder
+		// returned nil, so a plain assertion would panic.
+		obj, _ := res.Val.(T)
+		return obj, nil
+	case <-ctx.Done():
+		return zero, ctx.Err()
 	}
-	newObj, err := build()
-	return newObj, err == nil, err
+}
+
+// builderPanic carries a panic out of a shared build so it can be re-raised
+// in the calling goroutines.
+type builderPanic struct {
+	value any
+}
+
+func (p *builderPanic) Error() string {
+	return fmt.Sprintf("cache: builder panicked: %v", p.value)
 }

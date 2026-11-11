@@ -24,9 +24,8 @@ const maxWorkerID uint64 = 63
 // It is deliberately not time.Date(2024, 1, 1, 0, 0, 0, 0, time.Local). Which
 // zone that evaluates in is decided by the host's TZ, by whether the image ships
 // tzdata, and by whether main has called boot.InitTimezone by the time it is
-// evaluated (before v0.0.7 boot also assigned time.Local from its own package
-// init, so import order decided it too), so one instant maps to ticks up to 26
-// hours apart across processes.
+// evaluated, so one instant maps to ticks up to 26 hours apart across
+// processes.
 // Two processes (or one process across a restart) running the same WORKER_ID
 // then issue the same (tick, worker, sequence) triple twice, which is the one
 // thing this package promises not to do.

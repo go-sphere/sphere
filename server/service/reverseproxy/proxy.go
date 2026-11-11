@@ -120,24 +120,25 @@ type Options struct {
 	saveTimeout  time.Duration
 }
 
-// Option configures CreateCacheReverseProxy.
+// Option configures CreateCacheReverseProxy. A nil Option is ignored.
 type Option = func(*Options)
 
-// defaultCacheKey keys on the request URI alone. Rewrite preserves the
-// inbound Host towards the upstream, so an instance fronting name-based
-// virtual hosts would mix their entries under this default — such deployments
-// must supply a WithCacheKeyFunc that includes request.Host.
+// defaultCacheKey keys GET requests on the inbound Host followed by the request
+// URI. The Host belongs in the key because the client chooses it and the proxy
+// forwards it upstream as X-Forwarded-Host: an upstream that builds URLs from
+// that header would otherwise let one request with a forged Host store the
+// response every other client is served.
 func defaultCacheKey(request *http.Request) string {
 	if request.Method != http.MethodGet {
 		return ""
 	}
-	return request.URL.RequestURI()
+	return request.Host + request.URL.RequestURI()
 }
 
 // defaultResponseCacheCheck decides whether a response may enter a cache that is
-// shared by every client. The cache key is derived from the request URI alone,
-// so anything stored here is replayable by an anonymous caller — which makes
-// "is this response private?" the only question that matters.
+// shared by every client. The cache key is derived from the request's Host and
+// URI alone, so anything stored here is replayable by an anonymous caller —
+// which makes "is this response private?" the only question that matters.
 //
 // A request carrying credentials is assumed to produce a user-specific
 // response, and an upstream that says no-store, private, no-cache, immediately
@@ -232,7 +233,9 @@ func newOptions(opts ...Option) *Options {
 		saveTimeout: defaultSaveTimeout,
 	}
 	for _, opt := range opts {
-		opt(conf)
+		if opt != nil {
+			opt(conf)
+		}
 	}
 	return conf
 }
@@ -253,24 +256,21 @@ func WithSaveTimeout(timeout time.Duration) Option {
 }
 
 // WithTargetURL sets the upstream URL and installs a default director when none is set.
-// The default director rewrites scheme and host and strips Origin, Referer, and Accept-Encoding.
+// The proxy itself points the request URL at the target. The default director
+// sets the outbound Host to the target's host and strips Origin, Referer, and
+// Accept-Encoding. The last WithTargetURL wins.
 func WithTargetURL(target *url.URL) Option {
 	return func(config *Options) {
 		config.target = target
 		if config.director == nil {
 			config.director = func(request *http.Request) {
-				request.URL.Scheme = target.Scheme
-				request.URL.Host = target.Host
-				request.Host = target.Host
+				// Read at call time, not captured, so a later WithTargetURL wins.
+				if config.target != nil {
+					request.Host = config.target.Host
+				}
 				request.Header.Del("Origin")          // remove origin header
 				request.Header.Del("Referer")         // remove referer header
 				request.Header.Del("Accept-Encoding") // remove gzip encoding
-				//request.Header.Set("Origin", target.Scheme+"://"+target.Host)
-				//request.Header.Set("Referer", target.Scheme+"://"+target.Host)
-				//request.URL.Path = target.Path + request.URL.Path
-				//if request.URL.RawQuery != "" {
-				//	request.URL.Path += "?" + request.URL.RawQuery
-				//}
 			}
 		}
 	}
@@ -488,7 +488,7 @@ type ServeOptions struct {
 	errorHandler func(http.ResponseWriter, *http.Request, error)
 }
 
-// ServeOption configures ServeCacheReverseProxy.
+// ServeOption configures ServeCacheReverseProxy. A nil ServeOption is ignored.
 type ServeOption = func(*ServeOptions)
 
 func newServeOptions(opts ...ServeOption) *ServeOptions {
@@ -504,7 +504,9 @@ func newServeOptions(opts ...ServeOption) *ServeOptions {
 		},
 	}
 	for _, opt := range opts {
-		opt(conf)
+		if opt != nil {
+			opt(conf)
+		}
 	}
 	return conf
 }

@@ -28,8 +28,9 @@ func TestDefaultCacheKey(t *testing.T) {
 		target string
 		want   string
 	}{
-		{name: "GET path", method: http.MethodGet, target: "/items", want: "/items"},
-		{name: "GET query", method: http.MethodGet, target: "/items?page=2&owner=alice", want: "/items?page=2&owner=alice"},
+		{name: "GET path", method: http.MethodGet, target: "/items", want: "example.com/items"},
+		{name: "GET query", method: http.MethodGet, target: "/items?page=2&owner=alice", want: "example.com/items?page=2&owner=alice"},
+		{name: "GET host", method: http.MethodGet, target: "http://api.example.com:8080/items", want: "api.example.com:8080/items"},
 		{name: "HEAD bypasses cache", method: http.MethodHead, target: "/items?page=2", want: ""},
 		{name: "POST bypasses cache", method: http.MethodPost, target: "/items?page=2", want: ""},
 	}
@@ -132,7 +133,7 @@ func TestServeCacheReverseProxy_PathRewritingDirectorStillHitsCache(t *testing.T
 	// before issuing the second request.
 	deadline := time.Now().Add(2 * time.Second)
 	for {
-		exists, err := cache.Exists(context.Background(), "/public/doc")
+		exists, err := cache.Exists(context.Background(), "example.com/public/doc")
 		if err == nil && exists {
 			break
 		}
@@ -180,7 +181,7 @@ func TestServeCacheReverseProxy_NonGETNotCached(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", rec.Code)
 	}
 
-	exists, err := cache.Exists(req.Context(), "/api/data")
+	exists, err := cache.Exists(req.Context(), "example.com/api/data")
 	if err != nil && !errors.Is(err, ErrCacheNotFound) {
 		t.Fatalf("Exists(non-GET key): %v", err)
 	}
@@ -192,7 +193,7 @@ func TestServeCacheReverseProxy_NonGETNotCached(t *testing.T) {
 func TestServeCacheReverseProxy_NonGETDoesNotReplayGETCache(t *testing.T) {
 	cache := setupTestCache(t)
 	ctx := context.Background()
-	if err := cache.Save(ctx, "/api/data?scope=all", http.Header{}, strings.NewReader("cached GET")); err != nil {
+	if err := cache.Save(ctx, "example.com/api/data?scope=all", http.Header{}, strings.NewReader("cached GET")); err != nil {
 		t.Fatalf("seed cache: %v", err)
 	}
 
@@ -224,7 +225,7 @@ func TestServeCacheReverseProxy_NonGETDoesNotReplayGETCache(t *testing.T) {
 func TestServeCacheReverseProxy_QueryParametersAreIsolated(t *testing.T) {
 	cache := setupTestCache(t)
 	ctx := context.Background()
-	if err := cache.Save(ctx, "/search?user=alice", http.Header{}, strings.NewReader("alice cache")); err != nil {
+	if err := cache.Save(ctx, "example.com/search?user=alice", http.Header{}, strings.NewReader("alice cache")); err != nil {
 		t.Fatalf("seed cache: %v", err)
 	}
 
@@ -376,7 +377,7 @@ func TestServeCacheReverseProxy_CacheHitPreservesStatus(t *testing.T) {
 		"Content-Type":    []string{"text/plain"},
 		cacheStatusHeader: []string{strconv.Itoa(http.StatusInternalServerError)},
 	}
-	if err := cache.Save(ctx, "/status", header, strings.NewReader("cached error body")); err != nil {
+	if err := cache.Save(ctx, "example.com/status", header, strings.NewReader("cached error body")); err != nil {
 		t.Fatalf("Failed to save cache: %v", err)
 	}
 
@@ -416,7 +417,7 @@ func TestServeCacheReverseProxy_CacheHitRejectsInvalidStatus(t *testing.T) {
 				"Content-Type":    []string{"text/plain"},
 				cacheStatusHeader: []string{poisoned},
 			}
-			if err := cache.Save(ctx, "/poisoned", header, strings.NewReader("cached body")); err != nil {
+			if err := cache.Save(ctx, "example.com/poisoned", header, strings.NewReader("cached body")); err != nil {
 				t.Fatalf("Failed to save cache: %v", err)
 			}
 
@@ -760,8 +761,8 @@ func TestCacheSaveFailureDoesNotTruncateResponse(t *testing.T) {
 // this and a nil call in the request goroutine.
 func TestServeCacheHitCopyErrorDoesNotPanic(t *testing.T) {
 	cache := setupTestCache(t)
-	key := "/cached-body"
-	if err := cache.Save(context.Background(), key, http.Header{}, strings.NewReader("cached payload")); err != nil {
+	const path = "/cached-body"
+	if err := cache.Save(context.Background(), "example.com"+path, http.Header{}, strings.NewReader("cached payload")); err != nil {
 		t.Fatalf("seeding the cache failed: %v", err)
 	}
 
@@ -773,7 +774,7 @@ func TestServeCacheHitCopyErrorDoesNotPanic(t *testing.T) {
 	// No WithServeErrorHandler: the default must absorb the write failure.
 	handler := ServeCacheReverseProxy(cache, proxy)
 
-	req := httptest.NewRequest(http.MethodGet, key, nil)
+	req := httptest.NewRequest(http.MethodGet, path, nil)
 	handler(&failingResponseWriter{header: http.Header{}}, req)
 }
 
@@ -790,6 +791,19 @@ func (f *failingResponseWriter) Write([]byte) (int, error) {
 }
 
 func (f *failingResponseWriter) WriteHeader(int) {}
+
+func TestNilOptionsAreSkipped(t *testing.T) {
+	t.Parallel()
+
+	opts := newOptions(nil, WithSaveTimeout(time.Second), nil)
+	if opts.saveTimeout != time.Second || opts.keygen == nil || opts.checker == nil || opts.errorHandler == nil {
+		t.Fatalf("options lost a default or the explicit timeout: %+v", opts)
+	}
+	serveOpts := newServeOptions(nil, nil)
+	if serveOpts.keygen == nil || serveOpts.errorHandler == nil {
+		t.Fatalf("serve options lost a default: %+v", serveOpts)
+	}
+}
 
 func TestWithSaveTimeout(t *testing.T) {
 	t.Parallel()
@@ -850,6 +864,95 @@ func TestWithDirector(t *testing.T) {
 	}
 }
 
+// TestWithTargetURL_LastWins pins that the default director routes to the
+// target in effect when the request is proxied, so a later WithTargetURL fully
+// replaces an earlier one instead of leaving the first target's host behind.
+func TestWithTargetURL_LastWins(t *testing.T) {
+	var firstCalls, secondCalls atomic.Int32
+	var secondHost string
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		firstCalls.Add(1)
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		secondCalls.Add(1)
+		secondHost = r.Host
+	}))
+	defer second.Close()
+
+	firstURL, _ := url.Parse(first.URL)
+	secondURL, _ := url.Parse(second.URL)
+	proxy, err := CreateCacheReverseProxy(setupTestCache(t), WithTargetURL(firstURL), WithTargetURL(secondURL))
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+
+	proxy.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/x", nil))
+
+	if firstCalls.Load() != 0 || secondCalls.Load() != 1 {
+		t.Fatalf("calls: first=%d second=%d, want 0 and 1", firstCalls.Load(), secondCalls.Load())
+	}
+	if secondHost != secondURL.Host {
+		t.Fatalf("upstream Host = %q, want %q", secondHost, secondURL.Host)
+	}
+}
+
+// TestServeCacheReverseProxy_HostIsPartOfDefaultKey pins that the default key
+// separates inbound hosts. The client picks the Host and the proxy forwards it
+// as X-Forwarded-Host, so with a URI-only key one request carrying a forged
+// Host could store a response every other client is then served.
+func TestServeCacheReverseProxy_HostIsPartOfDefaultKey(t *testing.T) {
+	cache := &saveNotifyCache{Cache: setupTestCache(t), saved: make(chan error, 1)}
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "max-age=60")
+		_, _ = w.Write([]byte("asset host: " + r.Header.Get("X-Forwarded-Host")))
+	}))
+	defer backend.Close()
+
+	backendURL, _ := url.Parse(backend.URL)
+	proxy, err := CreateCacheReverseProxy(cache, WithTargetURL(backendURL))
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+	handler := ServeCacheReverseProxy(cache, proxy)
+
+	forged := httptest.NewRequest(http.MethodGet, "/index.html", nil)
+	forged.Host = "evil.example"
+	handler(httptest.NewRecorder(), forged)
+
+	select {
+	case err := <-cache.saved:
+		if err != nil {
+			t.Fatalf("saving the forged response: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("forged response was not saved")
+	}
+
+	victim := httptest.NewRequest(http.MethodGet, "/index.html", nil)
+	victim.Host = "www.example.com"
+	rec := httptest.NewRecorder()
+	handler(rec, victim)
+	if got := rec.Body.String(); got != "asset host: www.example.com" {
+		t.Fatalf("victim response = %q, want its own host", got)
+	}
+}
+
+// saveNotifyCache reports the result of a Save on saved when it has room.
+type saveNotifyCache struct {
+	Cache
+	saved chan error
+}
+
+func (c *saveNotifyCache) Save(ctx context.Context, key string, header http.Header, reader io.Reader) error {
+	err := c.Cache.Save(ctx, key, header, reader)
+	select {
+	case c.saved <- err:
+	default:
+	}
+	return err
+}
+
 func TestWithServeErrorHandler(t *testing.T) {
 	// Nil error handler is ignored (keeps default)
 	serveOpts := newServeOptions(WithServeErrorHandler(nil))
@@ -859,8 +962,8 @@ func TestWithServeErrorHandler(t *testing.T) {
 
 	// Custom error handler is called on write failure during cache hit replay
 	cache := setupTestCache(t)
-	key := "/cached-for-error-handler"
-	if err := cache.Save(context.Background(), key, http.Header{}, strings.NewReader("cached payload")); err != nil {
+	const path = "/cached-for-error-handler"
+	if err := cache.Save(context.Background(), "example.com"+path, http.Header{}, strings.NewReader("cached payload")); err != nil {
 		t.Fatalf("seeding cache failed: %v", err)
 	}
 
@@ -877,7 +980,7 @@ func TestWithServeErrorHandler(t *testing.T) {
 		capturedReq = r
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, key, nil)
+	req := httptest.NewRequest(http.MethodGet, path, nil)
 	handler(&failingResponseWriter{header: http.Header{}}, req)
 
 	if capturedErr == nil {
@@ -1021,7 +1124,7 @@ func TestReverseProxyConcurrentCacheStreaming(t *testing.T) {
 
 	wg.Wait()
 	waitForCondition(t, 2*time.Second, func() (bool, error) {
-		exists, err := cache.Exists(t.Context(), "/shared-payload")
+		exists, err := cache.Exists(t.Context(), strings.TrimPrefix(frontend.URL, "http://")+"/shared-payload")
 		if errors.Is(err, ErrCacheNotFound) {
 			return false, nil
 		}
@@ -1281,7 +1384,7 @@ func TestReverseProxyUpstreamAbruptCloseIsNotCached(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("cache save failure was not reported")
 	}
-	exists, err := cache.Exists(t.Context(), "/abrupt")
+	exists, err := cache.Exists(t.Context(), strings.TrimPrefix(frontend.URL, "http://")+"/abrupt")
 	if !errors.Is(err, ErrCacheNotFound) {
 		t.Fatalf("Exists(aborted response) error = %v, want %v", err, ErrCacheNotFound)
 	}

@@ -39,12 +39,15 @@ func newOptions(opts ...Option) *options {
 		signals:         []os.Signal{syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT},
 	}
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		opt(defaults)
 	}
 	return defaults
 }
 
-// Option configures Run.
+// Option configures Run. A nil Option is ignored.
 type Option func(*options)
 
 // WithShutdownTimeout bounds the context passed to Task.Stop during graceful
@@ -57,10 +60,7 @@ type Option func(*options)
 // then returns.
 //
 // A non-positive duration means no limit, matching task.WithCleanupTimeout and
-// task.WithManagerCleanupTimeout. Passing it straight through instead produced a
-// context that was already expired when shutdown began, so the graceful phase
-// was skipped entirely and even the after-stop hooks ran on a dead context —
-// the exact opposite of what "no timeout" reads like next to the other two.
+// task.WithManagerCleanupTimeout.
 //
 // For an Application (a Group), this deadline is also applied to each member
 // Stop, capped by the group's WithCleanupTimeout (default 30s as well).
@@ -89,7 +89,8 @@ func WithShutdownSignals(sigs ...os.Signal) Option {
 
 // AddBeforeStart appends a hook that runs after the builder returns and before
 // Task.Start. Hooks run in registration order; a failure does not skip later
-// hooks. Run joins every error and returns before Start if any hook failed.
+// hooks. If any hook failed, Run skips Start and Stop, runs the after-stop
+// hooks, and returns every error joined.
 func AddBeforeStart(f Hook) Option {
 	return func(o *options) {
 		o.beforeStart = append(o.beforeStart, f)
@@ -105,11 +106,12 @@ func AddBeforeStop(f Hook) Option {
 	}
 }
 
-// AddAfterStop appends a hook that runs after Task.Stop returns. Use it to
-// close Wire-owned clients (sql.DB, Redis) that are not themselves Tasks.
-// Hooks run in registration order; a failure does not skip later hooks. When
-// Stop consumes the whole shutdown budget, these hooks receive a short fresh
-// context instead of an already-expired one.
+// AddAfterStop appends a hook that runs after Task.Stop returns, or after a
+// before-start hook failed and Start never ran. Use it to close Wire-owned
+// clients (sql.DB, Redis) that are not themselves Tasks. Hooks run in
+// registration order; a failure does not skip later hooks. When Stop consumes
+// the whole shutdown budget, these hooks receive a short fresh context instead
+// of an already-expired one.
 func AddAfterStop(f Hook) Option {
 	return func(o *options) {
 		o.afterStop = append(o.afterStop, f)
@@ -118,7 +120,7 @@ func AddAfterStop(f Hook) Option {
 
 // WithLoggerBackend configures automatic logger initialization with the provided backend.
 // It installs the backend as the global logger before the application builder
-// runs and syncs it after stop (or after a build failure).
+// runs and syncs it with the after-stop hooks, or after a build failure.
 // The caller constructs the backend (for example zapx.NewBackend(conf)), so the
 // lifecycle implementation works with any logging driver. When the backend also
 // implements log.SlogBackend, its SlogLogger() is installed with slog.SetDefault.

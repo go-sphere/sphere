@@ -14,8 +14,8 @@ var _ Cache[any] = (*CodecCache[any])(nil)
 // Close is a no-op; DelAll forwards to the inner ByteCache (redis FlushDB if
 // that is the backend). MultiGet omits undecodable entries without deleting
 // them. Get returns a decode error wrapping ErrDecode without deleting; GetDel atomically
-// consumes the raw entry before decoding it and reports found=true when that
-// entry is undecodable.
+// consumes the raw entry before decoding it and reports found=true with an
+// error wrapping ErrDecode when that entry is undecodable.
 type CodecCache[T any] struct {
 	cache ByteCache
 	codec codec.Codec
@@ -121,8 +121,8 @@ func (m *CodecCache[T]) Get(ctx context.Context, key string) (T, bool, error) {
 }
 
 // GetDel atomically consumes key from the byte cache, then decodes it. If the
-// consumed entry cannot be decoded, GetDel returns found=true with the decode
-// error; the entry is already deleted.
+// consumed entry cannot be decoded, GetDel returns the zero value, found=true,
+// and an error wrapping ErrDecode; the entry is already deleted.
 func (m *CodecCache[T]) GetDel(ctx context.Context, key string) (T, bool, error) {
 	raw, found, err := m.cache.GetDel(ctx, key)
 	var val T
@@ -134,7 +134,8 @@ func (m *CodecCache[T]) GetDel(ctx context.Context, key string) (T, bool, error)
 	}
 	err = m.codec.Unmarshal(raw, &val)
 	if err != nil {
-		return val, true, err
+		var zero T
+		return zero, true, decodeError(err)
 	}
 	return val, true, nil
 }

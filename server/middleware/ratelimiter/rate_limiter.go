@@ -21,7 +21,9 @@ type options struct {
 func newOptions(opts ...Option) *options {
 	defaults := &options{setTimeout: 5 * time.Second}
 	for _, opt := range opts {
-		opt(defaults)
+		if opt != nil {
+			opt(defaults)
+		}
 	}
 	// Built after the options so a WithCache cache does not orphan a default
 	// one with its background goroutines.
@@ -32,6 +34,7 @@ func newOptions(opts ...Option) *options {
 }
 
 // Option is a functional option for configuring the rate limiter middleware.
+// A nil Option is ignored.
 type Option func(*options)
 
 // WithCache sets a custom cache implementation for storing rate limiters.

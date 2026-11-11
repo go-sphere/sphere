@@ -15,7 +15,9 @@ import (
 // It returns, in order, the application error code, the HTTP status code, and
 // the user-facing message for err. AbortWithJsonError replaces a status outside
 // 100–599 with 500, an empty message with the status text, and a code equal to
-// the status (when err carries no httpx.CodeError) with 0.
+// the status (when err carries no httpx.CodeError) with 0. A non-empty
+// httpx.MessageError message in err's chain takes precedence over the returned
+// message.
 type ErrorParser func(error) (int32, int32, string)
 
 // Both globals are read by AbortWithJsonError on every request and may be written
@@ -112,7 +114,8 @@ func DebugMode() bool {
 // returned by middleware with the same envelope.
 func AbortWithJsonError(ctx httpx.Context, err error) {
 	if ctx.Committed() {
-		log.Warn(
+		log.WarnContext(
+			ctx.Context(),
 			"AbortWithJsonError skipped: response already committed",
 			log.Int("status", ctx.StatusCode()),
 			log.Any("error", err),
@@ -120,7 +123,7 @@ func AbortWithJsonError(ctx httpx.Context, err error) {
 		return
 	}
 	if err == nil {
-		log.Warn("AbortWithJsonError called with nil error")
+		log.WarnContext(ctx.Context(), "AbortWithJsonError called with nil error")
 		_ = ctx.JSON(http.StatusInternalServerError, ErrorResponse{
 			Code:    0,
 			Message: http.StatusText(http.StatusInternalServerError),

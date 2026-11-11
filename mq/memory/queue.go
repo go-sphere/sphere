@@ -42,10 +42,14 @@ func NewQueue[T any](opt ...Option) *Queue[T] {
 	}
 }
 
-// Publish sends data to topic. It blocks when the per-topic buffer is full
+// Publish sends data to topic. A ctx that is already done returns ctx.Err()
+// without enqueuing. Otherwise it blocks when the per-topic buffer is full
 // until a consumer takes a message, ctx is done, or Close unblocks it with
 // ErrQueueClosed.
 func (q *Queue[T]) Publish(ctx context.Context, topic string, data T) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	queue, err := q.getOrCreateQueue(topic)
 	if err != nil {
 		return err
@@ -62,12 +66,16 @@ func (q *Queue[T]) Publish(ctx context.Context, topic string, data T) error {
 }
 
 // Consume blocks until a message is available for topic, the queue is closed, or
-// ctx is done. Messages that were accepted before Close are still delivered:
+// ctx is done. A ctx that is already done returns ctx.Err() without taking a
+// message. Messages that were accepted before Close are still delivered:
 // ErrQueueClosed is only reported once the topic has been drained, so shutting
 // down never silently discards work the queue already acknowledged.
 func (q *Queue[T]) Consume(ctx context.Context, topic string) (T, error) {
-	queue, closed, err := q.consumeQueue(topic)
 	var zero T
+	if err := ctx.Err(); err != nil {
+		return zero, err
+	}
+	queue, closed, err := q.consumeQueue(topic)
 	if err != nil {
 		return zero, err
 	}
@@ -206,13 +214,24 @@ func (q *Queue[T]) Close() error {
 }
 
 func (q *Queue[T]) getOrCreateQueue(topic string) (chan T, error) {
+	q.mu.RLock()
+	queue, exists := q.queues[topic]
+	closed := q.closed
+	q.mu.RUnlock()
+	if closed {
+		return nil, ErrQueueClosed
+	}
+	if exists {
+		return queue, nil
+	}
+
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
 	if q.closed {
 		return nil, ErrQueueClosed
 	}
-	queue, exists := q.queues[topic]
+	queue, exists = q.queues[topic]
 	if !exists {
 		queue = make(chan T, q.queueSize)
 		q.queues[topic] = queue
@@ -225,10 +244,18 @@ func (q *Queue[T]) getOrCreateQueue(topic string) (chan T, error) {
 // consumer can drain messages accepted before the shutdown; it never creates a
 // queue for an unseen topic once closed.
 func (q *Queue[T]) consumeQueue(topic string) (chan T, bool, error) {
+	q.mu.RLock()
+	queue, exists := q.queues[topic]
+	closed := q.closed
+	q.mu.RUnlock()
+	if exists {
+		return queue, closed, nil
+	}
+
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	queue, exists := q.queues[topic]
+	queue, exists = q.queues[topic]
 	if q.closed {
 		if !exists {
 			return nil, true, ErrQueueClosed

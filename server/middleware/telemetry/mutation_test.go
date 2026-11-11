@@ -96,6 +96,40 @@ func TestClientCancelDoesNotFailSpan(t *testing.T) {
 	}
 }
 
+// TestClientCancelDoesNotMarkMetricError pins that the duration metric agrees
+// with the span on a client disconnect: the status is still recorded, but no
+// error.type, so aborted requests do not count as server errors.
+func TestClientCancelDoesNotMarkMetricError(t *testing.T) {
+	cancelErr := fmt.Errorf("query: %w", context.Canceled)
+	for _, c := range []struct {
+		name      string
+		canceled  bool
+		wantError bool
+	}{
+		{"client went away", true, false},
+		{"unrelated context.Canceled", false, true},
+	} {
+		mp := newMP()
+		reqCtx, cancel := context.WithCancel(context.Background())
+		if c.canceled {
+			cancel()
+		}
+		sc := newScript("GET", "/x", httpxmock.WithContext(reqCtx), httpxmock.WithFullPath("/x"))
+		sc.committed = false
+		if err := sc.run(mustMetrics(t, WithMeterProvider(mp)), cancelErr); err == nil {
+			t.Fatal("error swallowed")
+		}
+		attrs := setOf(mp.hist.sets[0])
+		if attrs[keyStatusCode].AsInt64() != 500 {
+			t.Errorf("%s: status = %v, want 500", c.name, attrs[keyStatusCode])
+		}
+		if _, ok := attrs[keyErrorType]; ok != c.wantError {
+			t.Errorf("%s: error.type present = %v, want %v", c.name, ok, c.wantError)
+		}
+		cancel()
+	}
+}
+
 func TestMetricsWithCanceledContextStillBalanced(t *testing.T) {
 	mp := newMP()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -268,3 +302,9 @@ func TestLogTraceIDFollowsUpstreamTraceparent(t *testing.T) {
 }
 
 var _ propagation.TextMapCarrier = headerCarrier{}
+
+func TestNilOptionsAreSkipped(t *testing.T) {
+	if got := newConfig([]Option{nil, WithURLScheme("https"), nil}).scheme; got != "https" {
+		t.Fatalf("scheme = %q, want https", got)
+	}
+}

@@ -5,6 +5,9 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"errors"
+	"math/big"
+	"math/rand/v2"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -155,5 +158,54 @@ func TestDecodeStringRejectsNonCanonicalPadding(t *testing.T) {
 	}
 	if _, err := StdRaw62Encoding.DecodeString(canonical62 + "="); !errors.Is(err, ErrNonCanonical) {
 		t.Errorf("DecodeString(%q+\"=\") err = %v, want ErrNonCanonical", canonical62, err)
+	}
+}
+
+// TestMathematicalEncodingMatchesBigInt pins the non-power-of-two output
+// against a math/big reference, so stored encodings stay valid: a leading zero
+// byte becomes one alphabet[0] and the rest is the big-endian value in base.
+func TestMathematicalEncodingMatchesBigInt(t *testing.T) {
+	t.Parallel()
+
+	reference := func(alphabet string, data []byte) string {
+		zeros := 0
+		for zeros < len(data) && data[zeros] == 0 {
+			zeros++
+		}
+		n := new(big.Int).SetBytes(data)
+		base := big.NewInt(int64(len(alphabet)))
+		var digits []byte
+		for mod := new(big.Int); n.Sign() > 0; {
+			n.DivMod(n, base, mod)
+			digits = append(digits, alphabet[mod.Int64()])
+		}
+		slices.Reverse(digits)
+		return strings.Repeat(alphabet[:1], zeros) + string(digits)
+	}
+
+	rng := rand.New(rand.NewPCG(1, 2))
+	for _, alphabet := range []string{"012", "0123456789", AlphabetBase62} {
+		enc, err := NewBaseEncoding(alphabet)
+		if err != nil {
+			t.Fatalf("NewBaseEncoding(%q): %v", alphabet, err)
+		}
+		for range 2000 {
+			data := make([]byte, rng.IntN(24))
+			for i := range data {
+				// Bias towards zero bytes to cover leading and inner zeros.
+				if rng.IntN(4) != 0 {
+					data[i] = byte(rng.IntN(256))
+				}
+			}
+			want := reference(alphabet, data)
+			got := enc.EncodeToString(data)
+			if got != want {
+				t.Fatalf("base %d EncodeToString(%x) = %q, want %q", len(alphabet), data, got, want)
+			}
+			back, err := enc.DecodeString(got)
+			if err != nil || !bytes.Equal(back, data) {
+				t.Fatalf("base %d DecodeString(%q) = %x, %v; want %x", len(alphabet), got, back, err, data)
+			}
+		}
 	}
 }

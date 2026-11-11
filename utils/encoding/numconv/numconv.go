@@ -33,6 +33,16 @@ func bytesToInt64(b []byte) (int64, error) {
 	return int64(binary.BigEndian.Uint64(b)), nil
 }
 
+// Encoded lengths of the eight-byte form. Base32 is fixed width. Base62 needs
+// at most 11 digits for eight bytes, and each leading zero byte adds one "0"
+// while removing at least one digit, so no encoding is longer. Checking these
+// before decoding keeps an oversized input from reaching the quadratic base62
+// decoder.
+const (
+	base32Len    = 13
+	maxBase62Len = 11
+)
+
 // Int64ToBase32 converts a 64-bit integer to its base32 string representation.
 // It uses the standard base32 encoding with Crockford's alphabet. The result
 // always has 13 characters; Base32ToInt64 reverses it.
@@ -42,8 +52,8 @@ func Int64ToBase32(n int64) string {
 
 // Int64ToBase62 converts a 64-bit integer to its base62 string representation.
 // It uses the standard base62 encoding with alphanumeric characters. The
-// length varies with the value (small values keep leading "0" characters for
-// their zero bytes); Base62ToInt64 reverses it.
+// length varies with the value, from 8 to 11 characters (small values keep
+// leading "0" characters for their zero bytes); Base62ToInt64 reverses it.
 func Int64ToBase62(n int64) string {
 	return baseconv.Std62Encoding.EncodeToString(int64ToBytes(n))
 }
@@ -53,6 +63,9 @@ func Int64ToBase62(n int64) string {
 // Non-canonical input, including any string Int64ToBase32 would not produce,
 // fails with an error matching ErrNonCanonical.
 func Base32ToInt64(s string) (int64, error) {
+	if len(s) > base32Len {
+		return 0, fmt.Errorf("%w: length %d, want %d", ErrNonCanonical, len(s), base32Len)
+	}
 	bytes, err := baseconv.Std32Encoding.DecodeString(s)
 	if err != nil {
 		if errors.Is(err, baseconv.ErrNonCanonical) {
@@ -68,9 +81,12 @@ func Base32ToInt64(s string) (int64, error) {
 
 // Base62ToInt64 converts a base62 encoded string back to a 64-bit integer.
 // Returns an error if the string contains invalid base62 characters or cannot be decoded.
-// Input that does not decode to exactly 8 bytes fails with an error matching
-// ErrNonCanonical.
+// Input longer than 11 characters, or that does not decode to exactly 8
+// bytes, fails with an error matching ErrNonCanonical.
 func Base62ToInt64(s string) (int64, error) {
+	if len(s) > maxBase62Len {
+		return 0, fmt.Errorf("%w: length %d, at most %d", ErrNonCanonical, len(s), maxBase62Len)
+	}
 	bytes, err := baseconv.Std62Encoding.DecodeString(s)
 	if err != nil {
 		return 0, err

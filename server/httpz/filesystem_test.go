@@ -49,6 +49,16 @@ func TestFs(t *testing.T) {
 		}
 	})
 
+	t.Run("missing embedded path is an error", func(t *testing.T) {
+		embedded := fstest.MapFS{"sub/a.txt": {Data: []byte("a")}}
+		if _, err := Fs("", embedded, "typo"); err == nil {
+			t.Fatal("Fs() = nil error for a missing embedded path")
+		}
+		if _, err := Fs("", embedded, "sub/a.txt"); err == nil {
+			t.Fatal("Fs() = nil error for an embedded path that is a file")
+		}
+	})
+
 	t.Run("no source is an error", func(t *testing.T) {
 		if _, err := Fs("", nil, ""); err == nil {
 			t.Fatal("Fs() = nil error, want an explicit failure")

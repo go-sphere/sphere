@@ -266,14 +266,68 @@ func TestWithSSEHeartbeatAndRetry(t *testing.T) {
 func TestWithSSESendUnblocksWhenClientGone(t *testing.T) {
 	// Covered indirectly: pumpSSE cancels prodCtx on any write failure or
 	// request cancellation, and send selects on prodCtx.Done. The gate path
-	// (request canceled before first frame) is unit-testable only with a
-	// cancelable request context, which in-process dispatch does not provide;
-	// the conformance-grade live test lives with the streaming layout smoke
-	// tests. This test pins the drain helper so a finished producer never
-	// blocks.
+	// (request canceled before first frame) is TestWithSSEGateDeadlineIs504.
+	// This test pins the drain helper so a finished producer never blocks.
 	result := make(chan error, 1)
 	result <- errors.New("boom")
 	drainSSE(result) // must not deadlock
+}
+
+// TestWithSSEGateDeadlineIs504 pins that a request whose deadline passes
+// before the first frame is rendered by the error parser, so it answers 504
+// like any other handler instead of a fixed 500.
+func TestWithSSEGateDeadlineIs504(t *testing.T) {
+	engine := stdx.New()
+	engine.Group("").GET("/sse", WithSSE(func(ctx httpx.Context) (SSEStream[sseMsg], error) {
+		stdCtx := ctx.Context()
+		return func(send func(sseMsg) error) error {
+			<-stdCtx.Done()
+			// Finish after the gate observed the request context.
+			time.Sleep(20 * time.Millisecond)
+			return nil
+		}, nil
+	}, WithSSEHeartbeat(0)))
+
+	tr, ok := httpx.AsTestRequester(engine)
+	if !ok {
+		t.Fatal("engine does not support in-process dispatch")
+	}
+	reqCtx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	req := httptest.NewRequestWithContext(reqCtx, http.MethodGet, "http://example.com/sse", nil)
+	resp, err := tr.Do(req)
+	if err != nil {
+		t.Fatalf("GET /sse: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusGatewayTimeout {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusGatewayTimeout)
+	}
+}
+
+// TestWithSSEHeartbeatOnlyWhenIdle pins that messages restart the heartbeat
+// interval, so a busy stream carries no keep-alive comments.
+func TestWithSSEHeartbeatOnlyWhenIdle(t *testing.T) {
+	engine := stdx.New()
+	engine.Group("").GET("/sse", WithSSE(func(ctx httpx.Context) (SSEStream[sseMsg], error) {
+		return func(send func(sseMsg) error) error {
+			for range 15 {
+				if err := send(sseMsg{Msg: "tick"}); err != nil {
+					return err
+				}
+				time.Sleep(20 * time.Millisecond)
+			}
+			return nil
+		}, nil
+	}, WithSSEHeartbeat(200*time.Millisecond)))
+
+	status, _, body := sseDo(t, engine, "/sse")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, body=%q", status, body)
+	}
+	if strings.Contains(body, ": \n\n") {
+		t.Fatalf("body = %q, want no heartbeat on a busy stream", body)
+	}
 }
 
 // generatedWatchRequest/Response and the handler below replicate, shape for

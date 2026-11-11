@@ -28,7 +28,8 @@ type config struct {
 }
 
 // Option configures [NewTracing] and [NewMetrics]. Each option documents the
-// constructor it affects; the other constructor ignores it.
+// constructor it affects; the other constructor ignores it. A nil Option is
+// ignored.
 type Option func(*config)
 
 // WithTracerProvider sets the provider [NewTracing] starts spans from. nil

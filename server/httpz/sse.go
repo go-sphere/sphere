@@ -244,7 +244,9 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 		case <-reqCtx.Done():
 			cancel(context.Cause(reqCtx))
 			drainSSE(result)
-			return httpx.InternalServerError(context.Cause(reqCtx), "request canceled before the stream started")
+			// No explicit status: the error parser maps the cause, so a
+			// deadline renders 504 like any other handler's.
+			return fmt.Errorf("httpz: request canceled before the stream started: %w", context.Cause(reqCtx))
 		}
 	})
 }
@@ -263,13 +265,14 @@ func serveSSE(ctx httpx.Context, conf sseOptions, cancel context.CancelCauseFunc
 	// Fiber runs the callback after the handler returned and drops its error, so
 	// a failure has to cancel the producer from inside the callback; the error
 	// returned by ServerSentEvents only covers a failure to start the stream.
+	reqCtx := ctx.Context()
 	var reported atomic.Bool
 	fail := func(err error) {
 		// The pump cancels the producer itself, but a failure before it ran (the
 		// retry frame, the initial flush) never reaches it.
 		cancel(err)
 		reported.Store(true)
-		log.Error("httpz: SSE stream terminated with error", log.Err(err))
+		log.ErrorContext(reqCtx, "httpz: SSE stream terminated with error", log.Err(err))
 	}
 	err := httpx.ServerSentEvents(ctx, func(w *httpx.SSEWriter) error {
 		if conf.retry > 0 {
@@ -315,9 +318,10 @@ func pumpSSE[T any](
 		return abort(err)
 	}
 
+	var ticker *time.Ticker
 	var heartbeat <-chan time.Time
 	if conf.heartbeat > 0 {
-		ticker := time.NewTicker(conf.heartbeat)
+		ticker = time.NewTicker(conf.heartbeat)
 		defer ticker.Stop()
 		heartbeat = ticker.C
 	}
@@ -340,12 +344,21 @@ func pumpSSE[T any](
 				_ = w.SendJSON(SSEEventError, resp)
 				return abort(err)
 			}
+			// Heartbeats are for idle streams; a message already kept the
+			// connection alive.
+			if ticker != nil {
+				ticker.Reset(conf.heartbeat)
+			}
 		case <-heartbeat:
 			if err := w.Comment(""); err != nil {
 				return abort(err)
 			}
 		case <-reqCtx.Done():
-			return abort(context.Cause(reqCtx))
+			// The client went away or the request was canceled: routine, not
+			// a stream failure worth an Error log (same as pumpSSEEager).
+			cancel(context.Cause(reqCtx))
+			drainSSE(result)
+			return nil
 		}
 	}
 }

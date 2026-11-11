@@ -63,9 +63,85 @@ points at the ones most likely to surprise an upgrade.
   An `httpx.StatusError` in the chain still takes precedence, and
   `context.Canceled` is unchanged. Contract test:
   `TestParseError_DeadlineExceededIs504`.
+- `reverseproxy`: the default cache key is the inbound Host followed by the
+  request URI. The Host is client-chosen and reaches the upstream as
+  `X-Forwarded-Host`, so a URI-only key let one forged-Host request poison the
+  entry every client is served. Entries stored under the old key are no longer
+  found; their bodies stay in storage until removed. A later `WithTargetURL`
+  now wins over an earlier one for the default director.
+- `cache/memory`: `NewMemoryCache`, `NewByteCache` and `NewMemoryCacheWithCost`
+  size ristretto's admission counters for about 100k entries (1e6 counters)
+  instead of 1e7, so an empty cache costs about 4 MB of heap instead of 48 MB.
+  This also applies to the default caches of `ratelimiter` and the `file`
+  service. Use `NewMemoryCacheWithRistretto` for caches far larger than that.
+- `log`: an attr passed at the call site wins over a `ContextWithAttrs` attr
+  with the same key, and each key appears once per entry; with
+  `WrapBackendWithContextMerge` the context value used to win, and without it
+  both were written.
+- `boot.Run`: when a before-start hook fails, the after-stop hooks still run
+  (so `WithLoggerBackend` syncs and builder-owned clients close), and a
+  builder returning a nil `*Application` without an error is a build failure
+  instead of a panic.
+- `httpz.WithSSE`: a request whose context ends before the first frame is
+  rendered by the error parser, so a deadline answers 504 instead of a fixed
+  500. A client disconnecting mid-stream is no longer logged at Error level,
+  and heartbeat comments are sent only on idle streams.
+- `httpz.Fs` returns an error when `emPath` does not name a directory in the
+  embedded filesystem, instead of an empty FS that answers 404 for everything.
+- `telemetry.NewMetrics` records no `error.type` for a request failed by its
+  own client's cancellation, matching `NewTracing`.
+- `scheduler/asynq`: once a drain that outlived every `Stop` deadline
+  finishes, the scheduler is closed, as with cron: `Register` and `Enqueue`
+  return `ErrClosed`, and so does a later `Close`.
+- `task.Group.Start` rejects a typed-nil member or one whose `Identifier`
+  panics before starting anything, instead of panicking out of `Start` and
+  leaving the group unable to stop.
+- `cache.WithSingleflight`: a caller whose context ends while waiting for the
+  shared build returns `ctx.Err()`; the build and its cache write still
+  complete for the other callers. A builder panic reaches every waiter with the
+  builder's own panic value.
+- `mq/memory`: `Publish` and `Consume` with an already-done context return
+  `ctx.Err()` without enqueuing or taking a message, as the redis driver does.
+- `s3`, `kvcache`: `CopyFile`/`MoveFile` from a missing source onto an existing
+  destination fail with `storageerr.ErrNotFound`, like local and qiniu, instead
+  of `ErrDestExists`. `s3` `CopyFile` of a key onto itself no longer sends a
+  `CopyObject` that S3 rejects: it succeeds with overwrite and fails with
+  `ErrDestExists` without.
 
 ### Fixed
 
+- `httpz.WithJson`/`WithText` no longer append the success envelope to a
+  response the handler already committed itself (a redirect or a file).
+- `cors` appends `Origin` to `Vary` instead of replacing headers an outer
+  middleware set there, such as compression's `Accept-Encoding`.
+- `cache.CodecCache.GetDel` returns the zero value and an error wrapping
+  `ErrDecode` for an undecodable entry, like `Get`.
+- `badgerdb`: `MultiSet`, `MultiSetWithTTL` and `MultiDel` split a batch that
+  exceeds badger's transaction size across several transactions instead of
+  failing with `ErrTxnTooBig`.
+- `numconv.Base62ToInt64`/`Base32ToInt64` reject oversized input before
+  decoding it; a long string from a URL cost CPU quadratic in its length.
+  `baseconv` encodes and decodes non-power-of-two bases without allocating on
+  every digit.
+- `log`: StdioBackend prints errors wrapped dozens of times with `%w` instead
+  of the unformattable placeholder, walks shared subtrees once, and bounds the
+  work for a `LogValuer` group that refers to itself more than once.
+  Backend preset attrs are rendered once, not on every entry.
+- `search/meilisearch`: concurrent `Index` calls on one `Searcher` no longer
+  race, and `Index`/`Delete` poll task status at the client's default interval
+  instead of waiting at least a second.
+- `scheduler/cron`: `WithLogger(nil)` keeps the default logger instead of
+  crashing the process on the first overlapping run.
+- `local`, `s3`: `ListFiles` with a huge `limit` no longer panics or
+  preallocates for it, and `s3` requests only one key past the page.
+- `docs`: the relaxed CORS wrapper advertises `PATCH` instead of the
+  nonexistent `UPDATE`.
+- A nil `Option` is ignored by `boot`, `pool`, `auth`, `ratelimiter`,
+  `requestid`, `stack`, `telemetry` and `reverseproxy`, as it already was
+  elsewhere.
+- Logs written by `httpz.AbortWithJsonError`, `MatchOperation` and the
+  `WithSSE` stream carry the request context, so `request_id`/`trace_id`
+  appear on them.
 - `log`: package-level `DebugContext`/`InfoContext`/`WarnContext`/
   `ErrorContext` include attrs attached with `ContextWithAttrs`. `logbuffer`
   stores error attrs, including preset ones, as their message, so entries

@@ -3,8 +3,10 @@ package boot
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/go-sphere/sphere/log"
 )
@@ -99,5 +101,49 @@ func TestRunBuildFailureJoinsCleanupError(t *testing.T) {
 				t.Fatalf("builder called = %v, want %v", builderCalled, want)
 			}
 		})
+	}
+}
+
+func TestWithLoggerBackendSyncsAfterBeforeStartFailure(t *testing.T) {
+	originalBackend := log.With().Backend()
+	backend := &syncTrackingBackend{}
+	t.Cleanup(func() { log.InitWithBackends(originalBackend) })
+
+	probeErr := errors.New("readiness probe failed")
+	err := Run(new(struct{}), func(*struct{}) (*Application, error) {
+		return NewApplication(), nil
+	}, WithLoggerBackend(backend), WithShutdownSignals(), AddBeforeStart(func(context.Context) error {
+		return probeErr
+	}))
+	if !errors.Is(err, probeErr) {
+		t.Fatalf("Run error = %v, want %v", err, probeErr)
+	}
+	if !backend.synced.Load() {
+		t.Fatal("logger backend was not synced after a before-start failure")
+	}
+}
+
+func TestRunNilApplicationIsBuildFailure(t *testing.T) {
+	cleanupRan := false
+	err := Run(new(struct{}), func(*struct{}) (*Application, error) {
+		return nil, nil
+	}, WithShutdownSignals(), func(o *options) {
+		o.afterBuildFail = append(o.afterBuildFail, func(context.Context) error {
+			cleanupRan = true
+			return nil
+		})
+	})
+	if err == nil || !strings.Contains(err.Error(), "nil application") {
+		t.Fatalf("Run error = %v, want nil application build failure", err)
+	}
+	if !cleanupRan {
+		t.Fatal("after-build-failure hooks did not run")
+	}
+}
+
+func TestNilOptionIsIgnored(t *testing.T) {
+	opts := newOptions(nil, WithShutdownTimeout(time.Second), nil)
+	if opts.shutdownTimeout != time.Second {
+		t.Fatalf("shutdownTimeout = %v, want %v", opts.shutdownTimeout, time.Second)
 	}
 }

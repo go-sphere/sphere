@@ -35,7 +35,7 @@ type config struct {
 	recoveryError bool
 }
 
-// Option configures [New] and [Apply].
+// Option configures [New] and [Apply]. A nil Option is ignored.
 type Option func(*config)
 
 // WithLogger sets the logger for the access log and for panic reports. nil
@@ -99,7 +99,9 @@ type layer struct {
 func plan(opts []Option) ([]layer, error) {
 	var c config
 	for _, opt := range opts {
-		opt(&c)
+		if opt != nil {
+			opt(&c)
+		}
 	}
 	var layers []layer
 	if c.tracing {

@@ -3,6 +3,7 @@ package cors
 import (
 	"errors"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -244,5 +245,25 @@ func TestCORS_UnmatchedOrigin(t *testing.T) {
 	}
 	if got := ctx.ResponseHeader("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("Allow-Origin = %q, want empty", got)
+	}
+}
+
+// TestCORSKeepsExistingVary pins that the Origin entry is appended to a Vary
+// header an outer middleware already set, not written over it.
+func TestCORSKeepsExistingVary(t *testing.T) {
+	mw, err := NewCORS(WithAllowOrigins("https://example.com"))
+	if err != nil {
+		t.Fatalf("NewCORS: %v", err)
+	}
+	ctx := newRequestContext(http.MethodGet, map[string]string{"Origin": "https://example.com"})
+	ctx.SetHeader("Vary", "Accept-Encoding")
+
+	next := &httpxmock.Handler{}
+	if err := httpxmock.Run(ctx, next.Handle, mw); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	got := ctx.ResponseHeaderValues("Vary")
+	if !slices.Equal(got, []string{"Accept-Encoding", "Origin"}) {
+		t.Fatalf("Vary = %q, want [Accept-Encoding Origin]", got)
 	}
 }

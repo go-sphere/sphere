@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"net/http"
+	"slices"
 	"strconv"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -19,17 +20,24 @@ const (
 	keyErrorType      = "error.type"
 )
 
+// otherMethod is the http.request.method value for a non-standard method.
+const otherMethod = "_OTHER"
+
+// standardMethods are the methods recorded under their own name.
+var standardMethods = []string{
+	http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
+	http.MethodDelete, http.MethodConnect, http.MethodOptions,
+	http.MethodTrace, http.MethodPatch,
+}
+
 // normalizeMethod maps the request method to one of the standard HTTP methods,
 // or "_OTHER" with the original spelling returned separately. The method is
 // client controlled, so passing it through would make the label unbounded.
 func normalizeMethod(m string) (method, original string) {
-	switch m {
-	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
-		http.MethodDelete, http.MethodConnect, http.MethodOptions,
-		http.MethodTrace, http.MethodPatch:
+	if slices.Contains(standardMethods, m) {
 		return m, ""
 	}
-	return "_OTHER", m
+	return otherMethod, m
 }
 
 func methodAttr(method string) attribute.KeyValue {

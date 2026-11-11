@@ -81,28 +81,14 @@ func joinName(base, next string) string {
 	}
 }
 
-func (z *Backend) logEntryLogger() *zap.Logger {
-	if z.coreLogger != nil {
-		return z.coreLogger
-	}
-	if z.zapLogger != nil {
-		return z.zapLogger.WithOptions(zap.AddCallerSkip(coreCallerOffset))
-	}
-	return zap.NewNop()
-}
-
 // Log writes one entry, degrading to a diagnostic when an attribute panics.
 //
 // The recover has to wrap the write, not just field construction: zap.Any is
 // lazy, so a value's MarshalJSON or Stringer runs when the entry is encoded.
-// Attribute values are arbitrary caller data, and without this a panic in one of
-// them propagated out of Log and aborted the goroutine that logged — on a value
-// the stdio backend merely degraded on, so swapping backends changed whether an
-// application survived its own logging. Encoding fills a buffer before writing,
-// so a panic partway through leaves nothing on the output and the replacement
-// entry is the only one emitted.
+// Encoding fills a buffer before writing, so a panic partway through leaves
+// nothing on the output and the replacement entry is the only one emitted.
 func (z *Backend) Log(ctx context.Context, level corelog.Level, msg string, attrs ...corelog.Attr) {
-	logger := z.logEntryLogger()
+	logger := z.coreLogger
 	// Match write's fallback before filtering, and avoid resolving attrs for
 	// disabled levels. In particular, LogValuer may do expensive work.
 	if level < corelog.LevelDebug || level > corelog.LevelError {

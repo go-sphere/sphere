@@ -191,6 +191,151 @@ func TestGetExSingleflightErrorSharedAndNotCached(t *testing.T) {
 	})
 }
 
+// ctxCheckingCache fails writes made under a done ctx, as a network backend
+// would.
+type ctxCheckingCache[T any] struct {
+	*mcache.Map[string, T]
+}
+
+func (c ctxCheckingCache[T]) Set(ctx context.Context, key string, val T) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return c.Map.Set(ctx, key, val)
+}
+
+func (c ctxCheckingCache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return c.Map.SetWithTTL(ctx, key, val, expiration)
+}
+
+// TestGetExSingleflightWaiterHonoursCtx checks that a caller joined to an
+// in-flight build stops waiting when its own ctx ends, while the build still
+// completes and is cached for the caller that started it.
+func TestGetExSingleflightWaiterHonoursCtx(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c := ctxCheckingCache[string]{mcache.NewMapCache[string]()}
+		group := &singleflight.Group{}
+		gate := make(chan struct{})
+		builder := func() (string, error) {
+			<-gate
+			return "shared", nil
+		}
+
+		var leaderVal string
+		var leaderErr error
+		var wg sync.WaitGroup
+		wg.Go(func() {
+			leaderVal, _, leaderErr = cache.GetEx(t.Context(), c, "k", builder, cache.WithSingleflight(group))
+		})
+		synctest.Wait()
+
+		waiterCtx, cancel := context.WithCancel(t.Context())
+		waiterDone := make(chan error, 1)
+		go func() {
+			_, found, err := cache.GetEx(waiterCtx, c, "k", builder, cache.WithSingleflight(group))
+			if found {
+				err = errors.New("waiter reported found")
+			}
+			waiterDone <- err
+		}()
+		synctest.Wait()
+		cancel()
+		synctest.Wait()
+		select {
+		case err := <-waiterDone:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("waiter err = %v, want context.Canceled", err)
+			}
+		default:
+			close(gate) // release the bubble so the failure is reported cleanly
+			wg.Wait()
+			t.Fatal("waiter still blocked after its ctx was cancelled")
+		}
+
+		close(gate)
+		wg.Wait()
+		if leaderErr != nil || leaderVal != "shared" {
+			t.Fatalf("leader = (%q, %v), want (\"shared\", nil)", leaderVal, leaderErr)
+		}
+		if val, found, err := c.Get(t.Context(), "k"); err != nil || !found || val != "shared" {
+			t.Fatalf("backfilled entry = (%q, %v, %v), want (\"shared\", true, nil)", val, found, err)
+		}
+	})
+}
+
+// TestGetExSingleflightStarterCancelStillFills checks that when the caller
+// that started a shared build leaves, the build and its cache write still
+// complete for a caller that is still waiting.
+func TestGetExSingleflightStarterCancelStillFills(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c := ctxCheckingCache[string]{mcache.NewMapCache[string]()}
+		group := &singleflight.Group{}
+		gate := make(chan struct{})
+		builder := func() (string, error) {
+			<-gate
+			return "shared", nil
+		}
+
+		starterCtx, cancel := context.WithCancel(t.Context())
+		starterDone := make(chan error, 1)
+		go func() {
+			_, _, err := cache.GetEx(starterCtx, c, "k", builder, cache.WithSingleflight(group))
+			starterDone <- err
+		}()
+		synctest.Wait()
+
+		var waiterVal string
+		var waiterErr error
+		var wg sync.WaitGroup
+		wg.Go(func() {
+			waiterVal, _, waiterErr = cache.GetEx(t.Context(), c, "k", builder, cache.WithSingleflight(group))
+		})
+		synctest.Wait()
+
+		cancel()
+		synctest.Wait()
+		select {
+		case err := <-starterDone:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("starter err = %v, want context.Canceled", err)
+			}
+		default:
+			close(gate) // release the bubble so the failure is reported cleanly
+			wg.Wait()
+			t.Fatal("starter still blocked after its ctx was cancelled")
+		}
+		close(gate)
+		wg.Wait()
+		if waiterErr != nil || waiterVal != "shared" {
+			t.Fatalf("waiter = (%q, %v), want (\"shared\", nil)", waiterVal, waiterErr)
+		}
+		if val, found, err := c.Get(t.Context(), "k"); err != nil || !found || val != "shared" {
+			t.Fatalf("backfilled entry = (%q, %v, %v), want (\"shared\", true, nil)", val, found, err)
+		}
+	})
+}
+
+// TestGetExSingleflightBuilderPanic checks that a builder panic surfaces in
+// the calling goroutine, where a recovery middleware can catch it, rather than
+// on a goroutine nobody can recover.
+func TestGetExSingleflightBuilderPanic(t *testing.T) {
+	c := mcache.NewMapCache[string]()
+	builder := func() (string, error) { panic("boom") }
+
+	recovered := func() (r any) {
+		defer func() { r = recover() }()
+		_, _, _ = cache.GetEx(t.Context(), c, "k", builder, cache.WithSingleflight(&singleflight.Group{}))
+		return nil
+	}()
+	if recovered != "boom" {
+		t.Fatalf("recovered %v, want \"boom\"", recovered)
+	}
+	assertNotCached[string](t, c, "k")
+}
+
 // TestGetExCacheWriteFailureStillReturnsValue pins the documented contract
 // that a failed backfill does not fail the read: the built value is returned
 // as found with a nil error.

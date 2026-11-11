@@ -225,7 +225,8 @@ func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) e
 
 // Unregister drops the periodic job named name. An unknown name is a no-op.
 // The ServeMux entry is left mounted; the kind is inert until registered again.
-// It returns scheduler.ErrClosed after Close or a completed Stop.
+// It returns scheduler.ErrClosed after Close or once a Stop's drain has
+// finished.
 func (s *Scheduler) Unregister(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -308,12 +309,9 @@ func (s *Scheduler) mount(kind string) {
 //
 // It resolves the handler from task.Type() rather than from the pattern the mux
 // matched, because asynq's ServeMux falls back to longest-prefix matching when
-// no pattern matches exactly. Keying on the pattern therefore sent an
-// unregistered kind to whichever registered kind happened to be a prefix of it
-// — "user.email.welcome.v2" landing in the handler for "user.email", with that
-// handler's payload decoding applied to a task it was never meant to see. The
-// Consumer contract routes by kind and defines no hierarchy, and hierarchical
-// names are exactly what the documentation's own examples use.
+// no pattern matches exactly: keyed on the pattern, an unregistered
+// "user.email.welcome.v2" would land in the handler for "user.email". The
+// Consumer contract routes by exact kind.
 func (s *Scheduler) dispatch(ctx context.Context, task *sasynq.Task) error {
 	kind := task.Type()
 
@@ -339,7 +337,8 @@ func (s *Scheduler) dispatch(ctx context.Context, task *sasynq.Task) error {
 
 // Enqueue publishes a task of kind with payload and returns the asynq task
 // ID. It may be called before Start and from processes that never Start; it
-// returns scheduler.ErrClosed after Close or a completed Stop. A WithUniqueFor
+// returns scheduler.ErrClosed after Close or once a Stop's drain has finished,
+// even if every Stop caller timed out first. A WithUniqueFor
 // collision or a WithTaskID conflict matches scheduler.ErrDuplicateName via
 // errors.Is, and still matches asynq's own error (asynq.ErrDuplicateTask or
 // asynq.ErrTaskIDConflict respectively). WithDelay is rounded up to whole
@@ -399,7 +398,9 @@ func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, op
 }
 
 // Start starts the asynq server and cron scheduler, then blocks until ctx is
-// cancelled. The return is ctx.Err(); it does not mean asynq has drained.
+// cancelled or Stop begins, returning ctx.Err() in the former case and
+// context.Canceled in the latter. Returning does not mean asynq has drained;
+// Stop reports that.
 // Start after a Stop that came first returns nil without starting the runtime;
 // a second Start returns scheduler.ErrAfterStart and Start after Close
 // scheduler.ErrClosed. Cancelling ctx without Stop leaves the runtime live —
@@ -450,11 +451,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Unlock()
 
 	<-runCtx.Done()
-	// Stop is the cleanup half of the Task contract. Returning here lets the
-	// runner (Group, boot.Run) apply its shutdown budget to Stop. A Start that
-	// called Stop with a detached context made that budget unreachable: the
-	// runner waited on Start, which waited on an unbounded drain. Cancelling
-	// the parent context without Stop leaves the runtime live — call Stop.
+	// Stop is the cleanup half of the Task contract. Returning here instead of
+	// draining lets the runner (Group, boot.Run) apply its shutdown budget to
+	// Stop. Cancelling the parent context without Stop leaves the runtime live.
 	return runCtx.Err()
 }
 
@@ -507,7 +506,9 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 		// server.Stop goes first so no new task is pulled while cron.Shutdown
 		// waits on Redis. Each step recovers on its own so a panic in one (a
 		// logger, say) still lets the remaining steps run, and is reported
-		// through stopErr instead of letting Stop claim a clean drain.
+		// through stopErr instead of letting Stop claim a clean drain. The
+		// goroutine owns the final transition, so the scheduler closes once the
+		// drain succeeds even if every Stop caller has already timed out.
 		done := make(chan struct{})
 		safe.Go(func() {
 			defer close(done)
@@ -518,6 +519,9 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 				}
 			}
 			s.stopErr = errors.Join(errs...)
+			if s.stopErr == nil {
+				s.state.Store(stateClosed)
+			}
 		})
 		s.stopDone = done
 	case stateStopping:
@@ -532,11 +536,7 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	case <-done:
 		// A failed teardown leaves the scheduler in stateStopping: it is not
 		// quiesced, and every later Stop reports the same error.
-		if s.stopErr != nil {
-			return s.stopErr
-		}
-		s.state.Store(stateClosed)
-		return nil
+		return s.stopErr
 	case <-ctx.Done():
 		return ctx.Err()
 	}

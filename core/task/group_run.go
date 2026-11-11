@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -25,14 +26,20 @@ import (
 //
 // Start returns the member Start and Stop errors joined with errors.Join, or
 // nil when there were none. context.Canceled results provoked by the group's
-// own teardown (Stop or parent ctx cancellation) are not counted as errors. A nil member yields an error
+// own teardown (Stop or parent ctx cancellation) are not counted as errors. A
+// nil or typed-nil member, or one whose Identifier panics, yields an error
 // before anything starts. A Group runs once: a second Start returns
 // ErrGroupAlreadyStarted while running and ErrGroupAlreadyStopped afterwards.
 func (g *Group) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := validateTasks(g.tasks); err != nil {
+	stages := g.waves
+	if stages == nil {
+		stages = [][]Task{g.tasks}
+	}
+	ids, err := validateTasks(stages)
+	if err != nil {
 		return err
 	}
 	stopReqCh, doneCh, err := g.beginLifecycle()
@@ -49,12 +56,9 @@ func (g *Group) Start(ctx context.Context) error {
 		runCtx:    runCtx,
 		runCancel: runCancel,
 		stopReqCh: stopReqCh,
+		stages:    stages,
+		ids:       ids,
 		stopDone:  make(chan struct{}),
-	}
-	if g.waves == nil {
-		r.stages = [][]Task{g.tasks}
-	} else {
-		r.stages = g.waves
 	}
 
 	finalErr := r.loop()
@@ -62,13 +66,50 @@ func (g *Group) Start(ctx context.Context) error {
 	return finalErr
 }
 
-func validateTasks(tasks []Task) error {
-	for idx, t := range tasks {
-		if t == nil {
-			return fmt.Errorf("task at index %d is nil", idx)
+// validateTasks rejects nil members and resolves every identifier up front,
+// indexing members across stages in order. Group code runs outside a
+// recover once the lifecycle has begun, so a member that would panic there
+// (a typed nil, or an Identifier that panics) must be refused before then.
+func validateTasks(stages [][]Task) ([][]string, error) {
+	ids := make([][]string, len(stages))
+	idx := 0
+	for s, stage := range stages {
+		ids[s] = make([]string, len(stage))
+		for i, t := range stage {
+			if isNilTask(t) {
+				return nil, fmt.Errorf("task at index %d is nil", idx)
+			}
+			id, err := taskIdentifier(t)
+			if err != nil {
+				return nil, fmt.Errorf("task at index %d: %w", idx, err)
+			}
+			ids[s][i] = id
+			idx++
 		}
 	}
-	return nil
+	return ids, nil
+}
+
+func isNilTask(t Task) bool {
+	if t == nil {
+		return true
+	}
+	v := reflect.ValueOf(t)
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
+func taskIdentifier(t Task) (id string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("identifier panic: %v", r)
+		}
+	}()
+	return t.Identifier(), nil
 }
 
 func (g *Group) beginLifecycle() (chan shutdownReason, chan struct{}, error) {
@@ -115,12 +156,13 @@ type groupRun struct {
 	runCancel context.CancelFunc
 	stopReqCh <-chan shutdownReason
 	stages    [][]Task
+	// ids holds each member's Identifier, resolved once by validateTasks.
+	ids [][]string
 
 	startErrs multierr.Error
 	stopErrs  multierr.Error
 	stopOnce  sync.Once
 	stopDone  chan struct{}
-	reason    shutdownReason
 	stopping  bool
 }
 
@@ -162,16 +204,15 @@ func (r *groupRun) loop() error {
 
 func (r *groupRun) runStage(stageIdx int, stage []Task, ctxDone *<-chan struct{}) {
 	startResults := make(chan startResult, len(stage))
-	startedIDs := make([]string, len(stage))
+	startedIDs := r.ids[stageIdx]
 	finished := make([]bool, len(stage))
 	for i, t := range stage {
 		task := t
 		idx := i
-		id := task.Identifier()
-		startedIDs[idx] = id
+		id := startedIDs[idx]
 		go func() {
 			err := execute(r.runCtx, id, task, func(taskCtx context.Context, current Task) error {
-				log.Infof("<task> %s starting", current.Identifier())
+				log.Infof("<task> %s starting", id)
 				return current.Start(taskCtx)
 			})
 			startResults <- startResult{idx: idx, err: err}
@@ -234,7 +275,6 @@ func (r *groupRun) runStage(stageIdx int, stage []Task, ctxDone *<-chan struct{}
 func (r *groupRun) beginStop(stopReason shutdownReason, stopUpTo int) {
 	r.stopOnce.Do(func() {
 		r.stopping = true
-		r.reason = stopReason
 
 		r.g.mu.Lock()
 		r.g.state = groupStateStopping
@@ -253,20 +293,15 @@ func (r *groupRun) beginStop(stopReason shutdownReason, stopUpTo int) {
 			}
 			stopCtx, stopCancel := r.g.cleanupContext(outer)
 			defer stopCancel()
-			r.g.stopTasks(stopCtx, &r.stopErrs, stopUpTo)
+			r.g.stopTasks(stopCtx, r.stages, r.ids, &r.stopErrs, stopUpTo)
 			close(r.stopDone)
 		}()
 	})
 }
 
+// finalErr includes start errors from members that failed on their own while
+// teardown was already in progress. Cancellation-driven exits are filtered
+// before they reach startErrs.
 func (r *groupRun) finalErr() error {
-	switch r.reason {
-	case shutdownTaskFailure, shutdownManualStop, shutdownParentCancel, shutdownNaturalComplete:
-		// Include start errors from members that failed on their own while
-		// teardown was already in progress. Cancellation-driven exits are
-		// filtered before they reach startErrs.
-		return errors.Join(r.startErrs.Unwrap(), r.stopErrs.Unwrap())
-	default:
-		return r.startErrs.Unwrap()
-	}
+	return errors.Join(r.startErrs.Unwrap(), r.stopErrs.Unwrap())
 }

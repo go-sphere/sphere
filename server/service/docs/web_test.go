@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -127,6 +128,15 @@ func TestWithCORS(t *testing.T) {
 		}
 		if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "" {
 			t.Fatalf("Allow-Credentials = %q, want unset", got)
+		}
+		methods := strings.Split(rec.Header().Get("Access-Control-Allow-Methods"), ", ")
+		for _, want := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+			if !slices.Contains(methods, want) {
+				t.Errorf("Allow-Methods = %q, missing %s", methods, want)
+			}
+		}
+		if slices.Contains(methods, "UPDATE") {
+			t.Errorf("Allow-Methods = %q, lists non-existent method UPDATE", methods)
 		}
 	})
 

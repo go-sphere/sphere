@@ -236,3 +236,44 @@ func TestQueueConcurrentPublishConsume(t *testing.T) {
 		})
 	}
 }
+
+// TestQueueCancelledContext pins that a ctx which is already done fails
+// Publish and Consume with its error every time, without enqueuing or taking a
+// message, even when the queue has room and a message waiting.
+func TestQueueCancelledContext(t *testing.T) {
+	t.Parallel()
+
+	for _, factory := range queueFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			q := factory.new(t)
+			const topic = "cancelled-ctx-topic"
+			if err := q.Publish(ctx, topic, 1); err != nil {
+				t.Fatalf("seed Publish: %v", err)
+			}
+
+			cancelled, cancel := context.WithCancel(ctx)
+			cancel()
+			// A select between a ready buffer and a done ctx picks at random,
+			// so repeat enough times to catch a driver that skips the ctx check.
+			for range 50 {
+				if err := q.Publish(cancelled, topic, 2); !errors.Is(err, context.Canceled) {
+					t.Fatalf("Publish(cancelled) = %v, want context.Canceled", err)
+				}
+				if _, err := q.Consume(cancelled, topic); !errors.Is(err, context.Canceled) {
+					t.Fatalf("Consume(cancelled) err = %v, want context.Canceled", err)
+				}
+			}
+
+			got, found, err := q.TryConsume(ctx, topic)
+			if err != nil || !found || got != 1 {
+				t.Fatalf("TryConsume seed = (%d, %v, %v), want (1, true, nil)", got, found, err)
+			}
+			if _, found, err = q.TryConsume(ctx, topic); err != nil || found {
+				t.Fatalf("TryConsume after = (found=%v, err=%v), want empty queue", found, err)
+			}
+		})
+	}
+}

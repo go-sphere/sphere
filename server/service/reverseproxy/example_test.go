@@ -61,7 +61,7 @@ func ExampleServeCacheReverseProxy() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	for {
-		if ok, _ := cache.Exists(ctx, "/reports/1"); ok {
+		if ok, _ := cache.Exists(ctx, "example.com/reports/1"); ok {
 			break
 		}
 		select {

@@ -126,46 +126,35 @@ func (e *BaseEncoding) encodeBitwise(data []byte, bitsPerChar int) string {
 
 func (e *BaseEncoding) encodeMathematical(data []byte) string {
 	leadingZeros := 0
-	for _, b := range data {
-		if b == 0 {
-			leadingZeros++
-		} else {
-			break
+	for leadingZeros < len(data) && data[leadingZeros] == 0 {
+		leadingZeros++
+	}
+
+	// Repeated long division of the big-endian number in num by the base, in
+	// place. Each pass yields the next digit, least significant first.
+	num := slices.Clone(data[leadingZeros:])
+	digits := make([]byte, 0, 2*len(num))
+	for len(num) > 0 {
+		rem := 0
+		for i, b := range num {
+			cur := rem*256 + int(b)
+			num[i] = byte(cur / e.base)
+			rem = cur % e.base
+		}
+		digits = append(digits, e.alphabet[rem])
+		for len(num) > 0 && num[0] == 0 {
+			num = num[1:]
 		}
 	}
 
-	digits := make([]int, 0)
-	temp := make([]int, len(data)-leadingZeros)
-	for i, b := range data[leadingZeros:] {
-		temp[i] = int(b)
+	out := make([]byte, leadingZeros+len(digits))
+	for i := range leadingZeros {
+		out[i] = e.alphabet[0]
 	}
-
-	for len(temp) > 0 {
-		carry := 0
-		newTemp := make([]int, 0)
-
-		for _, digit := range temp {
-			carry = carry*256 + digit
-			if carry >= e.base || len(newTemp) > 0 {
-				newTemp = append(newTemp, carry/e.base)
-			}
-			carry = carry % e.base
-		}
-
-		digits = append(digits, carry)
-		temp = newTemp
+	for i, d := range digits {
+		out[len(out)-1-i] = d
 	}
-	slices.Reverse(digits)
-
-	var result strings.Builder
-	for i := 0; i < leadingZeros; i++ {
-		result.WriteByte(e.alphabet[0])
-	}
-	for _, digit := range digits {
-		result.WriteByte(e.alphabet[digit])
-	}
-
-	return result.String()
+	return string(out)
 }
 
 // DecodeString decodes a base-encoded string back to binary data.
@@ -281,41 +270,29 @@ func (e *BaseEncoding) decodeBitwise(data string, bitsPerChar int) ([]byte, erro
 func (e *BaseEncoding) decodeMathematical(data string) ([]byte, error) {
 	leadingZeros := 0
 	firstChar := e.alphabet[0]
-	for i := 0; i < len(data); i++ {
-		if data[i] == firstChar {
-			leadingZeros++
-		} else {
-			break
-		}
+	for leadingZeros < len(data) && data[leadingZeros] == firstChar {
+		leadingZeros++
 	}
 
-	digits := make([]int, 0, len(data)-leadingZeros)
+	// Accumulate num = num*base + digit over a little-endian byte slice. A
+	// base of at most 256 never needs more bytes than digits.
+	num := make([]byte, 0, len(data)-leadingZeros)
 	for i := leadingZeros; i < len(data); i++ {
-		digits = append(digits, e.decodeMap[data[i]])
-	}
-
-	result := make([]int, 0)
-	for len(digits) > 0 {
-		carry := 0
-		newDigits := make([]int, 0)
-
-		for _, digit := range digits {
-			carry = carry*e.base + digit
-			if carry >= 256 || len(newDigits) > 0 {
-				newDigits = append(newDigits, carry/256)
-			}
-			carry = carry % 256
+		carry := e.decodeMap[data[i]]
+		for j := range num {
+			carry += int(num[j]) * e.base
+			num[j] = byte(carry)
+			carry >>= 8
 		}
-
-		result = append(result, carry)
-		digits = newDigits
-	}
-	slices.Reverse(result)
-
-	finalResult := make([]byte, leadingZeros+len(result))
-	for i := 0; i < len(result); i++ {
-		finalResult[leadingZeros+i] = byte(result[i])
+		for carry > 0 {
+			num = append(num, byte(carry))
+			carry >>= 8
+		}
 	}
 
-	return finalResult, nil
+	out := make([]byte, leadingZeros+len(num))
+	for i, b := range num {
+		out[len(out)-1-i] = b
+	}
+	return out, nil
 }

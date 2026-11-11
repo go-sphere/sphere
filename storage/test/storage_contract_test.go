@@ -225,6 +225,61 @@ func TestStorageNoOverwritePreservesDestination(t *testing.T) {
 	}
 }
 
+// A missing source reports ErrNotFound even when the destination exists and
+// overwrite is off: there is nothing to copy, so the destination is irrelevant.
+func TestStorageMissingSourceBeatsDestExists(t *testing.T) {
+	for _, factory := range storageFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			ctx := context.Background()
+			store := factory.new(t)
+			if _, err := store.UploadFile(ctx, bytes.NewBufferString("destination"), "order/dest.txt"); err != nil {
+				t.Fatalf("seed destination: %v", err)
+			}
+
+			if err := store.CopyFile(ctx, "order/missing.txt", "order/dest.txt", false); !errors.Is(err, storageerr.ErrNotFound) {
+				t.Fatalf("CopyFile(missing source, existing dest) error = %v, want %v", err, storageerr.ErrNotFound)
+			}
+			if err := store.MoveFile(ctx, "order/missing.txt", "order/dest.txt", false); !errors.Is(err, storageerr.ErrNotFound) {
+				t.Fatalf("MoveFile(missing source, existing dest) error = %v, want %v", err, storageerr.ErrNotFound)
+			}
+			if got := readStorageFile(t, ctx, store, "order/dest.txt"); got != "destination" {
+				t.Fatalf("destination changed: %q", got)
+			}
+		})
+	}
+}
+
+// Copying a key onto itself leaves the object intact: with overwrite it
+// succeeds, without it the destination (the source itself) exists.
+func TestStorageCopyToSameKey(t *testing.T) {
+	for _, factory := range storageFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			ctx := context.Background()
+			store := factory.new(t)
+
+			for _, overwrite := range []bool{true, false} {
+				if err := store.CopyFile(ctx, "self/missing.txt", "self/missing.txt", overwrite); !errors.Is(err, storageerr.ErrNotFound) {
+					t.Fatalf("CopyFile(missing to same, overwrite=%v) error = %v, want %v", overwrite, err, storageerr.ErrNotFound)
+				}
+			}
+
+			const key = "self/copy.txt"
+			if _, err := store.UploadFile(ctx, bytes.NewBufferString("preserve-content"), key); err != nil {
+				t.Fatalf("seed: %v", err)
+			}
+			if err := store.CopyFile(ctx, key, key, true); err != nil {
+				t.Fatalf("CopyFile(same key, overwrite=true): %v", err)
+			}
+			if err := store.CopyFile(ctx, key, key, false); !errors.Is(err, storageerr.ErrDestExists) {
+				t.Fatalf("CopyFile(same key, overwrite=false) error = %v, want %v", err, storageerr.ErrDestExists)
+			}
+			if got := readStorageFile(t, ctx, store, key); got != "preserve-content" {
+				t.Fatalf("content changed after copying to same key: %q", got)
+			}
+		})
+	}
+}
+
 func readStorageFile(t *testing.T, ctx context.Context, store storage.Storage, key string) string {
 	t.Helper()
 	result, err := store.DownloadFile(ctx, key)

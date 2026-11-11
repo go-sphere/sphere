@@ -76,8 +76,8 @@ func MatchOperation(base string, endpoints [][3]string, operations ...string) fu
 		if fullPath == "" {
 			// Fail closed: without a route pattern the operation cannot be
 			// identified. Treat it as a hit so rate limiting/auth still runs;
-			// silently skipping them is the dangerous direction. See audit B7.
-			log.Warn("httpz: MatchOperation cannot determine route pattern; failing closed",
+			// silently skipping them is the dangerous direction.
+			log.WarnContext(ctx.Context(), "httpz: MatchOperation cannot determine route pattern; failing closed",
 				log.String("method", ctx.Method()), log.String("path", ctx.Path()))
 			return true
 		}

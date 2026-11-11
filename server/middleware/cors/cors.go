@@ -97,11 +97,23 @@ func NewCORS(options ...Option) (httpx.Middleware, error) {
 	}
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
+			setHeader := ctx.SetHeader
+			if editor, ok := httpx.AsResponseHeaderEditor(ctx); ok {
+				// Vary is a list: replacing it would drop what an outer
+				// middleware (compression's Accept-Encoding) already added.
+				setHeader = func(key, value string) {
+					if key == "Vary" {
+						editor.AddHeader(key, value)
+						return
+					}
+					ctx.SetHeader(key, value)
+				}
+			}
 			preflight := cfg.apply(
 				ctx.Method(),
 				ctx.Header("Origin"),
 				ctx.Header("Access-Control-Request-Headers"),
-				ctx.SetHeader,
+				setHeader,
 			)
 			if preflight {
 				return ctx.NoContent(http.StatusNoContent)

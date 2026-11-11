@@ -16,8 +16,11 @@
 // appears in your logs, so do not treat it as unique or authenticated. Use
 // [WithAlwaysGenerate] at an edge that must not trust callers.
 //
-// Register the middleware before the logger middleware so the access log sees
-// the ID, and before recovery so panic entries carry it.
+// Register it outside the logger and recovery middleware, as
+// server/middleware/stack does. Those read the request context after the inner
+// chain has run, so their entries carry an ID set further in as well, but a
+// request rejected by a layer that runs before this middleware gets no ID in
+// its log entries or response header.
 package requestid
 
 import (
@@ -55,7 +58,7 @@ type config struct {
 	generate       func() string
 }
 
-// Option configures [New].
+// Option configures [New]. A nil Option is ignored.
 type Option func(*config)
 
 // WithHeader sets the header read from the request and written to the
@@ -91,7 +94,9 @@ func WithGenerator(fn func() string) Option {
 func New(opts ...Option) httpx.Middleware {
 	cfg := config{header: DefaultHeader, generate: generateID}
 	for _, opt := range opts {
-		opt(&cfg)
+		if opt != nil {
+			opt(&cfg)
+		}
 	}
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {

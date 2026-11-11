@@ -189,6 +189,7 @@ func TestPlanOrder(t *testing.T) {
 		{"no recovery", []Option{WithLogger(lg), WithoutRecovery(), WithTracing()}, []string{layerTracing, layerRequestID, layerAccessLog}},
 		{"requestid options keep it on", []Option{WithRequestID(requestid.WithAlwaysGenerate())}, []string{layerRequestID, layerRecovery}},
 		{"everything off", []Option{WithoutRequestID(), WithoutRecovery()}, nil},
+		{"nil options skipped", []Option{nil, WithLogger(lg), nil}, []string{layerRequestID, layerAccessLog, layerRecovery}},
 	}
 	for _, tt := range tests {
 		if got := names(t, tt.opts...); !slices.Equal(got, tt.want) {

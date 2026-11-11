@@ -45,3 +45,31 @@ func TestCoreLoggerAppendsContextAttrsOnlyOnContextMethods(t *testing.T) {
 		t.Fatalf("plain method attrs = %v", b.attrs)
 	}
 }
+
+// TestContextAttrsYieldToCallSiteAttrs pins the precedence between the two
+// attr sources: a key set at the call site wins over the same key attached to
+// the context, the entry carries it once, and a later ContextWithAttrs wins
+// over an earlier one. The context-merge wrapper must keep that outcome.
+func TestContextAttrsYieldToCallSiteAttrs(t *testing.T) {
+	t.Parallel()
+	ctx := ContextWithAttrs(t.Context(), String("request_id", "ctx"), String("user", "old"))
+	ctx = ContextWithAttrs(ctx, String("user", "new"))
+
+	b := &ctxAttrBackend{}
+	merged := WrapBackendWithContextMerge(b, func(context.Context) []Attr {
+		return []Attr{String("trace_id", "t")}
+	})
+	for name, backend := range map[string]Backend{"plain": b, "merge": merged} {
+		NewLogger(backend).InfoContext(ctx, "m", String("request_id", "explicit"))
+		got := map[string]string{}
+		for _, a := range b.attrs {
+			if _, dup := got[a.Key]; dup {
+				t.Fatalf("%s: key %q emitted twice: %v", name, a.Key, b.attrs)
+			}
+			got[a.Key] = a.Value.String()
+		}
+		if got["request_id"] != "explicit" || got["user"] != "new" {
+			t.Fatalf("%s: attrs = %v, want request_id=explicit user=new", name, b.attrs)
+		}
+	}
+}

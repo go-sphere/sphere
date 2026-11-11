@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 
@@ -146,6 +147,17 @@ func testFileListerContract(t *testing.T, store storage.Storage) {
 			t.Fatalf("ListFiles() error = %v", err)
 		}
 		assertKeys(t, keys, []string{"list/a.txt", "list/b.txt", "list/c.txt", "other/d.txt"})
+	})
+
+	t.Run("huge limit is an upper bound, not an allocation size", func(t *testing.T) {
+		keys, next, err := lister.ListFiles(ctx, "list/", "", math.MaxInt)
+		if err != nil {
+			t.Fatalf("ListFiles() error = %v", err)
+		}
+		assertKeys(t, keys, []string{"list/a.txt", "list/b.txt", "list/c.txt"})
+		if next != "" {
+			t.Fatalf("next = %q, want empty", next)
+		}
 	})
 }
 

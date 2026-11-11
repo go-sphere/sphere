@@ -42,10 +42,6 @@ const defaultManagerCleanupTimeout = 30 * time.Second
 //
 // The timeout only bounds the context a task's Stop receives. A Stop that ignores
 // its context still runs as long as it likes, exactly as in Group.
-//
-// This replaces WithManagerAutoStopTimeout, which was removed without an alias.
-// The knob itself behaves as before; what changed is that NewManager now seeds a
-// non-zero default for it.
 func WithManagerCleanupTimeout(timeout time.Duration) ManagerOption {
 	return func(o *managerOptions) {
 		o.cleanupTimeout = timeout
@@ -113,10 +109,9 @@ func (t *managedTask) getStopErr() error {
 // Stop is treated as the cleanup half of the lifecycle rather than an interrupt
 // signal, matching Group: every task the manager starts is stopped exactly once,
 // including one that returned from Start on its own without anyone asking it to
-// shut down. Earlier releases skipped Stop for those, so a task that allocated in
-// Start and then exited early never got the chance to release. Task
-// implementations must therefore tolerate Stop after Start has already returned,
-// as the Task interface requires.
+// shut down, so a task that allocated in Start and then exited early still gets
+// to release. Task implementations must therefore tolerate Stop after Start has
+// already returned, as the Task interface requires.
 //
 // Create a Manager with NewManager; the zero value is not usable. Its methods
 // are safe for concurrent use.
@@ -193,7 +188,8 @@ func NewManager(options ...ManagerOption) *Manager {
 }
 
 // StartTask starts a new task with the given name.
-// Returns ErrTaskAlreadyExists if a task with the same name is already running.
+// Returns ErrTaskAlreadyExists if a task with the same name is still
+// registered, which includes a run whose Stop has not settled yet.
 // The task runs in its own goroutine and can be stopped individually using StopTask.
 // The provided ctx becomes the parent context of this task's run context.
 //
@@ -216,7 +212,9 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 	runCtx, cancel := context.WithCancel(ctx)
 
 	m.mu.Lock()
-	if existing, ok := m.tasks[name]; ok && !isClosed(existing.doneCh) {
+	// An entry stays registered until its run goroutine has stopped it, so a
+	// name is free again only once the previous run has fully retired.
+	if _, ok := m.tasks[name]; ok {
 		m.mu.Unlock()
 		cancel()
 		return ErrTaskAlreadyExists
@@ -555,14 +553,5 @@ func waitSignalWithContext(ctx context.Context, ch <-chan struct{}) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
-	}
-}
-
-func isClosed(ch <-chan struct{}) bool {
-	select {
-	case <-ch:
-		return true
-	default:
-		return false
 	}
 }

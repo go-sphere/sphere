@@ -11,7 +11,9 @@ import (
 // match the public base.
 var ErrHostVerificationFailed = fmt.Errorf("not verify host")
 
-// ErrorNotVerifyHost is an alias for ErrHostVerificationFailed for backwards compatibility.
+// ErrorNotVerifyHost is the same value as ErrHostVerificationFailed.
+//
+// Deprecated: Use ErrHostVerificationFailed.
 var ErrorNotVerifyHost = ErrHostVerificationFailed
 
 // ErrInvalidKeyPath is returned when an extracted key contains a ".." path
@@ -131,7 +133,7 @@ func (n *Handler) ExtractKeyFromURLWithMode(uri string, strict bool) (string, er
 	}
 	if strict {
 		if !sameHost(u, n.publicURL) {
-			return "", ErrorNotVerifyHost
+			return "", ErrHostVerificationFailed
 		}
 	}
 	path := strings.TrimPrefix(u.EscapedPath(), "/")
@@ -143,7 +145,7 @@ func (n *Handler) ExtractKeyFromURLWithMode(uri string, strict bool) (string, er
 		case strings.HasPrefix(path, basePath+"/"): // request path is under base path, remove the prefix
 			path = path[len(basePath)+1:]
 		case strict: // base path mismatch in strict mode, reject
-			return "", ErrorNotVerifyHost
+			return "", ErrHostVerificationFailed
 		}
 	}
 

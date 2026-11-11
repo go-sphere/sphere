@@ -79,9 +79,11 @@ type Core[S any] interface {
 // failure. Compensating for a failed write by deleting what it "would have"
 // written is therefore unsafe — the batch may be half applied.
 //
-// Some drivers do apply a batch atomically (badgerdb writes one transaction,
-// mcache holds a single lock), but that is an implementation detail: redis
-// pipelines the commands and cannot roll back the ones already sent, and the
+// Some drivers do apply a batch atomically (mcache holds a single lock, and
+// badgerdb writes one transaction while the batch fits within badger's
+// transaction size limit), but that is an implementation detail: badgerdb
+// splits a larger batch across several transactions, redis pipelines the
+// commands and cannot roll back the ones already sent, and the
 // ristretto-backed memory driver may drop an individual write under load with
 // no way to undo the rest.
 type Bulk[S any] interface {

@@ -232,6 +232,26 @@ func TestS3ClientListFilesPaging(t *testing.T) {
 	}
 }
 
+// ListFiles asks the server for one key past the page, not a full default
+// page, and never above the S3 per-request maximum.
+func TestS3ClientListFilesRequestsPageSize(t *testing.T) {
+	client, fake := newFakeClient(t, Config{})
+	for _, key := range []string{"a", "b", "c", "d"} {
+		fake.Put(key, []byte("x"), "")
+	}
+	ctx := t.Context()
+
+	if _, _, err := client.ListFiles(ctx, "", "", 2); err != nil {
+		t.Fatalf("ListFiles(limit 2) error = %v", err)
+	}
+	if _, _, err := client.ListFiles(ctx, "", "", 5000); err != nil {
+		t.Fatalf("ListFiles(limit 5000) error = %v", err)
+	}
+	if got, want := fake.ListMaxKeys(), []int{3, 1000}; !slices.Equal(got, want) {
+		t.Fatalf("requested max-keys = %v, want %v", got, want)
+	}
+}
+
 // closeHook runs fn when the response body is closed.
 type closeHook struct {
 	io.ReadCloser

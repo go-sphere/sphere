@@ -1,10 +1,12 @@
 package log
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 )
 
 // selfReferentialValuer resolves to a group that contains itself. The cycle
@@ -24,6 +26,30 @@ func TestFormatSlogValueBoundsGroupCycles(t *testing.T) {
 	got := formatSlogValue(Any("g", selfReferentialValuer{}).Value)
 	if !strings.Contains(got, "unformattable") {
 		t.Fatalf("formatSlogValue = %q, want the placeholder for a cyclic group", got)
+	}
+}
+
+// branchingValuer resolves to a group that contains itself twice, so each
+// level doubles the work the depth bound alone would allow.
+type branchingValuer struct{}
+
+func (branchingValuer) LogValue() slog.Value {
+	return slog.GroupValue(slog.Any("a", branchingValuer{}), slog.Any("b", branchingValuer{}))
+}
+
+// TestFormatSlogValueBoundsBranchingGroupCycles pins that a self-referential
+// group with more than one member is cut off by the node budget instead of
+// doing 2^maxFormatDepth work.
+func TestFormatSlogValueBoundsBranchingGroupCycles(t *testing.T) {
+	done := make(chan string, 1)
+	go func() { done <- formatSlogValue(Any("g", branchingValuer{}).Value) }()
+	select {
+	case got := <-done:
+		if !strings.Contains(got, "unformattable") {
+			t.Fatalf("formatSlogValue = %q, want the placeholder for a cyclic group", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("formatSlogValue did not return within 5s")
 	}
 }
 
@@ -97,5 +123,44 @@ func TestFormatAnyRejectsCycleBehindStringer(t *testing.T) {
 	got := formatAny(n)
 	if !strings.Contains(got, "unformattable") {
 		t.Fatalf("formatAny = %q, want the unformattable placeholder", got)
+	}
+}
+
+// TestFormatAnyFormatsDeepErrorChain pins that the structural depth bound
+// leaves room for real error chains: every %w layer costs several reflection
+// levels, and a chain a few dozen calls deep must still print its message.
+func TestFormatAnyFormatsDeepErrorChain(t *testing.T) {
+	err := errors.New("root")
+	for i := range 40 {
+		err = fmt.Errorf("layer %d: %w", i, err)
+	}
+	if got := formatAny(err); got != quoteIfNeeded(err.Error()) {
+		t.Fatalf("formatAny = %q, want the error message", got)
+	}
+}
+
+// dagNode shares each child between both of its edges, so a walk that does
+// not remember verified containers visits 2^depth paths.
+type dagNode struct {
+	L, R *dagNode
+}
+
+// TestFormatAnyWalksSharedSubtreesOnce pins that the cycle check stays linear
+// on values whose subtrees are shared rather than cyclic: a 50-level DAG has
+// only 50 distinct nodes but 2^50 paths, and fmt.Sprint renders it instantly.
+func TestFormatAnyWalksSharedSubtreesOnce(t *testing.T) {
+	var d *dagNode
+	for range 50 {
+		d = &dagNode{L: d, R: d}
+	}
+	done := make(chan string, 1)
+	go func() { done <- formatAny(d) }()
+	select {
+	case got := <-done:
+		if strings.Contains(got, "unformattable") {
+			t.Fatalf("formatAny = %q, want the shared-subtree value formatted", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("formatAny did not finish on a value with shared subtrees")
 	}
 }

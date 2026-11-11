@@ -39,7 +39,7 @@ func TestMatchOperation(t *testing.T) {
 		{name: "wrong method", method: http.MethodDelete, fullPath: "/api/users", want: false},
 		{name: "wrong path", method: http.MethodPost, fullPath: "/api/orders", want: false},
 		// Fail closed: an empty route pattern must report a hit so gated
-		// middleware still runs (audit B7).
+		// middleware still runs.
 		{name: "indeterminate route fails closed", method: http.MethodGet, fullPath: "", want: true},
 		// The registered pattern is the only key. The anonymous dialect used to
 		// match as well, for the adapters that rewrote the pattern and reported

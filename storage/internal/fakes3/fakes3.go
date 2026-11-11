@@ -4,8 +4,9 @@
 // It serves one path-style bucket and implements just what the driver calls:
 // GetBucketLocation, PutObject (single and multipart), HeadObject, GetObject,
 // DeleteObject, CopyObject and ListObjectsV2. Missing keys answer NoSuchKey
-// like real S3; DeleteObject of a missing key is a 204 no-op. Requests are not
-// authenticated.
+// like real S3; DeleteObject of a missing key is a 204 no-op; copying an
+// object onto itself without a REPLACE metadata directive answers
+// InvalidRequest. Requests are not authenticated.
 package fakes3
 
 import (
@@ -45,7 +46,8 @@ type Server struct {
 	uploads    map[string]map[int][]byte
 	uploadMIME map[string]string
 	nextUpload int
-	largest    int // largest multipart part body received
+	largest    int   // largest multipart part body received
+	maxKeys    []int // max-keys of each ListObjectsV2 request, 0 when absent
 }
 
 // New starts a fake bucket for the lifetime of tb.
@@ -81,6 +83,14 @@ func (s *Server) LargestPart() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.largest
+}
+
+// ListMaxKeys returns the max-keys parameter of every ListObjectsV2 request
+// received so far, in order; 0 means the request did not set one.
+func (s *Server) ListMaxKeys() []int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.maxKeys)
 }
 
 // Put seeds an object directly.
@@ -169,6 +179,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusNotFound, "NoSuchKey", "The specified key does not exist.")
 				return
 			}
+			if srcKey == key && r.Header.Get("X-Amz-Metadata-Directive") != "REPLACE" {
+				writeError(w, http.StatusBadRequest, "InvalidRequest", "This copy request is illegal because it is trying to copy an object to itself without changing the object's metadata, storage class, website redirect location or encryption attributes.")
+				return
+			}
 			obj.Data = bytes.Clone(obj.Data)
 			s.objects[key] = obj
 			writeXML(w, http.StatusOK, struct {
@@ -232,11 +246,13 @@ func (s *Server) listV2(w http.ResponseWriter, q url.Values) {
 		after = max(after, token)
 	}
 	limit := s.MaxKeys
-	if n, err := strconv.Atoi(q.Get("max-keys")); err == nil && n > 0 {
-		limit = min(limit, n)
+	requested, _ := strconv.Atoi(q.Get("max-keys"))
+	if requested > 0 {
+		limit = min(limit, requested)
 	}
 
 	s.mu.Lock()
+	s.maxKeys = append(s.maxKeys, requested)
 	keys := make([]string, 0, len(s.objects))
 	for key := range s.objects {
 		if strings.HasPrefix(key, prefix) && key > after {

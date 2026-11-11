@@ -31,9 +31,11 @@ const stdioCallerSkip = 3
 // use and has nothing to close. A panic while rendering an attribute value
 // is recovered and logged as an attr_error field instead.
 type StdioBackend struct {
-	mu        sync.Mutex
-	name      string
-	attrs     map[string]any
+	mu    sync.Mutex
+	name  string
+	attrs map[string]any
+	// attrsText is attrs rendered once, in key order, as " key=value" pairs.
+	attrsText string
 	minLevel  Level
 	addCaller bool
 	// stackAt records the level at or above which a "stack" attribute carrying
@@ -79,10 +81,9 @@ func (b *StdioBackend) Log(_ context.Context, level Level, msg string, attrs ...
 func (b *StdioBackend) buildLineSafely(level Level, msg, caller string, attrs []Attr) (line string) {
 	defer func() {
 		if r := recover(); r != nil {
-			// The fallback still renders backend-level attrs (and formats r
-			// itself), either of which can be the very value that panicked —
-			// guard it too, degrading to a minimal line instead of letting a
-			// second panic escape past the consumed recover.
+			// The fallback formats r itself, which can panic again — guard it
+			// too, degrading to a minimal line instead of letting a second
+			// panic escape past the consumed recover.
 			defer func() {
 				if recover() != nil {
 					line = "level=" + levelString(level) + " msg=" + quoteIfNeeded(msg) + " attr_error=unprintable\n"
@@ -113,6 +114,7 @@ func (b *StdioBackend) clone() *StdioBackend {
 	return &StdioBackend{
 		name:      b.name,
 		attrs:     attrs,
+		attrsText: b.attrsText,
 		minLevel:  b.minLevel,
 		addCaller: b.addCaller,
 		stackAt:   b.stackAt,
@@ -154,8 +156,28 @@ func (b *StdioBackend) apply(options ...Option) *StdioBackend {
 			b.attrs = make(map[string]any, len(o.Attrs))
 		}
 		maps.Copy(b.attrs, o.Attrs)
+		b.attrsText = renderAttrs(b.attrs)
 	}
 	return b
+}
+
+// renderAttrs renders backend-level attrs in key order as " key=value" pairs.
+// A value that panics while rendering degrades to an attr_error field, as it
+// does in Log.
+func renderAttrs(attrs map[string]any) (text string) {
+	defer func() {
+		if recover() != nil {
+			text = " attr_error=unprintable"
+		}
+	}()
+	var sb strings.Builder
+	for _, k := range slices.Sorted(maps.Keys(attrs)) {
+		sb.WriteByte(' ')
+		sb.WriteString(quoteIfNeeded(k))
+		sb.WriteByte('=')
+		sb.WriteString(formatAny(attrs[k]))
+	}
+	return sb.String()
 }
 
 func (b *StdioBackend) buildLine(level Level, msg string, caller string, attrs []Attr) string {
@@ -174,17 +196,7 @@ func (b *StdioBackend) buildLine(level Level, msg string, caller string, attrs [
 	}
 	sb.WriteString(" msg=")
 	sb.WriteString(quoteIfNeeded(msg))
-
-	// Stable ordering for backend-level attrs improves testability and readability.
-	if len(b.attrs) > 0 {
-		keys := slices.Sorted(maps.Keys(b.attrs))
-		for _, k := range keys {
-			sb.WriteByte(' ')
-			sb.WriteString(quoteIfNeeded(k))
-			sb.WriteByte('=')
-			sb.WriteString(formatAny(b.attrs[k]))
-		}
-	}
+	sb.WriteString(b.attrsText)
 	for _, a := range attrs {
 		sb.WriteByte(' ')
 		sb.WriteString(quoteIfNeeded(a.Key))

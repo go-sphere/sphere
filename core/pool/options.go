@@ -23,7 +23,7 @@ type Options[T any] struct {
 }
 
 // Option configures Options. Later options override earlier ones for the
-// same field.
+// same field. A nil Option is ignored.
 type Option[T any] func(*Options[T])
 
 // WithReset sets the function applied to an object after Accept and before Put.
@@ -71,6 +71,9 @@ func newOptions[T any](opts ...Option[T]) *Options[T] {
 		AllowCreate: true, // default to true for backward compatibility
 	}
 	for _, o := range opts {
+		if o == nil {
+			continue
+		}
 		o(options)
 	}
 	return options

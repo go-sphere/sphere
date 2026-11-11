@@ -10,9 +10,11 @@ type options struct {
 }
 
 // WithLogger replaces the default sphere log adapter used by SkipIfStillRunning
-// and Recover.
+// and Recover. A nil logger is ignored.
 func WithLogger(logger rcron.Logger) Option {
 	return func(o *options) {
-		o.logger = logger
+		if logger != nil {
+			o.logger = logger
+		}
 	}
 }

@@ -15,7 +15,15 @@ import (
 
 func run(ctx context.Context, t task.Task, options *options) error {
 	if err := runHooks(ctx, options.beforeStart, "beforeStart"); err != nil {
-		return fmt.Errorf("before start hooks failed: %w", err)
+		startErr := fmt.Errorf("before start hooks failed: %w", err)
+		// After-stop hooks release what the builder acquired (Wire-owned
+		// clients, the logger), which a failed readiness check does not undo.
+		hookCtx, hookCancel := newShutdownContext(options.shutdownTimeout)
+		defer hookCancel()
+		if afterErr := runHooks(hookCtx, options.afterStop, "afterStop"); afterErr != nil {
+			return errors.Join(startErr, fmt.Errorf("after stop hooks: %w", afterErr))
+		}
+		return startErr
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -122,6 +130,9 @@ func run(ctx context.Context, t task.Task, options *options) error {
 // Run configures build-time facilities such as logging, builds an Application
 // from conf, and drives its lifecycle: before-start hooks, Start, wait for a
 // shutdown signal or task exit, before-stop hooks, Stop, after-stop hooks.
+// When a before-start hook fails, Start and Stop are skipped but the after-stop
+// hooks still run. A builder that returns a nil Application without an error
+// is reported as a build failure.
 //
 // The exported Run always uses context.Background(); it stops on SIGTERM,
 // SIGQUIT, or SIGINT (override with WithShutdownSignals) or when Start
@@ -143,6 +154,9 @@ func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Opti
 	}
 
 	app, err := builder(conf)
+	if err == nil && app == nil {
+		err = errors.New("builder returned a nil application")
+	}
 	if err != nil {
 		buildErr := fmt.Errorf("failed to build application: %w", err)
 		return handleBuildFailure(ctx, opts, buildErr)

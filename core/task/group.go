@@ -302,21 +302,15 @@ func (g *Group) waitForDone(ctx context.Context, done <-chan struct{}) error {
 	}
 }
 
-// stopTasks stops the group's stages up to and including stage index upToWave,
-// honouring staged shutdown order. When waves is nil all tasks form one stage
-// that stops concurrently; otherwise stages stop in reverse order (last stage
-// first), each stage draining fully before the previous begins, while tasks
-// within a stage stop concurrently. Stages beyond upToWave were never started
-// and receive no Stop call. The provided ctx (the cleanup context) is the
-// shared shutdown budget across every stage; a stage whose Stop begins after
-// that budget is exhausted receives a short fresh context instead of an
-// expired one (see stopWave).
-func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error, upToWave int) {
-	waves := g.waves
-	if waves == nil {
-		waves = [][]Task{g.tasks}
-	}
-
+// stopTasks stops stages up to and including stage index upToWave, honouring
+// staged shutdown order: stages stop in reverse order (last stage first), each
+// stage draining fully before the previous begins, while tasks within a stage
+// stop concurrently. ids holds the Identifier of each member of waves. Stages
+// beyond upToWave were never started and receive no Stop call. The provided
+// ctx (the cleanup context) is the shared shutdown budget across every stage;
+// a stage whose Stop begins after that budget is exhausted receives a short
+// fresh context instead of an expired one (see stopWave).
+func (g *Group) stopTasks(ctx context.Context, waves [][]Task, ids [][]string, stopErrs *multierr.Error, upToWave int) {
 	var inMu sync.Mutex
 	inFlight := make(map[string]int)
 	mark := func(id string, delta int) {
@@ -366,7 +360,7 @@ func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error, upToWav
 		}()
 	}
 
-	stopWave := func(wave []Task) {
+	stopWave := func(wave []Task, waveIDs []string) {
 		// The cleanup context is shared across every wave, and waves stop in
 		// reverse order, so an early-stopping (last) wave that drains slowly can
 		// exhaust the budget before the earlier stages it must protect begin
@@ -382,14 +376,14 @@ func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error, upToWav
 		defer cancel()
 
 		var stopWG sync.WaitGroup
-		for _, t := range wave {
+		for i, t := range wave {
 			task := t
+			id := waveIDs[i]
 			stopWG.Go(func() {
-				id := task.Identifier()
 				mark(id, 1)
 				defer mark(id, -1)
 				err := execute(waveCtx, id, task, func(taskCtx context.Context, current Task) error {
-					log.Infof("<task> %s stopping", current.Identifier())
+					log.Infof("<task> %s stopping", id)
 					return current.Stop(taskCtx)
 				})
 				if err != nil {
@@ -406,7 +400,7 @@ func (g *Group) stopTasks(ctx context.Context, stopErrs *multierr.Error, upToWav
 		upToWave = len(waves) - 1
 	}
 	for i := upToWave; i >= 0; i-- {
-		stopWave(waves[i])
+		stopWave(waves[i], ids[i])
 	}
 }
 

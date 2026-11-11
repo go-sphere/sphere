@@ -72,12 +72,15 @@ func newOptions(opts ...Option) *options {
 		abortOnError: true,
 	}
 	for _, opt := range opts {
-		opt(defaults)
+		if opt != nil {
+			opt(defaults)
+		}
 	}
 	return defaults
 }
 
 // Option configures token loading, rewriting, and abort-on-error behavior for NewAuthMiddleware.
+// A nil Option is ignored.
 type Option func(*options)
 
 // WithLoader replaces the default loader that reads the Authorization header.

@@ -22,6 +22,9 @@ type Config struct {
 //
 // Database also implements cache.KeyLister and is safe for concurrent use.
 // Build one with NewDatabase, NewDatabaseWithOptions, or NewDatabaseWithBadger.
+//
+// Badger does not accept an empty key: reads and writes of the key "" return
+// badger.ErrEmptyKey, where the other drivers store and read it like any key.
 type Database struct {
 	db *badger.DB
 	// owned reports whether this Database opened the underlying BadgerDB
@@ -89,37 +92,81 @@ func (d *Database) SetWithTTL(ctx context.Context, key string, val []byte, expir
 	})
 }
 
+// MultiSet stores every entry without expiration. A batch that exceeds
+// badger's transaction size limit is committed in several transactions, so on
+// error the chunks committed before it stay written (see cache.Bulk).
 func (d *Database) MultiSet(ctx context.Context, valMap map[string][]byte) error {
-	return d.db.Update(func(txn *badger.Txn) error {
-		for k, v := range valMap {
-			err := txn.SetEntry(badger.NewEntry([]byte(k), v))
-			if err != nil {
-				return err
-			}
+	w := d.newBatchWriter()
+	defer w.discard()
+	for k, v := range valMap {
+		err := w.write(func(txn *badger.Txn) error {
+			return txn.SetEntry(badger.NewEntry([]byte(k), v))
+		})
+		if err != nil {
+			return err
 		}
-		return nil
-	})
+	}
+	return w.commit()
 }
 
+// MultiSetWithTTL stores every entry with the same expiration, splitting the
+// batch across transactions like MultiSet.
 func (d *Database) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
 	if expiration < 0 {
 		return cache.ErrInvalidTTL
 	}
-	return d.db.Update(func(txn *badger.Txn) error {
-		expiresAt := uint64(0)
-		if expiration > 0 {
-			expiresAt = badgerExpiresAt(expiration)
-		}
-		for k, v := range valMap {
+	expiresAt := uint64(0)
+	if expiration > 0 {
+		expiresAt = badgerExpiresAt(expiration)
+	}
+	w := d.newBatchWriter()
+	defer w.discard()
+	for k, v := range valMap {
+		err := w.write(func(txn *badger.Txn) error {
 			entry := badger.NewEntry([]byte(k), v)
+			// expiration == 0 leaves ExpiresAt at 0: never expire.
 			entry.ExpiresAt = expiresAt
-			// expiration == 0: never expire; skip WithTTL so no ExpiresAt is set.
-			if err := txn.SetEntry(entry); err != nil {
-				return err
-			}
+			return txn.SetEntry(entry)
+		})
+		if err != nil {
+			return err
 		}
-		return nil
-	})
+	}
+	return w.commit()
+}
+
+// batchWriter applies a batch of writes in as few transactions as badger
+// allows: a write that would push the current transaction past badger's size
+// limit (ErrTxnTooBig) commits what is pending and is retried in a fresh
+// transaction. It is not safe for concurrent use.
+type batchWriter struct {
+	db  *badger.DB
+	txn *badger.Txn
+}
+
+func (d *Database) newBatchWriter() *batchWriter {
+	return &batchWriter{db: d.db, txn: d.db.NewTransaction(true)}
+}
+
+func (w *batchWriter) write(op func(txn *badger.Txn) error) error {
+	err := op(w.txn)
+	if !errors.Is(err, badger.ErrTxnTooBig) {
+		return err
+	}
+	if err := w.txn.Commit(); err != nil {
+		return err
+	}
+	w.txn = w.db.NewTransaction(true)
+	return op(w.txn)
+}
+
+func (w *batchWriter) commit() error {
+	return w.txn.Commit()
+}
+
+// discard releases the current transaction; it is a no-op after commit.
+func (w *batchWriter) discard() {
+	w.txn.Discard()
 }
 
 // Badger stores expiry timestamps with one-second precision. Round the
@@ -224,16 +271,20 @@ func (d *Database) Del(ctx context.Context, key string) error {
 	})
 }
 
+// MultiDel removes every key, splitting the batch across transactions like
+// MultiSet.
 func (d *Database) MultiDel(ctx context.Context, keys []string) error {
-	return d.db.Update(func(txn *badger.Txn) error {
-		for _, key := range keys {
-			err := txn.Delete([]byte(key))
-			if err != nil {
-				return err
-			}
+	w := d.newBatchWriter()
+	defer w.discard()
+	for _, key := range keys {
+		err := w.write(func(txn *badger.Txn) error {
+			return txn.Delete([]byte(key))
+		})
+		if err != nil {
+			return err
 		}
-		return nil
-	})
+	}
+	return w.commit()
 }
 
 // delAllBatchSize bounds how many deletes DelAll issues per transaction: one
@@ -289,7 +340,7 @@ func (d *Database) Keys(ctx context.Context, prefix string) ([]string, error) {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			keys = append(keys, string(it.Item().KeyCopy(nil)))
+			keys = append(keys, string(it.Item().Key()))
 		}
 		return nil
 	})

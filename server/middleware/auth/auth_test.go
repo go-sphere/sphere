@@ -230,3 +230,11 @@ func TestNewAuthMiddleware(t *testing.T) {
 		}
 	})
 }
+
+func TestNewOptionsSkipsNilOptions(t *testing.T) {
+	t.Parallel()
+	opts := newOptions(nil, WithAbortOnError(false), nil)
+	if opts.loader == nil || opts.abortOnError {
+		t.Fatalf("options = %+v, want the default loader and abortOnError false", opts)
+	}
+}

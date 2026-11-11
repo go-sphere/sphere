@@ -863,6 +863,34 @@ func TestGroupEdgeCases(t *testing.T) {
 		}
 	})
 
+	t.Run("typed nil task fails validation", func(t *testing.T) {
+		var typedNil *Func
+		g := NewStagedGroup([]Task{NewFunc("ok", nil, nil)}, []Task{typedNil})
+		err := g.Start(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "task at index 1 is nil") {
+			t.Fatalf("expected typed nil validation error, got %v", err)
+		}
+		if g.IsStarted() {
+			t.Fatal("group should not be marked started if validation failed")
+		}
+	})
+
+	t.Run("panicking Identifier fails validation without wedging the group", func(t *testing.T) {
+		g := NewGroup(panicIdentifierTask{})
+		err := g.Start(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "task at index 0: identifier panic") {
+			t.Fatalf("expected identifier panic validation error, got %v", err)
+		}
+		if g.IsStarted() {
+			t.Fatal("group should not be marked started if validation failed")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := g.Stop(ctx); err != nil {
+			t.Fatalf("Stop after failed validation returned %v", err)
+		}
+	})
+
 	t.Run("Stop with nil context does not panic", func(t *testing.T) {
 		worker := scripttask.NewScriptTask("worker", nil, nil)
 		g := NewGroup(worker)
@@ -884,3 +912,11 @@ func TestGroupEdgeCases(t *testing.T) {
 		}
 	})
 }
+
+// panicIdentifierTask stands in for a member whose Identifier panics, such as
+// a value type wrapping a nil dependency.
+type panicIdentifierTask struct{}
+
+func (panicIdentifierTask) Identifier() string              { panic("broken identifier") }
+func (panicIdentifierTask) Start(ctx context.Context) error { return nil }
+func (panicIdentifierTask) Stop(ctx context.Context) error  { return nil }

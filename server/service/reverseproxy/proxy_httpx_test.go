@@ -72,7 +72,7 @@ func TestServeCacheReverseProxy(t *testing.T) {
 	// entry before asserting the hit path.
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		if ok, err := cache.Exists(context.Background(), reqPath); err == nil && ok {
+		if ok, err := cache.Exists(context.Background(), "example.com"+reqPath); err == nil && ok {
 			break
 		}
 		if time.Now().After(deadline) {

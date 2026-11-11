@@ -30,8 +30,9 @@
 //
 // # Behavior
 //
-//   - Index and Delete wait for the Meilisearch task (polling every second)
-//     and report failed tasks as errors; they are not fire-and-forget.
+//   - Index and Delete wait for the Meilisearch task (polling at the
+//     client's default interval) and report failed tasks as errors; they are
+//     not fire-and-forget.
 //   - Search maps Result.Total from EstimatedTotalHits, not TotalHits.
 //   - Params.Filter is passed through verbatim as Meilisearch filter syntax;
 //     filtering on an attribute requires it to be filterable in the index

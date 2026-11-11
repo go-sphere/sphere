@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-sphere/sphere/utils/encoding/baseconv"
 )
@@ -128,5 +129,55 @@ func TestRandomGenerators(t *testing.T) {
 				}
 			})
 		})
+	}
+}
+
+// TestEncodedLengthBounds pins the length limits the decoders enforce before
+// decoding: no int64 encodes outside them, so the early rejection never
+// refuses a string Int64ToBase32 or Int64ToBase62 produced.
+func TestEncodedLengthBounds(t *testing.T) {
+	t.Parallel()
+
+	var values []int64
+	for shift := range 64 {
+		v := int64(uint64(1) << shift)
+		values = append(values, v, v-1, v+1, -v, -v-1, ^v)
+	}
+	for _, v := range values {
+		if got := len(Int64ToBase32(v)); got != base32Len {
+			t.Errorf("len(Int64ToBase32(%d)) = %d, want %d", v, got, base32Len)
+		}
+		if got := len(Int64ToBase62(v)); got < 8 || got > maxBase62Len {
+			t.Errorf("len(Int64ToBase62(%d)) = %d, want 8..%d", v, got, maxBase62Len)
+		}
+	}
+}
+
+// TestDecodeRejectsOversizedInputQuickly pins that an oversized identifier,
+// such as one taken from a request path, is refused before decoding. The
+// base62 decoder is quadratic in the input length, so decoding this input
+// first would take seconds.
+func TestDecodeRejectsOversizedInputQuickly(t *testing.T) {
+	t.Parallel()
+
+	decoders := map[string]func(string) (int64, error){
+		"base32": Base32ToInt64,
+		"base62": Base62ToInt64,
+	}
+	input := strings.Repeat("z", 64<<10)
+	for name, decode := range decoders {
+		done := make(chan error, 1)
+		go func() {
+			_, err := decode(input)
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			if !errors.Is(err, ErrNonCanonical) {
+				t.Errorf("%s: oversized input error = %v, want ErrNonCanonical", name, err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("%s: oversized input was not rejected within 1s", name)
+		}
 	}
 }

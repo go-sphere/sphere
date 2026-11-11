@@ -24,6 +24,9 @@
 // (unsafe against concurrent reads). The scan+delete is not atomic. GetDel
 // retries badger.ErrConflict until success, miss, or ctx.Err(). Keys and
 // GetDel honour ctx; most other methods ignore it. TTLs are rounded up to whole
-// seconds. NewDatabase and NewDatabaseWithOptions own the DB;
+// seconds. The empty key "" is rejected with badger.ErrEmptyKey. MultiSet,
+// MultiSetWithTTL and MultiDel commit a batch in one transaction unless it
+// exceeds badger's transaction size limit, in which case they commit it in
+// several. NewDatabase and NewDatabaseWithOptions own the DB;
 // NewDatabaseWithBadger does not.
 package badgerdb

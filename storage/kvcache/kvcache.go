@@ -167,8 +167,10 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 	return nil
 }
 
-// CopyFile duplicates a file from source to destination key within cache storage.
-// Validates overwrite permissions and handles cache expiration settings.
+// CopyFile duplicates a file from source to destination key within cache storage,
+// applying Config.Expires to the destination. A missing source fails with
+// storageerr.ErrNotFound, even when the destination exists; an existing
+// destination with overwrite false fails with storageerr.ErrDestExists.
 //
 // The overwrite check is best-effort: ByteCache has no compare-and-set, so a
 // concurrent writer can create the destination between Exists and Set and have
@@ -183,6 +185,13 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	if err != nil {
 		return err
 	}
+	value, found, err := c.cache.Get(ctx, sourceKey)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return storageerr.ErrNotFound
+	}
 	if !overwrite {
 		found, err := c.cache.Exists(ctx, destinationKey)
 		if err != nil {
@@ -191,13 +200,6 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 		if found {
 			return storageerr.ErrDestExists
 		}
-	}
-	value, found, err := c.cache.Get(ctx, sourceKey)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return storageerr.ErrNotFound
 	}
 	if c.config.Expires != nil {
 		err = c.cache.SetWithTTL(ctx, destinationKey, value, *c.config.Expires)

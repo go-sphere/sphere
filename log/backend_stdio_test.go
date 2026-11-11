@@ -213,3 +213,27 @@ func TestStdioBackendStackAtDoesNotMutateCallerAttrs(t *testing.T) {
 		t.Errorf("caller slice was mutated: %+v", attrs[0])
 	}
 }
+
+// TestStdioBackendRendersPresetAttrsInKeyOrder pins the rendering of
+// backend-level attrs, which are formatted once when options are applied: keys
+// are sorted, values are quoted when needed, and With adds to the set without
+// changing the parent.
+func TestStdioBackendRendersPresetAttrsInKeyOrder(t *testing.T) {
+	parent := NewStdioBackend(WithAttrs(map[string]any{"b": 2, "a": "x y"}))
+	child := parent.With(WithAttrs(map[string]any{"c": 3, "b": 4}))
+
+	out := captureStdout(t, func() {
+		parent.Log(context.Background(), LevelInfo, "p")
+		child.Log(context.Background(), LevelInfo, "c", String("d", "5"))
+	})
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("lines = %q", lines)
+	}
+	if !strings.HasSuffix(lines[0], ` msg=p a="x y" b=2`) {
+		t.Errorf("parent line = %q", lines[0])
+	}
+	if !strings.HasSuffix(lines[1], ` msg=c a="x y" b=4 c=3 d=5`) {
+		t.Errorf("child line = %q", lines[1])
+	}
+}

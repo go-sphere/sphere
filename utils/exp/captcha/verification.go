@@ -62,9 +62,9 @@ type VerificationStorage struct {
 	FailedAttempts map[string]int `json:"failed_attempts"`
 
 	// LockedUntil freezes verification attempts for a number after too many
-	// failures. Freezing replaces invalidating the outstanding codes, which let
-	// anyone who knew a phone number destroy the credential its owner had just
-	// been sent.
+	// failures. Outstanding codes are kept rather than invalidated, so anyone
+	// who knows a phone number cannot destroy the credential its owner was
+	// just sent.
 	LockedUntil map[string]time.Time `json:"locked_until"`
 }
 

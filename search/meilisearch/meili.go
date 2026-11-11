@@ -3,7 +3,6 @@ package meilisearch
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/go-sphere/sphere/search"
 	"github.com/meilisearch/meilisearch-go"
@@ -36,10 +35,11 @@ func NewServiceManager(conf Config) (*ServiceManager, error) {
 
 // Searcher implements the search.Searcher interface for Meilisearch backend.
 // It provides type-safe search operations for documents of type T, which are
-// encoded to and decoded from JSON. Create it with NewSearcher.
+// encoded to and decoded from JSON. Create it with NewSearcher. A Searcher is
+// safe for concurrent use.
 type Searcher[T any] struct {
 	service    *ServiceManager
-	index      meilisearch.IndexManager
+	indexName  string
 	primaryKey *string
 }
 
@@ -49,12 +49,17 @@ type Searcher[T any] struct {
 // not contact the server or create the index; Meilisearch creates a missing
 // index when documents are first added. It currently never returns an error.
 func NewSearcher[T any](service *ServiceManager, indexName string, primaryKey *string) (*Searcher[T], error) {
-	index := service.service.Index(indexName)
 	return &Searcher[T]{
 		service:    service,
-		index:      index,
+		indexName:  indexName,
 		primaryKey: primaryKey,
 	}, nil
+}
+
+// index returns a fresh handle per call: meilisearch-go writes the primary key
+// onto the handle on every add, so a shared handle races under concurrent use.
+func (s *Searcher[T]) index() meilisearch.IndexManager {
+	return s.service.service.Index(s.indexName)
 }
 
 // PrimaryKey is a helper function that converts a string to a pointer.
@@ -67,17 +72,17 @@ func PrimaryKey(value string) *string {
 }
 
 // Index adds or replaces documents and waits for the Meilisearch task
-// (WaitForTaskWithContext, 1s poll). It is not fire-and-forget. A task that
+// (WaitForTaskWithContext with the client's default poll interval). It is not fire-and-forget. A task that
 // ends failed or canceled is returned as an error. If ctx ends while waiting,
 // the ctx error is returned but the task may still complete on the server.
 func (s *Searcher[T]) Index(ctx context.Context, docs ...T) error {
-	task, err := s.index.AddDocumentsWithContext(ctx, docs, &meilisearch.DocumentOptions{
+	task, err := s.index().AddDocumentsWithContext(ctx, docs, &meilisearch.DocumentOptions{
 		PrimaryKey: s.primaryKey,
 	})
 	if err != nil {
 		return err
 	}
-	result, err := s.service.service.WaitForTaskWithContext(ctx, task.TaskUID, time.Second)
+	result, err := s.service.service.WaitForTaskWithContext(ctx, task.TaskUID, 0)
 	if err != nil {
 		return err
 	}
@@ -85,14 +90,14 @@ func (s *Searcher[T]) Index(ctx context.Context, docs ...T) error {
 }
 
 // Delete removes documents by ID and waits for the Meilisearch task
-// (WaitForTaskWithContext, 1s poll). It is not fire-and-forget. Unknown IDs
+// (WaitForTaskWithContext with the client's default poll interval). It is not fire-and-forget. Unknown IDs
 // are not an error. Task failure and ctx behavior match Index.
 func (s *Searcher[T]) Delete(ctx context.Context, ids ...string) error {
-	task, err := s.index.DeleteDocumentsWithContext(ctx, ids, &meilisearch.DocumentOptions{})
+	task, err := s.index().DeleteDocumentsWithContext(ctx, ids, &meilisearch.DocumentOptions{})
 	if err != nil {
 		return err
 	}
-	result, err := s.service.service.WaitForTaskWithContext(ctx, task.TaskUID, time.Second)
+	result, err := s.service.service.WaitForTaskWithContext(ctx, task.TaskUID, 0)
 	if err != nil {
 		return err
 	}
@@ -117,7 +122,7 @@ func taskError(task *meilisearch.Task) error {
 // uses Meilisearch's default (20). Hits is nil when nothing matches. A hit
 // that cannot be decoded into T fails the whole call.
 func (s *Searcher[T]) Search(ctx context.Context, params search.Params) (search.Result[T], error) {
-	resp, err := s.index.SearchWithContext(ctx, params.Query, &meilisearch.SearchRequest{
+	resp, err := s.index().SearchWithContext(ctx, params.Query, &meilisearch.SearchRequest{
 		Offset: int64(params.Offset),
 		Limit:  int64(params.Limit),
 		Filter: params.Filter,

@@ -498,3 +498,18 @@ func TestChanPoolGetClosedWithNew(t *testing.T) {
 		}
 	})
 }
+
+func TestNilOptionIsIgnored(t *testing.T) {
+	newInt := WithNew(func() int { return 7 })
+
+	cp := NewChanPool(1, nil, newInt, nil)
+	defer cp.Close()
+	if got := cp.Get(); got != 7 {
+		t.Fatalf("ChanPool.Get() = %d, want 7", got)
+	}
+
+	sp := NewSyncPool(nil, newInt)
+	if got := sp.Get(); got != 7 {
+		t.Fatalf("SyncPool.Get() = %d, want 7", got)
+	}
+}

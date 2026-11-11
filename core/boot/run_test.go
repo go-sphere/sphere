@@ -246,6 +246,42 @@ func TestRun_BeforeStartHookError(t *testing.T) {
 	}
 }
 
+func TestRun_BeforeStartHookErrorRunsAfterStopHooks(t *testing.T) {
+	hookErr := errors.New("before start hook failed")
+	afterErr := errors.New("after stop hook failed")
+	task := &mockTask{identifier: "test-task"}
+	var afterCtxErr error
+	afterRan := false
+	opts := newOptions(
+		WithShutdownTimeout(time.Second),
+		AddBeforeStart(func(ctx context.Context) error {
+			return hookErr
+		}),
+		AddAfterStop(func(ctx context.Context) error {
+			afterRan = true
+			afterCtxErr = ctx.Err()
+			if _, ok := ctx.Deadline(); !ok {
+				t.Error("after-stop hook context has no shutdown deadline")
+			}
+			return afterErr
+		}),
+	)
+
+	err := run(context.Background(), task, opts)
+	if !errors.Is(err, hookErr) || !errors.Is(err, afterErr) {
+		t.Fatalf("Expected joined before-start and after-stop errors, got: %v", err)
+	}
+	if !afterRan {
+		t.Fatal("after-stop hook did not run after a before-start failure")
+	}
+	if afterCtxErr != nil {
+		t.Fatalf("after-stop hook got a dead context: %v", afterCtxErr)
+	}
+	if task.startCalled.Load() || task.stopCalled.Load() {
+		t.Error("Start and Stop must not be called when a before-start hook fails")
+	}
+}
+
 func TestRun_BeforeStopHookError(t *testing.T) {
 	hookErr := errors.New("before stop hook failed")
 	task := &mockTask{
