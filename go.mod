@@ -19,9 +19,9 @@ require (
 	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag v1.16.6
 	github.com/yitter/idgenerator-go v1.3.3
-	go.opentelemetry.io/otel v1.46.0
-	go.opentelemetry.io/otel/metric v1.46.0
-	go.opentelemetry.io/otel/trace v1.46.0
+	go.opentelemetry.io/otel v1.47.0
+	go.opentelemetry.io/otel/metric v1.47.0
+	go.opentelemetry.io/otel/trace v1.47.0
 	go.uber.org/zap v1.28.0
 	go.uber.org/zap/exp v0.3.0
 	golang.org/x/crypto v0.57.0
@@ -34,6 +34,7 @@ require (
 require (
 	github.com/go-playground/form/v4 v4.3.1 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
+	go.opentelemetry.io/otel/log v1.47.0 // indirect
 )
 
 require (
