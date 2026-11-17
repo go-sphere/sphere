@@ -3,7 +3,8 @@
 // Create one [ServiceManager] per Meilisearch server with
 // [NewServiceManager], then one [Searcher] per index and document type with
 // [NewSearcher]. Construction does not contact the server; connectivity
-// errors surface on first use. Nothing needs closing.
+// errors surface on first use. Call [ServiceManager.Close] when done to close
+// idle HTTP connections.
 //
 // # Usage
 //
@@ -21,6 +22,7 @@
 //	if err != nil {
 //		return err
 //	}
+//	defer manager.Close()
 //	articles, err := meilisearch.NewSearcher[Article](manager, "articles", meilisearch.PrimaryKey("id"))
 //	if err != nil {
 //		return err
@@ -32,7 +34,8 @@
 //
 //   - Index and Delete wait for the Meilisearch task (polling at the
 //     client's default interval) and report failed tasks as errors; they are
-//     not fire-and-forget.
+//     not fire-and-forget. Empty Index and Delete calls return ctx.Err() without
+//     contacting the server.
 //   - Search maps Result.Total from EstimatedTotalHits, not TotalHits.
 //   - Params.Filter is passed through verbatim as Meilisearch filter syntax;
 //     filtering on an attribute requires it to be filterable in the index

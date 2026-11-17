@@ -15,8 +15,8 @@ type Config struct {
 }
 
 // ServiceManager wraps the Meilisearch client shared by every Searcher built
-// from it. Create it with NewServiceManager; it is safe to share and has no
-// Close.
+// from it. Create it with NewServiceManager; it is safe to share. Call Close
+// when done to close idle HTTP connections held by the underlying client.
 type ServiceManager struct {
 	service meilisearch.ServiceManager
 }
@@ -31,6 +31,15 @@ func NewServiceManager(conf Config) (*ServiceManager, error) {
 	return &ServiceManager{
 		service: client,
 	}, nil
+}
+
+// Close closes idle HTTP connections held by the underlying Meilisearch client.
+// Calling Close on a nil ServiceManager is a no-op.
+func (m *ServiceManager) Close() error {
+	if m != nil && m.service != nil {
+		m.service.Close()
+	}
+	return nil
 }
 
 // Searcher implements the search.Searcher interface for Meilisearch backend.
@@ -72,17 +81,21 @@ func PrimaryKey(value string) *string {
 }
 
 // Index adds or replaces documents and waits for the Meilisearch task
-// (WaitForTaskWithContext with the client's default poll interval). It is not fire-and-forget. A task that
+// (WaitForTask with the client's default poll interval). It is not fire-and-forget. A task that
 // ends failed or canceled is returned as an error. If ctx ends while waiting,
 // the ctx error is returned but the task may still complete on the server.
+// Calling Index with no documents is a no-op and returns ctx.Err() without contacting the server.
 func (s *Searcher[T]) Index(ctx context.Context, docs ...T) error {
-	task, err := s.index().AddDocumentsWithContext(ctx, docs, &meilisearch.DocumentOptions{
+	if len(docs) == 0 {
+		return ctx.Err()
+	}
+	task, err := s.index().AddDocuments(ctx, docs, &meilisearch.DocumentOptions{
 		PrimaryKey: s.primaryKey,
 	})
 	if err != nil {
 		return err
 	}
-	result, err := s.service.service.WaitForTaskWithContext(ctx, task.TaskUID, 0)
+	result, err := s.service.service.WaitForTask(ctx, task.TaskUID, 0)
 	if err != nil {
 		return err
 	}
@@ -90,14 +103,18 @@ func (s *Searcher[T]) Index(ctx context.Context, docs ...T) error {
 }
 
 // Delete removes documents by ID and waits for the Meilisearch task
-// (WaitForTaskWithContext with the client's default poll interval). It is not fire-and-forget. Unknown IDs
+// (WaitForTask with the client's default poll interval). It is not fire-and-forget. Unknown IDs
 // are not an error. Task failure and ctx behavior match Index.
+// Calling Delete with no IDs is a no-op and returns ctx.Err() without contacting the server.
 func (s *Searcher[T]) Delete(ctx context.Context, ids ...string) error {
-	task, err := s.index().DeleteDocumentsWithContext(ctx, ids, &meilisearch.DocumentOptions{})
+	if len(ids) == 0 {
+		return ctx.Err()
+	}
+	task, err := s.index().DeleteDocuments(ctx, ids, &meilisearch.DocumentOptions{})
 	if err != nil {
 		return err
 	}
-	result, err := s.service.service.WaitForTaskWithContext(ctx, task.TaskUID, 0)
+	result, err := s.service.service.WaitForTask(ctx, task.TaskUID, 0)
 	if err != nil {
 		return err
 	}
@@ -105,7 +122,7 @@ func (s *Searcher[T]) Delete(ctx context.Context, ids ...string) error {
 }
 
 // taskError inspects a finished task and returns an error when the task did not
-// succeed. WaitForTaskWithContext returns (task, nil) even for failed/canceled
+// succeed. WaitForTask returns (task, nil) even for failed/canceled
 // terminal states, so callers must check the task status explicitly.
 func taskError(task *meilisearch.Task) error {
 	if task == nil || task.Status == meilisearch.TaskStatusSucceeded {
@@ -122,7 +139,7 @@ func taskError(task *meilisearch.Task) error {
 // uses Meilisearch's default (20). Hits is nil when nothing matches. A hit
 // that cannot be decoded into T fails the whole call.
 func (s *Searcher[T]) Search(ctx context.Context, params search.Params) (search.Result[T], error) {
-	resp, err := s.index().SearchWithContext(ctx, params.Query, &meilisearch.SearchRequest{
+	resp, err := s.index().Search(ctx, params.Query, &meilisearch.SearchRequest{
 		Offset: int64(params.Offset),
 		Limit:  int64(params.Limit),
 		Filter: params.Filter,
@@ -131,13 +148,16 @@ func (s *Searcher[T]) Search(ctx context.Context, params search.Params) (search.
 		return search.Result[T]{}, err
 	}
 	var hits []T
-	for _, hit := range resp.Hits {
-		var hitData T
-		dErr := hit.DecodeInto(&hitData)
-		if dErr != nil {
-			return search.Result[T]{}, dErr
+	if len(resp.Hits) > 0 {
+		hits = make([]T, 0, len(resp.Hits))
+		for _, hit := range resp.Hits {
+			var hitData T
+			dErr := hit.DecodeInto(&hitData)
+			if dErr != nil {
+				return search.Result[T]{}, dErr
+			}
+			hits = append(hits, hitData)
 		}
-		hits = append(hits, hitData)
 	}
 	return search.Result[T]{
 		Hits:       hits,

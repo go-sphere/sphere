@@ -57,7 +57,7 @@ Each is described under its own heading in `compat/behavior-changes.md`.
   the span and records the duration, and `telemetry.TraceAttrs` supplies
   `trace_id`/`span_id` for logs. `go.opentelemetry.io/otel`, `otel/metric` and
   `otel/trace` become direct requirements of `sphere` at the versions it
-  already resolved; `go.sum` is unchanged.
+  already resolved.
 - `log.ContextWithAttrs` and `log.AttrsFromContext`: attach attrs to a
   `context.Context`; loggers built by the `log` package append them to every
   `*Context` entry.

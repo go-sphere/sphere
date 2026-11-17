@@ -32,9 +32,12 @@ func TestSearcher(t *testing.T) {
 	}
 	// The constructor no longer probes the server, so check availability here and
 	// skip when Meilisearch is not reachable (e.g. in CI without a running server).
-	if _, err := manager.service.HealthWithContext(context.Background()); err != nil {
+	if _, err := manager.service.Health(context.Background()); err != nil {
 		t.Skipf("Meilisearch server not available, skipping test: %v", err)
 	}
+	t.Cleanup(func() {
+		_ = manager.Close()
+	})
 	searcher, err := NewSearcher[Article](manager, "articles", PrimaryKey("id"))
 	if err != nil {
 		t.Errorf("Failed to create searcher: %v", err)
