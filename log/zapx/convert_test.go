@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -70,5 +72,37 @@ func TestGroupAttrsKeepTypedEncoding(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("output = %s, want it to contain %s", strings.TrimSpace(out), want)
 		}
+	}
+}
+
+type cyclicSlogGroup struct {
+	branch bool
+}
+
+func (c cyclicSlogGroup) LogValue() slog.Value {
+	if c.branch {
+		return slog.GroupValue(slog.Any("a", c), slog.Any("b", c))
+	}
+	return slog.GroupValue(slog.Any("self", c))
+}
+
+func TestAttrToZapFieldBoundsCyclicGroupsAndReusesSafely(t *testing.T) {
+	f := AttrToZapField(corelog.Any("g", cyclicSlogGroup{}))
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			enc := zapcore.NewMapObjectEncoder()
+			f.AddTo(enc)
+			if _, ok := enc.Fields["g"]; !ok {
+				t.Errorf("missing g field: %#v", enc.Fields)
+			}
+		})
+	}
+	wg.Wait()
+
+	enc := zapcore.NewMapObjectEncoder()
+	AttrToZapField(corelog.Any("branch", cyclicSlogGroup{branch: true})).AddTo(enc)
+	if _, ok := enc.Fields["branch"]; !ok {
+		t.Fatalf("missing branch field: %#v", enc.Fields)
 	}
 }

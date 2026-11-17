@@ -518,3 +518,40 @@ func TestPackageContextFunctionsAppendContextAttrs(t *testing.T) {
 		})
 	}
 }
+
+type ctxNilCheckBackend struct {
+	ctxs []context.Context
+}
+
+func (b *ctxNilCheckBackend) Log(ctx context.Context, _ Level, _ string, _ ...Attr) {
+	b.ctxs = append(b.ctxs, ctx)
+}
+func (b *ctxNilCheckBackend) Sync() error            { return nil }
+func (b *ctxNilCheckBackend) With(...Option) Backend { return b }
+
+func TestContextFacadeNormalizesNilContext(t *testing.T) {
+	be := &ctxNilCheckBackend{}
+	lg := NewLogger(be)
+	var nilCtx context.Context
+	lg.DebugContext(nilCtx, "d")
+	lg.InfoContext(nilCtx, "i")
+	lg.WarnContext(nilCtx, "w")
+	lg.ErrorContext(nilCtx, "e")
+
+	orig := logger()
+	defer func() { std.Store(orig) }()
+	InitWithBackends(be)
+	DebugContext(nilCtx, "d")
+	InfoContext(nilCtx, "i")
+	WarnContext(nilCtx, "w")
+	ErrorContext(nilCtx, "e")
+
+	if len(be.ctxs) != 8 {
+		t.Fatalf("logged %d entries, want 8", len(be.ctxs))
+	}
+	for i, c := range be.ctxs {
+		if c == nil {
+			t.Fatalf("entry %d received nil context", i)
+		}
+	}
+}

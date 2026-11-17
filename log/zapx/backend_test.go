@@ -1,13 +1,16 @@
 package zapx
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/go-sphere/sphere/log"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func TestZapLogger(t *testing.T) {
@@ -198,4 +201,22 @@ func TestLogSurvivesPanickingAttr(t *testing.T) {
 		}
 	}()
 	backend.Log(t.Context(), log.LevelError, "request failed", log.Any("payload", panicMarshaler{}))
+}
+
+type cyclicPanicMarshaler struct{}
+
+func (cyclicPanicMarshaler) MarshalJSON() ([]byte, error) {
+	m := map[string]any{}
+	m["self"] = m
+	panic(m)
+}
+
+func TestBackendLogSurvivesCyclicPanicInRecover(t *testing.T) {
+	var buf bytes.Buffer
+	core := zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), zapcore.AddSync(&buf), zapcore.DebugLevel)
+	backend := newBackendFromCore(core, nil, log.WithName("svc"), nil)
+	backend.Log(t.Context(), log.LevelError, "request failed", log.Any("payload", cyclicPanicMarshaler{}))
+	if !strings.Contains(buf.String(), "attr_error") || !strings.Contains(buf.String(), "unformattable") {
+		t.Fatalf("output = %q, want attr_error with unformattable", buf.String())
+	}
 }

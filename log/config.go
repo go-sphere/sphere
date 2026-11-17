@@ -35,7 +35,8 @@ type Options struct {
 }
 
 // Option configures a backend at construction or through With. Options are
-// applied in order; for scalar settings the last one wins.
+// applied in order; for scalar settings the last one wins. A nil Option is
+// ignored.
 type Option = func(*Options)
 
 // WithName sets the logger name for identification purposes.
@@ -107,7 +108,9 @@ func newOptions(opts ...Option) *Options {
 		Attrs:     make(map[string]any),
 	}
 	for _, opt := range opts {
-		opt(defaults)
+		if opt != nil {
+			opt(defaults)
+		}
 	}
 	return defaults
 }

@@ -467,3 +467,42 @@ func TestBufferEntryJSONIsUnchangedByCapture(t *testing.T) {
 		t.Fatalf("attrs JSON =\n%s\nwant\n%s", gotJSON, wantJSON)
 	}
 }
+
+type cyclicGroupValuer struct {
+	branch bool
+}
+
+func (c cyclicGroupValuer) LogValue() slog.Value {
+	if c.branch {
+		return slog.GroupValue(slog.Any("a", c), slog.Any("b", c))
+	}
+	return slog.GroupValue(slog.Any("self", c))
+}
+
+type cyclicPanicError struct{}
+
+func (cyclicPanicError) Error() string {
+	m := map[string]any{}
+	m["self"] = m
+	panic(m)
+}
+
+func TestBufferBoundsCyclicSlogGroupsAndCyclicPanics(t *testing.T) {
+	b := New(4)
+	b.Log(context.Background(), log.LevelInfo, "cyclic", log.Any("g", cyclicGroupValuer{}))
+	b.Log(context.Background(), log.LevelInfo, "branch", log.Any("g", cyclicGroupValuer{branch: true}))
+	b.Log(context.Background(), log.LevelError, "panic", log.Any("p", cyclicPanicError{}))
+
+	entries, _ := b.History(0, 10, log.LevelDebug)
+	if len(entries) != 3 {
+		t.Fatalf("entries = %d, want 3", len(entries))
+	}
+	raw, err := json.Marshal(entries[0].Attrs)
+	if err != nil || !strings.Contains(string(raw), "unformattable") {
+		t.Fatalf("cyclic group attrs = %s, err=%v", raw, err)
+	}
+	attrErr, ok := entries[2].Attrs["attr_error"].(string)
+	if !ok || !strings.Contains(attrErr, "unformattable") {
+		t.Fatalf("expected attr_error with unformattable for cyclic panic, got %#v", entries[2].Attrs)
+	}
+}

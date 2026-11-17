@@ -412,7 +412,12 @@ func mergeAttrs(preset map[string]any, attrs []log.Attr) (out map[string]any) {
 func setSafe(dst map[string]any, key string, fn func()) {
 	defer func() {
 		if r := recover(); r != nil {
-			dst["attr_error"] = fmt.Sprintf("%s: %v", key, r)
+			defer func() {
+				if recover() != nil {
+					dst["attr_error"] = key + ": unprintable"
+				}
+			}()
+			dst["attr_error"] = fmt.Sprintf("%s: %s", key, safefmt.Sprint(r))
 		}
 	}()
 	fn()
@@ -458,20 +463,39 @@ func marshal(v any) (raw []byte, ok bool) {
 	return raw, err == nil
 }
 
+const (
+	maxAttrDepth = 32
+	maxAttrNodes = 4096
+)
+
 // addAttr resolves one slog attr into dst, flattening groups into nested maps.
 func addAttr(dst map[string]any, attr log.Attr) {
+	budget := maxAttrNodes
+	addAttrDepth(dst, attr, 0, &budget)
+}
+
+func addAttrDepth(dst map[string]any, attr log.Attr, depth int, budget *int) {
+	*budget--
+	if depth > maxAttrDepth || *budget < 0 {
+		key := attr.Key
+		if key == "" {
+			key = "attr_error"
+		}
+		dst[key] = fmt.Sprintf("<unformattable %T: cyclic or deeper than %d levels>", attr.Value.Any(), maxAttrDepth)
+		return
+	}
 	value := attr.Value.Resolve()
 	if value.Kind() == slog.KindGroup {
 		group := value.Group()
 		if attr.Key == "" {
 			for _, ga := range group {
-				addAttr(dst, ga)
+				addAttrDepth(dst, ga, depth+1, budget)
 			}
 			return
 		}
 		nested := make(map[string]any, len(group))
 		for _, ga := range group {
-			addAttr(nested, ga)
+			addAttrDepth(nested, ga, depth+1, budget)
 		}
 		dst[attr.Key] = nested
 		return

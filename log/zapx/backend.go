@@ -2,13 +2,13 @@ package zapx
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
 
 	corelog "github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/log/internal/callsite"
+	"github.com/go-sphere/sphere/log/internal/safefmt"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
@@ -114,11 +114,20 @@ func (z *Backend) Log(ctx context.Context, level corelog.Level, msg string, attr
 	}
 	defer func() {
 		if r := recover(); r != nil {
+			var errText string
+			func() {
+				defer func() {
+					if recover() != nil {
+						errText = "unprintable"
+					}
+				}()
+				errText = safefmt.Sprint(r)
+			}()
 			if fallback := z.coreLogger.Check(zapLevel, msg); fallback != nil {
 				if z.addCaller {
 					fallback.Caller = caller
 				}
-				fallback.Write(zap.String("attr_error", fmt.Sprint(r)))
+				fallback.Write(zap.String("attr_error", errText))
 			}
 		}
 	}()

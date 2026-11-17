@@ -52,6 +52,23 @@ func withContextAttrs(ctx context.Context, attrs []Attr) []Attr {
 	}
 	out := make([]Attr, len(attrs), len(attrs)+len(extra))
 	copy(out, attrs)
+	if len(extra) <= 8 {
+		for _, a := range extra {
+			if a.Key == "" {
+				out = append(out, a)
+				continue
+			}
+			if slices.ContainsFunc(attrs, func(c Attr) bool { return c.Key == a.Key }) {
+				continue
+			}
+			if idx := slices.IndexFunc(out[len(attrs):], func(c Attr) bool { return c.Key == a.Key }); idx >= 0 {
+				out[len(attrs)+idx] = a
+				continue
+			}
+			out = append(out, a)
+		}
+		return out
+	}
 	index := make(map[string]int, len(extra))
 	for _, a := range extra {
 		if a.Key == "" {

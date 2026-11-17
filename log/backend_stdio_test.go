@@ -267,3 +267,28 @@ func TestStdioBackendClampsStackLevel(t *testing.T) {
 		t.Errorf("error entry should carry a stack, got: %q", errOut)
 	}
 }
+
+func TestStdioBackendIsolatesPerKeyPresetPanicAndUsesSafefmtInRecover(t *testing.T) {
+	b := NewStdioBackend(nil, WithAttrs(map[string]any{
+		"a":      "ok",
+		"broken": panicMarshaler{},
+		"c":      "kept",
+	}), nil)
+	out := captureStdout(t, func() {
+		b.Log(context.Background(), LevelInfo, "hello")
+	})
+	if !strings.Contains(out, "a=ok") || !strings.Contains(out, "c=kept") || !strings.Contains(out, "broken=") {
+		t.Fatalf("preset attrs lost sibling keys: %q", out)
+	}
+
+	// Verify recover() path inside renderAttrValueSafely / safefmt handles cyclic values.
+	cyclic := map[string]any{}
+	cyclic["self"] = cyclic
+	got := renderAttrValueSafely(cyclic)
+	if !strings.Contains(got, "unformattable") {
+		t.Fatalf("renderAttrValueSafely(cyclic) = %q, want unformattable", got)
+	}
+	if gotPanic := renderAttrValueSafely(panicMarshaler{}); !strings.Contains(gotPanic, "PANIC") {
+		t.Fatalf("renderAttrValueSafely(panicMarshaler) = %q", gotPanic)
+	}
+}

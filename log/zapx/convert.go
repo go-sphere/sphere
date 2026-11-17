@@ -23,10 +23,25 @@ func MapToZapFields(attrs map[string]any) []zap.Field {
 	return fields
 }
 
+const (
+	maxGroupDepth = 32
+	maxGroupNodes = 4096
+)
+
 // AttrToZapField converts attr to a zap field. An error stored under "error"
 // uses zap.Error even if it also implements a zap marshaling interface. Other
 // arbitrary values follow zap.Any's dispatch rules, including inside groups.
 func AttrToZapField(attr corelog.Attr) zap.Field {
+	return attrToZapFieldDepth(attr, 0, nil)
+}
+
+func attrToZapFieldDepth(attr corelog.Attr, depth int, budget *int) zap.Field {
+	if budget != nil {
+		*budget--
+		if depth > maxGroupDepth || *budget < 0 {
+			return zap.String(attr.Key, fmt.Sprintf("<unformattable %T: cyclic or deeper than %d levels>", attr.Value.Any(), maxGroupDepth))
+		}
+	}
 	v := attr.Value.Resolve()
 	switch v.Kind() {
 	case slog.KindString:
@@ -49,7 +64,7 @@ func AttrToZapField(attr corelog.Attr) zap.Field {
 		// which renders a nested time.Duration as its nanosecond integer, loses
 		// error fields and collapses duplicate keys, making the output depend on
 		// nesting depth.
-		return zap.Object(attr.Key, groupObject(v.Group()))
+		return zap.Object(attr.Key, groupObject{attrs: v.Group(), depth: depth + 1, budget: budget})
 	case slog.KindAny:
 		if err, ok := v.Any().(error); ok && attr.Key == "error" {
 			return zap.Error(err)
@@ -61,12 +76,21 @@ func AttrToZapField(attr corelog.Attr) zap.Field {
 }
 
 // groupObject encodes a slog group with the same typed encoders used for
-// top-level attrs, recursively.
-type groupObject []slog.Attr
+// top-level attrs, recursively up to maxGroupDepth and maxGroupNodes.
+type groupObject struct {
+	attrs  []slog.Attr
+	depth  int
+	budget *int
+}
 
 func (g groupObject) MarshalLogObject(enc zapcore.ObjectEncoder) error {
-	for _, a := range g {
-		AttrToZapField(a).AddTo(enc)
+	budget := g.budget
+	if budget == nil {
+		b := maxGroupNodes
+		budget = &b
+	}
+	for _, a := range g.attrs {
+		attrToZapFieldDepth(a, g.depth, budget).AddTo(enc)
 	}
 	return nil
 }

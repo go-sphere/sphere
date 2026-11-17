@@ -73,3 +73,49 @@ func TestContextAttrsYieldToCallSiteAttrs(t *testing.T) {
 		}
 	}
 }
+
+func TestWithContextAttrsSmallAndLarge(t *testing.T) {
+	t.Parallel()
+
+	t.Run("linear scan path (<= 8 attrs)", func(t *testing.T) {
+		ctx := ContextWithAttrs(t.Context(),
+			String("a", "1"),
+			String("b", "2"),
+			String("a", "3"),
+			String("", "inline"),
+		)
+		got := withContextAttrs(ctx, []Attr{String("b", "callsite")})
+		if len(got) != 3 {
+			t.Fatalf("len = %d, got %v", len(got), got)
+		}
+		if got[0].Key != "b" || got[0].Value.String() != "callsite" {
+			t.Fatalf("callsite attr = %v", got[0])
+		}
+		if got[1].Key != "a" || got[1].Value.String() != "3" {
+			t.Fatalf("overridden ctx attr = %v", got[1])
+		}
+		if got[2].Key != "" || got[2].Value.String() != "inline" {
+			t.Fatalf("inline attr = %v", got[2])
+		}
+	})
+
+	t.Run("map path (> 8 attrs)", func(t *testing.T) {
+		var extra []Attr
+		for i := range 10 {
+			extra = append(extra, Int("k"+string(rune('0'+i)), i))
+		}
+		extra = append(extra, Int("k0", 99))
+		ctx := ContextWithAttrs(t.Context(), extra...)
+		got := withContextAttrs(ctx, []Attr{Int("k1", 100)})
+		if len(got) != 10 {
+			t.Fatalf("len = %d, want 10: %v", len(got), got)
+		}
+		vals := map[string]int64{}
+		for _, a := range got {
+			vals[a.Key] = a.Value.Int64()
+		}
+		if vals["k0"] != 99 || vals["k1"] != 100 {
+			t.Fatalf("vals = %v", vals)
+		}
+	})
+}

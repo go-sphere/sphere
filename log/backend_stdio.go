@@ -2,7 +2,6 @@ package log
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"maps"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-sphere/sphere/log/internal/callsite"
+	"github.com/go-sphere/sphere/log/internal/safefmt"
 )
 
 // StdioBackend writes logfmt lines with a UTC RFC3339 timestamp. Entries
@@ -89,7 +89,7 @@ func (b *StdioBackend) buildLineSafely(level Level, msg, caller string, attrs []
 				}
 			}()
 			line = b.buildLine(level, msg, caller, []Attr{
-				String("attr_error", fmt.Sprint(r)),
+				String("attr_error", safefmt.Sprint(r)),
 			})
 		}
 	}()
@@ -161,22 +161,30 @@ func (b *StdioBackend) apply(options ...Option) *StdioBackend {
 }
 
 // renderAttrs renders backend-level attrs in key order as " key=value" pairs.
-// A value that panics while rendering degrades to an attr_error field, as it
-// does in Log.
-func renderAttrs(attrs map[string]any) (text string) {
-	defer func() {
-		if recover() != nil {
-			text = " attr_error=unprintable"
-		}
-	}()
+// A panicking value is isolated to its own key so sibling preset attrs keep rendering.
+func renderAttrs(attrs map[string]any) string {
 	var sb strings.Builder
 	for _, k := range slices.Sorted(maps.Keys(attrs)) {
 		sb.WriteByte(' ')
 		sb.WriteString(quoteIfNeeded(k))
 		sb.WriteByte('=')
-		sb.WriteString(formatAny(attrs[k]))
+		sb.WriteString(renderAttrValueSafely(attrs[k]))
 	}
 	return sb.String()
+}
+
+func renderAttrValueSafely(v any) (out string) {
+	defer func() {
+		if r := recover(); r != nil {
+			defer func() {
+				if recover() != nil {
+					out = "unprintable"
+				}
+			}()
+			out = quoteIfNeeded("<panic: " + safefmt.Sprint(r) + ">")
+		}
+	}()
+	return formatAny(v)
 }
 
 func (b *StdioBackend) buildLine(level Level, msg string, caller string, attrs []Attr) string {
