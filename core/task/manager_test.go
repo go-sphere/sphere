@@ -500,4 +500,29 @@ func TestManagerEdgeCases(t *testing.T) {
 			t.Fatalf("StopAll(nil) failed: %v", err)
 		}
 	})
+
+	t.Run("StartTask rejects typed nil task", func(t *testing.T) {
+		var typedNil *Func
+		err := manager.StartTask(context.Background(), "typed-nil", typedNil)
+		if err == nil || err.Error() != "task is nil" {
+			t.Fatalf("StartTask(typedNil) = %v, want task is nil", err)
+		}
+	})
+
+	t.Run("Manager does not swallow panic(context.Canceled) during stop", func(t *testing.T) {
+		started := make(chan struct{})
+		tk := NewFunc("panic-cancel", func(ctx context.Context) error {
+			close(started)
+			<-ctx.Done()
+			panic(context.Canceled)
+		}, nil)
+		if err := manager.StartTask(context.Background(), "panic-cancel", tk); err != nil {
+			t.Fatalf("StartTask: %v", err)
+		}
+		<-started
+		err := manager.StopTask(context.Background(), "panic-cancel")
+		if !isTaskPanic(err) || !errors.Is(err, context.Canceled) {
+			t.Fatalf("StopTask err = %v, want taskPanicError wrapping context.Canceled", err)
+		}
+	})
 }

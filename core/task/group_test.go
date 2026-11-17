@@ -920,3 +920,91 @@ type panicIdentifierTask struct{}
 func (panicIdentifierTask) Identifier() string              { panic("broken identifier") }
 func (panicIdentifierTask) Start(ctx context.Context) error { return nil }
 func (panicIdentifierTask) Stop(ctx context.Context) error  { return nil }
+
+func TestGroupFallbackCleanupBudgetRules(t *testing.T) {
+	noopStart := func(context.Context) error { return nil }
+
+	t.Run("no deadline budget never grants fallback", func(t *testing.T) {
+		var s0Err, s1Err error
+		s0 := scripttask.NewScriptTask("s0", noopStart, func(ctx context.Context) error {
+			s0Err = ctx.Err()
+			return nil
+		})
+		s1 := scripttask.NewScriptTask("s1", nil, func(ctx context.Context) error {
+			s1Err = ctx.Err()
+			return nil
+		})
+		g := NewStagedGroupWithOptions([][]Task{{s0}, {s1}}, WithCleanupTimeout(0))
+		startDone := make(chan error, 1)
+		go func() { startDone <- g.Start(context.Background()) }()
+		waitSignal(t, s1.Started(), "s1 started")
+
+		canceled, cancel := context.WithCancel(context.Background())
+		cancel()
+		_ = g.Stop(canceled)
+		_ = waitError(t, startDone, "group start")
+		if s1Err == nil || s0Err == nil {
+			t.Fatalf("expected canceled ctx on both waves without budget, got s1Err=%v s0Err=%v", s1Err, s0Err)
+		}
+	})
+
+	t.Run("first wave does not get fallback when budget already expired", func(t *testing.T) {
+		var s1Err error
+		s0 := scripttask.NewScriptTask("s0", noopStart, nil)
+		s1 := scripttask.NewScriptTask("s1", nil, func(ctx context.Context) error {
+			s1Err = ctx.Err()
+			return nil
+		})
+		g := NewStagedGroupWithOptions([][]Task{{s0}, {s1}}, WithCleanupTimeout(time.Second))
+		startDone := make(chan error, 1)
+		go func() { startDone <- g.Start(context.Background()) }()
+		waitSignal(t, s1.Started(), "s1 started")
+
+		expired, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		defer cancel()
+		_ = g.Stop(expired)
+		_ = waitError(t, startDone, "group start")
+		if !errors.Is(s1Err, context.DeadlineExceeded) {
+			t.Fatalf("s1 (upToWave) got %v, want DeadlineExceeded", s1Err)
+		}
+	})
+
+	t.Run("earlier wave receives fallback when later wave exhausts budget", func(t *testing.T) {
+		var s0Err error
+		s0 := scripttask.NewScriptTask("s0", noopStart, func(ctx context.Context) error {
+			s0Err = ctx.Err()
+			return nil
+		})
+		s1 := scripttask.NewScriptTask("s1", nil, func(ctx context.Context) error {
+			<-ctx.Done()
+			return nil
+		})
+		g := NewStagedGroupWithOptions([][]Task{{s0}, {s1}}, WithCleanupTimeout(20*time.Millisecond))
+		startDone := make(chan error, 1)
+		go func() { startDone <- g.Start(context.Background()) }()
+		waitSignal(t, s1.Started(), "s1 started")
+
+		_ = g.Stop(context.Background())
+		_ = waitError(t, startDone, "group start")
+		if s0Err != nil {
+			t.Fatalf("s0 (earlier wave) got %v, want fresh fallbackCleanupBudget", s0Err)
+		}
+	})
+}
+
+func TestGroupDoesNotSwallowPanicContextCanceledDuringTeardown(t *testing.T) {
+	t1 := scripttask.NewScriptTask("t1", func(ctx context.Context) error {
+		<-ctx.Done()
+		panic(context.Canceled)
+	}, nil)
+	g := NewGroup(t1)
+	startDone := make(chan error, 1)
+	go func() { startDone <- g.Start(context.Background()) }()
+	waitSignal(t, t1.Started(), "t1 started")
+
+	_ = g.Stop(context.Background())
+	err := waitError(t, startDone, "group start")
+	if !isTaskPanic(err) || !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want taskPanicError wrapping context.Canceled", err)
+	}
+}

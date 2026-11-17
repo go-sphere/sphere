@@ -42,3 +42,32 @@ func TestExecuteKeepsProvokedCancelAsCanceled(t *testing.T) {
 		t.Fatalf("error %q should name the task", err)
 	}
 }
+
+type panicStub struct {
+	id  string
+	val any
+}
+
+func (t panicStub) Identifier() string          { return t.id }
+func (t panicStub) Start(context.Context) error { panic(t.val) }
+func (t panicStub) Stop(context.Context) error  { return nil }
+
+func TestExecutePanicPreservesUnwrapAndIsTaskPanic(t *testing.T) {
+	sentinel := errors.New("boom-err")
+	err := execute(context.Background(), "worker", panicStub{id: "worker", val: sentinel}, func(ctx context.Context, current Task) error {
+		return current.Start(ctx)
+	})
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("error = %v, want errors.Is(err, sentinel)", err)
+	}
+	if !isTaskPanic(err) {
+		t.Fatalf("isTaskPanic(%v) = false, want true", err)
+	}
+
+	strPanic := execute(context.Background(), "worker", panicStub{id: "worker", val: "boom-str"}, func(ctx context.Context, current Task) error {
+		return current.Start(ctx)
+	})
+	if !isTaskPanic(strPanic) || !strings.Contains(strPanic.Error(), "worker panic: boom-str") {
+		t.Fatalf("strPanic = %v", strPanic)
+	}
+}

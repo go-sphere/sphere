@@ -95,13 +95,23 @@ func (cp *ChanPool[T]) Put(obj T) bool {
 // creating. Otherwise, when AllowCreate and New are set, a new object is
 // created; if not, GetContext waits on the channel.
 func (cp *ChanPool[T]) GetContext(ctx context.Context) (T, bool) {
-	if cp.IsClosed() {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if ctx.Err() != nil {
 		var zero T
 		return zero, false
 	}
 
+	cp.mu.RLock()
+	if cp.closed {
+		cp.mu.RUnlock()
+		var zero T
+		return zero, false
+	}
 	select {
 	case obj, ok := <-cp.ch:
+		cp.mu.RUnlock()
 		if !ok {
 			var zero T
 			return zero, false
@@ -109,6 +119,7 @@ func (cp *ChanPool[T]) GetContext(ctx context.Context) (T, bool) {
 		return obj, true
 	default:
 	}
+	cp.mu.RUnlock()
 
 	// Only create new object if explicitly allowed
 	if cp.allowCreate && cp.newFn != nil {
@@ -151,14 +162,17 @@ func (cp *ChanPool[T]) Close() {
 	}
 	cp.closed = true
 	close(cp.ch)
+	var leftover []T
+	if cp.closeFn != nil {
+		leftover = make([]T, 0, len(cp.ch))
+		for obj := range cp.ch {
+			leftover = append(leftover, obj)
+		}
+	}
 	cp.mu.Unlock()
 
-	// Safe to drain without the lock: closed is set, so concurrent Put calls
-	// observe it and never send on the closed channel.
-	if cp.closeFn != nil {
-		for obj := range cp.ch {
-			cp.closeFn(obj)
-		}
+	for _, obj := range leftover {
+		cp.closeFn(obj)
 	}
 }
 

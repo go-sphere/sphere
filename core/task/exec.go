@@ -9,6 +9,25 @@ import (
 	"github.com/go-sphere/sphere/log"
 )
 
+type taskPanicError struct {
+	name  string
+	value any
+}
+
+func (e *taskPanicError) Error() string {
+	return fmt.Sprintf("%s panic: %v", e.name, e.value)
+}
+
+func (e *taskPanicError) Unwrap() error {
+	err, _ := e.value.(error)
+	return err
+}
+
+func isTaskPanic(err error) bool {
+	_, ok := errors.AsType[*taskPanicError](err)
+	return ok
+}
+
 func execute(ctx context.Context, name string, task Task, run func(ctx context.Context, task Task) error) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -17,7 +36,7 @@ func execute(ctx context.Context, name string, task Task, run func(ctx context.C
 			// nil), and re-entering its methods here would panic again with
 			// no recover left to catch it.
 			safe.LogRecovered(name, r)
-			err = fmt.Errorf("%s panic: %v", name, r)
+			err = &taskPanicError{name: name, value: r}
 		}
 	}()
 	err = run(ctx, task)

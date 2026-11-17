@@ -258,9 +258,9 @@ func (r *groupRun) runStage(stageIdx int, stage []Task, ctxDone *<-chan struct{}
 				continue
 			}
 			// Teardown-provoked cancellation is not a failure. A Canceled
-			// that arrives while runCtx is still live is: the task failed on
-			// its own, even if it wraps context.Canceled.
-			if errors.Is(result.err, context.Canceled) && r.runCtx.Err() != nil {
+			// that arrives while runCtx is still live — or any recovered
+			// panic, even panic(context.Canceled) — is a failure.
+			if !isTaskPanic(result.err) && errors.Is(result.err, context.Canceled) && r.runCtx.Err() != nil {
 				continue
 			}
 			r.startErrs.Add(result.err)

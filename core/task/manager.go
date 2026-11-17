@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -199,7 +200,7 @@ func NewManager(options ...ManagerOption) *Manager {
 // the entry; a Start failure is reported later through GetTaskResult, Wait,
 // and StopAll, not by StartTask.
 func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
-	if task == nil {
+	if isNilTask(task) {
 		return errors.New("task is nil")
 	}
 	if name == "" {
@@ -250,9 +251,9 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 		// was actually cancelled — by requestStop or by the caller's parent ctx.
 		// When runCtx is still live the task failed on its own, even if the error
 		// wraps context.Canceled (upstream HTTP/DB clients routinely do), so it
-		// must be recorded as a failure rather than silently discarded. This
-		// mirrors the same guard in Group.Start.
-		if err != nil && (!errors.Is(err, context.Canceled) || runCtx.Err() == nil) {
+		// must be recorded as a failure rather than silently discarded. Recovered
+		// panics are always failures even if the panicked value is context.Canceled.
+		if err != nil && (isTaskPanic(err) || !errors.Is(err, context.Canceled) || runCtx.Err() == nil) {
 			entry.setStartErr(err)
 			m.startErr.Add(err)
 		}
@@ -483,7 +484,7 @@ func (m *Manager) putTombstone(name string, expected *managedTask) {
 	if _, ok := m.tombstones[name]; !ok {
 		for len(m.tombstones) >= maxTombstones && len(m.tombstoneOrder) > 0 {
 			oldest := m.tombstoneOrder[0]
-			m.tombstoneOrder = m.tombstoneOrder[1:]
+			m.tombstoneOrder = slices.Delete(m.tombstoneOrder, 0, 1)
 			delete(m.tombstones, oldest)
 		}
 		m.tombstoneOrder = append(m.tombstoneOrder, name)
@@ -499,7 +500,7 @@ func (m *Manager) dropTombstone(name string) {
 	delete(m.tombstones, name)
 	for i, candidate := range m.tombstoneOrder {
 		if candidate == name {
-			m.tombstoneOrder = append(m.tombstoneOrder[:i], m.tombstoneOrder[i+1:]...)
+			m.tombstoneOrder = slices.Delete(m.tombstoneOrder, i, i+1)
 			break
 		}
 	}

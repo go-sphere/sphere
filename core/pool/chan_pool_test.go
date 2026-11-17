@@ -513,3 +513,36 @@ func TestNilOptionIsIgnored(t *testing.T) {
 		t.Fatalf("SyncPool.Get() = %d, want 7", got)
 	}
 }
+
+func TestChanPoolGetContextHonorsCanceledCtxAtEntry(t *testing.T) {
+	p := NewChanPool(2, WithNew(func() string { return "created" }))
+	defer p.Close()
+	p.Put("pooled")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if got, ok := p.GetContext(ctx); ok || got != "" {
+		t.Fatalf("GetContext(canceled) = (%q, %v), want (\"\", false)", got, ok)
+	}
+	if p.Len() != 1 {
+		t.Fatalf("pooled item was consumed on canceled ctx: Len=%d", p.Len())
+	}
+}
+
+func TestChanPoolCloseDrainsUnderLockBeforeCloseFn(t *testing.T) {
+	var p *ChanPool[int]
+	p = NewChanPool(4, WithClose(func(v int) {
+		if !p.IsClosed() {
+			t.Error("IsClosed was false inside closeFn")
+		}
+		if _, ok := p.GetContext(context.Background()); ok {
+			t.Error("GetContext succeeded inside closeFn")
+		}
+	}))
+	p.Put(1)
+	p.Put(2)
+	p.Close()
+	if p.Len() != 0 {
+		t.Fatalf("Len after Close = %d, want 0", p.Len())
+	}
+}

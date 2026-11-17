@@ -2,6 +2,7 @@ package boot
 
 import (
 	"context"
+	"errors"
 
 	"github.com/go-sphere/sphere/core/task"
 )
@@ -53,11 +54,17 @@ func (a *Application) Identifier() string {
 // results its own teardown provokes. A task that genuinely fails during
 // teardown is still reported, even if its error wraps context.Canceled.
 func (a *Application) Start(ctx context.Context) error {
+	if a == nil || a.group == nil {
+		return errors.New("boot: application has nil group")
+	}
 	return a.group.Start(ctx)
 }
 
 // Stop gracefully shuts down all managed tasks in the application.
 // Returns an error if any task fails to stop cleanly.
 func (a *Application) Stop(ctx context.Context) error {
+	if a == nil || a.group == nil {
+		return nil
+	}
 	return a.group.Stop(ctx)
 }

@@ -11,7 +11,15 @@ import (
 func TestInitTimezone(t *testing.T) {
 	t.Run("valid timezone updates time.Local", func(t *testing.T) {
 		orig := time.Local
-		t.Cleanup(func() { time.Local = orig })
+		origTZ, hadTZ := os.LookupEnv("TZ")
+		t.Cleanup(func() {
+			time.Local = orig
+			if hadTZ {
+				_ = os.Setenv("TZ", origTZ)
+			} else {
+				_ = os.Unsetenv("TZ")
+			}
+		})
 
 		err := InitTimezone("UTC")
 		if err != nil {
@@ -50,6 +58,13 @@ func TestInitVersionPrinter(t *testing.T) {
 	versionPrinter("v1.2.3")
 	if printed != "v1.2.3" {
 		t.Fatalf("expected 'v1.2.3', got %q", printed)
+	}
+
+	InitVersionPrinter(nil)
+	printed = ""
+	versionPrinter("v1.2.4")
+	if printed != "v1.2.4" {
+		t.Fatalf("InitVersionPrinter(nil) overwrote printer, got %q", printed)
 	}
 }
 

@@ -152,3 +152,16 @@ func TestSafeStress_ConcurrentRecoverCallbacks(t *testing.T) {
 		t.Fatalf("expected %d callbacks invoked, got %d", count*3, totalCallbacks.Load())
 	}
 }
+
+func TestSafeNilGuards(t *testing.T) {
+	Run(nil)
+	Go(nil)
+	called := false
+	func() {
+		defer Recover(nil, func(any) { called = true }, nil)
+		panic("boom")
+	}()
+	if !called {
+		t.Fatal("non-nil callback in Recover was not called")
+	}
+}

@@ -27,3 +27,21 @@ func TestApplicationStartPreservesUnexpectedWrappedCancellation(t *testing.T) {
 		t.Fatalf("error = %v, want wrapped task failure %v", err, taskErr)
 	}
 }
+
+func TestApplicationNilGuards(t *testing.T) {
+	var nilApp *Application
+	if err := nilApp.Start(context.Background()); err == nil {
+		t.Fatal("nil Application.Start = nil, want error")
+	}
+	if err := nilApp.Stop(context.Background()); err != nil {
+		t.Fatalf("nil Application.Stop = %v, want nil", err)
+	}
+
+	empty := &Application{}
+	if err := empty.Start(context.Background()); err == nil {
+		t.Fatal("zero Application.Start = nil, want error")
+	}
+	if err := empty.Stop(context.Background()); err != nil {
+		t.Fatalf("zero Application.Stop = %v, want nil", err)
+	}
+}

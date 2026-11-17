@@ -90,33 +90,39 @@ func WithShutdownSignals(sigs ...os.Signal) Option {
 }
 
 // AddBeforeStart appends a hook that runs after the builder returns and before
-// Task.Start. Hooks run in registration order; a failure does not skip later
-// hooks. If any hook failed, Run skips Start and Stop, runs the after-stop
-// hooks, and returns every error joined.
+// Task.Start. A nil hook is ignored. Hooks run in registration order; a failure
+// does not skip later hooks. If any hook failed, Run skips Start and Stop, runs
+// the after-stop hooks, and returns every error joined.
 func AddBeforeStart(f Hook) Option {
 	return func(o *options) {
-		o.beforeStart = append(o.beforeStart, f)
+		if f != nil {
+			o.beforeStart = append(o.beforeStart, f)
+		}
 	}
 }
 
 // AddBeforeStop appends a hook that runs after a shutdown is requested (signal
-// or task exit) and before Task.Stop. Hooks run in registration order; a
-// failure does not skip later hooks.
+// or task exit) and before Task.Stop. A nil hook is ignored. Hooks run in
+// registration order; a failure does not skip later hooks.
 func AddBeforeStop(f Hook) Option {
 	return func(o *options) {
-		o.beforeStop = append(o.beforeStop, f)
+		if f != nil {
+			o.beforeStop = append(o.beforeStop, f)
+		}
 	}
 }
 
 // AddAfterStop appends a hook that runs after Task.Stop returns, or after a
-// before-start hook failed and Start never ran. Use it to close Wire-owned
-// clients (sql.DB, Redis) that are not themselves Tasks. Hooks run in
-// registration order; a failure does not skip later hooks. When Stop consumes
-// the whole shutdown budget, these hooks receive a short fresh context instead
-// of an already-expired one.
+// before-start hook failed and Start never ran. A nil hook is ignored. Use it
+// to close Wire-owned clients (sql.DB, Redis) that are not themselves Tasks.
+// Hooks run in registration order; a failure does not skip later hooks. When
+// Stop consumes the whole shutdown budget, these hooks receive a short fresh
+// context instead of an already-expired one.
 func AddAfterStop(f Hook) Option {
 	return func(o *options) {
-		o.afterStop = append(o.afterStop, f)
+		if f != nil {
+			o.afterStop = append(o.afterStop, f)
+		}
 	}
 }
 
@@ -148,6 +154,9 @@ func WithLoggerBackend(backend log.Backend) Option {
 func runHooks(ctx context.Context, hooks []Hook, hookType string) error {
 	var errs []error
 	for i, f := range hooks {
+		if f == nil {
+			continue
+		}
 		err := func() (err error) {
 			defer func() {
 				if rec := recover(); rec != nil {

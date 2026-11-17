@@ -360,17 +360,18 @@ func (g *Group) stopTasks(ctx context.Context, waves [][]Task, ids [][]string, s
 		}()
 	}
 
-	stopWave := func(wave []Task, waveIDs []string) {
+	_, hadBudget := ctx.Deadline()
+	stopWave := func(waveIdx int, wave []Task, waveIDs []string) {
 		// The cleanup context is shared across every wave, and waves stop in
 		// reverse order, so an early-stopping (last) wave that drains slowly can
 		// exhaust the budget before the earlier stages it must protect begin
 		// stopping. Handing those waves an already-expired context would make
 		// every ctx-honouring Stop return DeadlineExceeded immediately and skip
-		// the cleanup it exists to perform. Once the shared budget is gone, each
-		// remaining wave gets a short fresh bound instead.
+		// the cleanup it exists to perform. Once a shared budget is exhausted by
+		// an earlier wave, each remaining wave gets a short fresh bound instead.
 		waveCtx := ctx
 		cancel := func() {}
-		if ctx.Err() != nil {
+		if hadBudget && waveIdx < upToWave && ctx.Err() != nil {
 			waveCtx, cancel = context.WithTimeout(context.Background(), fallbackCleanupBudget)
 		}
 		defer cancel()
@@ -400,7 +401,7 @@ func (g *Group) stopTasks(ctx context.Context, waves [][]Task, ids [][]string, s
 		upToWave = len(waves) - 1
 	}
 	for i := upToWave; i >= 0; i-- {
-		stopWave(waves[i], ids[i])
+		stopWave(i, waves[i], ids[i])
 	}
 }
 

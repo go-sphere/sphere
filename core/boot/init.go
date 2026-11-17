@@ -31,6 +31,10 @@ func InitTimezone(zone string) error {
 }
 
 // InitVersionPrinter replaces the function DefaultConfigParser uses for -version.
+// A nil printer is ignored, keeping the current printer.
 func InitVersionPrinter(printer func(string)) {
+	if printer == nil {
+		return
+	}
 	versionPrinter = printer
 }

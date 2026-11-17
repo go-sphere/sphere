@@ -27,7 +27,9 @@ func Recover(onError ...func(err any)) {
 	if r := recover(); r != nil {
 		LogRecovered("safe", r)
 		for _, fn := range onError {
-			fn(r)
+			if fn != nil {
+				fn(r)
+			}
 		}
 	}
 }
@@ -37,6 +39,9 @@ func Recover(onError ...func(err any)) {
 // completion must synchronize on their own (for example a channel or
 // sync.WaitGroup).
 func Go(fn func()) {
+	if fn == nil {
+		return
+	}
 	go Run(fn)
 }
 
@@ -44,6 +49,9 @@ func Go(fn func()) {
 // returns or panics; a panic is logged and swallowed, so the caller cannot
 // tell the two apart from Run itself.
 func Run(fn func()) {
+	if fn == nil {
+		return
+	}
 	defer Recover()
 	fn()
 }

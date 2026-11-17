@@ -142,8 +142,14 @@ func TestRunNilApplicationIsBuildFailure(t *testing.T) {
 }
 
 func TestNilOptionIsIgnored(t *testing.T) {
-	opts := newOptions(nil, WithShutdownTimeout(time.Second), nil)
+	opts := newOptions(nil, WithShutdownTimeout(time.Second), nil, AddBeforeStart(nil), AddBeforeStop(nil), AddAfterStop(nil))
 	if opts.shutdownTimeout != time.Second {
 		t.Fatalf("shutdownTimeout = %v, want %v", opts.shutdownTimeout, time.Second)
+	}
+	if len(opts.beforeStart) != 0 || len(opts.beforeStop) != 0 || len(opts.afterStop) != 0 {
+		t.Fatalf("nil hooks were not skipped: %+v", opts)
+	}
+	if err := runHooks(context.Background(), []Hook{nil}, "test"); err != nil {
+		t.Fatalf("runHooks with nil hook = %v, want nil", err)
 	}
 }
