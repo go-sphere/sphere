@@ -85,19 +85,44 @@ func TestBuildUploadFileName(t *testing.T) {
 	})
 
 	t.Run("reject invalid input", func(t *testing.T) {
-		_, err := BuildUploadFileName("", UploadNamingStrategyRandomExt)
-		if err == nil {
-			t.Fatal("expected error for empty file name, got nil")
+		for _, bad := range []string{"", "   ", ".", "..", "dir/", "dir/.", "dir/..", "a/../b.png", "a\x00b.png"} {
+			for _, strategy := range []UploadNamingStrategy{UploadNamingStrategyRandomExt, UploadNamingStrategyHashExt, UploadNamingStrategyOriginal} {
+				if _, err := BuildUploadFileName(bad, strategy); err == nil {
+					t.Errorf("BuildUploadFileName(%q, %q) = nil error, want rejection", bad, strategy)
+				}
+			}
 		}
-		_, err = BuildUploadFileName("avatar.png", UploadNamingStrategy("bad"))
+		_, err := BuildUploadFileName("avatar.png", UploadNamingStrategy("bad"))
 		if err == nil {
 			t.Fatal("expected error for unsupported strategy, got nil")
 		}
-		_, err = BuildUploadFileName("..", UploadNamingStrategyOriginal)
-		if err == nil {
-			t.Fatal("expected error for invalid original file name, got nil")
+	})
+
+	t.Run("trims whitespace around file name", func(t *testing.T) {
+		got, err := BuildUploadFileName("  avatar.png  ", UploadNamingStrategyOriginal)
+		if err != nil {
+			t.Fatalf("BuildUploadFileName() error = %v", err)
+		}
+		if got != "avatar.png" {
+			t.Fatalf("got = %q, want %q", got, "avatar.png")
+		}
+		hashed, err := BuildUploadFileName("  avatar.png  ", UploadNamingStrategyHashExt)
+		if err != nil {
+			t.Fatalf("BuildUploadFileName(hash) error = %v", err)
+		}
+		if hashed != "4a301072dec6b6a49050e5b294cd7983.png" {
+			t.Fatalf("hashed = %q, want trimmed hash", hashed)
 		}
 	})
+}
+
+func TestNormalizeKey(t *testing.T) {
+	if _, err := NormalizeKey("a\x00b.txt"); err == nil {
+		t.Fatal("expected error for key with NUL byte")
+	}
+	if _, err := NormalizeKey("  / "); err != nil {
+		t.Fatalf("unexpected error for whitespace path segment: %v", err)
+	}
 }
 
 func TestJoinUploadKey(t *testing.T) {
@@ -130,5 +155,20 @@ func TestJoinUploadKey(t *testing.T) {
 	_, err = JoinUploadKey("prefix", "a/../../users", "a.png")
 	if err == nil {
 		t.Fatal("expected error for traversal biz dir, got nil")
+	}
+
+	_, err = JoinUploadKey("prefix", "a/../users", "a.png")
+	if err == nil {
+		t.Fatal("expected error for cleaned-away dotdot in biz dir, got nil")
+	}
+
+	_, err = JoinUploadKey("prefix/../escape", "users", "a.png")
+	if err == nil {
+		t.Fatal("expected error for cleaned-away dotdot in prefix dir, got nil")
+	}
+
+	_, err = JoinUploadKey("prefix", "users", "a/../b.png")
+	if err == nil {
+		t.Fatal("expected error for cleaned-away dotdot in file name, got nil")
 	}
 }

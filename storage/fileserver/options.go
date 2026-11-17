@@ -98,7 +98,9 @@ func newOptions(opts ...Option) *options {
 		createFileKey: defaultCreateFileKey,
 	}
 	for _, o := range opts {
-		o(opt)
+		if o != nil {
+			o(opt)
+		}
 	}
 	return opt
 }

@@ -6,7 +6,7 @@ import (
 	"io"
 	"mime"
 	"os"
-	"path/filepath"
+	"path"
 	"time"
 
 	"github.com/go-sphere/sphere/cache"
@@ -107,7 +107,7 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 	}
 	return storage.DownloadResult{
 		Reader: io.NopCloser(bytes.NewReader(data)),
-		MIME:   mime.TypeByExtension(filepath.Ext(key)),
+		MIME:   mime.TypeByExtension(path.Ext(key)),
 		Size:   int64(len(data)),
 	}, nil
 }

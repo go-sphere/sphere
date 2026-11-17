@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-sphere/httpx/httpxmock"
 	"github.com/go-sphere/sphere/cache"
@@ -51,8 +52,15 @@ func (noopStorage) CopyFile(ctx context.Context, sourceKey string, destinationKe
 }
 
 func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
+	newCache := func(t *testing.T) cache.ByteCache {
+		t.Helper()
+		c := memory.NewByteCache()
+		t.Cleanup(func() { _ = c.Close() })
+		return c
+	}
+
 	t.Run("empty config", func(t *testing.T) {
-		_, err := NewCDNAdapter(Config{}, memory.NewByteCache(), noopStorage{})
+		_, err := NewCDNAdapter(Config{}, newCache(t), noopStorage{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -72,30 +80,56 @@ func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
 		_, err := NewCDNAdapter(Config{
 			PutBase: "https://example.com",
 			GetBase: "https://example.com",
-		}, memory.NewByteCache(), nil)
+		}, newCache(t), nil)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
 	})
 
 	t.Run("empty put base", func(t *testing.T) {
-		_, err := NewCDNAdapter(Config{GetBase: "https://example.com"}, memory.NewByteCache(), noopStorage{})
+		_, err := NewCDNAdapter(Config{GetBase: "https://example.com"}, newCache(t), noopStorage{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
 	})
 
 	t.Run("empty get base", func(t *testing.T) {
-		_, err := NewCDNAdapter(Config{PutBase: "https://example.com"}, memory.NewByteCache(), noopStorage{})
+		_, err := NewCDNAdapter(Config{PutBase: "https://example.com"}, newCache(t), noopStorage{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
 	})
 
 	t.Run("relative get base", func(t *testing.T) {
-		_, err := NewCDNAdapter(Config{PutBase: "https://example.com", GetBase: "/files"}, memory.NewByteCache(), noopStorage{})
+		_, err := NewCDNAdapter(Config{PutBase: "https://example.com", GetBase: "/files"}, newCache(t), noopStorage{})
 		if err == nil {
 			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("owned cache closed on error", func(t *testing.T) {
+		c := memory.NewByteCache()
+		_, err := NewCDNAdapter(Config{PutBase: "https://example.com", GetBase: "/files"}, c, noopStorage{}, nil, WithOwnedCache())
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if err := c.Set(context.Background(), "k", []byte("v")); !errors.Is(err, cache.ErrClosed) {
+			t.Fatalf("cache.Set after failed NewCDNAdapter = %v, want cache.ErrClosed", err)
+		}
+	})
+
+	t.Run("nil option ignored and negative key ttl normalized", func(t *testing.T) {
+		c := newCache(t)
+		adapter, err := NewCDNAdapter(Config{
+			PutBase: "https://example.com/put",
+			GetBase: "https://example.com/get",
+			KeyTTL:  -time.Second,
+		}, c, noopStorage{}, nil)
+		if err != nil {
+			t.Fatalf("NewCDNAdapter: %v", err)
+		}
+		if adapter.config.KeyTTL != defaultKeyTTL {
+			t.Fatalf("KeyTTL = %v, want %v", adapter.config.KeyTTL, defaultKeyTTL)
 		}
 	})
 }
@@ -191,12 +225,14 @@ func TestUploadSuccessEnvelopeHasSuccessTrue(t *testing.T) {
 }
 
 func TestGenerateUploadAuth_RejectEmptyFileName(t *testing.T) {
+	c := memory.NewByteCache()
+	t.Cleanup(func() { _ = c.Close() })
 	server, err := NewCDNAdapter(
 		Config{
 			PutBase: "https://example.com",
 			GetBase: "https://example.com",
 		},
-		memory.NewByteCache(),
+		c,
 		noopStorage{},
 	)
 	if err != nil {
@@ -213,6 +249,8 @@ func TestGenerateUploadAuth_RejectEmptyFileName(t *testing.T) {
 }
 
 func TestGenerateUploadAuth_UsesSeparatedPutAndGetBase(t *testing.T) {
+	c := memory.NewByteCache()
+	t.Cleanup(func() { _ = c.Close() })
 	server, err := NewCDNAdapter(
 		Config{
 			PutBase:      "https://upload.example.com",
@@ -220,7 +258,7 @@ func TestGenerateUploadAuth_UsesSeparatedPutAndGetBase(t *testing.T) {
 			Dir:          "base",
 			UploadNaming: storage.UploadNamingStrategyOriginal,
 		},
-		memory.NewByteCache(),
+		c,
 		noopStorage{},
 	)
 	if err != nil {
@@ -304,5 +342,30 @@ func TestUploadTokensAreNamespaced(t *testing.T) {
 	key, found, err := server.cache.GetDel(ctx, "tok")
 	if err != nil || !found || string(key) != result.File.Key {
 		t.Fatalf("redeem token = %q found=%v err=%v, want %q", key, found, err, result.File.Key)
+	}
+}
+
+func TestGenerateUploadAuth_RejectsInvalidCustomTokens(t *testing.T) {
+	for _, badToken := range []string{"", ".", "..", "a/b", "a\\b", "tok?x=1", "tok#frag", "bad tok", "tok\x00"} {
+		c := mcache.NewByteCache()
+		server, err := NewCDNAdapter(
+			Config{PutBase: "https://upload.example.com", GetBase: "https://cdn.example.com"},
+			c,
+			noopStorage{},
+			WithCreateFileKey(func(context.Context) (string, error) { return badToken, nil }),
+		)
+		if err != nil {
+			_ = c.Close()
+			t.Fatalf("NewCDNAdapter(%q): %v", badToken, err)
+		}
+		if _, err := server.GenerateUploadAuth(context.Background(), storage.UploadAuthRequest{FileName: "a.png"}); err == nil {
+			_ = c.Close()
+			t.Fatalf("GenerateUploadAuth(token=%q) succeeded, want error", badToken)
+		}
+		if keys, err := c.Keys(context.Background(), "*"); err != nil || len(keys) != 0 {
+			_ = c.Close()
+			t.Fatalf("Keys after rejected token %q = %v (err=%v), want empty", badToken, keys, err)
+		}
+		_ = c.Close()
 	}
 }

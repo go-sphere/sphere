@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"maps"
 	"mime"
 	"net/http"
 	"net/url"
@@ -33,7 +32,7 @@ type Config struct {
 	// RegisterFileDownloader's router is mounted; GenerateURL joins keys onto it.
 	GetBase string `json:"get_base" yaml:"get_base"`
 	// KeyTTL is how long a one-time upload token stays valid, and also the
-	// ceiling for UploadAuthRequest.TTL. A zero value falls back to defaultKeyTTL.
+	// ceiling for UploadAuthRequest.TTL. A non-positive value falls back to defaultKeyTTL.
 	KeyTTL time.Duration `json:"key_ttl" yaml:"key_ttl"`
 	// Dir is the prefix directory for keys created by GenerateUploadAuth.
 	Dir string `json:"dir" yaml:"dir"`
@@ -76,30 +75,38 @@ const uploadTokenNamespace = "sphere-upload-token"
 
 // NewCDNAdapter constructs a FileServer that wraps store with one-time PUT
 // tokens stored in cache under the "sphere-upload-token:" key prefix. PutBase, GetBase, cache, and store are required;
-// a missing one, or a GetBase that is not an absolute http(s) URL, is an error. A zero KeyTTL becomes
+// a missing one, or a GetBase that is not an absolute http(s) URL, is an error. A non-positive KeyTTL becomes
 // 5 minutes. The cache stays owned by the caller unless WithOwnedCache is
-// given. It is not a CDN or S3 driver; the name is historical.
+// given (including closing an owned cache if construction fails). It is not a CDN or S3 driver; the name is historical.
 func NewCDNAdapter(conf Config, cache cache.ByteCache, store storage.Storage, options ...Option) (*FileServer, error) {
+	opts := newOptions(options...)
+	closeOwned := func(err error) (*FileServer, error) {
+		if opts.ownsCache && cache != nil {
+			if closeErr := cache.Close(); closeErr != nil {
+				return nil, errors.Join(err, closeErr)
+			}
+		}
+		return nil, err
+	}
 	if cache == nil {
 		return nil, errors.New("cache is required")
 	}
 	if store == nil {
-		return nil, errors.New("store is required")
+		return closeOwned(errors.New("store is required"))
 	}
 	if conf.PutBase == "" {
-		return nil, errors.New("put_base is required")
+		return closeOwned(errors.New("put_base is required"))
 	}
 	if conf.GetBase == "" {
-		return nil, errors.New("get_base is required")
+		return closeOwned(errors.New("get_base is required"))
 	}
-	if conf.KeyTTL == 0 {
+	if conf.KeyTTL <= 0 {
 		conf.KeyTTL = defaultKeyTTL
 	}
 	handler, err := urlhandler.NewHandler(conf.GetBase)
 	if err != nil {
-		return nil, err
+		return closeOwned(err)
 	}
-	opts := newOptions(options...)
 	return &FileServer{
 		opts:     opts,
 		config:   conf,
@@ -208,6 +215,9 @@ func (a *FileServer) GenerateUploadAuth(ctx context.Context, req storage.UploadA
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
+	if err := validateUploadToken(newToken); err != nil {
+		return storage.UploadAuthResult{}, err
+	}
 	if err := a.cache.SetWithTTL(ctx, newToken, []byte(key), ttl); err != nil {
 		return storage.UploadAuthResult{}, err
 	}
@@ -267,12 +277,11 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 			}
 			return httpx.InternalServerError(err)
 		}
-		headers := maps.Clone(sharedHeaders)
-		if !a.opts.inlineDownload {
-			headers["Content-Disposition"] = contentDisposition(filename)
-		}
-		for k, v := range headers {
+		for k, v := range sharedHeaders {
 			ctx.SetHeader(k, v)
+		}
+		if !a.opts.inlineDownload {
+			ctx.SetHeader("Content-Disposition", contentDisposition(filename))
 		}
 		// result.Reader is expected to be closed by httpx.DataFromReader, so we don't close it here.
 		return ctx.DataFromReader(200, result.MIME, result.Reader, result.Size)
@@ -346,7 +355,7 @@ func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 		if limited != nil && limited.exceeded {
 			// A store that ignored the read error must not keep a truncated object.
 			if err == nil {
-				_ = a.store.DeleteFile(ctx.Context(), uploadKey)
+				_ = a.store.DeleteFile(context.WithoutCancel(ctx.Context()), uploadKey)
 			}
 			return uploadTooLargeError()
 		}
@@ -400,4 +409,16 @@ func (l *limitedBody) Read(p []byte) (int, error) {
 // 400 instead of the 404 this endpoint answers when no filename was given.
 func normalizeWildcardParam(raw string) string {
 	return strings.TrimPrefix(raw, "/")
+}
+
+func validateUploadToken(token string) error {
+	if token == "" || token == "." || token == ".." {
+		return errors.New("fileserver: invalid upload token")
+	}
+	for _, r := range token {
+		if r <= 0x20 || r == 0x7f || r == '/' || r == '\\' || r == '?' || r == '#' {
+			return errors.New("fileserver: invalid upload token")
+		}
+	}
+	return nil
 }

@@ -8,7 +8,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
@@ -187,7 +187,7 @@ func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 		return "", err
 	}
 	opts := minio.PutObjectOptions{
-		ContentType: mime.TypeByExtension(filepath.Ext(key)),
+		ContentType: mime.TypeByExtension(path.Ext(key)),
 		PartSize:    s.config.PartSize,
 	}
 	partSize := int(s.config.PartSize)
@@ -283,7 +283,7 @@ func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 		return "", err
 	}
 	info, err := s.client.FPutObject(ctx, s.config.Bucket, key, file, minio.PutObjectOptions{
-		ContentType: mime.TypeByExtension(filepath.Ext(key)),
+		ContentType: mime.TypeByExtension(path.Ext(key)),
 	})
 	if err != nil {
 		return "", err
@@ -573,7 +573,7 @@ func (s *Client) copyMultipart(ctx context.Context, sourceKey string, source min
 // or active content.
 func uploadContentType(key string) string {
 	const fallback = "application/octet-stream"
-	contentType := mime.TypeByExtension(filepath.Ext(key))
+	contentType := mime.TypeByExtension(path.Ext(key))
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil || isActiveContentType(mediaType) {
 		return fallback

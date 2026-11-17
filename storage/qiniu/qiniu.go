@@ -465,7 +465,9 @@ func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 
 // CopyFile duplicates a file from source to destination key within the Qiniu bucket.
 // A missing source fails with storageerr.ErrNotFound; an existing destination
-// with overwrite false fails with storageerr.ErrDestExists. ctx is not honored.
+// with overwrite false fails with storageerr.ErrDestExists. Copying a key onto
+// itself leaves the object unchanged (or fails with storageerr.ErrDestExists
+// when overwrite is false) without issuing a copy request. ctx is not honored.
 func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
 	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
@@ -474,6 +476,21 @@ func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	destinationKey, err = storage.NormalizeKey(destinationKey)
 	if err != nil {
 		return err
+	}
+	// Qiniu RS copy returns 400 when source and destination entries are equal;
+	// resolve same-key copies via stat to match the shared storage contract.
+	if sourceKey == destinationKey {
+		exists, err := n.IsFileExists(ctx, sourceKey)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return storageerr.ErrNotFound
+		}
+		if !overwrite {
+			return storageerr.ErrDestExists
+		}
+		return nil
 	}
 	manager := qiniuStorage.NewBucketManager(n.mac, n.sdkConfig())
 	err = manager.Copy(n.config.Bucket, sourceKey, n.config.Bucket, destinationKey, overwrite)

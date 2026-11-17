@@ -315,3 +315,70 @@ func TestFileServerMaxUploadSize(t *testing.T) {
 		t.Fatalf("truncated object stored: exists=%v err=%v", ok, err)
 	}
 }
+
+type cancelOnOversizeStore struct {
+	storage.Storage
+	cancel           context.CancelFunc
+	deleteCalled     bool
+	deleteCtxErr     error
+	uploadIgnoreRead bool
+}
+
+func (s *cancelOnOversizeStore) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
+	_, _ = io.ReadAll(file)
+	if s.cancel != nil {
+		s.cancel()
+	}
+	if s.uploadIgnoreRead {
+		return key, nil
+	}
+	return key, nil
+}
+
+func (s *cancelOnOversizeStore) DeleteFile(ctx context.Context, key string) error {
+	s.deleteCalled = true
+	s.deleteCtxErr = ctx.Err()
+	return nil
+}
+
+func TestFileServerOversizeCleanupUsesUncanceledContext(t *testing.T) {
+	engine, handler := newEngine(t)
+	tokenCache := memory.NewByteCache()
+	t.Cleanup(func() { _ = tokenCache.Close() })
+
+	store := &cancelOnOversizeStore{Storage: newInMemoryStorage(t), uploadIgnoreRead: true}
+	fs, err := fileserver.NewCDNAdapter(
+		fileserver.Config{PutBase: "http://localhost/upload", GetBase: "http://localhost/files"},
+		tokenCache,
+		store,
+		fileserver.WithMaxUploadSize(4),
+	)
+	if err != nil {
+		t.Fatalf("NewCDNAdapter: %v", err)
+	}
+	fs.RegisterFileUploader(engine.Group("/upload"))
+
+	res, err := fs.GenerateUploadAuth(context.Background(), storage.UploadAuthRequest{FileName: "big.bin"})
+	if err != nil {
+		t.Fatalf("GenerateUploadAuth: %v", err)
+	}
+	token := strings.TrimPrefix(res.Authorization.Value, "http://localhost/upload/")
+
+	reqCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	store.cancel = cancel
+
+	req := httptest.NewRequest(http.MethodPut, "/upload/"+token, io.MultiReader(bytes.NewReader(make([]byte, 16)))).WithContext(reqCtx)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", rec.Code)
+	}
+	if !store.deleteCalled {
+		t.Fatal("expected DeleteFile cleanup call on oversize ignored read")
+	}
+	if store.deleteCtxErr != nil {
+		t.Fatalf("DeleteFile ctx.Err() = %v, want nil (WithoutCancel)", store.deleteCtxErr)
+	}
+}

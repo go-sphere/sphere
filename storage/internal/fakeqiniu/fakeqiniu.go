@@ -292,6 +292,10 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
+		if src == dst {
+			writeError(w, http.StatusBadRequest, "dest file can't be the same as src file")
+			return
+		}
 		force := len(segments) == 5 && segments[3] == "force" && segments[4] == "true"
 		s.mu.Lock()
 		defer s.mu.Unlock()

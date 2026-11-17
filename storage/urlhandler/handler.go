@@ -46,7 +46,7 @@ func NewHandler(public string) (*Handler, error) {
 		return nil, fmt.Errorf("urlhandler: public base %q must be an absolute http or https URL", public)
 	}
 	baseStr := base.String()
-	baseStr = strings.TrimSuffix(baseStr, "/")
+	baseStr = strings.TrimRight(baseStr, "/")
 	sanitizedPath := strings.Trim(base.EscapedPath(), "/")
 
 	return &Handler{
@@ -78,11 +78,12 @@ func (n *Handler) GenerateURLs(keys []string, params ...url.Values) []string {
 }
 
 func (n *Handler) generateURL(key string) string {
-	if key == "" {
-		return ""
-	}
 	if hasHttpScheme(key) {
 		return key
+	}
+	key = strings.TrimLeft(key, "/")
+	if key == "" {
+		return ""
 	}
 	if containsDotDot(key) {
 		// url.JoinPath would resolve ".." against the base and silently fold
@@ -121,7 +122,7 @@ func (n *Handler) ExtractKeyFromURLWithMode(uri string, strict bool) (string, er
 		return "", nil
 	}
 	if !hasHttpScheme(uri) {
-		key := strings.TrimPrefix(uri, "/")
+		key := strings.TrimLeft(uri, "/")
 		// Same refusal as the full-URL branch below: a ".."-carrying key can
 		// never address an object, so persisting it only produces a dirty
 		// value that later storage calls fail on.

@@ -114,7 +114,8 @@ func isMissing(err error) bool {
 // NewClient; the zero value is not usable. Client holds no mutable state and
 // may be used concurrently; it owns no resources that need closing.
 type Client struct {
-	config Config
+	config  Config
+	rootDir string
 }
 
 // NewClient creates a new local storage client with the provided configuration.
@@ -124,13 +125,30 @@ func NewClient(conf Config) (*Client, error) {
 	if conf.RootDir == "" {
 		return nil, errors.New("root_dir is required")
 	}
-	err := os.MkdirAll(conf.RootDir, 0o750)
+	rootDir, err := filepath.Abs(conf.RootDir)
+	if err != nil {
+		return nil, err
+	}
+	rootDir = filepath.Clean(rootDir)
+	err = os.MkdirAll(rootDir, 0o750)
 	if err != nil {
 		return nil, err
 	}
 	return &Client{
-		config: conf,
+		config:  conf,
+		rootDir: rootDir,
 	}, nil
+}
+
+func (c *Client) resolvedRootDir() (string, error) {
+	if c.rootDir != "" {
+		return c.rootDir, nil
+	}
+	rootDir, err := filepath.Abs(c.config.RootDir)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(rootDir), nil
 }
 
 // fixFilePath resolves and validates file paths to prevent directory traversal attacks.
@@ -144,16 +162,11 @@ func (c *Client) fixFilePath(key string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	rootDir, err := filepath.Abs(c.config.RootDir)
+	rootDir, err := c.resolvedRootDir()
 	if err != nil {
 		return "", err
 	}
-	filePath, err := filepath.Abs(filepath.Join(c.config.RootDir, filepath.Clean(key)))
-	if err != nil {
-		return "", err
-	}
-	rootDir = filepath.Clean(rootDir)
-	filePath = filepath.Clean(filePath)
+	filePath := filepath.Clean(filepath.Join(rootDir, filepath.Clean(key)))
 	rel, err := filepath.Rel(rootDir, filePath)
 	if err != nil {
 		return "", err
@@ -283,7 +296,7 @@ func (c *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 	}
 	prefix = strings.TrimPrefix(prefix, "/")
 	cursor = strings.TrimPrefix(cursor, "/")
-	rootDir, err := filepath.Abs(c.config.RootDir)
+	rootDir, err := c.resolvedRootDir()
 	if err != nil {
 		return nil, "", err
 	}
@@ -431,12 +444,15 @@ func (c *Client) DeleteFile(ctx context.Context, key string) error {
 // against a single writer and best-effort against concurrent ones, as it is
 // on the s3 and kvcache drivers.
 func (c *Client) checkOverwrite(path string, overwrite bool) error {
-	_, err := os.Stat(path)
+	stat, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
 		return err
+	}
+	if !stat.Mode().IsRegular() {
+		return errors.New("destination exists and is not a regular file")
 	}
 	if !overwrite {
 		return storageerr.ErrDestExists
@@ -528,6 +544,13 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	// Never duplicate a directory (or special file) as if it were a file key.
 	if !srcStat.Mode().IsRegular() {
 		return storageerr.ErrNotFound
+	}
+	// Copying a key onto itself preserves the existing content when overwrite is enabled.
+	if sourcePath == destinationPath {
+		if !overwrite {
+			return storageerr.ErrDestExists
+		}
+		return nil
 	}
 	if e := os.MkdirAll(filepath.Dir(destinationPath), 0o750); e != nil {
 		return e

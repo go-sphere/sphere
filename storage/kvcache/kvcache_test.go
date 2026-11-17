@@ -13,7 +13,9 @@ import (
 
 func newTestClient(t *testing.T) *Client {
 	t.Helper()
-	client, err := NewClient(Config{}, memory.NewByteCache())
+	c := memory.NewByteCache()
+	t.Cleanup(func() { _ = c.Close() })
+	client, err := NewClient(Config{}, c)
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}

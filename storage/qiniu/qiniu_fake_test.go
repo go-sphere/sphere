@@ -501,3 +501,19 @@ func TestClientUploadFileFailedStreamKeepsObject(t *testing.T) {
 		t.Fatalf("stored object = %q exists=%v, want %q", obj.Data, ok, "original")
 	}
 }
+
+func TestClientCopySameKeyAndFakeSameKeyParity(t *testing.T) {
+	client, fake := newFakeClient(t, Config{})
+	ctx := t.Context()
+
+	if err := client.CopyFile(ctx, "missing.txt", "missing.txt", true); !errors.Is(err, storageerr.ErrNotFound) {
+		t.Fatalf("CopyFile(missing->missing) = %v, want ErrNotFound", err)
+	}
+	fake.Put("doc.txt", []byte("body"), "text/plain")
+	if err := client.CopyFile(ctx, "doc.txt", "doc.txt", false); !errors.Is(err, storageerr.ErrDestExists) {
+		t.Fatalf("CopyFile(same, overwrite=false) = %v, want ErrDestExists", err)
+	}
+	if err := client.CopyFile(ctx, "doc.txt", "doc.txt", true); err != nil {
+		t.Fatalf("CopyFile(same, overwrite=true) = %v, want nil", err)
+	}
+}

@@ -670,6 +670,7 @@ func TestStoragePathTraversalRejected(t *testing.T) {
 		"",
 		"/",
 		".",
+		"a\x00b.txt",
 	}
 
 	for _, payload := range traversalPayloads {

@@ -71,18 +71,36 @@ func KeepFileNameKeyBuilder() func(fileName string, dir ...string) string {
 	}
 }
 
+func containsDotDotSegment(raw string) bool {
+	for segment := range strings.SplitSeq(raw, "/") {
+		if segment == ".." {
+			return true
+		}
+	}
+	return false
+}
+
 // BuildUploadFileName builds the stored file name for a client-supplied
 // fileName according to strategy; an empty strategy means
 // UploadNamingStrategyRandomExt. The result is a single name, not a key: pass
 // it to JoinUploadKey.
 //
-// It returns an error when fileName is blank, when strategy is unknown, or
+// It returns an error when fileName is blank or invalid (for example ".", "..",
+// trailing "/", ".." segments, or NUL bytes), when strategy is unknown, or
 // when UploadNamingStrategyOriginal is used with a name whose base is not a
 // usable file name. UploadNamingStrategyRandomExt output differs on every
 // call; the other strategies are deterministic.
 func BuildUploadFileName(fileName string, strategy UploadNamingStrategy) (string, error) {
-	if strings.TrimSpace(fileName) == "" {
+	fileName = strings.TrimSpace(fileName)
+	if fileName == "" {
 		return "", errors.New("file_name is required")
+	}
+	if strings.ContainsRune(fileName, '\x00') || strings.HasSuffix(fileName, "/") || containsDotDotSegment(fileName) {
+		return "", errors.New("invalid file_name")
+	}
+	base := path.Base(fileName)
+	if base == "." || base == ".." || base == "/" || strings.TrimSpace(base) == "" {
+		return "", errors.New("invalid file_name")
 	}
 	if strategy == "" {
 		strategy = UploadNamingStrategyRandomExt
@@ -96,10 +114,6 @@ func BuildUploadFileName(fileName string, strategy UploadNamingStrategy) (string
 		sum := md5.Sum([]byte(fileName))
 		return hex.EncodeToString(sum[:]) + fileExt, nil
 	case UploadNamingStrategyOriginal:
-		base := path.Base(fileName)
-		if base == "." || base == ".." || base == "/" || strings.TrimSpace(base) == "" {
-			return "", errors.New("invalid original file name")
-		}
 		return base, nil
 	default:
 		return "", errors.New("unsupported upload naming strategy")
@@ -119,8 +133,14 @@ func JoinUploadKey(prefixDir string, bizDir string, fileName string) (string, er
 	if fileName == "" {
 		return "", errors.New("file_name is required")
 	}
+	if strings.ContainsRune(fileName, '\x00') || strings.HasSuffix(fileName, "/") {
+		return "", errors.New("invalid file_name")
+	}
 	if path.IsAbs(fileName) {
 		return "", errors.New("file_name must be relative")
+	}
+	if containsDotDotSegment(fileName) {
+		return "", errors.New("invalid file_name")
 	}
 	fileName = path.Clean(fileName)
 	if fileName == "." || fileName == ".." || strings.HasPrefix(fileName, "../") {
@@ -160,6 +180,12 @@ func normalizeUploadDir(raw string, rejectAbs bool, field string) (string, error
 	// key "/uploads/..." — which the local driver folds to "uploads/..." and the
 	// verbatim drivers keep, i.e. the same logical key on two different objects.
 	value = strings.TrimLeft(value, "/")
+	if strings.ContainsRune(value, '\x00') {
+		return "", fmt.Errorf("%s is invalid", field)
+	}
+	if containsDotDotSegment(value) {
+		return "", fmt.Errorf("%s must not contain parent path", field)
+	}
 	value = path.Clean(value)
 	if value == "." {
 		return "", nil
@@ -192,6 +218,9 @@ func normalizeUploadDir(raw string, rejectAbs bool, field string) (string, error
 // resolving outside the root. Callers that need a key to mean the same thing on
 // every driver should avoid backslashes.
 func NormalizeKey(key string) (string, error) {
+	if strings.ContainsRune(key, '\x00') {
+		return "", storageerr.ErrFileNameInvalid
+	}
 	trimmed := strings.TrimPrefix(key, "/")
 	if trimmed == "" {
 		return "", storageerr.ErrFileNameInvalid
@@ -199,10 +228,8 @@ func NormalizeKey(key string) (string, error) {
 	// Checked before cleaning: path.Clean resolves ".." against the preceding
 	// segment, which would silently turn a traversal attempt into a valid key
 	// somewhere else rather than refusing it.
-	for segment := range strings.SplitSeq(trimmed, "/") {
-		if segment == ".." {
-			return "", storageerr.ErrFileNameInvalid
-		}
+	if containsDotDotSegment(trimmed) {
+		return "", storageerr.ErrFileNameInvalid
 	}
 	cleaned := strings.TrimPrefix(path.Clean(trimmed), "/")
 	if cleaned == "" || cleaned == "." {

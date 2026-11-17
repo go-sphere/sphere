@@ -424,3 +424,74 @@ func TestClient_ListFilesSymlinkRoot(t *testing.T) {
 		t.Error("traversal key wrote outside the root")
 	}
 }
+
+func TestClient_CopySameKeyAndNonRegularDestination(t *testing.T) {
+	ctx := t.Context()
+	root := t.TempDir()
+	client, err := NewClient(Config{RootDir: root})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	if err := client.CopyFile(ctx, "missing.txt", "missing.txt", true); !errors.Is(err, storageerr.ErrNotFound) {
+		t.Fatalf("CopyFile(missing->missing) = %v, want ErrNotFound", err)
+	}
+
+	if _, err := client.UploadFile(ctx, strings.NewReader("payload"), "a/b.txt"); err != nil {
+		t.Fatalf("UploadFile(a/b.txt): %v", err)
+	}
+	if err := client.CopyFile(ctx, "a/b.txt", "a/b.txt", false); !errors.Is(err, storageerr.ErrDestExists) {
+		t.Fatalf("CopyFile(same, overwrite=false) = %v, want ErrDestExists", err)
+	}
+	if err := client.CopyFile(ctx, "a/b.txt", "a/b.txt", true); err != nil {
+		t.Fatalf("CopyFile(same, overwrite=true) = %v, want nil", err)
+	}
+
+	// Destination is an existing directory ("a"): refuse both overwrite=false and overwrite=true
+	// cleanly before writing a temp file.
+	for _, overwrite := range []bool{false, true} {
+		if err := client.CopyFile(ctx, "a/b.txt", "a", overwrite); err == nil {
+			t.Fatalf("CopyFile(to dir, overwrite=%v) succeeded, want error", overwrite)
+		}
+		if err := client.MoveFile(ctx, "a/b.txt", "a", overwrite); err == nil {
+			t.Fatalf("MoveFile(to dir, overwrite=%v) succeeded, want error", overwrite)
+		}
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatalf("ReadDir(root): %v", err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), tmpFilePrefix) {
+			t.Fatalf("unexpected temp file %q left in root", entry.Name())
+		}
+	}
+}
+
+func TestClient_RelativeRootDirSurvivesChdir(t *testing.T) {
+	base := t.TempDir()
+	other := t.TempDir()
+	t.Chdir(base)
+
+	client, err := NewClient(Config{RootDir: "./store"})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	if _, err := client.UploadFile(t.Context(), strings.NewReader("v1"), "x.txt"); err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	t.Chdir(other)
+	res, err := client.DownloadFile(t.Context(), "x.txt")
+	if err != nil {
+		t.Fatalf("DownloadFile after Chdir: %v", err)
+	}
+	defer func() { _ = res.Reader.Close() }()
+	got, err := io.ReadAll(res.Reader)
+	if err != nil || string(got) != "v1" {
+		t.Fatalf("DownloadFile = %q, %v; want v1", got, err)
+	}
+	if _, err := os.Stat(filepath.Join(other, "store")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected relative store directory created in new cwd: %v", err)
+	}
+}

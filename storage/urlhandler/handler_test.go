@@ -39,6 +39,14 @@ func TestNewHandler(t *testing.T) {
 			wantPath:  "",
 		},
 		{
+			name:      "URL with multiple trailing slashes",
+			publicURL: "http://localhost:8080///",
+			wantErr:   false,
+			wantBase:  "http://localhost:8080",
+			wantHost:  "localhost:8080",
+			wantPath:  "",
+		},
+		{
 			name:      "URL with base path",
 			publicURL: "http://localhost:8080/storage",
 			wantErr:   false,
@@ -110,6 +118,11 @@ func TestHandler_GenerateURL(t *testing.T) {
 		{
 			name: "empty key",
 			key:  "",
+			want: "",
+		},
+		{
+			name: "slash-only key",
+			key:  "///",
 			want: "",
 		},
 		{
@@ -310,6 +323,14 @@ func TestHandler_ExtractKeyFromURLWithMode(t *testing.T) {
 			name:      "empty string",
 			publicURL: "http://localhost:8080",
 			uri:       "",
+			strict:    true,
+			want:      "",
+			wantErr:   false,
+		},
+		{
+			name:      "slashes only",
+			publicURL: "http://localhost:8080",
+			uri:       "///",
 			strict:    true,
 			want:      "",
 			wantErr:   false,
