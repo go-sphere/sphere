@@ -19,10 +19,10 @@ var ErrNonCanonical = errors.New("baseconv: non-canonical encoding")
 // Create it with NewBaseEncoding or NewBaseEncodingWithPadding; the zero value
 // is not usable. It is immutable and safe for concurrent use.
 type BaseEncoding struct {
-	alphabet  string
-	base      int
-	decodeMap map[byte]int
-	padChar   byte
+	alphabet    string
+	base        int
+	decodeTable [256]int16
+	padChar     byte
 }
 
 // NewBaseEncoding creates a new base encoding instance with the specified alphabet.
@@ -42,24 +42,27 @@ func NewBaseEncodingWithPadding(alphabet string, padChar byte) (*BaseEncoding, e
 		return nil, errors.New("alphabet must have at least 2 characters")
 	}
 
-	decodeMap := make(map[byte]int, len(alphabet))
+	var decodeTable [256]int16
+	for i := range decodeTable {
+		decodeTable[i] = -1
+	}
 	for i := 0; i < len(alphabet); i++ {
 		char := alphabet[i]
-		if _, exists := decodeMap[char]; exists {
+		if decodeTable[char] >= 0 {
 			return nil, errors.New("alphabet contains duplicate characters")
 		}
-		decodeMap[char] = i
+		decodeTable[char] = int16(i)
 	}
 
-	if _, exists := decodeMap[padChar]; padChar != 0 && exists {
+	if padChar != 0 && decodeTable[padChar] >= 0 {
 		return nil, errors.New("padding character conflicts with alphabet")
 	}
 
 	return &BaseEncoding{
-		alphabet:  alphabet,
-		base:      len(alphabet),
-		decodeMap: decodeMap,
-		padChar:   padChar,
+		alphabet:    alphabet,
+		base:        len(alphabet),
+		decodeTable: decodeTable,
+		padChar:     padChar,
 	}, nil
 }
 
@@ -189,7 +192,7 @@ func (e *BaseEncoding) DecodeString(encoded string) ([]byte, error) {
 	}
 
 	for i := 0; i < len(data); i++ {
-		if _, exists := e.decodeMap[data[i]]; !exists {
+		if e.decodeTable[data[i]] < 0 {
 			return nil, fmt.Errorf("invalid character '%c' at position %d", data[i], i)
 		}
 	}
@@ -234,8 +237,8 @@ func (e *BaseEncoding) decodeBitwise(data string, bitsPerChar int) ([]byte, erro
 	var bitsInBuffer int
 
 	for i := 0; i < len(data); i++ {
-		value := e.decodeMap[data[i]]
-		buffer = (buffer << bitsPerChar) | uint32(value)
+		value := uint32(e.decodeTable[data[i]])
+		buffer = (buffer << bitsPerChar) | value
 		bitsInBuffer += bitsPerChar
 
 		for bitsInBuffer >= 8 {
@@ -278,7 +281,7 @@ func (e *BaseEncoding) decodeMathematical(data string) ([]byte, error) {
 	// base of at most 256 never needs more bytes than digits.
 	num := make([]byte, 0, len(data)-leadingZeros)
 	for i := leadingZeros; i < len(data); i++ {
-		carry := e.decodeMap[data[i]]
+		carry := int(e.decodeTable[data[i]])
 		for j := range num {
 			carry += int(num[j]) * e.base
 			num[j] = byte(carry)

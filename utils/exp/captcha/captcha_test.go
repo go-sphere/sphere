@@ -1,6 +1,7 @@
 package captcha
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -12,7 +13,7 @@ import (
 func TestRandomCode(t *testing.T) {
 	t.Parallel()
 
-	for _, length := range []int{-1, 0, 1, 6, 32} {
+	for _, length := range []int{-1, 0, 1, 6, 32, 100} {
 		code := RandomCode(length)
 		wantLength := max(length, 0)
 		if len(code) != wantLength {
@@ -22,6 +23,23 @@ func TestRandomCode(t *testing.T) {
 			if code[i] < '0' || code[i] > '9' {
 				t.Fatalf("RandomCode produced non-digit %q in %q", code[i], code)
 			}
+		}
+	}
+}
+
+func TestManagerStartStopPrecedenceOverCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	for range 50 {
+		m := NewManager(Config{}, noopSender{})
+		if err := m.Stop(context.Background()); err != nil {
+			t.Fatalf("Stop: %v", err)
+		}
+		if err := m.Start(cancelled); err != nil {
+			t.Fatalf("Start(canceled) after Stop = %v, want nil", err)
 		}
 	}
 }

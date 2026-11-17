@@ -102,14 +102,27 @@ func (m *Manager) Identifier() string {
 // called (immediately, if Stop already ran). SendCode and Verify work whether
 // or not Start is running.
 func (m *Manager) Start(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-m.done:
+		return nil
+	default:
+	}
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
 		case <-m.done:
 			return nil
+		case <-ctx.Done():
+			select {
+			case <-m.done:
+				return nil
+			default:
+				return ctx.Err()
+			}
 		case <-ticker.C:
 			m.verification.CleanExpired()
 		}

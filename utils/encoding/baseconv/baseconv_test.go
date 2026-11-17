@@ -209,3 +209,30 @@ func TestMathematicalEncodingMatchesBigInt(t *testing.T) {
 		}
 	}
 }
+
+func TestBaseEncodingFull256ByteAlphabetAndHighByteRejection(t *testing.T) {
+	t.Parallel()
+
+	var fullAlphabet [256]byte
+	for i := range fullAlphabet {
+		fullAlphabet[i] = byte(i)
+	}
+	enc, err := NewBaseEncoding(string(fullAlphabet[:]))
+	if err != nil {
+		t.Fatalf("NewBaseEncoding(256 bytes): %v", err)
+	}
+	raw := []byte{0x00, 0x01, 0x80, 0xff}
+	encoded := enc.EncodeToString(raw)
+	decoded, err := enc.DecodeString(encoded)
+	if err != nil || !bytes.Equal(decoded, raw) {
+		t.Fatalf("round-trip(256) = (%x, %v), want %x", decoded, err, raw)
+	}
+
+	narrow, err := NewBaseEncoding("0123")
+	if err != nil {
+		t.Fatalf("NewBaseEncoding: %v", err)
+	}
+	if _, err := narrow.DecodeString("0\xff"); err == nil {
+		t.Fatal("expected invalid character error for high byte 0xff")
+	}
+}

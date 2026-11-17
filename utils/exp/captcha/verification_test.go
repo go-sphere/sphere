@@ -125,7 +125,6 @@ func TestRateLimitWindowRolls(t *testing.T) {
 	}
 }
 
-// TestVerifyConsumesMatchedCode pins the one-time-use property.
 // TestSaveCodeClearsAnActiveFreeze pins that issuing a fresh code lifts a
 // standing freeze. The freeze protects the codes that were outstanding when
 // the guesses failed; the default code lifetime (5m) is shorter than the
@@ -158,6 +157,7 @@ func TestSaveCodeClearsAnActiveFreeze(t *testing.T) {
 	}
 }
 
+// TestVerifyConsumesMatchedCode pins the one-time-use property.
 func TestVerifyConsumesMatchedCode(t *testing.T) {
 	const number = "13700000000"
 	s := newTestSystem()

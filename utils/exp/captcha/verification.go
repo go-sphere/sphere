@@ -2,8 +2,8 @@ package captcha
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"errors"
-	"math/big"
 	"sync"
 	"time"
 )
@@ -248,7 +248,7 @@ func (s *VerificationSystem) Verify(number, code string) bool {
 	}
 
 	for i, captcha := range caps {
-		if captcha.Code == code {
+		if subtle.ConstantTimeCompare([]byte(captcha.Code), []byte(code)) == 1 {
 			// Consume the matched code so it cannot be replayed.
 			remaining := append(caps[:i], caps[i+1:]...)
 			if len(remaining) == 0 {
@@ -323,14 +323,29 @@ func RandomCode(length int) string {
 	if length <= 0 {
 		return ""
 	}
+	// Largest multiple of 10 in [0, 256) so rejection sampling stays uniform.
+	const maxDigitByte = 256 - (256 % 10)
 	code := make([]byte, length)
-	digits := big.NewInt(10)
-	for i := range code {
-		n, err := rand.Int(rand.Reader, digits)
-		if err != nil {
+	var stackBuf [32]byte
+	buf := stackBuf[:]
+	if length > len(stackBuf) {
+		buf = make([]byte, min(length+length/8+8, 1024))
+	}
+	for i := 0; i < length; {
+		need := min(len(buf), (length-i)+(length-i)/8+4)
+		if _, err := rand.Read(buf[:need]); err != nil {
 			panic("captcha: crypto/rand failed: " + err.Error())
 		}
-		code[i] = byte('0' + n.Int64())
+		for _, b := range buf[:need] {
+			if b >= maxDigitByte {
+				continue
+			}
+			code[i] = '0' + b%10
+			i++
+			if i == length {
+				break
+			}
+		}
 	}
 	return string(code)
 }

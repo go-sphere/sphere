@@ -11,7 +11,7 @@ func TestRandString(t *testing.T) {
 	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 	t.Run("length and alphabet", func(t *testing.T) {
-		for _, length := range []int{1, 8, 32} {
+		for _, length := range []int{1, 8, 32, 128} {
 			got := RandString(length)
 			if len(got) != length {
 				t.Fatalf("RandString(%d) has length %d", length, len(got))
