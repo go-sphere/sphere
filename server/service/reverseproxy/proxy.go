@@ -437,6 +437,12 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 			}
 		})
 
+		// Snapshot before ModifyResponse returns: net/http may mutate resp.Header
+		// or cancel resp.Request.Context() once the response starts writing.
+		saveBaseCtx := context.WithoutCancel(resp.Request.Context())
+		cacheHeader := resp.Header.Clone()
+		statusCode := resp.StatusCode
+
 		// goroutine to save cache
 		safe.Go(func() {
 			defer cacheFlags.Delete(key)
@@ -445,7 +451,7 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 			// only cleared here) forever. The bound is idle rather than wall-clock
 			// because Save consumes the body at the pace of upstream and client,
 			// so a total deadline would cut off any download slower than it.
-			ctx, cancel := context.WithCancelCause(context.WithoutCancel(resp.Request.Context()))
+			ctx, cancel := context.WithCancelCause(saveBaseCtx)
 			defer cancel(nil)
 			// Cancelling ctx alone cannot unblock a Save that is parked reading
 			// the body (the local driver does not observe ctx mid-copy), so the
@@ -456,16 +462,12 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 				cacheBody.CloseWithError(errSaveIdle)
 			})
 			defer body.stop()
-			// Persist the real status code inside the header blob so it can be
-			// replayed on cache hit. Clone to avoid leaking the internal header
-			// to the client response.
-			cacheHeader := resp.Header.Clone()
 			// Never persist a Set-Cookie: a cached entry is replayed to every
 			// later caller, so storing one would hand out the session it
 			// belongs to. The default checker already refuses such responses;
 			// this also covers a custom checker that does not.
 			cacheHeader.Del("Set-Cookie")
-			cacheHeader.Set(cacheStatusHeader, strconv.Itoa(resp.StatusCode))
+			cacheHeader.Set(cacheStatusHeader, strconv.Itoa(statusCode))
 			if err := cache.Save(ctx, key, cacheHeader, body); err != nil {
 				if errors.Is(context.Cause(ctx), errSaveIdle) {
 					err = fmt.Errorf("%w after %v: %w", errSaveIdle, conf.saveTimeout, err)
@@ -523,15 +525,20 @@ func WithServeErrorHandler(handler func(http.ResponseWriter, *http.Request, erro
 	}
 }
 
-// WithServeCacheKeyFunc sets how lookup keys are derived. An empty key skips the cache and goes upstream.
+// WithServeCacheKeyFunc sets how lookup keys are derived. A nil key function is
+// ignored, keeping the current one. An empty key skips the cache and goes upstream.
 func WithServeCacheKeyFunc(keygen RequestCacheKeyFunc) ServeOption {
 	return func(opts *ServeOptions) {
+		if keygen == nil {
+			return
+		}
 		opts.keygen = keygen
 	}
 }
 
 // ServeCacheReverseProxy serves a cache hit and otherwise forwards to proxy.
 // Load errors other than ErrCacheNotFound are logged and the request goes upstream.
+// If cache is nil, caching is bypassed and all requests go upstream.
 //
 // A hit replays the stored headers and the original upstream status (200 when
 // the stored status is missing or invalid) and copies the body; a copy failure,
@@ -540,43 +547,46 @@ func WithServeCacheKeyFunc(keygen RequestCacheKeyFunc) ServeOption {
 func ServeCacheReverseProxy(cache Cache, proxy *httputil.ReverseProxy, opts ...ServeOption) func(http.ResponseWriter, *http.Request) {
 	conf := newServeOptions(opts...)
 	return func(w http.ResponseWriter, r *http.Request) {
-		key := conf.keygen(r)
-		if key != "" {
-			header, body, err := cache.Load(r.Context(), key)
-			switch {
-			case err != nil:
-				// A cache miss is expected; anything else is a cache-layer
-				// failure that should not be silently swallowed.
-				if !errors.Is(err, ErrCacheNotFound) {
-					log.Error("reverseproxy: failed to load cache", log.String("key", key), log.Err(err))
-				}
-			case body != nil:
-				// Replay the persisted status code instead of hardcoding 200,
-				// then strip the internal header from the client response.
-				status := http.StatusOK
-				if s := header.Get(cacheStatusHeader); s != "" {
-					// Validate the range before replaying: net/http panics on a
-					// status outside 100-999, so a corrupted or poisoned cache
-					// entry would otherwise take down the request goroutine.
-					// Fall back to 200 for anything unparseable or out of range.
-					if code, pErr := strconv.Atoi(s); pErr == nil && code >= 100 && code <= 599 {
-						status = code
+		if cache != nil {
+			if key := conf.keygen(r); key != "" {
+				header, body, err := cache.Load(r.Context(), key)
+				switch {
+				case err != nil:
+					// A cache miss is expected; anything else is a cache-layer
+					// failure that should not be silently swallowed.
+					if !errors.Is(err, ErrCacheNotFound) {
+						log.ErrorContext(r.Context(), "reverseproxy: failed to load cache", log.String("key", key), log.Err(err))
 					}
-					header.Del(cacheStatusHeader)
-				}
-				// Copy headers to response
-				for k, v := range header {
-					for _, vv := range v {
-						w.Header().Add(k, vv)
+				case body != nil:
+					// Replay the persisted status code instead of hardcoding 200,
+					// skipping the internal status header without mutating the map.
+					status := http.StatusOK
+					if s := header.Get(cacheStatusHeader); s != "" {
+						// Validate the range before replaying: net/http panics on a
+						// status outside 100-999, so a corrupted or poisoned cache
+						// entry would otherwise take down the request goroutine.
+						// Fall back to 200 for anything unparseable or out of range.
+						if code, pErr := strconv.Atoi(s); pErr == nil && code >= 100 && code <= 599 {
+							status = code
+						}
 					}
-				}
-				w.WriteHeader(status)
-				defer ignoreCloseError(body.Close)
-				if _, cErr := io.Copy(w, body); cErr != nil {
-					conf.errorHandler(w, r, cErr)
+					// Copy headers to response
+					for k, v := range header {
+						if strings.EqualFold(k, cacheStatusHeader) {
+							continue
+						}
+						for _, vv := range v {
+							w.Header().Add(k, vv)
+						}
+					}
+					w.WriteHeader(status)
+					defer ignoreCloseError(body.Close)
+					if _, cErr := io.Copy(w, body); cErr != nil {
+						conf.errorHandler(w, r, cErr)
+						return
+					}
 					return
 				}
-				return
 			}
 		}
 		proxy.ServeHTTP(w, r)

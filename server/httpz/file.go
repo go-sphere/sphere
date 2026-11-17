@@ -21,6 +21,7 @@ type WithFormOptions struct {
 }
 
 // WithFormOption is a functional option for configuring file upload behavior.
+// A nil WithFormOption is ignored.
 type WithFormOption func(*WithFormOptions)
 
 func newWithFormOptions(opts ...WithFormOption) *WithFormOptions {
@@ -29,7 +30,9 @@ func newWithFormOptions(opts ...WithFormOption) *WithFormOptions {
 		fileFormKey: "file",
 	}
 	for _, opt := range opts {
-		opt(defaults)
+		if opt != nil {
+			opt(defaults)
+		}
 	}
 	return defaults
 }
@@ -101,12 +104,15 @@ func WithFormFileReader[T any](handler func(ctx httpx.Context, file io.ReadSeekC
 		var zero T
 		if opts.maxSize > 0 {
 			declared, err := strconv.ParseInt(ctx.Header("Content-Length"), 10, 64)
-			if err == nil && declared > opts.maxSize+multipartOverhead {
+			if err == nil && declared > multipartOverhead && declared-multipartOverhead > opts.maxSize {
 				return zero, fileTooLargeError("")
 			}
 		}
 		file, err := ctx.FormFile(opts.fileFormKey)
 		if err != nil {
+			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				return zero, fileTooLargeError("")
+			}
 			// A missing field or malformed multipart body is the client's
 			// fault; unclassified errors would render as 500.
 			return zero, httpx.BadRequestError(err, "invalid multipart file upload")

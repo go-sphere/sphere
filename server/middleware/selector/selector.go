@@ -18,6 +18,9 @@ type MatchFunc func(ctx httpx.Context) bool
 
 // Match implements the Matcher interface for MatchFunc.
 func (m MatchFunc) Match(ctx httpx.Context) bool {
+	if m == nil {
+		return false
+	}
 	return m(ctx)
 }
 
@@ -25,6 +28,9 @@ func (m MatchFunc) Match(ctx httpx.Context) bool {
 // The stored value must have type T.
 func NewContextMatcher[T comparable](key string, value T) Matcher {
 	return MatchFunc(func(ctx httpx.Context) bool {
+		if ctx == nil {
+			return false
+		}
 		v, ok := ctx.Get(key)
 		if !ok {
 			return false
@@ -40,6 +46,9 @@ func NewContextMatcher[T comparable](key string, value T) Matcher {
 // NewLogicalNotMatcher creates a matcher that inverts the result of another matcher.
 func NewLogicalNotMatcher(matcher Matcher) Matcher {
 	return MatchFunc(func(ctx httpx.Context) bool {
+		if matcher == nil {
+			return false
+		}
 		return !matcher.Match(ctx)
 	})
 }
@@ -48,7 +57,7 @@ func NewLogicalNotMatcher(matcher Matcher) Matcher {
 func NewLogicalOrMatcher(matchers ...Matcher) Matcher {
 	return MatchFunc(func(ctx httpx.Context) bool {
 		for _, m := range matchers {
-			if m.Match(ctx) {
+			if m != nil && m.Match(ctx) {
 				return true
 			}
 		}
@@ -60,7 +69,7 @@ func NewLogicalOrMatcher(matchers ...Matcher) Matcher {
 func NewLogicalAndMatcher(matchers ...Matcher) Matcher {
 	return MatchFunc(func(ctx httpx.Context) bool {
 		for _, m := range matchers {
-			if !m.Match(ctx) {
+			if m == nil || !m.Match(ctx) {
 				return false
 			}
 		}
@@ -78,12 +87,15 @@ func NewLogicalAndMatcher(matchers ...Matcher) Matcher {
 func NewSelectorMiddleware(matcher Matcher, middlewares ...httpx.Middleware) []httpx.Middleware {
 	val := make([]httpx.Middleware, 0, len(middlewares))
 	for _, m := range middlewares {
+		if m == nil {
+			continue
+		}
 		val = append(val, func(next httpx.Handler) httpx.Handler {
 			// Composed once at registration, so a request only pays for the
 			// match.
 			matched := m(next)
 			return func(ctx httpx.Context) error {
-				if matcher.Match(ctx) {
+				if matcher != nil && matcher.Match(ctx) {
 					return matched(ctx)
 				}
 				return next(ctx)

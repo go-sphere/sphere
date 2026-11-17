@@ -56,7 +56,7 @@ type sseOptions struct {
 	eagerCommit bool
 }
 
-// SSEOption configures WithSSE.
+// SSEOption configures WithSSE. A nil SSEOption is ignored.
 type SSEOption func(*sseOptions)
 
 // WithSSEHeartbeat sets the interval between keep-alive comment frames on an
@@ -119,7 +119,9 @@ func WithSSEEagerCommit() SSEOption {
 func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts ...SSEOption) httpx.Handler {
 	conf := sseOptions{heartbeat: defaultSSEHeartbeat}
 	for _, opt := range opts {
-		opt(&conf)
+		if opt != nil {
+			opt(&conf)
+		}
 	}
 	return WithRecover("WithSSE panic", func(ctx httpx.Context) error {
 		if _, ok := httpx.AsStreamer(ctx); !ok {
@@ -127,16 +129,26 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 			// endpoint cannot work at all, and a JSON 500 beats a panic.
 			return httpx.InternalServerError(httpx.ErrStreamerNotSupported, "streaming is not supported by this server")
 		}
+		reqCtx := ctx.Context()
+		prodCtx, cancel := context.WithCancelCause(reqCtx)
+		ctx.SetContext(prodCtx)
+		started := false
+		defer func() {
+			if !started {
+				ctx.SetContext(reqCtx)
+				cancel(nil)
+			}
+		}()
 		stream, err := prepare(ctx)
+		ctx.SetContext(reqCtx)
 		if err != nil {
 			return err
 		}
 		if stream == nil {
 			return httpx.NewInternalServerError("WithSSE prepare returned a nil stream")
 		}
+		started = true
 
-		reqCtx := ctx.Context()
-		prodCtx, cancel := context.WithCancelCause(reqCtx)
 		frames := make(chan T)
 		result := make(chan error, 1)
 		// done closes once result holds the stream's outcome. frames is never
@@ -315,6 +327,11 @@ func pumpSSE[T any](
 	}
 
 	if err := w.SendJSON("", first); err != nil {
+		// Best effort terminator: in eager-commit mode the first frame was not
+		// pre-marshaled in the gate, so an encode failure reaches pumpSSE with
+		// the stream already committed and the client still listening.
+		_, resp := buildErrorResponse(err)
+		_ = w.SendJSON(SSEEventError, resp)
 		return abort(err)
 	}
 

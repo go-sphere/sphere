@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -115,8 +116,7 @@ func (o *orphanCleanups) claim(key string) bool {
 
 func (o *orphanCleanups) dropOldest() {
 	delete(o.recent, o.order[0].key)
-	o.order[0] = scheduledCleanup{}
-	o.order = o.order[1:]
+	o.order = slices.Delete(o.order, 0, 1)
 }
 
 func (o *orphanCleanups) done() {
@@ -125,9 +125,9 @@ func (o *orphanCleanups) done() {
 	o.running--
 }
 
-// keyLock orders Save against orphan cleanup for one key: Save holds it
-// shared, cleanup exclusively. refs counts holders so the map entry is
-// dropped when the key is idle.
+// keyLock orders Save and Delete against each other and against orphan cleanup
+// for one key: Save and Delete hold it exclusively, cleanup tries exclusively.
+// refs counts holders so the map entry is dropped when the key is idle.
 type keyLock struct {
 	rw   sync.RWMutex
 	refs int
@@ -172,7 +172,7 @@ func NewByteCache(cache cache.ByteCache, storage storage.Storage, setCacheOption
 	return &CommonCache{
 		cache:           cache,
 		storage:         storage,
-		setCacheOptions: setCacheOptions,
+		setCacheOptions: slices.Clone(setCacheOptions),
 	}
 }
 
@@ -208,6 +208,10 @@ func (c *CommonCache) Delete(ctx context.Context, key string) error {
 		c.deleteOrphanBody(ctx, key)
 		return ErrCacheNotFound
 	}
+	l := c.acquireKeyLock(key)
+	defer c.releaseKeyLock(key, l)
+	l.rw.Lock()
+	defer l.rw.Unlock()
 	// Best-effort parse: a corrupt or degenerate header blob must still be
 	// removable through the public API — failure to recover the body key only
 	// skips the storage delete, never the cache delete.
@@ -240,8 +244,8 @@ func storageObjectName(cacheKey string) string {
 func (c *CommonCache) Save(ctx context.Context, key string, header http.Header, reader io.Reader) error {
 	l := c.acquireKeyLock(key)
 	defer c.releaseKeyLock(key, l)
-	l.rw.RLock()
-	defer l.rw.RUnlock()
+	l.rw.Lock()
+	defer l.rw.Unlock()
 	filename := storageObjectName(key)
 	cacheFileKey, err := c.storage.UploadFile(ctx, reader, filename)
 	if err != nil {

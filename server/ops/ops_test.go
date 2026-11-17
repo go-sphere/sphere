@@ -118,3 +118,13 @@ func TestServerStartTwice(t *testing.T) {
 		t.Fatal("second Start succeeded")
 	}
 }
+
+func TestHandlerSkipsNilOptions(t *testing.T) {
+	h := Handler(nil, WithPprof(), nil)
+	if w := get(t, h, http.MethodGet, HealthzPath); w.Code != http.StatusOK {
+		t.Fatalf("healthz = %d, want 200", w.Code)
+	}
+	if w := get(t, h, http.MethodGet, PprofPrefix); w.Code != http.StatusOK {
+		t.Fatalf("pprof = %d, want 200", w.Code)
+	}
+}

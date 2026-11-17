@@ -3,6 +3,7 @@ package httpz
 import (
 	"bytes"
 	"io"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -245,4 +246,59 @@ func (c *countingReader) Read(p []byte) (int, error) {
 	n, err := c.r.Read(p)
 	c.n += n
 	return n, err
+}
+
+func TestWithFormFileReaderOverflowMaxBytesAndNilOption(t *testing.T) {
+	t.Run("nil option is skipped", func(t *testing.T) {
+		opts := newWithFormOptions(nil, WithFormMaxSize(42), nil)
+		if opts.maxSize != 42 {
+			t.Fatalf("maxSize = %d, want 42", opts.maxSize)
+		}
+	})
+
+	t.Run("large maxSize does not overflow Content-Length check", func(t *testing.T) {
+		ctx := uploadContext(t, "ok.txt", []byte("hello"))
+		ctx.Request().Header.Set("Content-Length", strconv.FormatInt(ctx.Request().ContentLength, 10))
+		called := false
+		handler := WithFormFileReader(func(httpx.Context, io.ReadSeekCloser, string) (string, error) {
+			called = true
+			return "ok", nil
+		}, WithFormMaxSize(math.MaxInt64))
+		if err := handler(ctx); err != nil {
+			t.Fatalf("handler: %v", err)
+		}
+		if !called {
+			t.Fatalf("handler did not run; status = %d", ctx.StatusCode())
+		}
+	})
+
+	t.Run("MaxBytesError from FormFile maps to 413", func(t *testing.T) {
+		var buf bytes.Buffer
+		mw := multipart.NewWriter(&buf)
+		fw, err := mw.CreateFormFile("file", "big.bin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fw.Write(bytes.Repeat([]byte("a"), 256)); err != nil {
+			t.Fatal(err)
+		}
+		if err := mw.Close(); err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest(http.MethodPost, "/upload", bytes.NewReader(buf.Bytes()))
+		req.Header.Set("Content-Type", mw.FormDataContentType())
+		req.Body = http.MaxBytesReader(httptest.NewRecorder(), req.Body, 32)
+		ctx := httpxmock.New(req)
+
+		handler := WithFormFileReader(func(httpx.Context, io.ReadSeekCloser, string) (string, error) {
+			t.Fatal("handler must not run")
+			return "", nil
+		}, WithFormMaxSize(0))
+		if err := handler(ctx); err != nil {
+			t.Fatalf("handler: %v", err)
+		}
+		if ctx.StatusCode() != http.StatusRequestEntityTooLarge {
+			t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusRequestEntityTooLarge)
+		}
+	})
 }

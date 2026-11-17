@@ -84,10 +84,14 @@ func newOptions(opts ...Option) *options {
 type Option func(*options)
 
 // WithLoader replaces the default loader that reads the Authorization header.
+// A nil loader is ignored, keeping the current loader.
 // A loader error rejects the request with 401 unless WithAbortOnError(false)
-// is set; an empty token is treated as missing. The last loader option wins.
+// is set; an empty token is treated as missing. The last non-nil loader option wins.
 func WithLoader(f func(ctx httpx.Context) (string, error)) Option {
 	return func(opts *options) {
+		if f == nil {
+			return
+		}
 		opts.loader = f
 	}
 }
@@ -148,8 +152,7 @@ func WithAbortOnError(abort bool) Option {
 }
 
 func unauthorizedError(err error) error {
-	var messageErr httpx.MessageError
-	if errors.As(err, &messageErr) {
+	if messageErr, ok := errors.AsType[httpx.MessageError](err); ok {
 		return httpx.UnauthorizedError(err, messageErr.GetMessage())
 	}
 	return httpx.UnauthorizedError(err)
@@ -172,8 +175,11 @@ func NewAuthMiddleware[T authorizer.UID, C authorizer.Claims[T]](parser authoriz
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
 			token, err := opts.loader(ctx)
-			if err != nil && opts.abortOnError {
-				return unauthorizedError(err)
+			if err != nil {
+				if opts.abortOnError {
+					return unauthorizedError(err)
+				}
+				return next(ctx)
 			}
 			err = parserToken(ctx, token, opts.transform, parser)
 			if err != nil && opts.abortOnError {

@@ -101,32 +101,36 @@ func NewTracing(opts ...Option) httpx.Middleware {
 			finished := false
 			defer func() {
 				if !finished {
-					span.SetStatus(codes.Error, "panic")
-					span.SetAttributes(attribute.String(keyErrorType, "panic"))
+					if span.IsRecording() {
+						span.SetStatus(codes.Error, "panic")
+						span.SetAttributes(attribute.String(keyErrorType, "panic"))
+					}
 					span.End()
 				}
 			}()
 			err := next(ctx)
 			finished = true
 
-			// Routers may resolve the pattern only while dispatching.
-			if route == "" {
-				if route = ctx.FullPath(); route != "" {
-					span.SetName(name + " " + route)
-					span.SetAttributes(routeAttr(route))
+			if span.IsRecording() {
+				// Routers may resolve the pattern only while dispatching.
+				if route == "" {
+					if route = ctx.FullPath(); route != "" {
+						span.SetName(name + " " + route)
+						span.SetAttributes(routeAttr(route))
+					}
 				}
-			}
-			status := responseStatus(ctx, err)
-			if status != 0 {
-				span.SetAttributes(statusAttr(status))
-			}
-			if isServerError(status) && !clientCanceled(ctx, err) {
-				if kv, ok := errorTypeAttr(status, false); ok {
-					span.SetAttributes(kv)
+				status := responseStatus(ctx, err)
+				if status != 0 {
+					span.SetAttributes(statusAttr(status))
 				}
-				span.SetStatus(codes.Error, http.StatusText(status))
-				if err != nil && !cfg.noErrEvent {
-					span.RecordError(err)
+				if isServerError(status) && !clientCanceled(base, err) {
+					if kv, ok := errorTypeAttr(status, false); ok {
+						span.SetAttributes(kv)
+					}
+					span.SetStatus(codes.Error, http.StatusText(status))
+					if err != nil && !cfg.noErrEvent {
+						span.RecordError(err)
+					}
 				}
 			}
 			span.End()

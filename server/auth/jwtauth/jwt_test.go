@@ -480,3 +480,22 @@ func TestNewRBACClaimsToleratesIssuerClockAhead(t *testing.T) {
 		t.Fatalf("ParseToken: %v", err)
 	}
 }
+
+func TestJwtAuth_NilOptionsAndForgedTrailingPayload(t *testing.T) {
+	t.Parallel()
+
+	auth := NewJwtAuth[*RBACClaims[int64]]("secret", nil, WithSigningMethod(nil), nil)
+	if auth.signingMethod != jwt.SigningMethodHS256 {
+		t.Fatalf("signingMethod = %v, want HS256", auth.signingMethod)
+	}
+
+	// Forged signature + invalid trailing JSON must fail HMAC verification first,
+	// not leak payload validation ahead of signature check.
+	enc := base64.RawURLEncoding.EncodeToString
+	forged := enc([]byte(`{"alg":"HS256","typ":"JWT"}`)) + "." +
+		enc([]byte(fmt.Sprintf(`{"exp":%d,"uid":1}garbage`, time.Now().Add(time.Hour).Unix()))) + "." +
+		enc([]byte("bad-sig"))
+	if _, err := auth.ParseToken(context.Background(), forged); !errors.Is(err, jwt.ErrTokenSignatureInvalid) {
+		t.Fatalf("forged token err = %v, want ErrTokenSignatureInvalid", err)
+	}
+}

@@ -546,3 +546,40 @@ func TestLogRouteAttr(t *testing.T) {
 		t.Errorf("route = %q, want %q", got, UnmatchedRoute)
 	}
 }
+
+func TestNilBaseLoggerFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx := accessRequest(t.Context())
+	if err := httpxmock.Run(ctx, func(c httpx.Context) error {
+		c.Status(http.StatusOK)
+		return nil
+	}, Log(nil)); err != nil {
+		t.Fatalf("Log(nil) success path: %v", err)
+	}
+
+	errBoom := errors.New("boom")
+	if err := httpxmock.Run(accessRequest(t.Context()), func(httpx.Context) error {
+		return errBoom
+	}, Log(nil)); !errors.Is(err, errBoom) {
+		t.Fatalf("Log(nil) error path = %v, want %v", err, errBoom)
+	}
+
+	recCtx := accessRequest(t.Context())
+	if err := httpxmock.Run(recCtx, func(httpx.Context) error {
+		panic("kaboom")
+	}, RecoveryLog(nil, true)); err != nil {
+		t.Fatalf("RecoveryLog(nil) = %v", err)
+	}
+	if recCtx.StatusCode() != http.StatusInternalServerError {
+		t.Fatalf("RecoveryLog(nil) status = %d, want 500", recCtx.StatusCode())
+	}
+
+	err := httpxmock.Run(accessRequest(t.Context()), func(httpx.Context) error {
+		panic("kaboom")
+	}, RecoveryLogErr(nil, false))
+	var pe *PanicError
+	if !errors.As(err, &pe) {
+		t.Fatalf("RecoveryLogErr(nil) = %v, want *PanicError", err)
+	}
+}

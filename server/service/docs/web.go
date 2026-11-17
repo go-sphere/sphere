@@ -5,6 +5,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-sphere/httpx"
@@ -52,6 +54,7 @@ type Web struct {
 	engine  httpx.Engine
 	mu      sync.Mutex
 	stopped bool
+	started atomic.Bool
 }
 
 // indexTarget is the subset of a Target the index page renders. Resolving it up
@@ -73,6 +76,9 @@ func (w *Web) newHandler() (http.Handler, error) {
 			return nil, fmt.Errorf("docs: target %s has no swagger spec", target.Address)
 		}
 		name, description := resolveTarget(target.Spec, target.Address)
+		if name == "" || strings.Contains(name, "/") {
+			return nil, fmt.Errorf("docs: target %s has invalid swagger instance name %q", target.Address, name)
+		}
 		// Route prefixes are the lowercased instance name, so two targets that
 		// differ only in case collide as well. http.ServeMux reports a collision
 		// by panicking, which would turn a config mistake into a startup crash
@@ -181,6 +187,9 @@ func (w *Web) Start(ctx context.Context) error {
 	if w.engine != nil {
 		return w.engine.Start()
 	}
+	if w.started.Swap(true) {
+		return errors.New("docs: server already started")
+	}
 	handler, err := w.newHandler()
 	if err != nil {
 		return err
@@ -234,22 +243,23 @@ func registerTarget(mux *http.ServeMux, spec *swag.Spec, target string) error {
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	proxyPath := path.Join(basePath, "api")
 	proxyHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, proxyPath)
-		if r.URL.Path == "" {
-			r.URL.Path = "/"
+		out := r.Clone(r.Context())
+		out.URL.Path = strings.TrimPrefix(out.URL.Path, proxyPath)
+		if out.URL.Path == "" {
+			out.URL.Path = "/"
 		}
 		// RawPath carries the client's original encoding (%2F); keep it
 		// trimmed in step with Path so the backend sees the same escapes.
-		if raw, ok := strings.CutPrefix(r.URL.RawPath, proxyPath); ok {
+		if raw, ok := strings.CutPrefix(out.URL.RawPath, proxyPath); ok {
 			if raw == "" {
 				raw = "/"
 			}
-			r.URL.RawPath = raw
+			out.URL.RawPath = raw
 		} else {
-			r.URL.RawPath = ""
+			out.URL.RawPath = ""
 		}
-		r.Host = targetURL.Host
-		proxy.ServeHTTP(rw, r)
+		out.Host = targetURL.Host
+		proxy.ServeHTTP(rw, out)
 	})
 	mux.Handle(proxyPath, proxyHandler)
 	mux.Handle(proxyPath+"/", proxyHandler)
@@ -277,8 +287,9 @@ func registerTarget(mux *http.ServeMux, spec *swag.Spec, target string) error {
 // with the handler serving that document.
 func swaggerDocHandler(instanceName, proxyPath, description string) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			rw.Header().Set("Allow", "GET, HEAD")
+			http.Error(rw, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 			return
 		}
 		raw, err := swag.ReadDoc(instanceName)
@@ -307,7 +318,10 @@ func swaggerDocHandler(instanceName, proxyPath, description string) http.Handler
 			return
 		}
 		rw.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_, _ = rw.Write(body)
+		rw.WriteHeader(http.StatusOK)
+		if r.Method != http.MethodHead {
+			_, _ = rw.Write(body)
+		}
 	})
 }
 
@@ -315,6 +329,11 @@ func newIndexHandler(body []byte) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(rw, r)
+			return
+		}
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			rw.Header().Set("Allow", "GET, HEAD")
+			http.Error(rw, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 			return
 		}
 		rw.Header().Set("Content-Type", "text/html")
@@ -348,16 +367,16 @@ func withCORS(next http.Handler) http.Handler {
 //go:embed index.tmpl
 var indexHTML string
 
+var indexTemplate = sync.OnceValue(func() *template.Template {
+	return template.Must(template.New("index").Funcs(template.FuncMap{
+		"lower": strings.ToLower,
+	}).Parse(indexHTML))
+})
+
 // createIndex generates an HTML index page listing all available documentation targets.
 func createIndex(targets []indexTarget) ([]byte, error) {
-	tmpl, err := template.New("index").Funcs(template.FuncMap{
-		"lower": strings.ToLower,
-	}).Parse(indexHTML)
-	if err != nil {
-		return nil, err
-	}
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, targets); err != nil {
+	if err := indexTemplate().Execute(&buf, targets); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

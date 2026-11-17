@@ -46,7 +46,7 @@ type config struct {
 	pprof bool
 }
 
-// Option configures [Handler] and [NewServer].
+// Option configures [Handler] and [NewServer]. A nil Option is ignored.
 type Option func(*config)
 
 // WithPprof serves the net/http/pprof endpoints under [PprofPrefix]. It is off
@@ -81,7 +81,9 @@ func HealthzHandler() http.Handler {
 func Handler(opts ...Option) http.Handler {
 	var c config
 	for _, opt := range opts {
-		opt(&c)
+		if opt != nil {
+			opt(&c)
+		}
 	}
 	mux := http.NewServeMux()
 	mux.Handle(HealthzPath, HealthzHandler())

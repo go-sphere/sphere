@@ -110,7 +110,7 @@ func NewMetrics(opts ...Option) (httpx.Middleware, error) {
 						kvs = append(kvs, statusAttr(status))
 					}
 				}
-				if kv, ok := errorTypeAttr(status, panicked); ok && (panicked || !clientCanceled(ctx, err)) {
+				if kv, ok := errorTypeAttr(status, panicked); ok && (panicked || !clientCanceled(rc, err)) {
 					kvs = append(kvs, kv)
 				}
 				if cfg.scheme != "" {

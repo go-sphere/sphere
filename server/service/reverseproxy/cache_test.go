@@ -9,10 +9,12 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/go-sphere/sphere/cache"
 	"github.com/go-sphere/sphere/storage"
 )
 
@@ -467,4 +469,38 @@ func TestCommonCache_OrphanCleanupRecordIsBounded(t *testing.T) {
 			t.Fatalf("newest key /missing-%d was dropped", i)
 		}
 	}
+}
+
+func TestCommonCache_NewByteCacheClonesOptionsAndConcurrentSaveDelete(t *testing.T) {
+	base := setupTestCache(t)
+	opts := []cache.Option{cache.WithExpiration(time.Hour)}
+	c := NewByteCache(base.cache, base.storage, opts...)
+	opts[0] = cache.WithExpiration(time.Nanosecond)
+
+	ctx := t.Context()
+	if err := c.Save(ctx, "/cloned", http.Header{}, strings.NewReader("v")); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	time.Sleep(5 * time.Millisecond)
+	ok, err := c.Exists(ctx, "/cloned")
+	if err != nil || !ok {
+		t.Fatalf("Exists after caller slice mutation = %v, %v; want true, nil", ok, err)
+	}
+
+	var wg sync.WaitGroup
+	for i := range 16 {
+		wg.Add(2)
+		go func(n int) {
+			defer wg.Done()
+			_ = c.Save(ctx, "/race-key", http.Header{"X-N": []string{fmt.Sprint(n)}}, strings.NewReader("body"))
+		}(i)
+		go func() {
+			defer wg.Done()
+			err := c.Delete(ctx, "/race-key")
+			if err != nil && !errors.Is(err, ErrCacheNotFound) {
+				t.Errorf("Delete unexpected error: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
 }

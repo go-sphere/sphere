@@ -46,6 +46,9 @@ func logWith(lg log.BaseLogger, ctx httpx.Context, level log.Level, msg string, 
 // logged is the one httpz.ErrorStatus resolves, which consults a parser
 // installed with httpz.SetDefaultErrorParser.
 func Log(lg log.BaseLogger) httpx.Middleware {
+	if lg == nil {
+		lg = log.NewLogger(log.NewStdioBackend())
+	}
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
 			start := time.Now()
@@ -133,6 +136,9 @@ func RecoveryLogErr(lg log.BaseLogger, stack bool) httpx.Middleware {
 }
 
 func recoveryLog(lg log.BaseLogger, stack, asError bool) httpx.Middleware {
+	if lg == nil {
+		lg = log.NewLogger(log.NewStdioBackend())
+	}
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) (err error) {
 			defer func() {

@@ -11,7 +11,10 @@ import (
 	"github.com/go-sphere/sphere/storage/local"
 )
 
-var errNilFileServer = errors.New("file: Web has a nil FileServer: pass one to NewWebServer")
+var (
+	errNilFileEngine = errors.New("file: Web has a nil Engine: pass one to NewWebServer")
+	errNilFileServer = errors.New("file: Web has a nil FileServer: pass one to NewWebServer")
+)
 
 // Web is a task.Task wrapping an httpx.Engine and a fileserver.FileServer.
 // Construct it with NewWebServer. It takes ownership of both: Stop stops the
@@ -86,6 +89,9 @@ func (w *Web) Identifier() string {
 // engine.Start again, whose result decides whether that is a restart (for
 // example httpx.ErrEngineClosed after Stop).
 func (w *Web) Start(ctx context.Context) error {
+	if w.engine == nil {
+		return errNilFileEngine
+	}
 	if w.storage == nil {
 		return errNilFileServer
 	}
@@ -99,7 +105,10 @@ func (w *Web) Start(ctx context.Context) error {
 // Stop shuts down the engine before closing resources owned by the adapter.
 // A caller-supplied cache remains open unless WithOwnedCache was set.
 func (w *Web) Stop(ctx context.Context) error {
-	stopErr := w.engine.Stop(ctx)
+	var stopErr error
+	if w.engine != nil {
+		stopErr = w.engine.Stop(ctx)
+	}
 	if w.storage == nil {
 		return stopErr
 	}

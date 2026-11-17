@@ -87,3 +87,18 @@ func TestPanicLogsCarryRequestContext(t *testing.T) {
 		}
 	})
 }
+
+func TestHandlePanicNilGuards(t *testing.T) {
+	reported := false
+	HandlePanic(nil, "boom", false, func(rec any, _ string) {
+		reported = rec == "boom"
+	}, func(httpx.Context) {
+		t.Fatal("render must not be called with nil ctx")
+	})
+	if !reported {
+		t.Fatal("report was not called")
+	}
+
+	ctx := httpxmock.New(nil)
+	HandlePanic(ctx, "boom", false, nil, nil)
+}

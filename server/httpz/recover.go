@@ -39,7 +39,7 @@ func HandlePanic(
 		}
 		report(rec, stack)
 	}
-	if ctx.Committed() {
+	if ctx == nil || ctx.Committed() || render == nil {
 		return
 	}
 	render(ctx)

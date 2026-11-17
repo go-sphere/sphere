@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -92,4 +93,61 @@ func TestServeCacheReverseProxy(t *testing.T) {
 		t.Fatalf("X-Upstream header lost: first=%q second=%q",
 			firstHeader.Get("X-Upstream"), secondHeader.Get("X-Upstream"))
 	}
+}
+
+type sharedHeaderCache struct {
+	Cache
+	hdr http.Header
+}
+
+func (c *sharedHeaderCache) Load(_ context.Context, _ string) (http.Header, io.ReadCloser, error) {
+	return c.hdr, io.NopCloser(strings.NewReader("cached")), nil
+}
+
+func TestServeCacheReverseProxy_NilGuardsAndHeaderImmutability(t *testing.T) {
+	var upstreamHits atomic.Int64
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		upstreamHits.Add(1)
+		w.Header().Set("X-From", "upstream")
+		_, _ = io.WriteString(w, "upstream")
+	}))
+	defer upstream.Close()
+	target, _ := url.Parse(upstream.URL)
+
+	c := setupTestCache(t)
+	proxy, err := CreateCacheReverseProxy(c, WithTargetURL(target))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("nil cache forwards upstream", func(t *testing.T) {
+		h := ServeCacheReverseProxy(nil, proxy, WithServeCacheKeyFunc(nil))
+		rec := httptest.NewRecorder()
+		h(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
+		if rec.Code != http.StatusOK || rec.Body.String() != "upstream" {
+			t.Fatalf("got %d %q", rec.Code, rec.Body.String())
+		}
+		if upstreamHits.Load() != 1 {
+			t.Fatalf("upstreamHits = %d, want 1", upstreamHits.Load())
+		}
+	})
+
+	t.Run("cache hit does not mutate returned header map", func(t *testing.T) {
+		stored := http.Header{
+			"Content-Type":    []string{"text/plain"},
+			cacheStatusHeader: []string{"201"},
+		}
+		h := ServeCacheReverseProxy(&sharedHeaderCache{hdr: stored}, proxy, WithServeCacheKeyFunc(nil))
+		rec := httptest.NewRecorder()
+		h(rec, httptest.NewRequest(http.MethodGet, "http://example.com/item", nil))
+		if rec.Code != http.StatusCreated || rec.Body.String() != "cached" {
+			t.Fatalf("got %d %q", rec.Code, rec.Body.String())
+		}
+		if rec.Header().Get(cacheStatusHeader) != "" {
+			t.Fatalf("internal header leaked: %q", rec.Header().Get(cacheStatusHeader))
+		}
+		if stored.Get(cacheStatusHeader) != "201" {
+			t.Fatalf("stored header was mutated: %v", stored)
+		}
+	})
 }

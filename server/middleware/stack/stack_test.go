@@ -352,3 +352,30 @@ func TestApplyRegistersNothingOnError(t *testing.T) {
 		t.Fatal("middleware was registered despite the error")
 	}
 }
+
+func TestStackOptionsCloneSlices(t *testing.T) {
+	tp := &fakeTracerProvider{}
+	tOpts := []telemetry.Option{telemetry.WithTracerProvider(tp)}
+	tracingOpt := WithTracing(tOpts...)
+	tOpts[0] = telemetry.WithTracerProvider(tracenoop.NewTracerProvider())
+
+	mp := &fakeMeterProvider{hist: &fakeHist{}}
+	mOpts := []telemetry.Option{telemetry.WithMeterProvider(mp), telemetry.WithoutActiveRequests()}
+	metricsOpt := WithMetrics(mOpts...)
+	mOpts[0] = telemetry.WithMeterProvider(metricnoop.NewMeterProvider())
+
+	rOpts := []requestid.Option{requestid.WithHeader("X-Custom-Req-ID")}
+	reqIDOpt := WithRequestID(rOpts...)
+	rOpts[0] = requestid.WithHeader("X-Mutated-Req-ID")
+
+	w := serve(t, []Option{tracingOpt, metricsOpt, reqIDOpt}, nil, "/ok")
+	if len(tp.spans) != 1 {
+		t.Fatalf("spans = %d, want 1 (tracing option slice mutated)", len(tp.spans))
+	}
+	if len(mp.hist.sets) != 1 {
+		t.Fatalf("metrics = %d, want 1 (metrics option slice mutated)", len(mp.hist.sets))
+	}
+	if w.Header().Get("X-Custom-Req-ID") == "" {
+		t.Fatalf("expected X-Custom-Req-ID header, got %v", w.Header())
+	}
+}

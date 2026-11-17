@@ -233,8 +233,37 @@ func TestNewAuthMiddleware(t *testing.T) {
 
 func TestNewOptionsSkipsNilOptions(t *testing.T) {
 	t.Parallel()
-	opts := newOptions(nil, WithAbortOnError(false), nil)
+	opts := newOptions(nil, WithAbortOnError(false), nil, WithLoader(nil))
 	if opts.loader == nil || opts.abortOnError {
 		t.Fatalf("options = %+v, want the default loader and abortOnError false", opts)
+	}
+}
+
+func TestAuthLoaderErrorWithoutAbortSkipsParser(t *testing.T) {
+	t.Parallel()
+
+	parserCalled := false
+	parser := authorizer.ParserFunc[int64, stubClaims](func(context.Context, string) (stubClaims, error) {
+		parserCalled = true
+		return stubClaims{uid: 1}, nil
+	})
+
+	mw := NewAuthMiddleware(
+		parser,
+		WithLoader(func(httpx.Context) (string, error) {
+			return "should-not-parse", errors.New("loader failed")
+		}),
+		WithAbortOnError(false),
+	)
+	ctx := httpxmock.New(nil)
+	next := &httpxmock.Handler{}
+	if err := httpxmock.Run(ctx, next.Handle, mw); err != nil {
+		t.Fatalf("mw error = %v, want nil", err)
+	}
+	if !next.Called() {
+		t.Fatal("next handler was not called")
+	}
+	if parserCalled {
+		t.Fatal("parserToken should not be called when loader fails with abortOnError=false")
 	}
 }

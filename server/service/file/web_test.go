@@ -87,6 +87,34 @@ func TestWebStartNilFileServer(t *testing.T) {
 	}
 }
 
+func TestWebNilEngineGuards(t *testing.T) {
+	t.Parallel()
+
+	adapter, err := NewLocalFileService(LocalFileServiceConfig{
+		RootDir:    t.TempDir(),
+		PublicBase: "http://127.0.0.1/",
+	})
+	if err != nil {
+		t.Fatalf("NewLocalFileService: %v", err)
+	}
+	web := NewWebServer(nil, adapter)
+	if err := web.Start(context.Background()); !errors.Is(err, errNilFileEngine) {
+		t.Fatalf("Start with nil engine = %v, want %v", err, errNilFileEngine)
+	}
+	if err := web.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop with nil engine = %v, want nil", err)
+	}
+	// Owned cache should be closed even when engine was nil.
+	if _, err := adapter.GenerateUploadAuth(context.Background(), storage.UploadAuthRequest{FileName: "a.txt"}); !errors.Is(err, cache.ErrClosed) {
+		t.Fatalf("GenerateUploadAuth after Stop = %v, want cache.ErrClosed", err)
+	}
+
+	bothNil := NewWebServer(nil, nil)
+	if err := bothNil.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop(nil, nil) = %v, want nil", err)
+	}
+}
+
 // TestWebStartRegistersRoutesOnce pins that a repeated Start does not
 // register the upload and download routes a second time (most routers panic
 // on a duplicate route).

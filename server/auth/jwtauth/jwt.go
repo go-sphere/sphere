@@ -16,16 +16,20 @@ type options struct {
 }
 
 // Option is a functional option for configuring JWT authentication.
+// A nil Option is ignored.
 type Option func(*options)
 
 // WithSigningMethod sets the JWT signing method for token generation and verification.
+// A nil method is ignored, keeping the current signing method.
 // The key is always the secret bytes passed to NewJwtAuth, so only HMAC methods
 // (jwt.SigningMethodHS256, HS384, HS512) work; asymmetric methods fail when a
 // token is generated or parsed. Tokens signed with any other algorithm are
 // rejected by ParseToken.
 func WithSigningMethod(method jwt.SigningMethod) Option {
 	return func(opts *options) {
-		opts.signingMethod = method
+		if method != nil {
+			opts.signingMethod = method
+		}
 	}
 }
 
@@ -34,7 +38,9 @@ func newOptions(opts ...Option) options {
 		signingMethod: jwt.SigningMethodHS256,
 	}
 	for _, opt := range opts {
-		opt(&defaults)
+		if opt != nil {
+			opt(&defaults)
+		}
 	}
 	return defaults
 }
@@ -125,11 +131,11 @@ func (g *JwtAuth[T]) parseToken(signedToken string) (T, error) {
 		// Otherwise, first parse it into a map, then attempt to convert it into T.
 		// JSON numbers stay json.Number so 64-bit integers above 2^53 survive the
 		// round trip instead of being rounded through float64.
-		if err := checkPayloadIsOneJSONValue(signedToken); err != nil {
-			return claims, err
-		}
 		token, err := jwt.Parse(signedToken, g.keyFunc, jwt.WithExpirationRequired(), jwt.WithJSONNumber())
 		if err != nil {
+			return claims, err
+		}
+		if err := checkPayloadIsOneJSONValue(signedToken); err != nil {
 			return claims, err
 		}
 		// Here, mapstructure cannot be used because it has issues with converting anonymous fields.

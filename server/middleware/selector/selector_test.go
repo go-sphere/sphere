@@ -168,3 +168,43 @@ func counted(id int, order *[]int) httpx.Middleware {
 		}
 	}
 }
+
+func TestSelectorNilGuards(t *testing.T) {
+	t.Parallel()
+
+	ctx := httpxmock.New(nil)
+	var nilMatch MatchFunc
+	if nilMatch.Match(ctx) {
+		t.Fatal("nil MatchFunc must return false")
+	}
+	if NewContextMatcher("k", "v").Match(nil) {
+		t.Fatal("NewContextMatcher(nil) must return false")
+	}
+	if NewLogicalNotMatcher(nil).Match(ctx) {
+		t.Fatal("NewLogicalNotMatcher(nil) must return false")
+	}
+	yes := MatchFunc(func(httpx.Context) bool { return true })
+	no := MatchFunc(func(httpx.Context) bool { return false })
+	if NewLogicalOrMatcher(nil, no).Match(ctx) {
+		t.Fatal("NewLogicalOrMatcher(nil, no) must return false")
+	}
+	if !NewLogicalOrMatcher(nil, yes).Match(ctx) {
+		t.Fatal("NewLogicalOrMatcher(nil, yes) must return true")
+	}
+	if NewLogicalAndMatcher(yes, nil).Match(ctx) {
+		t.Fatal("NewLogicalAndMatcher(yes, nil) must return false")
+	}
+
+	var ran int
+	mws := NewSelectorMiddleware(nil, nil, counting(&ran))
+	if len(mws) != 1 {
+		t.Fatalf("len = %d, want 1 (nil middleware skipped)", len(mws))
+	}
+	next := &httpxmock.Handler{}
+	if err := httpxmock.Run(ctx, next.Handle, mws[0]); err != nil {
+		t.Fatalf("Run error = %v", err)
+	}
+	if ran != 0 || !next.Called() {
+		t.Fatalf("ran=%d called=%v, want 0/true", ran, next.Called())
+	}
+}

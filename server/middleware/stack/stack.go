@@ -1,6 +1,8 @@
 package stack
 
 import (
+	"slices"
+
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/server/middleware/logger"
@@ -46,18 +48,21 @@ func WithLogger(lg log.BaseLogger) Option {
 
 // WithTracing enables telemetry.NewTracing with opts. It is off by default.
 func WithTracing(opts ...telemetry.Option) Option {
-	return func(c *config) { c.tracing, c.tracingOpts = true, opts }
+	cloned := slices.Clone(opts)
+	return func(c *config) { c.tracing, c.tracingOpts = true, cloned }
 }
 
 // WithMetrics enables telemetry.NewMetrics with opts. It is off by default.
 // [New] returns the instrument-creation error of NewMetrics.
 func WithMetrics(opts ...telemetry.Option) Option {
-	return func(c *config) { c.metrics, c.metricsOpts = true, opts }
+	cloned := slices.Clone(opts)
+	return func(c *config) { c.metrics, c.metricsOpts = true, cloned }
 }
 
 // WithRequestID configures the request-ID layer, which is on by default.
 func WithRequestID(opts ...requestid.Option) Option {
-	return func(c *config) { c.noRequestID, c.requestIDOpts = false, opts }
+	cloned := slices.Clone(opts)
+	return func(c *config) { c.noRequestID, c.requestIDOpts = false, cloned }
 }
 
 // WithoutRequestID removes the request-ID layer.

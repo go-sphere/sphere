@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/httpx/stdx"
@@ -416,5 +418,112 @@ func TestSwaggerDocJSONKeepsLargeIntegers(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Fatalf("doc.json lost %s: %s", want, body)
 		}
+	}
+}
+
+func TestNewHandlerRejectsInvalidInstanceNames(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"", "a/b", "/lead", "trail/"} {
+		web := NewWebServer(Config{Targets: []Target{{
+			Address: "https://api.example.com",
+			Spec:    &swag.Spec{InfoInstanceName: name},
+		}}})
+		if _, err := web.newHandler(); err == nil {
+			t.Errorf("newHandler(%q) = nil, want error", name)
+		}
+	}
+}
+
+func TestIndexAndDocHandlersMethodRestrictions(t *testing.T) {
+	t.Parallel()
+
+	const instance = "MethodDocsTargetV1"
+	if swag.GetSwagger(instance) == nil {
+		swag.Register(instance, fakeSwagger(`{"swagger":"2.0","info":{"title":"t"}}`))
+	}
+	web := NewWebServer(Config{Targets: []Target{{
+		Address: "https://api.example.com",
+		Spec:    &swag.Spec{InfoInstanceName: instance},
+	}}})
+	handler, err := web.newHandler()
+	if err != nil {
+		t.Fatalf("newHandler: %v", err)
+	}
+
+	t.Run("index POST returns 405 with Allow", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
+		if rec.Code != http.StatusMethodNotAllowed || rec.Header().Get("Allow") != "GET, HEAD" {
+			t.Fatalf("status=%d Allow=%q", rec.Code, rec.Header().Get("Allow"))
+		}
+	})
+
+	t.Run("doc.json HEAD returns 200 empty body and POST returns 405", func(t *testing.T) {
+		headRec := httptest.NewRecorder()
+		handler.ServeHTTP(headRec, httptest.NewRequest(http.MethodHead, "/methoddocstargetv1/doc/swagger/doc.json", nil))
+		if headRec.Code != http.StatusOK || headRec.Body.Len() != 0 {
+			t.Fatalf("HEAD status=%d bodyLen=%d", headRec.Code, headRec.Body.Len())
+		}
+		if ct := headRec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+			t.Fatalf("HEAD Content-Type = %q", ct)
+		}
+
+		postRec := httptest.NewRecorder()
+		handler.ServeHTTP(postRec, httptest.NewRequest(http.MethodPost, "/methoddocstargetv1/doc/swagger/doc.json", nil))
+		if postRec.Code != http.StatusMethodNotAllowed || postRec.Header().Get("Allow") != "GET, HEAD" {
+			t.Fatalf("POST status=%d Allow=%q", postRec.Code, postRec.Header().Get("Allow"))
+		}
+	})
+}
+
+func TestProxyHandlerClonesInboundRequest(t *testing.T) {
+	t.Parallel()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(r.URL.Path))
+	}))
+	defer backend.Close()
+
+	mux := http.NewServeMux()
+	if err := registerTarget(mux, &swag.Spec{InfoInstanceName: "CloneV1"}, backend.URL); err != nil {
+		t.Fatalf("registerTarget: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "http://public.example.com/clonev1/api/items", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || rec.Body.String() != "/items" {
+		t.Fatalf("got %d %q", rec.Code, rec.Body.String())
+	}
+	if req.URL.Path != "/clonev1/api/items" || req.Host != "public.example.com" {
+		t.Fatalf("inbound request was mutated: path=%q host=%q", req.URL.Path, req.Host)
+	}
+}
+
+func TestWebStartTwiceReturnsError(t *testing.T) {
+	web := NewWebServer(Config{Address: "127.0.0.1:0"})
+	errCh := make(chan error, 1)
+	go func() { errCh <- web.Start(t.Context()) }()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		web.mu.Lock()
+		srv := web.server
+		web.mu.Unlock()
+		if srv != nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("server never initialized")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	defer func() {
+		_ = web.Stop(context.Background())
+		if err := <-errCh; err != nil && err != http.ErrServerClosed {
+			t.Errorf("first Start returned unexpected error: %v", err)
+		}
+	}()
+	if err := web.Start(t.Context()); err == nil {
+		t.Fatal("second Start succeeded, want error")
 	}
 }

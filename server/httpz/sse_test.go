@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-sphere/httpx"
+	"github.com/go-sphere/httpx/httpxmock"
 	"github.com/go-sphere/httpx/stdx"
 )
 
@@ -733,13 +734,25 @@ type baseContext = httpx.Context
 
 type asyncStreamCtx struct {
 	baseContext
+	mu  sync.Mutex
 	req context.Context
 	w   io.Writer
 }
 
-func (c asyncStreamCtx) Context() context.Context { return c.req }
-func (c asyncStreamCtx) SetHeader(string, string) {}
-func (c asyncStreamCtx) Stream(_ int, _ string, fn func(io.Writer) error) error {
+func (c *asyncStreamCtx) Context() context.Context {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.req
+}
+
+func (c *asyncStreamCtx) SetContext(ctx context.Context) {
+	c.mu.Lock()
+	c.req = ctx
+	c.mu.Unlock()
+}
+
+func (c *asyncStreamCtx) SetHeader(string, string) {}
+func (c *asyncStreamCtx) Stream(_ int, _ string, fn func(io.Writer) error) error {
 	go func() { _ = fn(c.w) }()
 	return nil
 }
@@ -764,7 +777,7 @@ func TestWithSSERetryFailureCancelsProducerOnAsyncStreamer(t *testing.T) {
 		}, nil
 	}, WithSSEHeartbeat(0), WithSSERetry(time.Second))
 
-	ctx := asyncStreamCtx{req: t.Context(), w: errWriter{}}
+	ctx := &asyncStreamCtx{req: t.Context(), w: errWriter{}}
 	if err := handler(ctx); err != nil {
 		t.Fatalf("handler = %v", err)
 	}
@@ -775,5 +788,105 @@ func TestWithSSERetryFailureCancelsProducerOnAsyncStreamer(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("producer still blocked after the retry frame failed")
+	}
+}
+
+// TestWithSSEPrepareContextLifecycle pins that prepare receives the producer's
+// cancellable context (so capturing stdCtx := ctx.Context() cancels when the
+// stream aborts), that ctx.Context() is restored to reqCtx once prepare returns,
+// and that nil SSEOptions are skipped.
+func TestWithSSEPrepareContextLifecycle(t *testing.T) {
+	type sseTestKey struct{}
+	t.Run("captured context cancels on async write failure and ctx is restored", func(t *testing.T) {
+		reqCtx := context.WithValue(t.Context(), sseTestKey{}, "orig")
+		ctx := &asyncStreamCtx{req: reqCtx, w: errWriter{}}
+		prodCanceled := make(chan struct{})
+		var capturedCtx context.Context
+
+		handler := WithSSE(func(c httpx.Context) (SSEStream[sseMsg], error) {
+			capturedCtx = c.Context()
+			if capturedCtx == reqCtx {
+				t.Error("prepare saw reqCtx instead of prodCtx")
+			}
+			return func(send func(sseMsg) error) error {
+				if err := send(sseMsg{Msg: "first"}); err != nil {
+					return err
+				}
+				<-capturedCtx.Done()
+				close(prodCanceled)
+				return context.Cause(capturedCtx)
+			}, nil
+		}, nil, WithSSEHeartbeat(0), WithSSERetry(time.Second), nil)
+
+		if err := handler(ctx); err != nil {
+			t.Fatalf("handler = %v", err)
+		}
+		if ctx.Context() != reqCtx {
+			t.Fatalf("ctx.Context() was not restored to reqCtx after WithSSE returned")
+		}
+		select {
+		case <-prodCanceled:
+		case <-time.After(3 * time.Second):
+			t.Fatal("captured prodCtx was not canceled after async write failure")
+		}
+	})
+
+	t.Run("prepare error restores reqCtx and cancels prodCtx", func(t *testing.T) {
+		reqCtx := t.Context()
+		ctx := &asyncStreamCtx{baseContext: httpxmock.New(nil), req: reqCtx, w: io.Discard}
+		var capturedCtx context.Context
+
+		handler := WithSSE(func(c httpx.Context) (SSEStream[sseMsg], error) {
+			capturedCtx = c.Context()
+			return nil, errors.New("prepare failed")
+		})
+		_ = handler(ctx)
+		if ctx.Context() != reqCtx {
+			t.Fatal("ctx.Context() not restored after prepare error")
+		}
+		if capturedCtx.Err() == nil {
+			t.Fatal("prodCtx was not canceled after prepare error")
+		}
+	})
+
+	t.Run("nil stream restores reqCtx and cancels prodCtx", func(t *testing.T) {
+		reqCtx := t.Context()
+		ctx := &asyncStreamCtx{baseContext: httpxmock.New(nil), req: reqCtx, w: io.Discard}
+		var capturedCtx context.Context
+
+		handler := WithSSE(func(c httpx.Context) (SSEStream[sseMsg], error) {
+			capturedCtx = c.Context()
+			return nil, nil
+		})
+		_ = handler(ctx)
+		if ctx.Context() != reqCtx {
+			t.Fatal("ctx.Context() not restored after nil stream")
+		}
+		if capturedCtx.Err() == nil {
+			t.Fatal("prodCtx was not canceled after nil stream")
+		}
+	})
+}
+
+// TestWithSSEEagerCommitUnencodableFirstMessageSendsErrorEvent pins that in
+// eager-commit mode, a first frame that fails JSON marshaling still sends a
+// terminal error event on the committed 200 stream and aborts the producer.
+func TestWithSSEEagerCommitUnencodableFirstMessageSendsErrorEvent(t *testing.T) {
+	type unencodable struct {
+		Fn func()
+	}
+	engine := stdx.New()
+	engine.Group("").GET("/sse", WithSSE(func(ctx httpx.Context) (SSEStream[unencodable], error) {
+		return func(send func(unencodable) error) error {
+			return send(unencodable{Fn: func() {}})
+		}, nil
+	}, WithSSEHeartbeat(0), WithSSEEagerCommit()))
+
+	status, _, body := sseDo(t, engine, "/sse")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, body=%q", status, body)
+	}
+	if !strings.Contains(body, "event: error\n") {
+		t.Fatalf("body = %q, want terminal error event", body)
 	}
 }

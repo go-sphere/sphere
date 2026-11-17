@@ -27,8 +27,8 @@ func responseStatus(ctx httpx.Context, err error) int {
 
 // clientCanceled reports an error caused by the client going away. httpz maps
 // context.Canceled to 500, which must not mark the server span as failed.
-func clientCanceled(ctx httpx.Context, err error) bool {
-	return err != nil && errors.Is(err, context.Canceled) && ctx.Context().Err() != nil
+func clientCanceled(reqCtx context.Context, err error) bool {
+	return err != nil && errors.Is(err, context.Canceled) && reqCtx != nil && reqCtx.Err() != nil
 }
 
 func isServerError(status int) bool { return status >= http.StatusInternalServerError }

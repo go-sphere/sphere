@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -11,9 +12,12 @@ import (
 	"github.com/go-sphere/httpx/httpxmock"
 	"github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/server/middleware/requestid"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/embedded"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 )
 
 // scriptCtx wraps the mock context so a test can script what an engine would
@@ -307,4 +311,99 @@ func TestNilOptionsAreSkipped(t *testing.T) {
 	if got := newConfig([]Option{nil, WithURLScheme("https"), nil}).scheme; got != "https" {
 		t.Fatalf("scheme = %q, want https", got)
 	}
+}
+
+type nonRecordingSpan struct {
+	tracenoop.Span
+	mutated bool
+	ended   int
+}
+
+func (s *nonRecordingSpan) IsRecording() bool                       { return false }
+func (s *nonRecordingSpan) SetName(string)                          { s.mutated = true }
+func (s *nonRecordingSpan) SetAttributes(...attribute.KeyValue)     { s.mutated = true }
+func (s *nonRecordingSpan) SetStatus(codes.Code, string)            { s.mutated = true }
+func (s *nonRecordingSpan) RecordError(error, ...trace.EventOption) { s.mutated = true }
+func (s *nonRecordingSpan) End(...trace.SpanEndOption)              { s.ended++ }
+
+type nonRecordingTP struct {
+	embedded.TracerProvider
+	span *nonRecordingSpan
+}
+
+func (p *nonRecordingTP) Tracer(string, ...trace.TracerOption) trace.Tracer {
+	return nonRecordingTracer{span: p.span}
+}
+
+type nonRecordingTracer struct {
+	embedded.Tracer
+	span *nonRecordingSpan
+}
+
+func (tr nonRecordingTracer) Start(ctx context.Context, _ string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return trace.ContextWithSpan(ctx, tr.span), tr.span
+}
+
+func TestNonRecordingSpanSkipsPostHandlerAttributes(t *testing.T) {
+	sp := &nonRecordingSpan{}
+	mw := NewTracing(WithTracerProvider(&nonRecordingTP{span: sp}))
+	sc := newScript("GET", "/items/1")
+	sc.fullAfter = "/items/:id"
+	if err := sc.run(mw, errors.New("fail")); err == nil {
+		t.Fatal("expected error")
+	}
+	if sp.mutated {
+		t.Fatal("post-handler span work ran on non-recording span")
+	}
+	if sp.ended != 1 {
+		t.Fatalf("ended = %d, want 1", sp.ended)
+	}
+}
+
+func TestClientCanceledUsesInboundReqCtxWhenHandlerReplacesContext(t *testing.T) {
+	cancelErr := fmt.Errorf("downstream: %w", context.Canceled)
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	t.Run("active inbound ctx is treated as server error even if handler sets canceled ctx", func(t *testing.T) {
+		p, mws := traceOnly(t)
+		mp := newMP()
+		mmw := mustMetrics(t, WithMeterProvider(mp))
+		sc := newScript("GET", "/x", httpxmock.WithContext(context.Background()), httpxmock.WithFullPath("/x"))
+		sc.committed = false
+		err := httpx.ComposeMiddleware(func(c httpx.Context) error {
+			c.SetContext(canceledCtx)
+			return cancelErr
+		}, []httpx.Middleware{mws[0], mmw})(sc)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if s := only(t, p); s.code != codes.Error {
+			t.Fatalf("span code = %v, want Error", s.code)
+		}
+		if _, ok := setOf(mp.hist.sets[0])[keyErrorType]; !ok {
+			t.Fatal("expected error.type on metric when inbound ctx was active")
+		}
+	})
+
+	t.Run("canceled inbound ctx stays non-error even if handler resets ctx", func(t *testing.T) {
+		p, mws := traceOnly(t)
+		mp := newMP()
+		mmw := mustMetrics(t, WithMeterProvider(mp))
+		sc := newScript("GET", "/x", httpxmock.WithContext(canceledCtx), httpxmock.WithFullPath("/x"))
+		sc.committed = false
+		err := httpx.ComposeMiddleware(func(c httpx.Context) error {
+			c.SetContext(context.Background())
+			return cancelErr
+		}, []httpx.Middleware{mws[0], mmw})(sc)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if s := only(t, p); s.code != codes.Unset {
+			t.Fatalf("span code = %v, want Unset", s.code)
+		}
+		if _, ok := setOf(mp.hist.sets[0])[keyErrorType]; ok {
+			t.Fatal("unexpected error.type on metric when inbound ctx was canceled")
+		}
+	})
 }

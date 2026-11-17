@@ -487,3 +487,48 @@ func TestNewOptionsSkipsNilOptions(t *testing.T) {
 		t.Fatalf("options = %+v, want the custom cache and the default timeout", opts)
 	}
 }
+
+func TestRateLimiter_ZeroLimiterInitialMissAndRecheckReturn500(t *testing.T) {
+	t.Parallel()
+
+	t.Run("initial miss with zero limiter returns 500", func(t *testing.T) {
+		mw := NewRateLimiter(
+			func(httpx.Context) string { return "zero-miss" },
+			func(httpx.Context) (*rate.Limiter, time.Duration) {
+				return rate.NewLimiter(0, 0), time.Minute
+			},
+		)
+		next := &httpxmock.Handler{}
+		err := httpxmock.Run(httpxmock.New(nil), next.Handle, mw)
+		if err == nil {
+			t.Fatal("expected 500 error, got nil")
+		}
+		if _, status, _ := httpx.ParseError(err); status != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want 500", status)
+		}
+		if next.Called() {
+			t.Fatal("next must not be called")
+		}
+	})
+
+	t.Run("singleflight re-read zero limiter returns 500", func(t *testing.T) {
+		mw := NewRateLimiter(
+			func(httpx.Context) string { return "zero-recheck" },
+			func(httpx.Context) (*rate.Limiter, time.Duration) {
+				return rate.NewLimiter(rate.Inf, 1), time.Minute
+			},
+			WithCache(&recheckCache{hit: &rate.Limiter{}}),
+		)
+		next := &httpxmock.Handler{}
+		err := httpxmock.Run(httpxmock.New(nil), next.Handle, mw)
+		if err == nil {
+			t.Fatal("expected 500 error, got nil")
+		}
+		if _, status, _ := httpx.ParseError(err); status != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want 500", status)
+		}
+		if next.Called() {
+			t.Fatal("next must not be called")
+		}
+	})
+}

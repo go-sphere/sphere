@@ -104,15 +104,6 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 			if gErr != nil {
 				return httpx.InternalServerError(gErr)
 			}
-			// A JSON round-trip through a codec cache yields a zero limiter with
-			// both Limit and Burst zero; a legitimately configured limiter can
-			// have Burst()==0 alone (rate.Inf), so require both to be zero.
-			if exist && limiter != nil && limiter.Limit() == 0 && limiter.Burst() == 0 {
-				return httpx.InternalServerError(fmt.Errorf(
-					"ratelimiter: cache returned a zero limiter for key %q: "+
-						"rate.Limiter is not serializable, use an in-process cache",
-					k))
-			}
 			if !exist || limiter == nil {
 				value, nErr, _ := sf.Do(k, func() (any, error) {
 					// Re-read under the flight. singleflight only deduplicates
@@ -151,6 +142,15 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 					return httpx.InternalServerError(fmt.Errorf("ratelimiter: unexpected limiter type %T", value))
 				}
 				limiter = typed
+			}
+			// A JSON round-trip through a codec cache yields a zero limiter with
+			// both Limit and Burst zero; a legitimately configured limiter can
+			// have Burst()==0 alone (rate.Inf), so require both to be zero.
+			if limiter.Limit() == 0 && limiter.Burst() == 0 {
+				return httpx.InternalServerError(fmt.Errorf(
+					"ratelimiter: cache returned a zero limiter for key %q: "+
+						"rate.Limiter is not serializable, use an in-process cache",
+					k))
 			}
 			ok := limiter.Allow()
 			if !ok {
