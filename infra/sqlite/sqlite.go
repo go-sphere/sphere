@@ -1,9 +1,11 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"sync"
 
 	"modernc.org/sqlite"
 )
@@ -32,7 +34,7 @@ func NewDriver() Driver {
 
 // baseDriver returns the driver modernc.org/sqlite registered with database/sql,
 // which is the instance its package-level registration functions mutate.
-func baseDriver() driver.Driver {
+var baseDriver = sync.OnceValue(func() driver.Driver {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		// Only reachable if modernc.org/sqlite is not registered, which cannot
@@ -42,7 +44,7 @@ func baseDriver() driver.Driver {
 	base := db.Driver()
 	_ = db.Close()
 	return base
-}
+})
 
 // Open establishes a connection to the SQLite database and enables foreign key constraints.
 // It wraps the underlying driver's Open method and executes "PRAGMA foreign_keys = on;"
@@ -56,18 +58,30 @@ func (d Driver) Open(name string) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, ok := conn.(interface {
-		Exec(stmt string, args []driver.Value) (driver.Result, error)
-	})
-	if !ok {
+	if err := enableForeignKeys(conn); err != nil {
 		_ = conn.Close()
-		return nil, fmt.Errorf("sqlite: connection does not support Exec, cannot enable foreign keys")
-	}
-	if _, e := c.Exec("PRAGMA foreign_keys = on;", nil); e != nil {
-		_ = conn.Close()
-		return nil, fmt.Errorf("failed to enable foreign keys: %w", e)
+		return nil, err
 	}
 	return conn, nil
+}
+
+func enableForeignKeys(conn driver.Conn) error {
+	const pragma = "PRAGMA foreign_keys = on;"
+	if ec, ok := conn.(driver.ExecerContext); ok {
+		if _, err := ec.ExecContext(context.Background(), pragma, nil); err != nil {
+			return fmt.Errorf("failed to enable foreign keys: %w", err)
+		}
+		return nil
+	}
+	if c, ok := conn.(interface {
+		Exec(stmt string, args []driver.Value) (driver.Result, error)
+	}); ok {
+		if _, err := c.Exec(pragma, nil); err != nil {
+			return fmt.Errorf("failed to enable foreign keys: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("sqlite: connection does not support Exec, cannot enable foreign keys")
 }
 
 // Register registers the enhanced SQLite driver with the sql package using the specified name.

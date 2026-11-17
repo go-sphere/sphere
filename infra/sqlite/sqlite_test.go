@@ -1,10 +1,12 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	msqlite "modernc.org/sqlite"
@@ -113,6 +115,11 @@ func TestDriverOpenEnablesForeignKeys(t *testing.T) {
 	}
 }
 
+var (
+	packageLevelSetupOnce sync.Once
+	packageLevelSetupErr  error
+)
+
 // TestPackageLevelRegistrationsApply pins that a function registered through
 // modernc.org/sqlite's package-level API is visible on this driver. Embedding a
 // zero sqlite.Driver silently dropped every such registration, so a query using
@@ -120,13 +127,19 @@ func TestDriverOpenEnablesForeignKeys(t *testing.T) {
 // in the same process.
 func TestPackageLevelRegistrationsApply(t *testing.T) {
 	const fn = "sphere_test_answer"
-	if err := msqlite.RegisterScalarFunction(fn, 0, func(ctx *msqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
-		return int64(42), nil
-	}); err != nil {
-		t.Fatalf("register scalar function: %v", err)
+	packageLevelSetupOnce.Do(func() {
+		if err := msqlite.RegisterScalarFunction(fn, 0, func(ctx *msqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+			return int64(42), nil
+		}); err != nil {
+			packageLevelSetupErr = err
+			return
+		}
+		Register("sphere-sqlite-test")
+	})
+	if packageLevelSetupErr != nil {
+		t.Fatalf("package-level setup: %v", packageLevelSetupErr)
 	}
 
-	Register("sphere-sqlite-test")
 	db, err := sql.Open("sphere-sqlite-test", ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
@@ -147,5 +160,42 @@ func TestPackageLevelRegistrationsApply(t *testing.T) {
 	}
 	if fk != 1 {
 		t.Fatalf("foreign_keys = %d, want 1", fk)
+	}
+}
+
+type fakeExecContextConn struct {
+	*fakeConn
+	stmt    string
+	execErr error
+}
+
+func (c *fakeExecContextConn) ExecContext(_ context.Context, stmt string, _ []driver.NamedValue) (driver.Result, error) {
+	c.stmt = stmt
+	return nil, c.execErr
+}
+
+func TestDriverOpenPrefersExecerContext(t *testing.T) {
+	t.Parallel()
+
+	baseConn := &fakeConn{}
+	execCtxConn := &fakeExecContextConn{fakeConn: baseConn}
+	conn, err := (Driver{base: fakeDriver{conn: execCtxConn}}).Open("test")
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	if conn != execCtxConn {
+		t.Fatalf("Open() connection = %v, want %v", conn, execCtxConn)
+	}
+	if execCtxConn.stmt != "PRAGMA foreign_keys = on;" {
+		t.Fatalf("ExecContext statement = %q, want PRAGMA foreign_keys = on;", execCtxConn.stmt)
+	}
+
+	failConn := &fakeConn{}
+	failExec := &fakeExecContextConn{fakeConn: failConn, execErr: errors.New("boom")}
+	if _, err := (Driver{base: fakeDriver{conn: failExec}}).Open("test"); err == nil {
+		t.Fatal("Open() succeeded when ExecContext failed")
+	}
+	if !failConn.closed {
+		t.Fatal("Open() did not close connection after ExecContext error")
 	}
 }
