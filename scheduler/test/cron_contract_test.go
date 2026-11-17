@@ -391,6 +391,29 @@ func TestCronContractCloseThenMethodsReturnClosed(t *testing.T) {
 	}
 }
 
+func TestCronContractValidationAndAfterStartErrors(t *testing.T) {
+	for _, factory := range cronFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			s := factory.new(t)
+			if err := s.Register("nil-handler", "@every 1s", nil); err == nil {
+				t.Fatal("Register with nil handler succeeded, want error")
+			}
+			if err := s.Register("bad-spec", "not a cron spec", func(context.Context) error { return nil }); err == nil {
+				t.Fatal("Register with invalid spec succeeded, want error")
+			}
+			if err := s.Unregister("never-registered"); err != nil {
+				t.Fatalf("Unregister(unknown) = %v, want nil", err)
+			}
+
+			startCronRuntime(t, s)
+			waitFor(t, 2*time.Second, func() bool {
+				err := s.Register("after-start", "@every 1s", func(context.Context) error { return nil })
+				return errors.Is(err, scheduler.ErrAfterStart)
+			})
+		})
+	}
+}
+
 func waitFor(tb testing.TB, timeout time.Duration, ok func() bool) {
 	tb.Helper()
 	deadline := time.Now().Add(timeout)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"runtime"
 	"strings"
 	"sync"
@@ -77,12 +78,21 @@ type Scheduler struct {
 
 // NewScheduler builds a Scheduler after applying Config defaults. It returns
 // an error when WithClient was not supplied, when Queues does not include
-// "default", or when Timezone cannot be loaded. Nil options are ignored. It
-// does not contact Redis. The injected Redis client is not closed by Close.
+// "default" or contains a non-positive priority or blank queue name, or when
+// Timezone cannot be loaded. Nil options are ignored. It does not contact
+// Redis. The injected Redis client is not closed by Close.
 func NewScheduler(conf Config, opts ...Option) (*Scheduler, error) {
 	conf = applyDefaults(conf)
 	if _, ok := conf.Queues[defaultQueue]; !ok {
 		return nil, fmt.Errorf("scheduler/asynq: queues must include %q for periodic tasks", defaultQueue)
+	}
+	for name, prio := range conf.Queues {
+		if strings.TrimSpace(name) == "" {
+			return nil, fmt.Errorf("scheduler/asynq: queue name must not be empty")
+		}
+		if prio <= 0 {
+			return nil, fmt.Errorf("scheduler/asynq: queue %q priority must be positive, got %d", name, prio)
+		}
 	}
 
 	applied := options{
@@ -336,16 +346,20 @@ func (s *Scheduler) dispatch(ctx context.Context, task *sasynq.Task) error {
 }
 
 // Enqueue publishes a task of kind with payload and returns the asynq task
-// ID. It may be called before Start and from processes that never Start; it
-// returns scheduler.ErrClosed after Close or once a Stop's drain has finished,
-// even if every Stop caller timed out first. A WithUniqueFor
-// collision or a WithTaskID conflict matches scheduler.ErrDuplicateName via
-// errors.Is, and still matches asynq's own error (asynq.ErrDuplicateTask or
-// asynq.ErrTaskIDConflict respectively). WithDelay is rounded up to whole
-// seconds because asynq stores Unix-second timestamps.
+// ID. A blank kind is rejected with an error. It may be called before Start
+// and from processes that never Start; it returns scheduler.ErrClosed after
+// Close or once a Stop's drain has finished, even if every Stop caller timed
+// out first. A WithUniqueFor collision or a WithTaskID conflict matches
+// scheduler.ErrDuplicateName via errors.Is, and still matches asynq's own
+// error (asynq.ErrDuplicateTask or asynq.ErrTaskIDConflict respectively).
+// WithDelay is rounded up to whole seconds because asynq stores Unix-second
+// timestamps.
 func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, opts ...scheduler.EnqueueOption) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if strings.TrimSpace(kind) == "" {
+		return "", fmt.Errorf("scheduler/asynq: empty task kind")
 	}
 	if s.state.Load() == stateClosed {
 		return "", scheduler.ErrClosed
@@ -584,6 +598,8 @@ func applyDefaults(cfg Config) Config {
 	}
 	if len(cfg.Queues) == 0 {
 		cfg.Queues = map[string]int{defaultQueue: 1}
+	} else {
+		cfg.Queues = maps.Clone(cfg.Queues)
 	}
 	if cfg.ShutdownTimeout <= 0 {
 		cfg.ShutdownTimeout = 30 * time.Second

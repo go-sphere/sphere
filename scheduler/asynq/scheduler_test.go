@@ -633,3 +633,35 @@ func TestStopReportsTeardownPanic(t *testing.T) {
 		t.Fatalf("second Stop = %v, want the same error %v", again, err)
 	}
 }
+
+func TestConfigQueuesValidationCloneAndBlankEnqueueKind(t *testing.T) {
+	client := redistest.NewTestRedisClient(t)
+
+	for _, bad := range []Config{
+		{Queues: map[string]int{"critical": 2}},
+		{Queues: map[string]int{"default": 0}},
+		{Queues: map[string]int{"default": 1, "low": -1}},
+		{Queues: map[string]int{"default": 1, "  ": 2}},
+	} {
+		if _, err := NewScheduler(bad, WithClient(client)); err == nil {
+			t.Fatalf("NewScheduler(%+v) succeeded, want validation error", bad.Queues)
+		}
+	}
+
+	callerQueues := map[string]int{"default": 2}
+	s, err := NewScheduler(Config{Queues: callerQueues}, WithClient(client))
+	if err != nil {
+		t.Fatalf("NewScheduler(valid): %v", err)
+	}
+	defer func() { _ = s.Close() }()
+	callerQueues["default"] = 0
+	if got := s.conf.Queues["default"]; got != 2 {
+		t.Fatalf("mutating caller Queues changed internal conf.Queues to %d, want 2", got)
+	}
+
+	for _, kind := range []string{"", "   ", "\t\n"} {
+		if _, err := s.Enqueue(context.Background(), kind, nil); err == nil {
+			t.Fatalf("Enqueue(%q) succeeded, want empty task kind error", kind)
+		}
+	}
+}
