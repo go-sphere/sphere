@@ -31,7 +31,8 @@ type subscription[T any] struct {
 }
 
 func (s *subscription[T]) Stop() error {
-	s.parent.remove(s)
+	// Keep the subscription registered until run() exits so StopTopic/RequestStop
+	// still await any in-flight handler before removing it from p.subscriptions.
 	return s.requestStop()
 }
 

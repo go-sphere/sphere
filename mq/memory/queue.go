@@ -141,6 +141,9 @@ func drain[T any](queue chan T) (T, error) {
 // no-op. After Close it returns ErrQueueClosed without draining. ctx can
 // cancel a drain in progress.
 func (q *Queue[T]) PurgeQueue(ctx context.Context, topic string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	q.mu.RLock()
 	queue, exists := q.queues[topic]
 	closed := q.closed

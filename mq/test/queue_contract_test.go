@@ -277,3 +277,35 @@ func TestQueueCancelledContext(t *testing.T) {
 		})
 	}
 }
+
+func TestQueuePurgeQueueCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	for _, factory := range queueFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			q := factory.new(t)
+			const topic = "purge-cancelled"
+			if err := q.Publish(ctx, topic, 42); err != nil {
+				t.Fatalf("seed Publish: %v", err)
+			}
+
+			cancelled, cancel := context.WithCancel(ctx)
+			cancel()
+
+			if err := q.PurgeQueue(cancelled, topic); !errors.Is(err, context.Canceled) {
+				t.Fatalf("PurgeQueue(cancelled, populated) = %v, want context.Canceled", err)
+			}
+			if err := q.PurgeQueue(cancelled, "missing-topic"); !errors.Is(err, context.Canceled) {
+				t.Fatalf("PurgeQueue(cancelled, missing) = %v, want context.Canceled", err)
+			}
+
+			got, found, err := q.TryConsume(ctx, topic)
+			if err != nil || !found || got != 42 {
+				t.Fatalf("TryConsume after canceled PurgeQueue = (%d, %v, %v), want (42, true, nil)", got, found, err)
+			}
+		})
+	}
+}

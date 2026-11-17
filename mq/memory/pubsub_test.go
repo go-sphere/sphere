@@ -237,3 +237,67 @@ func TestBroadcastDropWarningsAreThrottled(t *testing.T) {
 		}
 	})
 }
+
+func TestBroadcastSkipsStoppedSubscription(t *testing.T) {
+	ctx := context.Background()
+	p := NewPubSub[int](WithQueueSize(1))
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	defer releaseOnce()
+
+	received := make(chan int, 4)
+	sub, err := p.Subscribe(ctx, "topic", func(_ context.Context, data int) error {
+		if data == 1 {
+			close(started)
+			<-release
+		}
+		received <- data
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+
+	if err := p.Broadcast(ctx, "topic", 1); err != nil {
+		t.Fatalf("Broadcast 1: %v", err)
+	}
+	<-started
+	if err := p.Broadcast(ctx, "topic", 2); err != nil {
+		t.Fatalf("Broadcast 2: %v", err)
+	}
+
+	if err := sub.Stop(); err != nil {
+		t.Fatalf("sub.Stop: %v", err)
+	}
+	for i := range 10 {
+		if err := p.Broadcast(ctx, "topic", 10+i); err != nil {
+			t.Fatalf("Broadcast while stopped: %v", err)
+		}
+	}
+
+	p.dropsMu.Lock()
+	_, dropped := p.drops["topic"]
+	p.dropsMu.Unlock()
+	if dropped {
+		t.Fatal("Broadcast recorded drops for an already-stopped subscription")
+	}
+
+	releaseOnce()
+	<-sub.Done()
+	select {
+	case v := <-received:
+		if v != 1 {
+			t.Fatalf("received %d, want 1", v)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for initial message")
+	}
+	select {
+	case v := <-received:
+		t.Fatalf("unexpected delivery after Stop: %d", v)
+	default:
+	}
+}

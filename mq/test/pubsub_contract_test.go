@@ -727,3 +727,66 @@ func TestPubSubStartHonorsContext(t *testing.T) {
 		})
 	}
 }
+
+func TestPubSubSubscriptionStopKeepsHandlerTrackedUntilExit(t *testing.T) {
+	t.Parallel()
+
+	for _, factory := range pubSubFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			ps := factory.newInt(t)
+			const topic = "stop-keeps-registered"
+
+			entered := make(chan struct{})
+			release := make(chan struct{})
+			markEntered := sync.OnceFunc(func() { close(entered) })
+			releaseOnce := sync.OnceFunc(func() { close(release) })
+			defer releaseOnce()
+
+			sub, err := ps.Subscribe(ctx, topic, func(context.Context, int) error {
+				markEntered()
+				<-release
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("Subscribe: %v", err)
+			}
+
+			if err := ps.Broadcast(ctx, topic, 1); err != nil {
+				t.Fatalf("Broadcast: %v", err)
+			}
+			select {
+			case <-entered:
+			case <-time.After(2 * time.Second):
+				t.Fatal("handler did not start")
+			}
+
+			if err := sub.Stop(); err != nil {
+				t.Fatalf("sub.Stop: %v", err)
+			}
+			done, err := ps.StopTopic(topic)
+			if err != nil {
+				t.Fatalf("StopTopic after sub.Stop: %v", err)
+			}
+			select {
+			case <-done:
+				t.Fatal("StopTopic reported quiescence before stopped subscription handler returned")
+			case <-time.After(50 * time.Millisecond):
+			}
+
+			releaseOnce()
+			select {
+			case <-done:
+			case <-time.After(2 * time.Second):
+				t.Fatal("StopTopic did not close after handler returned")
+			}
+			select {
+			case <-sub.Done():
+			case <-time.After(2 * time.Second):
+				t.Fatal("sub.Done did not close after handler returned")
+			}
+		})
+	}
+}

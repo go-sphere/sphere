@@ -12,7 +12,9 @@ func newOptions(opts ...Option) *options {
 		identifier: "memory-pubsub",
 	}
 	for _, opt := range opts {
-		opt(o)
+		if opt != nil {
+			opt(o)
+		}
 	}
 	return o
 }

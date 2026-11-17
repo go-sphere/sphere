@@ -20,7 +20,9 @@ func newOptions(opt ...Option) *options {
 		identifier: "redis-pubsub",
 	}
 	for _, o := range opt {
-		o(opts)
+		if o != nil {
+			o(opts)
+		}
 	}
 	return opts
 }

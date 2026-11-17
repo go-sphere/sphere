@@ -88,6 +88,9 @@ func NewQueue[T any](opt ...Option) (*Queue[T], error) {
 // topic list (RPUSH). The list is unbounded; Publish does not block on
 // consumers.
 func (q *Queue[T]) Publish(ctx context.Context, topic string, data T) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	raw, err := q.codec.Marshal(data)
 	if err != nil {
 		return err

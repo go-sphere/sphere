@@ -24,7 +24,8 @@ type subscription[T any] struct {
 }
 
 func (s *subscription[T]) Stop() error {
-	s.parent.remove(s)
+	// Keep the subscription registered until run() exits so StopTopic/RequestStop
+	// still await any in-flight handler before removing it from p.topics.
 	s.requestStop()
 	return nil
 }
@@ -39,7 +40,7 @@ func (s *subscription[T]) requestStop() {
 
 // dropWarnInterval is the minimum gap between two dropped-message warnings
 // for the same topic.
-var dropWarnInterval = 10 * time.Second
+const dropWarnInterval = 10 * time.Second
 
 // topicDrops counts messages dropped on one topic since the last warning.
 type topicDrops struct {
@@ -122,6 +123,9 @@ func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
 	// copy of the subscriber slice.
 	dropped := 0
 	for _, sub := range p.topics[topic] {
+		if sub.ctx.Err() != nil {
+			continue
+		}
 		select {
 		case <-sub.ctx.Done():
 		case sub.ch <- data:
