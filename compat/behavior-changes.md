@@ -561,13 +561,14 @@ Contract test: `cache/redis`: `TestDelAllOnlyFlushesSelectedDatabase`, `TestKeys
 
 ### `cache/mcache`
 
-Contract test: `cache/mcache`: `TestConcurrentExpiredReads`, `TestKeys`.
+Contract test: `cache/mcache`: `TestConcurrentExpiredReads`, `TestConcurrentReadsDontBlock`, `TestKeys`.
 
 - TTL semantics for `0` and negative values are inverted relative to v0.0.3 —
   see above.
-- `Get`/`MultiGet` take a write lock. They delete expired entries in place,
-  which under the previous read lock was a `map` write racing with concurrent
-  readers. Reads no longer run in parallel.
+- `Get`/`MultiGet`/`Exists` take the read lock (`RLock`), so live concurrent
+  reads run in parallel; only entries found past their TTL upgrade to the write
+  lock afterwards (`deleteExpired`), re-checking expiration under the write lock
+  so a concurrent refresh is not deleted.
 - New: `Keys(prefix)`. Note it returns `[]string`; for a `Map` with a non-string
   key type the keys are rendered with `fmt.Sprint` and cannot be fed back into
   `MultiDel`.
@@ -1172,7 +1173,9 @@ means at least one entry failed, entries that succeeded may already be visible,
 and nothing is rolled back. No driver changed. The contract follows what redis
 can actually offer — a pipeline cannot revert commands already sent — so
 compensating for a failed batch by deleting what it "would have" written is
-unsafe. `badgerdb` and `mcache` remain atomic in practice; do not rely on it.
+unsafe. `mcache` remains atomic in practice, while `badgerdb` writes one
+transaction when a batch fits within badger's transaction size limit and splits
+larger batches across transactions; do not rely on batch atomicity.
 
 ### `badgerdb.DelAll` no longer uses `DropAll`
 
@@ -1333,8 +1336,6 @@ They carry `iat`, which `ParseToken` does not validate. Existing tokens with
 
 ## Known limitations (unchanged since v0.0.3, not regressions)
 
-- `badgerdb.MultiSet`/`MultiSetWithTTL` write every entry in one transaction and
-  fail with `ErrTxnTooBig` on large batches (reproduced at 20000 x 1KiB).
 - `mcache.Map` has no size bound and no background eviction. Expired entries are
   reclaimed only by `Trim` or when that key is accessed again (`Count`
   deliberately does not reclaim).

@@ -25,7 +25,7 @@ Sphere is not meant to replace Go's standard toolchain, Makefiles, Buf, Docker, 
 
 - [**`httpx`**](https://github.com/go-sphere/httpx) - A small HTTP adapter contract with a net/http engine (`stdx`, the default) and Gin, Fiber, Echo, and Hertz adapters.
 - **`server/httpz`** - Response envelopes and handler wrappers on top of `httpx`.
-- **`server/middleware`** - Common middleware such as auth, CORS, online tracking, rate limiting, and middleware selectors, plus `server/middleware/stack` (standard middleware order) and `server/ops` (healthz and opt-in pprof on a separate listener).
+- **`server/middleware`** - Common middleware such as auth, CORS, logger, online tracking, rate limiting, request ID, telemetry (tracing and metrics), and middleware selectors, plus `server/middleware/stack` (standard middleware order) and `server/ops` (healthz and opt-in pprof on a separate listener).
 - **`cache`**, **`mq`**, **`scheduler`**, **`storage`** - Interfaces and default adapters for common service infrastructure.
 - **`log`** and **`log/logbuffer`** - Backend-agnostic logging plus a cursor-addressable in-memory tail for realtime delivery.
 - **`confstore`**, **`infra`** - Practical wrappers for configuration and infrastructure clients.
@@ -36,6 +36,7 @@ Sphere is not meant to replace Go's standard toolchain, Makefiles, Buf, Docker, 
 - [**`sphere-layout`**](https://github.com/go-sphere/sphere-layout) - Default template using Ent, net/http (`stdx`), Wire, Buf, Swagger, and TypeScript client generation.
 - [**`sphere-simple-layout`**](https://github.com/go-sphere/sphere-simple-layout) - Smaller template for lightweight services.
 - [**`sphere-bun-layout`**](https://github.com/go-sphere/sphere-bun-layout) - Template using Bun instead of Ent.
+- [**`sphere-telegram-layout`**](https://github.com/go-sphere/sphere-telegram-layout) - Template with a Telegram Bot transport example using Ent and net/http (`stdx`).
 
 ## What Sphere Does Not Try To Own
 
@@ -67,7 +68,7 @@ For complete documentation, visit [go-sphere.github.io](https://go-sphere.github
 - [Error Handling](https://go-sphere.github.io/docs/guides/error-handling)
 - [Logging](https://go-sphere.github.io/docs/guides/logging)
 - [Cache, Storage, Boot](https://go-sphere.github.io/docs/guides/infrastructure)
-- [Upgrading to v0.0.4](https://go-sphere.github.io/docs/guides/upgrading)
+- [Upgrading](https://go-sphere.github.io/docs/guides/upgrading)
 
 ## License
 
