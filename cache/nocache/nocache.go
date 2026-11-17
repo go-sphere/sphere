@@ -82,6 +82,9 @@ func (n *NoCache[T]) Exists(ctx context.Context, key string) (bool, error) {
 // KeyLister to scope DelAll to its namespace and returns ErrNotSupported
 // without one.
 func (n *NoCache[T]) Keys(ctx context.Context, prefix string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return nil, nil
 }
 

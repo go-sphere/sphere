@@ -634,3 +634,57 @@ func TestGetObjectExCustomCodec(t *testing.T) {
 	}
 	assertNotCached[[]byte](t, c, "enc")
 }
+
+func TestLoaderSkipsNilOptionsAndPanicsOnSingleflightTypeMismatch(t *testing.T) {
+	ctx := t.Context()
+	c := mcache.NewByteCache()
+	defer func() { _ = c.Close() }()
+
+	if err := cache.Set(ctx, c, "nil-opt", []byte("ok"), nil); err != nil {
+		t.Fatalf("Set with nil option: %v", err)
+	}
+	got, found, err := cache.GetEx(ctx, c, "nil-opt-miss", func() ([]byte, error) {
+		return []byte("v2"), nil
+	}, nil)
+	if err != nil || !found || string(got) != "v2" {
+		t.Fatalf("GetEx with nil option = (%q, %v, %v)", got, found, err)
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		strCache := mcache.NewMapCache[string]()
+		intCache := mcache.NewMapCache[int]()
+		var group singleflight.Group
+		entered := make(chan struct{})
+		gate := make(chan struct{})
+
+		var wg sync.WaitGroup
+		wg.Go(func() {
+			_, _, _ = cache.GetEx(ctx, intCache, "shared-key", func() (int, error) {
+				close(entered)
+				<-gate
+				return 42, nil
+			}, cache.WithSingleflight(&group))
+		})
+
+		<-entered
+
+		var panicked any
+		wg.Go(func() {
+			defer func() {
+				panicked = recover()
+			}()
+			_, _, _ = cache.GetEx(ctx, strCache, "shared-key", func() (string, error) {
+				return "wrong", nil
+			}, cache.WithSingleflight(&group))
+		})
+
+		synctest.Wait()
+		close(gate)
+		wg.Wait()
+
+		if panicked == nil {
+			t.Fatal("expected panic when sharing singleflight group across mismatched non-nil types")
+		}
+	})
+}

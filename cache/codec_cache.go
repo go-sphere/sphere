@@ -59,8 +59,11 @@ func (m *CodecCache[T]) Set(ctx context.Context, key string, val T) error {
 }
 
 // SetWithTTL encodes val and stores it with the cache.TTL expiration rules.
-// An encoding error is returned and nothing is written.
+// An invalid expiration or encoding error is returned and nothing is written.
 func (m *CodecCache[T]) SetWithTTL(ctx context.Context, key string, val T, expiration time.Duration) error {
+	if expiration < 0 {
+		return ErrInvalidTTL
+	}
 	raw, err := m.codec.Marshal(val)
 	if err != nil {
 		return err
@@ -79,8 +82,11 @@ func (m *CodecCache[T]) MultiSet(ctx context.Context, valMap map[string]T) error
 }
 
 // MultiSetWithTTL encodes every value and stores them with expiration. If
-// any value fails to encode, nothing is written.
+// expiration is negative or any value fails to encode, nothing is written.
 func (m *CodecCache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, expiration time.Duration) error {
+	if expiration < 0 {
+		return ErrInvalidTTL
+	}
 	rawMap, err := m.marshalMap(valMap)
 	if err != nil {
 		return err
@@ -148,12 +154,8 @@ func (m *CodecCache[T]) MultiGet(ctx context.Context, keys []string) (map[string
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]T)
-	for _, key := range keys {
-		raw, ok := rawMap[key]
-		if !ok {
-			continue
-		}
+	result := make(map[string]T, len(rawMap))
+	for key, raw := range rawMap {
 		var val T
 		if err = m.codec.Unmarshal(raw, &val); err != nil {
 			// Skip an undecodable entry (older schema, or another type sharing the

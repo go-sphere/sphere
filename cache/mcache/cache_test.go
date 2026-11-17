@@ -206,3 +206,26 @@ func TestDeleteExpiredKeepsRefreshedEntry(t *testing.T) {
 		t.Fatalf("Get = (%q, %v, %v), want (\"new\", true, nil)", got, found, err)
 	}
 }
+
+func TestNewMapCacheNegativeCapacityAndExistsExpiry(t *testing.T) {
+	ctx := context.Background()
+	c := NewMapCacheWithCapacity[[]byte](-10)
+	defer func() { _ = c.Close() }()
+
+	if err := c.Set(ctx, "live", []byte("abc")); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if ok, err := c.Exists(ctx, "live"); err != nil || !ok {
+		t.Fatalf("Exists(live) = (%v, %v), want (true, nil)", ok, err)
+	}
+	if err := c.SetWithTTL(ctx, "exp", []byte("abc"), time.Millisecond); err != nil {
+		t.Fatalf("SetWithTTL: %v", err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	if ok, err := c.Exists(ctx, "exp"); err != nil || ok {
+		t.Fatalf("Exists(expired) = (%v, %v), want (false, nil)", ok, err)
+	}
+	if c.Count() != 1 {
+		t.Fatalf("Count after expired Exists cleanup = %d, want 1", c.Count())
+	}
+}

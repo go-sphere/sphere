@@ -293,3 +293,24 @@ func countPresent[T any](t *testing.T, c *Cache[T], n int) int {
 	}
 	return present
 }
+
+func TestDelAllConcurrentWithWrites(t *testing.T) {
+	ctx := context.Background()
+	c := NewByteCache()
+	defer func() { _ = c.Close() }()
+
+	var wg sync.WaitGroup
+	for i := range 4 {
+		wg.Go(func() {
+			for j := range 50 {
+				_ = c.Set(ctx, fmt.Sprintf("k:%d:%d", i, j), []byte("v"))
+			}
+		})
+	}
+	wg.Go(func() {
+		for range 10 {
+			_ = c.DelAll(ctx)
+		}
+	})
+	wg.Wait()
+}

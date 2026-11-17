@@ -37,6 +37,9 @@ func NewMapCache[S any]() *Map[string, S] {
 // NewMapCacheWithCapacity creates a new map-based cache with pre-allocated capacity.
 // This can improve performance when the expected number of entries is known in advance.
 func NewMapCacheWithCapacity[S any](capacity int) *Map[string, S] {
+	if capacity < 0 {
+		capacity = 0
+	}
 	return &Map[string, S]{
 		store:      make(map[string]S, capacity),
 		expiration: make(map[string]time.Time, capacity),
@@ -279,10 +282,20 @@ func (t *Map[K, S]) Trim() {
 	}
 }
 
-// Exists reports whether key holds an unexpired entry, with Get's locking.
+// Exists reports whether key holds an unexpired entry, with Get's locking
+// and without copying []byte values.
 func (t *Map[K, S]) Exists(ctx context.Context, key K) (bool, error) {
-	_, ok, err := t.Get(ctx, key)
-	return ok, err
+	t.rw.RLock()
+	_, ok := t.store[key]
+	exp, hasTTL := t.expiration[key]
+	expired := hasTTL && time.Now().After(exp)
+	t.rw.RUnlock()
+
+	if expired {
+		t.deleteExpired([]K{key})
+		return false, nil
+	}
+	return ok, nil
 }
 
 // Close is a no-op; the cache stays usable afterwards.

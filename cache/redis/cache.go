@@ -63,6 +63,9 @@ func (c *ByteCache) MultiSetWithTTL(ctx context.Context, valMap map[string][]byt
 	if expiration < 0 {
 		return cache.ErrInvalidTTL
 	}
+	if len(valMap) == 0 {
+		return nil
+	}
 	pipe := c.client.Pipeline()
 	for k, v := range valMap {
 		pipe.Set(ctx, k, v, expiration)

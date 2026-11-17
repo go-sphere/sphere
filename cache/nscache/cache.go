@@ -136,13 +136,25 @@ func (n *NSCache[S]) MultiSetWithTTL(ctx context.Context, valMap map[string]S, e
 // The listing and the deletion are not atomic: keys written in between
 // survive. A failing batch stops DelAll; earlier batches stay deleted.
 func (n *NSCache[S]) DelAll(ctx context.Context) error {
-	keys, err := n.Keys(ctx, "")
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	lister, ok := n.cache.(cache.KeyLister)
+	if !ok {
+		return cache.ErrNotSupported
+	}
+	// lister.Keys already returns fully prefixed keys, so pass them straight
+	// to MultiDel without stripping and re-prefixing every key.
+	keys, err := lister.Keys(ctx, n.keygen(""))
 	if err != nil {
 		return err
 	}
 	for len(keys) > 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		batch := keys[:min(len(keys), delAllBatchSize)]
-		if err := n.MultiDel(ctx, batch); err != nil {
+		if err := n.cache.MultiDel(ctx, batch); err != nil {
 			return err
 		}
 		keys = keys[len(batch):]
@@ -159,6 +171,9 @@ const delAllBatchSize = 1000
 // can itself be wrapped by another NSCache. The wrapped cache must implement
 // cache.KeyLister; otherwise Keys returns cache.ErrNotSupported.
 func (n *NSCache[S]) Keys(ctx context.Context, prefix string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	lister, ok := n.cache.(cache.KeyLister)
 	if !ok {
 		return nil, cache.ErrNotSupported
@@ -167,9 +182,10 @@ func (n *NSCache[S]) Keys(ctx context.Context, prefix string) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
+	nsPrefix := n.keygen("")
 	trimmed := make([]string, 0, len(keys))
 	for _, k := range keys {
-		trimmed = append(trimmed, strings.TrimPrefix(k, n.namespace+":"))
+		trimmed = append(trimmed, strings.TrimPrefix(k, nsPrefix))
 	}
 	return trimmed, nil
 }

@@ -208,12 +208,16 @@ func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
 	if m.closed {
 		return cache.ErrClosed
 	}
+	if len(valMap) == 0 {
+		return nil
+	}
+	var shardBuf [numGetDelShards]int
 	keys := make([]string, 0, len(valMap))
 	for key := range valMap {
 		keys = append(keys, key)
 	}
-	unlock := m.lockMutationShards(keys)
-	defer unlock()
+	shards := m.lockMutationShards(keys, &shardBuf)
+	defer m.unlockMutationShards(shards)
 	for k, v := range valMap {
 		var cost int64 = 1
 		if m.calculateCost {
@@ -236,12 +240,16 @@ func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, exp
 	if m.closed {
 		return cache.ErrClosed
 	}
+	if len(valMap) == 0 {
+		return nil
+	}
+	var shardBuf [numGetDelShards]int
 	keys := make([]string, 0, len(valMap))
 	for key := range valMap {
 		keys = append(keys, key)
 	}
-	unlock := m.lockMutationShards(keys)
-	defer unlock()
+	shards := m.lockMutationShards(keys, &shardBuf)
+	defer m.unlockMutationShards(shards)
 	for k, v := range valMap {
 		var cost int64 = 1
 		if m.calculateCost {
@@ -300,24 +308,28 @@ func fnv32(key string) uint32 {
 	return h
 }
 
-func (m *Cache[T]) lockMutationShards(keys []string) func() {
+func (m *Cache[T]) lockMutationShards(keys []string, buf *[numGetDelShards]int) []int {
 	seen := [numGetDelShards]bool{}
-	shards := make([]int, 0, len(keys))
+	n := 0
 	for _, key := range keys {
 		shard := int(fnv32(key) % numGetDelShards)
 		if !seen[shard] {
 			seen[shard] = true
-			shards = append(shards, shard)
+			buf[n] = shard
+			n++
 		}
 	}
+	shards := buf[:n]
 	slices.Sort(shards)
 	for _, shard := range shards {
 		m.mutationShards[shard].Lock()
 	}
-	return func() {
-		for _, shard := range slices.Backward(shards) {
-			m.mutationShards[shard].Unlock()
-		}
+	return shards
+}
+
+func (m *Cache[T]) unlockMutationShards(shards []int) {
+	for _, shard := range slices.Backward(shards) {
+		m.mutationShards[shard].Unlock()
 	}
 }
 
@@ -326,6 +338,9 @@ func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, e
 	defer m.closeMu.RUnlock()
 	if m.closed {
 		return nil, cache.ErrClosed
+	}
+	if len(keys) == 0 {
+		return make(map[string]T), nil
 	}
 	result := make(map[string]T)
 	for _, key := range keys {
@@ -356,8 +371,12 @@ func (m *Cache[T]) MultiDel(ctx context.Context, keys []string) error {
 	if m.closed {
 		return cache.ErrClosed
 	}
-	unlock := m.lockMutationShards(keys)
-	defer unlock()
+	if len(keys) == 0 {
+		return nil
+	}
+	var shardBuf [numGetDelShards]int
+	shards := m.lockMutationShards(keys, &shardBuf)
+	defer m.unlockMutationShards(shards)
 	for _, key := range keys {
 		m.cache.Del(key)
 	}
@@ -365,8 +384,9 @@ func (m *Cache[T]) MultiDel(ctx context.Context, keys []string) error {
 }
 
 func (m *Cache[T]) DelAll(ctx context.Context) error {
-	m.closeMu.RLock()
-	defer m.closeMu.RUnlock()
+	// Exclusive lock prevents Clear from racing with concurrent in-flight ristretto calls.
+	m.closeMu.Lock()
+	defer m.closeMu.Unlock()
 	if m.closed {
 		return cache.ErrClosed
 	}

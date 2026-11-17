@@ -32,31 +32,33 @@ func decodeError(err error) error {
 // an entry that never expires, and instead of panicking on a nil calculator.
 var ErrTTLCalculatorType = errors.New("cache: dynamic TTL calculator value type mismatch")
 
-// options holds configuration settings for cache operations including TTL, singleflight, and dynamic TTL calculation.
-type options struct {
+// loadOptions holds configuration settings for cache operations including TTL, singleflight, and dynamic TTL calculation.
+type loadOptions struct {
 	hasTTL        bool
 	expiration    time.Duration
 	singleflight  *singleflight.Group
 	ttlCalculator func(value any) (bool, time.Duration, error)
 }
 
-func newOptions(opts ...Option) *options {
-	defaults := &options{
+func newOptions(opts ...Option) *loadOptions {
+	defaults := &loadOptions{
 		expiration: -1,
 	}
 	for _, opt := range opts {
-		opt(defaults)
+		if opt != nil {
+			opt(defaults)
+		}
 	}
 	return defaults
 }
 
 // Option defines a functional option for configuring cache behavior.
-type Option func(o *options)
+type Option func(o *loadOptions)
 
 // WithExpiration stores via SetWithTTL. A negative duration is rejected by
 // the driver as ErrInvalidTTL.
 func WithExpiration(expiration time.Duration) Option {
-	return func(o *options) {
+	return func(o *loadOptions) {
 		o.hasTTL = true
 		o.expiration = expiration
 	}
@@ -64,7 +66,7 @@ func WithExpiration(expiration time.Duration) Option {
 
 // WithNeverExpire stores via Set, which never expires and clears any existing TTL.
 func WithNeverExpire() Option {
-	return func(o *options) {
+	return func(o *loadOptions) {
 		o.hasTTL = false
 		o.expiration = -1
 	}
@@ -82,7 +84,7 @@ func WithNeverExpire() Option {
 // and panics on mismatch) or between different caches (a value built for one
 // cache would be returned for the other). Use one group per cache and type.
 func WithSingleflight(single *singleflight.Group) Option {
-	return func(o *options) {
+	return func(o *loadOptions) {
 		o.singleflight = single
 	}
 }
@@ -96,7 +98,7 @@ func WithSingleflight(single *singleflight.Group) Option {
 // ErrTTLCalculatorType rather than panicking, so a miswired option cannot take
 // down a caller's request path.
 func WithDynamicTTL[T any](calculator func(value T) (bool, time.Duration)) Option {
-	return func(o *options) {
+	return func(o *loadOptions) {
 		o.ttlCalculator = func(value any) (bool, time.Duration, error) {
 			if calculator == nil {
 				return false, 0, ErrTTLCalculatorType
@@ -114,17 +116,19 @@ func WithDynamicTTL[T any](calculator func(value T) (bool, time.Duration)) Optio
 // Set writes value through c, applying TTL options. WithDynamicTTL sees the
 // original value, not encoded bytes.
 func Set[T any](ctx context.Context, c ExpirableCache[T], key string, value T, options ...Option) error {
-	return setValue(ctx, c, key, value, value, options...)
+	return setValueWithOptions(ctx, c, key, value, value, newOptions(options...))
 }
 
-func setValue[S, T any](ctx context.Context, c ExpirableCache[S], key string, storedValue S, ttlSource T, options ...Option) error {
-	opts := newOptions(options...)
+func setValueWithOptions[S, T any](ctx context.Context, c ExpirableCache[S], key string, storedValue S, ttlSource T, opts *loadOptions) error {
 	if opts.ttlCalculator != nil {
 		hasTTL, expiration, err := opts.ttlCalculator(ttlSource)
 		if err != nil {
 			return err
 		}
-		opts.hasTTL, opts.expiration = hasTTL, expiration
+		if hasTTL {
+			return c.SetWithTTL(ctx, key, storedValue, expiration)
+		}
+		return c.Set(ctx, key, storedValue)
 	}
 	if opts.hasTTL {
 		return c.SetWithTTL(ctx, key, storedValue, opts.expiration)
@@ -132,14 +136,18 @@ func setValue[S, T any](ctx context.Context, c ExpirableCache[S], key string, st
 	return c.Set(ctx, key, storedValue)
 }
 
-// SetObject stores a typed object in a byte cache by encoding it with the provided encoder.
-// This is useful for storing structured data that needs to be serialized before caching.
-func SetObject[T any, E codec.Encoder](ctx context.Context, c ExpirableByteCache, e E, key string, value T, options ...Option) error {
+func setObjectWithOptions[T any, E codec.Encoder](ctx context.Context, c ExpirableByteCache, e E, key string, value T, opts *loadOptions) error {
 	data, err := e.Marshal(value)
 	if err != nil {
 		return err
 	}
-	return setValue(ctx, c, key, data, value, options...)
+	return setValueWithOptions(ctx, c, key, data, value, opts)
+}
+
+// SetObject stores a typed object in a byte cache by encoding it with the provided encoder.
+// This is useful for storing structured data that needs to be serialized before caching.
+func SetObject[T any, E codec.Encoder](ctx context.Context, c ExpirableByteCache, e E, key string, value T, options ...Option) error {
+	return setObjectWithOptions(ctx, c, e, key, value, newOptions(options...))
 }
 
 // SetJson stores a typed object in a byte cache by encoding it as JSON.
@@ -196,8 +204,8 @@ func GetEx[T any](ctx context.Context, c ExpirableCache[T], key string, builder 
 		ctx,
 		key,
 		c.Get,
-		func(ctx context.Context, k string, v T, opts ...Option) error {
-			return Set[T](ctx, c, k, v, opts...)
+		func(ctx context.Context, k string, v T, opts *loadOptions) error {
+			return setValueWithOptions[T, T](ctx, c, k, v, v, opts)
 		},
 		builder,
 		options...,
@@ -214,8 +222,8 @@ func GetObjectEx[T any, D codec.Decoder, E codec.Encoder](ctx context.Context, c
 		func(ctx context.Context, k string) (T, bool, error) {
 			return GetObject[T, D](ctx, c, d, k)
 		},
-		func(ctx context.Context, k string, v T, opts ...Option) error {
-			return SetObject[T, E](ctx, c, e, k, v, opts...)
+		func(ctx context.Context, k string, v T, opts *loadOptions) error {
+			return setObjectWithOptions[T, E](ctx, c, e, k, v, opts)
 		},
 		builder,
 		options...,
@@ -231,7 +239,7 @@ func load[T any](
 	ctx context.Context,
 	key string,
 	getter func(context.Context, string) (T, bool, error),
-	setter func(context.Context, string, T, ...Option) error,
+	setter func(context.Context, string, T, *loadOptions) error,
 	builder FetchCached[T],
 	options ...Option,
 ) (T, bool, error) {
@@ -256,12 +264,12 @@ func load[T any](
 		return zero, false, nil
 	}
 	if opts.singleflight != nil {
-		newObj, err := loadShared(ctx, opts.singleflight, key, setter, builder, options...)
+		newObj, err := loadShared(ctx, opts.singleflight, key, setter, builder, opts)
 		return newObj, err == nil, err
 	}
 	newObj, err := builder()
 	if err == nil {
-		_ = setter(ctx, key, newObj, options...)
+		_ = setter(ctx, key, newObj, opts)
 	}
 	return newObj, err == nil, err
 }
@@ -275,9 +283,9 @@ func loadShared[T any](
 	ctx context.Context,
 	group *singleflight.Group,
 	key string,
-	setter func(context.Context, string, T, ...Option) error,
+	setter func(context.Context, string, T, *loadOptions) error,
 	builder FetchCached[T],
-	options ...Option,
+	opts *loadOptions,
 ) (T, error) {
 	writeCtx := context.WithoutCancel(ctx)
 	ch := group.DoChan(key, func() (val any, err error) {
@@ -290,7 +298,7 @@ func loadShared[T any](
 		}()
 		nObj, err := builder()
 		if err == nil {
-			_ = setter(writeCtx, key, nObj, options...)
+			_ = setter(writeCtx, key, nObj, opts)
 		}
 		return nObj, err
 	})
@@ -303,9 +311,15 @@ func loadShared[T any](
 		if res.Err != nil {
 			return zero, res.Err
 		}
-		// Val is a nil any when T is an interface type and the builder
-		// returned nil, so a plain assertion would panic.
-		obj, _ := res.Val.(T)
+		// Preserve nil interface values (e.g. a nil error returned by builder),
+		// while still rejecting a non-nil value from a mismatched type.
+		if res.Val == nil {
+			return zero, nil
+		}
+		obj, ok := res.Val.(T)
+		if !ok {
+			panic(fmt.Sprintf("cache: singleflight value type mismatch: got %T, want %T", res.Val, zero))
+		}
 		return obj, nil
 	case <-ctx.Done():
 		return zero, ctx.Err()

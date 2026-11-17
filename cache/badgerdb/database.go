@@ -96,6 +96,9 @@ func (d *Database) SetWithTTL(ctx context.Context, key string, val []byte, expir
 // badger's transaction size limit is committed in several transactions, so on
 // error the chunks committed before it stay written (see cache.Bulk).
 func (d *Database) MultiSet(ctx context.Context, valMap map[string][]byte) error {
+	if len(valMap) == 0 {
+		return nil
+	}
 	w := d.newBatchWriter()
 	defer w.discard()
 	for k, v := range valMap {
@@ -114,6 +117,9 @@ func (d *Database) MultiSet(ctx context.Context, valMap map[string][]byte) error
 func (d *Database) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
 	if expiration < 0 {
 		return cache.ErrInvalidTTL
+	}
+	if len(valMap) == 0 {
+		return nil
 	}
 	expiresAt := uint64(0)
 	if expiration > 0 {
@@ -241,6 +247,9 @@ func (d *Database) GetDel(ctx context.Context, key string) ([]byte, bool, error)
 }
 
 func (d *Database) MultiGet(ctx context.Context, keys []string) (map[string][]byte, error) {
+	if len(keys) == 0 {
+		return make(map[string][]byte), nil
+	}
 	res := make(map[string][]byte)
 	err := d.db.View(func(txn *badger.Txn) error {
 		for _, key := range keys {
@@ -274,6 +283,9 @@ func (d *Database) Del(ctx context.Context, key string) error {
 // MultiDel removes every key, splitting the batch across transactions like
 // MultiSet.
 func (d *Database) MultiDel(ctx context.Context, keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
 	w := d.newBatchWriter()
 	defer w.discard()
 	for _, key := range keys {
@@ -306,11 +318,17 @@ const delAllBatchSize = 1000
 // Like the nscache equivalent, this is not atomic: a key written between the
 // scan and the delete survives.
 func (d *Database) DelAll(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	keys, err := d.Keys(ctx, "")
 	if err != nil {
 		return err
 	}
 	for len(keys) > 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		batch := keys
 		if len(batch) > delAllBatchSize {
 			batch = keys[:delAllBatchSize]
@@ -327,6 +345,9 @@ func (d *Database) DelAll(ctx context.Context) error {
 // transaction with value prefetching disabled so the iterator only walks the
 // LSM keyspace.
 func (d *Database) Keys(ctx context.Context, prefix string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	var keys []string
 	err := d.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions

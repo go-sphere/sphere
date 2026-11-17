@@ -515,3 +515,39 @@ func TestByteCacheValueOwnership(t *testing.T) {
 		})
 	}
 }
+
+func TestByteCacheEmptyBatches(t *testing.T) {
+	t.Parallel()
+
+	for _, factory := range append(statefulByteCacheFactories(), noCacheFactory()) {
+		t.Run(factory.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			c := factory.new(t)
+
+			if err := c.MultiSet(ctx, nil); err != nil {
+				t.Fatalf("MultiSet(nil): %v", err)
+			}
+			if err := c.MultiSet(ctx, map[string][]byte{}); err != nil {
+				t.Fatalf("MultiSet(empty): %v", err)
+			}
+			if err := c.MultiSetWithTTL(ctx, map[string][]byte{}, time.Minute); err != nil {
+				t.Fatalf("MultiSetWithTTL(empty): %v", err)
+			}
+			if err := c.MultiSetWithTTL(ctx, map[string][]byte{}, -time.Second); !errors.Is(err, cache.ErrInvalidTTL) {
+				t.Fatalf("MultiSetWithTTL(empty, -1s) = %v, want ErrInvalidTTL", err)
+			}
+			got, err := c.MultiGet(ctx, nil)
+			if err != nil || len(got) != 0 {
+				t.Fatalf("MultiGet(nil) = (%v, %v), want empty nil", got, err)
+			}
+			if err := c.MultiDel(ctx, nil); err != nil {
+				t.Fatalf("MultiDel(nil): %v", err)
+			}
+			if err := c.MultiDel(ctx, []string{}); err != nil {
+				t.Fatalf("MultiDel(empty): %v", err)
+			}
+		})
+	}
+}
