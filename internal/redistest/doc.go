@@ -3,12 +3,12 @@
 //
 // It is not a real Redis: commands miniredis does not implement fail, and
 // TTLs advance through miniredis time rather than wall-clock. A background
-// ticker fast-forwards miniredis 5ms every 5ms so Redis TTLs fire without
-// waiting. t.Cleanup stops the ticker and closes the client.
+// ticker periodically fast-forwards miniredis by elapsed wall-clock time so
+// Redis TTLs fire reliably. tb.Cleanup stops the ticker and closes the client.
 //
 // # Usage
 //
-//	import "github.com/go-sphere/sphere/test/redistest"
+//	import "github.com/go-sphere/sphere/internal/redistest"
 //
 //	func TestSomething(t *testing.T) {
 //		client := redistest.NewTestRedisClient(t)

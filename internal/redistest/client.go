@@ -10,18 +10,19 @@ import (
 )
 
 // NewTestRedisClient starts a miniredis server and returns a go-redis client
-// pointed at it. A background ticker fast-forwards miniredis 5ms every 5ms so
-// Redis TTLs fire without waiting on wall-clock. t.Cleanup closes the client.
-func NewTestRedisClient(t *testing.T) *redis.Client {
-	t.Helper()
+// pointed at it. A background ticker periodically fast-forwards miniredis by
+// the elapsed wall-clock duration so Redis TTLs fire reliably even under load.
+// tb.Cleanup stops the ticker and closes the client.
+func NewTestRedisClient(tb testing.TB) *redis.Client {
+	tb.Helper()
 
-	mini := miniredis.RunT(t)
+	mini := miniredis.RunT(tb)
 
 	client, err := redisConn.NewClient(redisConn.Config{
 		URL: "redis://" + mini.Addr() + "/0",
 	})
 	if err != nil {
-		t.Fatalf("failed to create redis client for miniredis: %v", err)
+		tb.Fatalf("failed to create redis client for miniredis: %v", err)
 	}
 
 	done := make(chan struct{})
@@ -30,17 +31,21 @@ func NewTestRedisClient(t *testing.T) *redis.Client {
 		defer close(stopped)
 		ticker := time.NewTicker(5 * time.Millisecond)
 		defer ticker.Stop()
+		last := time.Now()
 		for {
 			select {
 			case <-done:
 				return
-			case <-ticker.C:
-				mini.FastForward(5 * time.Millisecond)
+			case now := <-ticker.C:
+				if now.After(last) {
+					mini.FastForward(now.Sub(last))
+					last = now
+				}
 			}
 		}
 	}()
 
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		close(done)
 		// Join the ticker goroutine before tearing anything down: cleanups run
 		// LIFO, so miniredis's own cleanup (server shutdown) follows this one
