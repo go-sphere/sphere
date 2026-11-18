@@ -3,6 +3,7 @@ package urlhandler
 import (
 	"fmt"
 	"net/url"
+	"path"
 	"strings"
 )
 
@@ -10,11 +11,6 @@ import (
 // (with default ports for http/https considered equal) or path prefix does not
 // match the public base.
 var ErrHostVerificationFailed = fmt.Errorf("not verify host")
-
-// ErrorNotVerifyHost is the same value as ErrHostVerificationFailed.
-//
-// Deprecated: Use ErrHostVerificationFailed.
-var ErrorNotVerifyHost = ErrHostVerificationFailed
 
 // ErrInvalidKeyPath is returned when an extracted key contains a ".." path
 // segment. Every storage driver refuses such keys, so persisting one would
@@ -44,6 +40,19 @@ func NewHandler(public string) (*Handler, error) {
 	}
 	if (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" {
 		return nil, fmt.Errorf("urlhandler: public base %q must be an absolute http or https URL", public)
+	}
+	if base.RawQuery != "" || base.ForceQuery || base.Fragment != "" {
+		return nil, fmt.Errorf("urlhandler: public base %q must not contain query or fragment", public)
+	}
+	if base.Path != "" {
+		cleanPath := path.Clean("/" + strings.TrimPrefix(base.Path, "/"))
+		if cleanPath == "/" {
+			base.Path = ""
+			base.RawPath = ""
+		} else if cleanPath != strings.TrimRight(base.Path, "/") {
+			base.Path = cleanPath
+			base.RawPath = ""
+		}
 	}
 	baseStr := base.String()
 	baseStr = strings.TrimRight(baseStr, "/")
@@ -81,52 +90,65 @@ func (n *Handler) generateURL(key string) string {
 	if hasHttpScheme(key) {
 		return key
 	}
+	if n == nil {
+		return ""
+	}
 	key = strings.TrimLeft(key, "/")
-	if key == "" {
+	if key == "" || strings.ContainsRune(key, '\x00') || containsRelativeSegment(key) {
+		// No storage driver accepts ".", "..", or NUL-carrying keys, so refuse
+		// to mint a URL for them instead of emitting one that addresses the
+		// wrong origin/path.
 		return ""
 	}
-	if containsDotDot(key) {
-		// url.JoinPath would resolve ".." against the base and silently fold
-		// the URL to a sibling of the public base. No storage driver accepts
-		// such a key, so refuse to mint a URL for it instead of emitting one
-		// that addresses the wrong origin/path.
+	// Escape each segment directly so a literal "%" or "?"/"#" in a key
+	// round-trips through ExtractKeyFromURL instead of being decoded or
+	// interpreted as query/fragment delimiters.
+	var sb strings.Builder
+	sb.Grow(len(n.publicURLBase) + 1 + len(key))
+	sb.WriteString(n.publicURLBase)
+	wroteSegment := false
+	for segment := range strings.SplitSeq(key, "/") {
+		if segment == "" {
+			continue
+		}
+		sb.WriteByte('/')
+		sb.WriteString(url.PathEscape(segment))
+		wroteSegment = true
+	}
+	if !wroteSegment {
 		return ""
 	}
-	// url.JoinPath treats its elements as already escaped, so a literal "%"
-	// in a key would be decoded (or rejected) instead of addressing the key.
-	// Escaping each segment makes the URL round-trip through
-	// ExtractKeyFromURL.
-	segments := strings.Split(key, "/")
-	for i, segment := range segments {
-		segments[i] = url.PathEscape(segment)
-	}
-	result, err := url.JoinPath(n.publicURLBase, segments...)
-	if err != nil {
-		return ""
-	}
-	return result
+	return sb.String()
 }
 
 // ExtractKeyFromURLWithMode extracts the storage key from a URL.
-// An empty uri yields "". A value without an http:// or https:// scheme is
-// treated as a key: its leading "/" is dropped and it is returned as is.
-// For a URL, the public base path is stripped and the remainder is
-// path-unescaped. When strict is true, the URL host must match the public base
-// and the path must be under that base; otherwise ErrHostVerificationFailed is
-// returned. When strict is false, any host is accepted, the base path is
-// stripped when the path starts with it, and otherwise the whole path becomes
-// the key. A key with a ".." segment fails with
-// ErrInvalidKeyPath.
+// An empty uri yields "". A value without a URL scheme and without a
+// protocol-relative "//host" prefix is treated as a key: its leading "/" is
+// dropped and it is returned as is. Protocol-relative URLs ("//host/...") and
+// non-HTTP(S) schemes (such as "ftp://..." or "file:///...") are rejected.
+// For an HTTP(S) URL, a non-empty host is required; the public base path is
+// stripped and the remainder is path-unescaped. When strict is true, the URL
+// host must match the public base and the path must be under that base;
+// otherwise ErrHostVerificationFailed is returned. When strict is false, any
+// non-empty host is accepted, the base path is stripped when the path starts
+// with it, and otherwise the whole path becomes the key. A key with a ".",
+// "..", or NUL byte fails with ErrInvalidKeyPath.
 func (n *Handler) ExtractKeyFromURLWithMode(uri string, strict bool) (string, error) {
 	if uri == "" {
 		return "", nil
 	}
+	if strings.HasPrefix(uri, "//") && strings.TrimLeft(uri, "/") != "" {
+		return "", fmt.Errorf("urlhandler: protocol-relative URL %q is not supported", uri)
+	}
 	if !hasHttpScheme(uri) {
+		if hasSchemePrefix(uri) {
+			return "", fmt.Errorf("urlhandler: unsupported URL scheme in %q", uri)
+		}
 		key := strings.TrimLeft(uri, "/")
-		// Same refusal as the full-URL branch below: a ".."-carrying key can
-		// never address an object, so persisting it only produces a dirty
-		// value that later storage calls fail on.
-		if containsDotDot(key) {
+		// Same refusal as the full-URL branch below: a ".", "..", or NUL-carrying
+		// key can never address an object, so persisting it only produces a
+		// dirty value that later storage calls fail on.
+		if strings.ContainsRune(key, '\x00') || containsRelativeSegment(key) {
 			return "", ErrInvalidKeyPath
 		}
 		return key, nil
@@ -140,38 +162,40 @@ func (n *Handler) ExtractKeyFromURLWithMode(uri string, strict bool) (string, er
 		if !sameHost(u, n.publicURL) {
 			return "", ErrHostVerificationFailed
 		}
+	} else if u.Host == "" {
+		return "", fmt.Errorf("urlhandler: URL %q has empty host", uri)
 	}
-	path := strings.TrimPrefix(u.EscapedPath(), "/")
+	escapedPath := strings.TrimLeft(u.EscapedPath(), "/")
 
 	if basePath := n.basePath; basePath != "" {
 		switch {
-		case path == basePath: // request path matches base exactly, so the key is empty
-			path = ""
-		case strings.HasPrefix(path, basePath+"/"): // request path is under base path, remove the prefix
-			path = path[len(basePath)+1:]
+		case escapedPath == basePath: // request path matches base exactly, so the key is empty
+			escapedPath = ""
+		case strings.HasPrefix(escapedPath, basePath+"/"): // request path is under base path, remove the prefix
+			escapedPath = strings.TrimLeft(escapedPath[len(basePath)+1:], "/")
 		case strict: // base path mismatch in strict mode, reject
 			return "", ErrHostVerificationFailed
 		}
 	}
 
-	key, err := url.PathUnescape(path)
+	key, err := url.PathUnescape(escapedPath)
 	if err != nil {
 		return "", err
 	}
-	if containsDotDot(key) {
-		// Drivers reject ".." segments (storage.NormalizeKey), so a key
-		// extracted here could never address an object — persisting it only
-		// produces a dirty value that later storage calls fail on.
+	key = strings.TrimLeft(key, "/")
+	if strings.ContainsRune(key, '\x00') || containsRelativeSegment(key) {
+		// Drivers reject ".", "..", and NUL (storage.NormalizeKey), so a key
+		// extracted here could never address an object.
 		return "", ErrInvalidKeyPath
 	}
 	return key, nil
 }
 
-// containsDotDot reports whether a decoded key contains a ".." path segment
-// (or its encoded alias, which PathUnescape has already folded to "..").
-func containsDotDot(key string) bool {
+// containsRelativeSegment reports whether a decoded key contains a "." or ".."
+// path segment (or its encoded alias, which PathUnescape has already folded).
+func containsRelativeSegment(key string) bool {
 	for segment := range strings.SplitSeq(key, "/") {
-		if segment == ".." {
+		if segment == "." || segment == ".." {
 			return true
 		}
 	}
@@ -198,24 +222,40 @@ func sameHost(target, base *url.URL) bool {
 	}
 
 	userPort := target.Port()
-	basePort := base.Port()
-
-	switch {
-	case basePort == "" && userPort == "":
-		return true
-	case basePort == userPort:
-		return true
-	case basePort == "":
-		return userPort == defaultPortForScheme(base.Scheme)
-	case userPort == "":
-		return basePort == defaultPortForScheme(target.Scheme)
-	default:
-		return false
+	if userPort == defaultPortForScheme(target.Scheme) {
+		userPort = ""
 	}
+	basePort := base.Port()
+	if basePort == defaultPortForScheme(base.Scheme) {
+		basePort = ""
+	}
+	return userPort == basePort
 }
 
 func hasHttpScheme(uri string) bool {
 	return hasPrefixFold(uri, "http://") || hasPrefixFold(uri, "https://")
+}
+
+func hasSchemePrefix(uri string) bool {
+	scheme, _, ok := strings.Cut(uri, "://")
+	if !ok || scheme == "" {
+		return false
+	}
+	for i := range len(scheme) {
+		c := scheme[i]
+		isAlpha := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+		if i == 0 {
+			if !isAlpha {
+				return false
+			}
+			continue
+		}
+		isRest := isAlpha || (c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.'
+		if !isRest {
+			return false
+		}
+	}
+	return true
 }
 
 func hasPrefixFold(s, prefix string) bool {

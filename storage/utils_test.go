@@ -66,11 +66,18 @@ func TestBuildUploadFileName(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildUploadFileName() error = %v", err)
 		}
+		prefixed, err := BuildUploadFileName("user/avatar.png", UploadNamingStrategyHashExt)
+		if err != nil {
+			t.Fatalf("BuildUploadFileName(prefixed) error = %v", err)
+		}
 		if name1 != "4a301072dec6b6a49050e5b294cd7983.png" {
 			t.Fatalf("hash name = %q, want %q", name1, "4a301072dec6b6a49050e5b294cd7983.png")
 		}
 		if name1 != name2 {
 			t.Fatalf("hash names should match: %q != %q", name1, name2)
+		}
+		if prefixed != name1 {
+			t.Fatalf("prefixed hash name = %q, want base hash %q", prefixed, name1)
 		}
 	})
 
@@ -170,5 +177,10 @@ func TestJoinUploadKey(t *testing.T) {
 	_, err = JoinUploadKey("prefix", "users", "a/../b.png")
 	if err == nil {
 		t.Fatal("expected error for cleaned-away dotdot in file name, got nil")
+	}
+
+	_, err = JoinUploadKey("prefix", "users", "dir/.")
+	if err == nil {
+		t.Fatal("expected error for trailing dot segment in file name, got nil")
 	}
 }
