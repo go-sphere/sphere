@@ -325,7 +325,8 @@ func TestServeCacheReverseProxy_UncacheableMissCleansUpOncePerWindow(t *testing.
 	c.storage = store
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("private"))
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write([]byte("live"))
 	}))
 	defer backend.Close()
 	backendURL, _ := url.Parse(backend.URL)
@@ -336,8 +337,7 @@ func TestServeCacheReverseProxy_UncacheableMissCleansUpOncePerWindow(t *testing.
 	handler := ServeCacheReverseProxy(c, proxy)
 
 	for range 10 {
-		req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
-		req.Header.Set("Authorization", "Bearer token")
+		req := httptest.NewRequest(http.MethodGet, "/api/live", nil)
 		rec := httptest.NewRecorder()
 		handler(rec, req)
 		if rec.Code != http.StatusOK {
@@ -489,18 +489,98 @@ func TestCommonCache_NewByteCacheClonesOptionsAndConcurrentSaveDelete(t *testing
 
 	var wg sync.WaitGroup
 	for i := range 16 {
-		wg.Add(2)
-		go func(n int) {
-			defer wg.Done()
+		n := i
+		wg.Go(func() {
 			_ = c.Save(ctx, "/race-key", http.Header{"X-N": []string{fmt.Sprint(n)}}, strings.NewReader("body"))
-		}(i)
-		go func() {
-			defer wg.Done()
+		})
+		wg.Go(func() {
 			err := c.Delete(ctx, "/race-key")
 			if err != nil && !errors.Is(err, ErrCacheNotFound) {
 				t.Errorf("Delete unexpected error: %v", err)
 			}
-		}()
+		})
 	}
 	wg.Wait()
+
+	if err := c.Save(ctx, "/once-delete", http.Header{}, strings.NewReader("body")); err != nil {
+		t.Fatalf("Save(/once-delete): %v", err)
+	}
+	var deletedCount, notFoundCount atomic.Int32
+	for range 8 {
+		wg.Go(func() {
+			err := c.Delete(ctx, "/once-delete")
+			switch {
+			case err == nil:
+				deletedCount.Add(1)
+			case errors.Is(err, ErrCacheNotFound):
+				notFoundCount.Add(1)
+			default:
+				t.Errorf("Delete(/once-delete) = %v", err)
+			}
+		})
+	}
+	wg.Wait()
+	if deletedCount.Load() != 1 || notFoundCount.Load() != 7 {
+		t.Fatalf("concurrent Delete results: deleted=%d notFound=%d, want 1 and 7", deletedCount.Load(), notFoundCount.Load())
+	}
+}
+
+type failSetByteCache struct {
+	cache.ByteCache
+	err    error
+	cancel context.CancelFunc
+}
+
+func (f *failSetByteCache) Set(_ context.Context, _ string, _ []byte) error {
+	if f.cancel != nil {
+		f.cancel()
+	}
+	return f.err
+}
+
+func (f *failSetByteCache) SetWithTTL(_ context.Context, _ string, _ []byte, _ time.Duration) error {
+	if f.cancel != nil {
+		f.cancel()
+	}
+	return f.err
+}
+
+func TestCommonCache_DeleteCorruptHeaderDeletesBodyAndSaveCleanupDetachesCtx(t *testing.T) {
+	base := setupTestCache(t)
+	ctx := t.Context()
+
+	if err := base.Save(ctx, "/corrupt-blob", http.Header{}, strings.NewReader("body")); err != nil {
+		t.Fatalf("Save(/corrupt-blob): %v", err)
+	}
+	if err := base.cache.Set(ctx, "/corrupt-blob", []byte("{not-json")); err != nil {
+		t.Fatalf("corrupt cache.Set: %v", err)
+	}
+	if err := base.Delete(ctx, "/corrupt-blob"); err != nil {
+		t.Fatalf("Delete(/corrupt-blob): %v", err)
+	}
+	exists, err := base.storage.IsFileExists(ctx, storageObjectName("/corrupt-blob"))
+	if err != nil {
+		t.Fatalf("IsFileExists: %v", err)
+	}
+	if exists {
+		t.Fatal("Delete on corrupt header blob left backing storage object behind")
+	}
+
+	saveCtx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	failingCache := NewByteCache(&failSetByteCache{
+		ByteCache: base.cache,
+		err:       errors.New("cache write failed"),
+		cancel:    cancel,
+	}, base.storage)
+	if err := failingCache.Save(saveCtx, "/save-fail", http.Header{}, strings.NewReader("orphan-payload")); err == nil {
+		t.Fatal("Save succeeded with failing ByteCache, want error")
+	}
+	exists, err = base.storage.IsFileExists(t.Context(), storageObjectName("/save-fail"))
+	if err != nil {
+		t.Fatalf("IsFileExists after failed Save: %v", err)
+	}
+	if exists {
+		t.Fatal("Save failure cleanup did not delete uploaded object when ctx canceled")
+	}
 }

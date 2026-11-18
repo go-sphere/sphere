@@ -129,7 +129,7 @@ func (o *orphanCleanups) done() {
 // for one key: Save and Delete hold it exclusively, cleanup tries exclusively.
 // refs counts holders so the map entry is dropped when the key is idle.
 type keyLock struct {
-	rw   sync.RWMutex
+	mu   sync.Mutex
 	refs int
 }
 
@@ -200,28 +200,29 @@ func (c *CommonCache) Exists(ctx context.Context, key string) (bool, error) {
 // deleting any body object left behind by an expired blob. A corrupt blob is
 // still removed; errors from both deletions are joined.
 func (c *CommonCache) Delete(ctx context.Context, key string) error {
+	l := c.acquireKeyLock(key)
+	defer c.releaseKeyLock(key, l)
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	headerRaw, found, err := c.cache.Get(ctx, key)
 	if err != nil {
 		return err
 	}
 	if !found {
-		c.deleteOrphanBody(ctx, key)
+		_ = c.storage.DeleteFile(ctx, storageObjectName(key))
 		return ErrCacheNotFound
 	}
-	l := c.acquireKeyLock(key)
-	defer c.releaseKeyLock(key, l)
-	l.rw.Lock()
-	defer l.rw.Unlock()
 	// Best-effort parse: a corrupt or degenerate header blob must still be
-	// removable through the public API — failure to recover the body key only
-	// skips the storage delete, never the cache delete.
+	// removable through the public API — fall back to the deterministic body
+	// object name when the stored pointer cannot be read so no body object is
+	// left behind.
 	var cacheFileKey string
 	header := http.Header{}
 	if jErr := json.Unmarshal(headerRaw, &header); jErr == nil {
 		cacheFileKey = header.Get(cacheFileKeyForReverseProxyBody)
 	}
 	if cacheFileKey == "" {
-		return c.cache.Del(ctx, key)
+		cacheFileKey = storageObjectName(key)
 	}
 	return errors.Join(
 		c.cache.Del(ctx, key),
@@ -244,8 +245,8 @@ func storageObjectName(cacheKey string) string {
 func (c *CommonCache) Save(ctx context.Context, key string, header http.Header, reader io.Reader) error {
 	l := c.acquireKeyLock(key)
 	defer c.releaseKeyLock(key, l)
-	l.rw.Lock()
-	defer l.rw.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	filename := storageObjectName(key)
 	cacheFileKey, err := c.storage.UploadFile(ctx, reader, filename)
 	if err != nil {
@@ -257,16 +258,22 @@ func (c *CommonCache) Save(ctx context.Context, key string, header http.Header, 
 	headerRaw, err := json.Marshal(headerCopy)
 	if err != nil {
 		// Clean up uploaded file on marshal error
-		_ = c.storage.DeleteFile(ctx, cacheFileKey)
+		c.cleanupUploadedFile(ctx, cacheFileKey)
 		return err
 	}
 	err = cache.Set(ctx, c.cache, key, headerRaw, c.setCacheOptions...)
 	if err != nil {
 		// Clean up uploaded file on cache set error
-		_ = c.storage.DeleteFile(ctx, cacheFileKey)
+		c.cleanupUploadedFile(ctx, cacheFileKey)
 		return err
 	}
 	return nil
+}
+
+func (c *CommonCache) cleanupUploadedFile(ctx context.Context, cacheFileKey string) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), orphanCleanupTimeout)
+	defer cancel()
+	_ = c.storage.DeleteFile(cleanupCtx, cacheFileKey)
 }
 
 // Load returns the stored headers (without the internal body pointer) and a
@@ -353,10 +360,10 @@ func (c *CommonCache) scheduleOrphanCleanup(ctx context.Context, key string) {
 func (c *CommonCache) deleteOrphanBody(ctx context.Context, key string) {
 	l := c.acquireKeyLock(key)
 	defer c.releaseKeyLock(key, l)
-	if !l.rw.TryLock() {
+	if !l.mu.TryLock() {
 		return
 	}
-	defer l.rw.Unlock()
+	defer l.mu.Unlock()
 	if _, found, err := c.cache.Get(ctx, key); err != nil || found {
 		return
 	}
