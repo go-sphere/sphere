@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-sphere/sphere/core/task/multierr"
@@ -50,10 +51,6 @@ func WithManagerCleanupTimeout(timeout time.Duration) ManagerOption {
 }
 
 type managedTask struct {
-	// id uniquely identifies this run of name. Tombstones record it instead of
-	// the *managedTask so a finished task's result can be refreshed by a late
-	// writer without keeping the user's Task (and whatever it references) alive.
-	id     uint64
 	name   string
 	task   Task
 	cancel context.CancelFunc
@@ -67,9 +64,8 @@ type managedTask struct {
 	stopErr  error
 }
 
-func newManagedTask(id uint64, name string, task Task, cancel context.CancelFunc) *managedTask {
+func newManagedTask(name string, task Task, cancel context.CancelFunc) *managedTask {
 	return &managedTask{
-		id:         id,
 		name:       name,
 		task:       task,
 		cancel:     cancel,
@@ -119,8 +115,7 @@ func (t *managedTask) getStopErr() error {
 type Manager struct {
 	opts managerOptions
 
-	mu     sync.RWMutex
-	nextID uint64
+	mu sync.RWMutex
 	// tasks only contains non-nil entries created by newManagedTask.
 	tasks map[string]*managedTask
 	// tombstones retains the final result of removed tasks so that a StopTask /
@@ -132,7 +127,7 @@ type Manager struct {
 	// would otherwise grow this map without bound, so it is capped at
 	// maxTombstones entries with the oldest evicted first; tombstoneOrder tracks
 	// that insertion order. An evicted name falls back to ErrTaskNotFound.
-	tombstones     map[string]taskResult
+	tombstones     map[string]error
 	tombstoneOrder []string
 
 	// running counts task goroutines that have not exited; idle is closed when
@@ -156,13 +151,6 @@ const maxTombstones = 1024
 // only reached by callers churning through failures.
 const maxRetainedErrors = 1024
 
-// taskResult is a retained result together with the id of the run that produced
-// it, so a late writer can refresh its own entry but never overwrite a newer run's.
-type taskResult struct {
-	owner uint64
-	err   error
-}
-
 // NewManager creates a new task manager with no initial tasks.
 //
 // Unless WithManagerCleanupTimeout says otherwise it applies
@@ -181,7 +169,7 @@ func NewManager(options ...ManagerOption) *Manager {
 	manager := &Manager{
 		opts:       opts,
 		tasks:      make(map[string]*managedTask),
-		tombstones: make(map[string]taskResult),
+		tombstones: make(map[string]error),
 	}
 	manager.startErr.Limit = maxRetainedErrors
 	manager.stopErr.Limit = maxRetainedErrors
@@ -220,8 +208,7 @@ func (m *Manager) StartTask(ctx context.Context, name string, task Task) error {
 		cancel()
 		return ErrTaskAlreadyExists
 	}
-	m.nextID++
-	entry := newManagedTask(m.nextID, name, task, cancel)
+	entry := newManagedTask(name, task, cancel)
 	m.dropTombstone(name)
 	m.tasks[name] = entry
 	if m.running == 0 {
@@ -314,7 +301,6 @@ func (m *Manager) StopTask(ctx context.Context, name string) error {
 		return err
 	}
 
-	m.removeTaskIfSame(name, entry)
 	return errors.Join(entry.getStartErr(), entry.getStopErr())
 }
 
@@ -334,30 +320,32 @@ func (m *Manager) StopAll(ctx context.Context) error {
 
 	tasks := m.snapshotTasks()
 
-	var stopErrs multierr.Error
-	var stopGroup sync.WaitGroup
+	var (
+		waitTimedOut atomic.Bool
+		stopGroup    sync.WaitGroup
+	)
 
-	for name, entry := range tasks {
-		stopGroup.Add(1)
-		go func(taskName string, taskEntry *managedTask) {
-			defer stopGroup.Done()
-			m.requestStop(taskEntry)
+	for _, entry := range tasks {
+		stopGroup.Go(func() {
+			m.requestStop(entry)
 
-			err := waitSignalWithContext(ctx, taskEntry.stopDoneCh)
+			err := waitSignalWithContext(ctx, entry.stopDoneCh)
 			if err == nil {
-				err = waitSignalWithContext(ctx, taskEntry.doneCh)
+				err = waitSignalWithContext(ctx, entry.doneCh)
 			}
 			if err != nil {
-				stopErrs.Add(err)
-				return
+				waitTimedOut.Store(true)
 			}
-			m.removeTaskIfSame(taskName, taskEntry)
-		}(name, entry)
+		})
 	}
 
 	stopGroup.Wait()
+	var callerErr error
+	if waitTimedOut.Load() {
+		callerErr = ctx.Err()
+	}
 	return errors.Join(
-		stopErrs.Unwrap(),
+		callerErr,
 		m.resultErr(),
 	)
 }
@@ -427,7 +415,7 @@ func (m *Manager) GetTaskResult(name string) (found bool, err error) {
 		return true, errors.Join(entry.getStartErr(), entry.getStopErr())
 	}
 	if result, ok := m.tombstones[name]; ok {
-		return true, result.err
+		return true, result
 	}
 	return false, nil
 }
@@ -466,21 +454,17 @@ func (m *Manager) removeTaskIfSame(name string, expected *managedTask) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if current, ok := m.tasks[name]; ok && current == expected {
-		delete(m.tasks, name)
-	} else if existing, ok := m.tombstones[name]; !ok || existing.owner != expected.id {
+	if current, ok := m.tasks[name]; !ok || current != expected {
 		return
 	}
+	delete(m.tasks, name)
 	m.putTombstone(name, expected)
 }
 
 // putTombstone records expected's result, evicting the oldest entry when the
 // retention cap is reached. Callers must hold m.mu.
 func (m *Manager) putTombstone(name string, expected *managedTask) {
-	result := taskResult{
-		owner: expected.id,
-		err:   errors.Join(expected.getStartErr(), expected.getStopErr()),
-	}
+	result := errors.Join(expected.getStartErr(), expected.getStopErr())
 	if _, ok := m.tombstones[name]; !ok {
 		for len(m.tombstones) >= maxTombstones && len(m.tombstoneOrder) > 0 {
 			oldest := m.tombstoneOrder[0]
@@ -498,11 +482,8 @@ func (m *Manager) dropTombstone(name string) {
 		return
 	}
 	delete(m.tombstones, name)
-	for i, candidate := range m.tombstoneOrder {
-		if candidate == name {
-			m.tombstoneOrder = slices.Delete(m.tombstoneOrder, i, i+1)
-			break
-		}
+	if idx := slices.Index(m.tombstoneOrder, name); idx >= 0 {
+		m.tombstoneOrder = slices.Delete(m.tombstoneOrder, idx, idx+1)
 	}
 }
 
@@ -510,7 +491,7 @@ func (m *Manager) getTombstone(name string) (bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	result, ok := m.tombstones[name]
-	return ok, result.err
+	return ok, result
 }
 
 func (m *Manager) requestStop(entry *managedTask) {

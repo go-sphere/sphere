@@ -17,7 +17,7 @@ func DefaultConfigParser[T any](ver string, parser func(string) (*T, error)) *T 
 	flag.Parse()
 
 	if *version {
-		versionPrinter(ver)
+		printVersion(ver)
 		os.Exit(0)
 	}
 

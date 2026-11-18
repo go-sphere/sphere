@@ -71,3 +71,24 @@ func TestExecutePanicPreservesUnwrapAndIsTaskPanic(t *testing.T) {
 		t.Fatalf("strPanic = %v", strPanic)
 	}
 }
+
+type badIDErrorTask struct {
+	err error
+}
+
+func (badIDErrorTask) Identifier() string            { panic("bad id") }
+func (t badIDErrorTask) Start(context.Context) error { return t.err }
+func (badIDErrorTask) Stop(context.Context) error    { return nil }
+
+func TestExecutePreservesErrorWhenIdentifierPanics(t *testing.T) {
+	want := errors.New("start failed")
+	err := execute(context.Background(), "fallback-name", badIDErrorTask{err: want}, func(ctx context.Context, current Task) error {
+		return current.Start(ctx)
+	})
+	if !errors.Is(err, want) {
+		t.Fatalf("error = %v, want %v", err, want)
+	}
+	if isTaskPanic(err) {
+		t.Fatalf("panicking Identifier replaced real error with taskPanicError: %v", err)
+	}
+}

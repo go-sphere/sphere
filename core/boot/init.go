@@ -3,6 +3,7 @@ package boot
 import (
 	"fmt"
 	"os"
+	"sync/atomic"
 	"time"
 )
 
@@ -11,7 +12,13 @@ import (
 // and TZ as the host configured them.
 const DefaultTimezone = "Asia/Shanghai"
 
-var versionPrinter = func(version string) {
+var versionPrinter atomic.Pointer[func(string)]
+
+func printVersion(version string) {
+	if p := versionPrinter.Load(); p != nil && *p != nil {
+		(*p)(version)
+		return
+	}
 	fmt.Println(version)
 }
 
@@ -36,5 +43,5 @@ func InitVersionPrinter(printer func(string)) {
 	if printer == nil {
 		return
 	}
-	versionPrinter = printer
+	versionPrinter.Store(&printer)
 }

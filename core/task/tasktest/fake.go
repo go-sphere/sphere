@@ -104,6 +104,13 @@ func (f *Fake) Start(ctx context.Context) error {
 		<-f.stopCh
 		return f.StartErr
 	default:
+		if f.StartErr == nil {
+			select {
+			case <-f.stopCh:
+				return nil
+			default:
+			}
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

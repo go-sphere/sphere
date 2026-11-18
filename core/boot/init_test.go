@@ -45,24 +45,22 @@ func TestInitTimezone(t *testing.T) {
 }
 
 func TestInitVersionPrinter(t *testing.T) {
-	orig := versionPrinter
-	defer func() {
-		versionPrinter = orig
-	}()
+	orig := versionPrinter.Load()
+	defer versionPrinter.Store(orig)
 
 	var printed string
 	InitVersionPrinter(func(v string) {
 		printed = v
 	})
 
-	versionPrinter("v1.2.3")
+	printVersion("v1.2.3")
 	if printed != "v1.2.3" {
 		t.Fatalf("expected 'v1.2.3', got %q", printed)
 	}
 
 	InitVersionPrinter(nil)
 	printed = ""
-	versionPrinter("v1.2.4")
+	printVersion("v1.2.4")
 	if printed != "v1.2.4" {
 		t.Fatalf("InitVersionPrinter(nil) overwrote printer, got %q", printed)
 	}

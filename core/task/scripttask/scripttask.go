@@ -53,6 +53,9 @@ func (s *ScriptTask) Identifier() string {
 // Start marks the task started, closes Started, then runs onStart or waits
 // on ctx.Done. It does not return because Stop was called.
 func (s *ScriptTask) Start(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	s.started.Store(true)
 	s.startedSig.Do(func() {
 		close(s.startedCh)

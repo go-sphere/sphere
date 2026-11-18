@@ -164,4 +164,16 @@ func TestSafeNilGuards(t *testing.T) {
 	if !called {
 		t.Fatal("non-nil callback in Recover was not called")
 	}
+
+	var secondCalled bool
+	func() {
+		defer Recover(
+			func(any) { panic("callback panic") },
+			func(any) { secondCalled = true },
+		)
+		panic("outer panic")
+	}()
+	if !secondCalled {
+		t.Fatal("panicking onError callback aborted subsequent Recover callbacks")
+	}
 }

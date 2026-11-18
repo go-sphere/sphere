@@ -122,8 +122,7 @@ func BenchmarkSyncPoolGet(b *testing.B) {
 	pool := NewSyncPool(
 		WithNew(func() *bytes.Buffer { return new(bytes.Buffer) }),
 	)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		pool.Get()
 	}
 }
@@ -136,8 +135,7 @@ func BenchmarkSyncPoolGetPut(b *testing.B) {
 			return buf
 		}),
 	)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		buf := pool.Get()
 		pool.Put(buf)
 	}

@@ -226,8 +226,7 @@ func BenchmarkChanPoolGet(b *testing.B) {
 	pool := NewChanPool(10,
 		WithNew(func() *bytes.Buffer { return new(bytes.Buffer) }),
 	)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		pool.Get()
 	}
 }
@@ -240,8 +239,7 @@ func BenchmarkChanPoolGetPut(b *testing.B) {
 			return buf
 		}),
 	)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		buf := pool.Get()
 		pool.Put(buf)
 	}

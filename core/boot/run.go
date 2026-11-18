@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"reflect"
 	"time"
 
 	"github.com/go-sphere/sphere/core/safe"
@@ -20,7 +21,9 @@ func run(ctx context.Context, t task.Task, options *options) error {
 		// clients, the logger), which a failed readiness check does not undo.
 		hookCtx, hookCancel := newShutdownContext(options.shutdownTimeout)
 		defer hookCancel()
-		if afterErr := runHooks(hookCtx, options.afterStop, "afterStop"); afterErr != nil {
+		afterErr := runHooks(hookCtx, options.afterStop, "afterStop")
+		syncLoggerBackend(options.loggerBackend)
+		if afterErr != nil {
 			return errors.Join(startErr, fmt.Errorf("after stop hooks: %w", afterErr))
 		}
 		return startErr
@@ -36,13 +39,15 @@ func run(ctx context.Context, t task.Task, options *options) error {
 		defer signal.Stop(quit)
 	}
 
+	taskID := safeTaskIdentifier(t)
+
 	// Start a task in a goroutine
 	startErr := make(chan error, 1)
 	go func() {
 		defer close(startErr)
 		defer func() {
 			if r := recover(); r != nil {
-				safe.LogRecovered(t.Identifier(), r)
+				safe.LogRecovered(taskID, r)
 				if err, ok := r.(error); ok {
 					startErr <- fmt.Errorf("task panic: %w", err)
 				} else {
@@ -98,7 +103,7 @@ func run(ctx context.Context, t task.Task, options *options) error {
 	shutdownCtx, shutdownCancel := newShutdownContext(options.shutdownTimeout)
 	defer shutdownCancel()
 
-	stopErr := t.Stop(shutdownCtx)
+	stopErr := stopTask(t, shutdownCtx, taskID)
 	if stopErr != nil {
 		errs = append(errs, fmt.Errorf("task stop: %w", stopErr))
 	}
@@ -120,6 +125,7 @@ func run(ctx context.Context, t task.Task, options *options) error {
 	if err := runHooks(afterCtx, options.afterStop, "afterStop"); err != nil {
 		errs = append(errs, fmt.Errorf("after stop hooks: %w", err))
 	}
+	syncLoggerBackend(options.loggerBackend)
 
 	// A Group whose Start already returned reports that same result from Stop.
 	// Joining it again as "task start" duplicated the tree in the process error.
@@ -128,6 +134,39 @@ func run(ctx context.Context, t task.Task, options *options) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+func safeTaskIdentifier(t task.Task) (id string) {
+	if t == nil {
+		return "task"
+	}
+	v := reflect.ValueOf(t)
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface:
+		if v.IsNil() {
+			return "task"
+		}
+	}
+	defer func() {
+		if recover() != nil || id == "" {
+			id = "task"
+		}
+	}()
+	return t.Identifier()
+}
+
+func stopTask(t task.Task, ctx context.Context, taskID string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			safe.LogRecovered(taskID, r)
+			if recErr, ok := r.(error); ok {
+				err = fmt.Errorf("task panic: %w", recErr)
+			} else {
+				err = fmt.Errorf("task panic: %v", r)
+			}
+		}
+	}()
+	return t.Stop(ctx)
 }
 
 // Run configures build-time facilities such as logging, builds an Application
@@ -154,24 +193,46 @@ func run(ctx context.Context, t task.Task, options *options) error {
 func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Option) error {
 	opts := newOptions(options...)
 	ctx := context.Background()
+	initLoggerBackend(opts.loggerBackend)
 	if err := runHooks(ctx, opts.beforeBuild, "beforeBuild"); err != nil {
 		buildErr := fmt.Errorf("before build hooks failed: %w", err)
 		return handleBuildFailure(ctx, opts, buildErr)
 	}
 
-	app, err := builder(conf)
-	if err == nil && app == nil {
-		err = errors.New("builder returned a nil application")
-	}
+	app, err := callBuilder(conf, builder)
 	if err != nil {
 		buildErr := fmt.Errorf("failed to build application: %w", err)
+		return handleBuildFailure(ctx, opts, buildErr)
+	}
+	if app == nil {
+		buildErr := fmt.Errorf("failed to build application: %w", errors.New("builder returned a nil application"))
 		return handleBuildFailure(ctx, opts, buildErr)
 	}
 	return run(ctx, app, opts)
 }
 
+func callBuilder[T any](conf *T, builder func(*T) (*Application, error)) (app *Application, err error) {
+	if builder == nil {
+		return nil, errors.New("builder is nil")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			safe.LogRecovered("builder", r)
+			if recErr, ok := r.(error); ok {
+				err = fmt.Errorf("builder panic: %w", recErr)
+			} else {
+				err = fmt.Errorf("builder panic: %v", r)
+			}
+			app = nil
+		}
+	}()
+	return builder(conf)
+}
+
 func handleBuildFailure(ctx context.Context, opts *options, buildErr error) error {
-	if cleanupErr := runHooks(ctx, opts.afterBuildFail, "afterBuildFail"); cleanupErr != nil {
+	cleanupErr := runHooks(ctx, opts.afterBuildFail, "afterBuildFail")
+	syncLoggerBackend(opts.loggerBackend)
+	if cleanupErr != nil {
 		return errors.Join(buildErr, fmt.Errorf("after build failure hooks: %w", cleanupErr))
 	}
 	return buildErr

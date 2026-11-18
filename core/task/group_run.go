@@ -26,7 +26,9 @@ import (
 //
 // Start returns the member Start and Stop errors joined with errors.Join, or
 // nil when there were none. context.Canceled results provoked by the group's
-// own teardown (Stop or parent ctx cancellation) are not counted as errors. A
+// own teardown (Stop or parent ctx cancellation) are not counted as errors;
+// a non-cancel parent context error (such as context.DeadlineExceeded) that
+// triggered teardown is included even if all members exit cleanly on Stop. A
 // nil or typed-nil member, or one whose Identifier panics, yields an error
 // before anything starts. A Group runs once: a second Start returns
 // ErrGroupAlreadyStarted while running and ErrGroupAlreadyStopped afterwards.
@@ -35,9 +37,6 @@ func (g *Group) Start(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	stages := g.waves
-	if stages == nil {
-		stages = [][]Task{g.tasks}
-	}
 	ids, err := validateTasks(stages)
 	if err != nil {
 		return err
@@ -112,19 +111,19 @@ func taskIdentifier(t Task) (id string, err error) {
 	return t.Identifier(), nil
 }
 
-func (g *Group) beginLifecycle() (chan shutdownReason, chan struct{}, error) {
+func (g *Group) beginLifecycle() (chan struct{}, chan struct{}, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	switch g.state {
 	case groupStateInit:
 		g.state = groupStateRunning
-		g.stopReqCh = make(chan shutdownReason, 1)
+		g.stopReqCh = make(chan struct{}, 1)
 		g.doneCh = make(chan struct{})
 		g.resultErr = nil
 		if g.stopPending {
 			// Stop raced ahead of this transition; honour it now.
 			g.stopPending = false
-			g.stopReqCh <- shutdownManualStop
+			g.stopReqCh <- struct{}{}
 		}
 		return g.stopReqCh, g.doneCh, nil
 	case groupStateRunning, groupStateStopping:
@@ -154,16 +153,17 @@ type groupRun struct {
 	parent    context.Context
 	runCtx    context.Context
 	runCancel context.CancelFunc
-	stopReqCh <-chan shutdownReason
+	stopReqCh <-chan struct{}
 	stages    [][]Task
 	// ids holds each member's Identifier, resolved once by validateTasks.
 	ids [][]string
 
-	startErrs multierr.Error
-	stopErrs  multierr.Error
-	stopOnce  sync.Once
-	stopDone  chan struct{}
-	stopping  bool
+	startErrs       multierr.Error
+	stopErrs        multierr.Error
+	stopOnce        sync.Once
+	stopDone        chan struct{}
+	stopping        bool
+	parentTriggered bool
 }
 
 type startResult struct {
@@ -180,11 +180,14 @@ func (r *groupRun) loop() error {
 		// the first: a Stop that arrived before Start must not start members
 		// only to tear them down. stopUpTo is stageIdx-1, and -1 means none.
 		select {
-		case reqReason := <-r.stopReqCh:
-			r.beginStop(reqReason, stageIdx-1)
+		case <-r.stopReqCh:
+			r.beginStop(stageIdx - 1)
 		case <-ctxDone:
 			ctxDone = nil
-			r.beginStop(shutdownParentCancel, stageIdx-1)
+			if !r.stopping {
+				r.parentTriggered = true
+			}
+			r.beginStop(stageIdx - 1)
 		default:
 		}
 		if r.stopping {
@@ -194,10 +197,15 @@ func (r *groupRun) loop() error {
 	}
 
 	if !r.stopping && len(r.stages) > 0 {
-		r.beginStop(shutdownNaturalComplete, len(r.stages)-1)
+		r.beginStop(len(r.stages) - 1)
 	}
 	if r.stopping {
 		<-r.stopDone
+	}
+	if r.parentTriggered {
+		if pErr := r.parent.Err(); pErr != nil && !errors.Is(pErr, context.Canceled) && !errors.Is(r.startErrs.Unwrap(), pErr) {
+			r.startErrs.Add(pErr)
+		}
 	}
 	return r.finalErr()
 }
@@ -229,11 +237,14 @@ func (r *groupRun) runStage(stageIdx int, stage []Task, ctxDone *<-chan struct{}
 	remaining := len(stage)
 	for remaining > 0 {
 		select {
-		case reqReason := <-r.stopReqCh:
-			r.beginStop(reqReason, stageIdx)
+		case <-r.stopReqCh:
+			r.beginStop(stageIdx)
 		case <-*ctxDone:
 			*ctxDone = nil
-			r.beginStop(shutdownParentCancel, stageIdx)
+			if !r.stopping {
+				r.parentTriggered = true
+			}
+			r.beginStop(stageIdx)
 		case <-startDeadline:
 			startDeadline = nil
 			if r.stopping {
@@ -250,7 +261,7 @@ func (r *groupRun) runStage(stageIdx int, stage []Task, ctxDone *<-chan struct{}
 			}
 			sort.Strings(stuck)
 			r.startErrs.Add(fmt.Errorf("%w: stage %d still starting: %s", ErrStartTimeout, stageIdx, strings.Join(stuck, ", ")))
-			r.beginStop(shutdownTaskFailure, stageIdx)
+			r.beginStop(stageIdx)
 		case result := <-startResults:
 			remaining--
 			finished[result.idx] = true
@@ -264,7 +275,7 @@ func (r *groupRun) runStage(stageIdx int, stage []Task, ctxDone *<-chan struct{}
 				continue
 			}
 			r.startErrs.Add(result.err)
-			r.beginStop(shutdownTaskFailure, stageIdx)
+			r.beginStop(stageIdx)
 		}
 	}
 	if startTimer != nil {
@@ -272,7 +283,7 @@ func (r *groupRun) runStage(stageIdx int, stage []Task, ctxDone *<-chan struct{}
 	}
 }
 
-func (r *groupRun) beginStop(stopReason shutdownReason, stopUpTo int) {
+func (r *groupRun) beginStop(stopUpTo int) {
 	r.stopOnce.Do(func() {
 		r.stopping = true
 
@@ -284,13 +295,11 @@ func (r *groupRun) beginStop(stopReason shutdownReason, stopUpTo int) {
 
 		go func() {
 			outer := context.Background()
-			if stopReason == shutdownManualStop {
-				r.g.mu.Lock()
-				if r.g.stopCleanupCtx != nil {
-					outer = r.g.stopCleanupCtx
-				}
-				r.g.mu.Unlock()
+			r.g.mu.Lock()
+			if r.g.stopCleanupCtx != nil {
+				outer = r.g.stopCleanupCtx
 			}
+			r.g.mu.Unlock()
 			stopCtx, stopCancel := r.g.cleanupContext(outer)
 			defer stopCancel()
 			r.g.stopTasks(stopCtx, r.stages, r.ids, &r.stopErrs, stopUpTo)

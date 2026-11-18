@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -523,6 +524,33 @@ func TestManagerEdgeCases(t *testing.T) {
 		err := manager.StopTask(context.Background(), "panic-cancel")
 		if !isTaskPanic(err) || !errors.Is(err, context.Canceled) {
 			t.Fatalf("StopTask err = %v, want taskPanicError wrapping context.Canceled", err)
+		}
+	})
+
+	t.Run("StopAll reports caller deadline once across multiple tasks", func(t *testing.T) {
+		m := NewManager()
+		blocked := make(chan struct{})
+		defer close(blocked)
+		for _, name := range []string{"t1", "t2", "t3"} {
+			if err := m.StartTask(context.Background(), name, NewFunc(name, func(ctx context.Context) error {
+				<-ctx.Done()
+				return nil
+			}, func(context.Context) error {
+				<-blocked
+				return nil
+			})); err != nil {
+				t.Fatalf("StartTask(%s): %v", name, err)
+			}
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+		err := m.StopAll(ctx)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("StopAll error = %v, want DeadlineExceeded", err)
+		}
+		if n := strings.Count(err.Error(), context.DeadlineExceeded.Error()); n != 1 {
+			t.Fatalf("StopAll duplicated DeadlineExceeded %d times: %v", n, err)
 		}
 	})
 }

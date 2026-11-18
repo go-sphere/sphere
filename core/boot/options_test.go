@@ -153,3 +153,89 @@ func TestNilOptionIsIgnored(t *testing.T) {
 		t.Fatalf("runHooks with nil hook = %v, want nil", err)
 	}
 }
+
+func TestWithLoggerBackendSyncsAfterLaterAfterStopHooks(t *testing.T) {
+	originalBackend := log.With().Backend()
+	backend := &syncTrackingBackend{}
+	t.Cleanup(func() { log.InitWithBackends(originalBackend) })
+
+	var syncedDuringAfterStop bool
+	err := Run(new(struct{}), func(*struct{}) (*Application, error) {
+		return NewApplication(), nil
+	}, WithLoggerBackend(backend), WithShutdownSignals(), AddAfterStop(func(context.Context) error {
+		syncedDuringAfterStop = backend.synced.Load()
+		return nil
+	}))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if syncedDuringAfterStop {
+		t.Fatal("logger backend synced before user AddAfterStop hook ran")
+	}
+	if !backend.synced.Load() {
+		t.Fatal("logger backend was not synced after shutdown")
+	}
+}
+
+func TestWithLoggerBackendIgnoresNil(t *testing.T) {
+	originalBackend := log.With().Backend()
+	sentinel := &syncTrackingBackend{}
+	log.InitWithBackends(sentinel)
+	t.Cleanup(func() { log.InitWithBackends(originalBackend) })
+
+	var typedNil *syncTrackingBackend
+	err := Run(new(struct{}), func(*struct{}) (*Application, error) {
+		if log.With().Backend() != sentinel {
+			t.Fatal("nil logger backend replaced global backend")
+		}
+		return NewApplication(), nil
+	}, WithLoggerBackend(nil), WithLoggerBackend(typedNil), WithShutdownSignals())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+}
+
+func TestRunHandlesNilAndPanickingBuilderAndStopPanic(t *testing.T) {
+	t.Run("nil builder", func(t *testing.T) {
+		err := Run[struct{}](new(struct{}), nil, WithShutdownSignals())
+		if err == nil || !strings.Contains(err.Error(), "builder is nil") {
+			t.Fatalf("Run error = %v, want builder is nil", err)
+		}
+	})
+
+	t.Run("panicking builder runs afterBuildFail", func(t *testing.T) {
+		originalBackend := log.With().Backend()
+		backend := &syncTrackingBackend{}
+		t.Cleanup(func() { log.InitWithBackends(originalBackend) })
+
+		panicErr := errors.New("builder boom")
+		err := Run(new(struct{}), func(*struct{}) (*Application, error) {
+			panic(panicErr)
+		}, WithLoggerBackend(backend))
+		if !errors.Is(err, panicErr) {
+			t.Fatalf("Run error = %v, want %v", err, panicErr)
+		}
+		if !backend.synced.Load() {
+			t.Fatal("logger backend was not synced after builder panic")
+		}
+	})
+
+	t.Run("panicking Stop still runs afterStop", func(t *testing.T) {
+		panicErr := errors.New("stop boom")
+		var afterStopRan atomic.Bool
+		err := run(context.Background(), &mockTask{
+			identifier: "panic-stop",
+			startFunc:  func(context.Context) error { return nil },
+			stopFunc:   func(context.Context) error { panic(panicErr) },
+		}, newOptions(WithShutdownTimeout(time.Second), AddAfterStop(func(context.Context) error {
+			afterStopRan.Store(true)
+			return nil
+		})))
+		if !errors.Is(err, panicErr) {
+			t.Fatalf("run error = %v, want %v", err, panicErr)
+		}
+		if !afterStopRan.Load() {
+			t.Fatal("afterStop hook did not run after Stop panic")
+		}
+	})
+}

@@ -59,9 +59,13 @@ func execute(ctx context.Context, name string, task Task, run func(ctx context.C
 }
 
 func logTaskError(task Task, name string, err error) {
+	id, idErr := taskIdentifier(task)
+	if idErr != nil || id == "" {
+		id = name
+	}
 	log.Error(
 		fmt.Sprintf("%s error", name),
-		log.String("task", task.Identifier()),
+		log.String("task", id),
 		log.Err(err),
 	)
 }

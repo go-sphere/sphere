@@ -135,3 +135,8 @@ func TestConcurrentInitAndIfErrorPresent(t *testing.T) {
 		t.Fatalf("handled errors = %d, want %d", got, want)
 	}
 }
+
+func TestIfErrorPresentNilFnIgnored(t *testing.T) {
+	IfErrorPresent(nil)
+	IfErrorXPresent[int](nil)
+}

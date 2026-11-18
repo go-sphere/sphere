@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"reflect"
 	"slices"
 	"syscall"
 	"time"
@@ -25,6 +26,7 @@ type Hook = func(context.Context) error
 
 type options struct {
 	shutdownTimeout time.Duration
+	loggerBackend   log.Backend
 	beforeBuild     []Hook
 	afterBuildFail  []Hook
 	beforeStart     []Hook
@@ -135,20 +137,43 @@ func AddAfterStop(f Hook) Option {
 // The global logger stays installed after Run returns.
 func WithLoggerBackend(backend log.Backend) Option {
 	return func(o *options) {
-		o.beforeBuild = append(o.beforeBuild, func(context.Context) error {
-			log.InitWithBackends(backend)
-			if sb, ok := backend.(log.SlogBackend); ok {
-				slog.SetDefault(sb.SlogLogger())
-			}
-			return nil
-		})
-		syncHook := func(context.Context) error {
-			_ = log.Sync()
-			return nil
+		if isNilBackend(backend) {
+			return
 		}
-		o.afterBuildFail = append(o.afterBuildFail, syncHook)
-		o.afterStop = append(o.afterStop, syncHook)
+		o.loggerBackend = backend
 	}
+}
+
+func isNilBackend(backend log.Backend) bool {
+	if backend == nil {
+		return true
+	}
+	v := reflect.ValueOf(backend)
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
+func initLoggerBackend(backend log.Backend) {
+	if isNilBackend(backend) {
+		return
+	}
+	log.InitWithBackends(backend)
+	if sb, ok := backend.(log.SlogBackend); ok {
+		if sl := sb.SlogLogger(); sl != nil {
+			slog.SetDefault(sl)
+		}
+	}
+}
+
+func syncLoggerBackend(backend log.Backend) {
+	if isNilBackend(backend) {
+		return
+	}
+	_ = log.Sync()
 }
 
 func runHooks(ctx context.Context, hooks []Hook, hookType string) error {

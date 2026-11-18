@@ -110,12 +110,8 @@ func (cp *ChanPool[T]) GetContext(ctx context.Context) (T, bool) {
 		return zero, false
 	}
 	select {
-	case obj, ok := <-cp.ch:
+	case obj := <-cp.ch:
 		cp.mu.RUnlock()
-		if !ok {
-			var zero T
-			return zero, false
-		}
 		return obj, true
 	default:
 	}

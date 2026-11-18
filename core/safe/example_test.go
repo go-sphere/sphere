@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/go-sphere/sphere/core/safe"
+	"github.com/go-sphere/sphere/log"
 )
 
 // A panic inside Run is logged and swallowed; the caller continues.
@@ -44,6 +45,9 @@ func ExampleRecover() {
 // with InitErrorHandler. The handler is process-wide; install it once at
 // startup.
 func ExampleIfErrorPresent() {
+	defer safe.InitErrorHandler(func(err error) {
+		log.Error("safe: deferred error", log.Err(err))
+	})
 	safe.InitErrorHandler(func(err error) {
 		fmt.Println("cleanup failed:", err)
 	})

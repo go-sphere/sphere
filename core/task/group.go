@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -32,28 +33,12 @@ const (
 	groupStateStopped
 )
 
-type shutdownReason uint8
-
-const (
-	shutdownNone shutdownReason = iota
-	shutdownTaskFailure
-	shutdownManualStop
-	shutdownParentCancel
-	// shutdownNaturalComplete is used when every launched Start returned on
-	// its own. Stop still runs: it is the cleanup half of the lifecycle, not
-	// only an interrupt for tasks that were still blocking in Start.
-	shutdownNaturalComplete
-)
-
 // GroupOption customizes group runtime behavior.
 type GroupOption func(*groupOptions)
 
 type groupOptions struct {
 	cleanupTimeout time.Duration
-	// cleanupTimeoutSet distinguishes "left at the default" from an explicit
-	// non-positive value, which is how a caller asks for an unbounded cleanup.
-	cleanupTimeoutSet bool
-	startTimeout      time.Duration
+	startTimeout   time.Duration
 }
 
 // defaultCleanupTimeout bounds the ctx handed to each task's Stop when the
@@ -84,7 +69,6 @@ const fallbackCleanupBudget = 2 * time.Second
 func WithCleanupTimeout(timeout time.Duration) GroupOption {
 	return func(o *groupOptions) {
 		o.cleanupTimeout = timeout
-		o.cleanupTimeoutSet = true
 	}
 }
 
@@ -116,18 +100,16 @@ func WithStartTimeout(timeout time.Duration) GroupOption {
 //
 // See the package comment for the one-shot and HTTP-process recipes.
 type Group struct {
-	tasks []Task
-	// waves defines the staged lifecycle order. When nil, all tasks form one
-	// stage that starts and stops concurrently. When set, stages start in order
-	// (each stage fully started before the next begins) and stop in reverse
-	// order (last stage first), each stage draining fully before the previous
-	// begins.
+	// waves defines the staged lifecycle order. Tasks within a stage start and
+	// stop concurrently; stages start in order (each stage fully started before
+	// the next begins) and stop in reverse order (last stage first), each stage
+	// draining fully before the previous begins.
 	waves [][]Task
 	opts  groupOptions
 
 	mu        sync.Mutex
 	state     groupState
-	stopReqCh chan shutdownReason
+	stopReqCh chan struct{}
 	doneCh    chan struct{}
 	resultErr error
 	// stopPending records a Stop that arrived before Start completed its state
@@ -149,8 +131,7 @@ func NewGroup(tasks ...Task) *Group {
 
 // NewGroupWithOptions creates a task group with explicit options.
 func NewGroupWithOptions(tasks []Task, options ...GroupOption) *Group {
-	copied := append([]Task(nil), tasks...)
-	opts := groupOptions{}
+	opts := groupOptions{cleanupTimeout: defaultCleanupTimeout}
 	for _, option := range options {
 		if option == nil {
 			continue
@@ -158,7 +139,7 @@ func NewGroupWithOptions(tasks []Task, options ...GroupOption) *Group {
 		option(&opts)
 	}
 	return &Group{
-		tasks: copied,
+		waves: [][]Task{slices.Clone(tasks)},
 		opts:  opts,
 		state: groupStateInit,
 	}
@@ -188,7 +169,7 @@ func NewStagedGroup(waves ...[]Task) *Group {
 // NewStagedGroupWithOptions creates a staged task group with explicit options.
 // See NewStagedGroup for the staged lifecycle semantics.
 func NewStagedGroupWithOptions(waves [][]Task, options ...GroupOption) *Group {
-	opts := groupOptions{}
+	opts := groupOptions{cleanupTimeout: defaultCleanupTimeout}
 	for _, option := range options {
 		if option == nil {
 			continue
@@ -197,15 +178,11 @@ func NewStagedGroupWithOptions(waves [][]Task, options ...GroupOption) *Group {
 	}
 
 	copiedWaves := make([][]Task, 0, len(waves))
-	var flat []Task
 	for _, wave := range waves {
-		copied := append([]Task(nil), wave...)
-		copiedWaves = append(copiedWaves, copied)
-		flat = append(flat, copied...)
+		copiedWaves = append(copiedWaves, slices.Clone(wave))
 	}
 
 	return &Group{
-		tasks: flat,
 		waves: copiedWaves,
 		opts:  opts,
 		state: groupStateInit,
@@ -253,7 +230,7 @@ func (g *Group) Stop(ctx context.Context) error {
 		// beginLifecycle and cleared in finishLifecycle, each under the same
 		// mutex this state was read under.
 		select {
-		case stopReqCh <- shutdownManualStop:
+		case stopReqCh <- struct{}{}:
 		default:
 		}
 		return g.waitForDone(ctx, doneCh)
@@ -322,43 +299,31 @@ func (g *Group) stopTasks(ctx context.Context, waves [][]Task, ids [][]string, s
 		inMu.Unlock()
 	}
 
-	finished := make(chan struct{})
-	reporterDone := make(chan struct{})
-	hasReporter := false
-	// The reporter is joined, not just signalled: it appends to stopErrs, and a
-	// report that landed after the caller read the collector would be silently
-	// dropped whenever the deadline fires while the last member Stop is
-	// returning.
-	defer func() {
-		close(finished)
-		if hasReporter {
-			<-reporterDone
+	var reportMu sync.Mutex
+	reported := false
+	// Wait under reportMu on exit so an AfterFunc firing right as the last task
+	// finishes either observes reported=true or completes before stopTasks returns.
+	stopReport := context.AfterFunc(ctx, func() {
+		reportMu.Lock()
+		defer reportMu.Unlock()
+		if reported || !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return
 		}
+		reported = true
+		inMu.Lock()
+		names := slices.Sorted(maps.Keys(inFlight))
+		inMu.Unlock()
+		if len(names) == 0 {
+			return
+		}
+		stopErrs.Add(fmt.Errorf("cleanup timed out, still stopping: %s", strings.Join(names, ", ")))
+	})
+	defer func() {
+		stopReport()
+		reportMu.Lock()
+		reported = true
+		reportMu.Unlock()
 	}()
-	if _, hasDeadline := ctx.Deadline(); hasDeadline {
-		hasReporter = true
-		go func() {
-			defer close(reporterDone)
-			select {
-			case <-ctx.Done():
-				if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
-					return
-				}
-				inMu.Lock()
-				var names []string
-				for id := range inFlight {
-					names = append(names, id)
-				}
-				inMu.Unlock()
-				if len(names) == 0 {
-					return
-				}
-				sort.Strings(names)
-				stopErrs.Add(fmt.Errorf("cleanup timed out, still stopping: %s", strings.Join(names, ", ")))
-			case <-finished:
-			}
-		}()
-	}
 
 	_, hadBudget := ctx.Deadline()
 	stopWave := func(waveIdx int, wave []Task, waveIDs []string) {
@@ -406,11 +371,7 @@ func (g *Group) stopTasks(ctx context.Context, waves [][]Task, ids [][]string, s
 }
 
 func (g *Group) cleanupTimeout() time.Duration {
-	timeout := g.opts.cleanupTimeout
-	if !g.opts.cleanupTimeoutSet {
-		timeout = defaultCleanupTimeout
-	}
-	return timeout
+	return g.opts.cleanupTimeout
 }
 
 func (g *Group) cleanupContext(outer context.Context) (context.Context, context.CancelFunc) {

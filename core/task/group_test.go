@@ -1008,3 +1008,54 @@ func TestGroupDoesNotSwallowPanicContextCanceledDuringTeardown(t *testing.T) {
 		t.Fatalf("err = %v, want taskPanicError wrapping context.Canceled", err)
 	}
 }
+
+func TestGroupStartParentDeadlineExceededWithServerTasks(t *testing.T) {
+	newStopDrivenServer := func() (Task, *atomic.Bool, <-chan struct{}) {
+		stopCh := make(chan struct{})
+		var stopOnce sync.Once
+		var stopped atomic.Bool
+		started := make(chan struct{})
+		t := scripttask.NewScriptTask("srv",
+			func(context.Context) error {
+				close(started)
+				<-stopCh
+				return nil
+			},
+			func(context.Context) error {
+				stopped.Store(true)
+				stopOnce.Do(func() { close(stopCh) })
+				return nil
+			},
+		)
+		return t, &stopped, started
+	}
+
+	t.Run("parent timeout returns DeadlineExceeded even for stop-driven server tasks", func(t *testing.T) {
+		srv, stopped, _ := newStopDrivenServer()
+		g := NewGroup(srv)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+		defer cancel()
+		err := g.Start(ctx)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Start error = %v, want context.DeadlineExceeded", err)
+		}
+		if !stopped.Load() {
+			t.Fatal("expected server task to be stopped on parent timeout")
+		}
+	})
+
+	t.Run("parent cancel still returns nil for stop-driven server tasks", func(t *testing.T) {
+		srv, _, started := newStopDrivenServer()
+		g := NewGroup(srv)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- g.Start(ctx) }()
+		waitSignal(t, started, "srv started")
+		cancel()
+		if err := waitError(t, done, "group start after cancel"); err != nil {
+			t.Fatalf("Start after cancel = %v, want nil", err)
+		}
+	})
+}

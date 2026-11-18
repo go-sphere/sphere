@@ -28,7 +28,14 @@ func Recover(onError ...func(err any)) {
 		LogRecovered("safe", r)
 		for _, fn := range onError {
 			if fn != nil {
-				fn(r)
+				func() {
+					defer func() {
+						if rec := recover(); rec != nil {
+							LogRecovered("onError", rec)
+						}
+					}()
+					fn(r)
+				}()
 			}
 		}
 	}
