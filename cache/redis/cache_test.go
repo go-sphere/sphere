@@ -4,9 +4,10 @@ import (
 	"context"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-sphere/sphere/test/redistest"
+	"github.com/go-sphere/sphere/internal/redistest"
 	redisv9 "github.com/redis/go-redis/v9"
 )
 
@@ -95,14 +96,15 @@ func TestKeysGlobEscaping(t *testing.T) {
 
 func TestEscapeGlob(t *testing.T) {
 	cases := map[string]string{
-		"":         "",
-		"plain":    "plain",
-		"a*b":      `a\*b`,
-		"a?b":      `a\?b`,
-		"a[bc]":    `a\[bc\]`,
-		`a\b`:      `a\\b`,
-		"users:":   "users:",
-		"weird*ns": `weird\*ns`,
+		"":            "",
+		"plain":       "plain",
+		"a*b":         `a\*b`,
+		"a?b":         `a\?b`,
+		"a[bc]":       `a\[bc\]`,
+		`a\b`:         `a\\b`,
+		"users:":      "users:",
+		"weird*ns":    `weird\*ns`,
+		"\xff*a?\xfe": "\xff\\*a\\?\xfe",
 	}
 	for in, want := range cases {
 		if got := escapeGlob(in); got != want {
@@ -137,5 +139,20 @@ func TestDelAllOnlyFlushesSelectedDatabase(t *testing.T) {
 	}
 	if got, err := db1.Get(ctx, "shared-key").Result(); err != nil || got != "must-survive" {
 		t.Fatalf("DB 1 key was modified: value=%q err=%v", got, err)
+	}
+}
+
+func TestSubMillisecondTTLRoundsUpToOneMillisecond(t *testing.T) {
+	ctx := t.Context()
+	mini := miniredis.RunT(t)
+	client := redisv9.NewClient(&redisv9.Options{Addr: mini.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+
+	c := NewByteCache(client)
+	if err := c.SetWithTTL(ctx, "subms", []byte("v"), 500*time.Microsecond); err != nil {
+		t.Fatalf("SetWithTTL(500us): %v", err)
+	}
+	if ttl := mini.TTL("subms"); ttl != time.Millisecond {
+		t.Fatalf("miniredis TTL = %v, want 1ms (must not round down to permanent or expired)", ttl)
 	}
 }

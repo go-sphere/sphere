@@ -688,3 +688,128 @@ func TestLoaderSkipsNilOptionsAndPanicsOnSingleflightTypeMismatch(t *testing.T) 
 		}
 	})
 }
+
+func TestLoaderExpirationOverridesDynamicTTL(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	calcCalls := 0
+	calc := func(int) (bool, time.Duration) {
+		calcCalls++
+		return true, 5 * time.Minute
+	}
+
+	c := newRecordingCache[int]()
+	if err := cache.Set(ctx, c, "k-exp", 1, cache.WithDynamicTTL(calc), cache.WithExpiration(10*time.Second)); err != nil {
+		t.Fatalf("Set with Expiration after DynamicTTL: %v", err)
+	}
+	if set, setTTL, ttl := c.writes(); set != 0 || setTTL != 1 || ttl != 10*time.Second {
+		t.Fatalf("writes = (%d, %d, %s), want (0, 1, 10s)", set, setTTL, ttl)
+	}
+	if err := cache.Set(ctx, c, "k-never", 2, cache.WithDynamicTTL(calc), cache.WithNeverExpire()); err != nil {
+		t.Fatalf("Set with NeverExpire after DynamicTTL: %v", err)
+	}
+	if set, setTTL, _ := c.writes(); set != 1 || setTTL != 1 {
+		t.Fatalf("writes after NeverExpire = (%d, %d), want (1, 1)", set, setTTL)
+	}
+	if calcCalls != 0 {
+		t.Fatalf("dynamic TTL calculator called %d times, want 0", calcCalls)
+	}
+}
+
+func TestGetExSingleflightClonesBytesAndChecksCanceledCtx(t *testing.T) {
+	t.Parallel()
+
+	t.Run("pre-canceled ctx skips builder", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		c := mcache.NewByteCache()
+		defer func() { _ = c.Close() }()
+
+		called := false
+		val, found, err := cache.GetEx(ctx, c, "k-cancel", func() ([]byte, error) {
+			called = true
+			return []byte("value"), nil
+		}, cache.WithSingleflight(&singleflight.Group{}))
+		if !errors.Is(err, context.Canceled) || found || val != nil {
+			t.Fatalf("GetEx(canceled) = (%q, %v, %v), want (nil, false, context.Canceled)", val, found, err)
+		}
+		if called {
+			t.Fatal("builder invoked for pre-canceled ctx")
+		}
+	})
+
+	t.Run("bytes returned to singleflight callers are isolated", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
+			c := mcache.NewByteCache()
+			defer func() { _ = c.Close() }()
+
+			group := &singleflight.Group{}
+			gate := make(chan struct{})
+			builder := func() ([]byte, error) {
+				<-gate
+				return []byte("shared-bytes"), nil
+			}
+
+			const n = 4
+			results := make([][]byte, n)
+			var wg sync.WaitGroup
+			for i := range n {
+				wg.Go(func() {
+					v, found, err := cache.GetEx(ctx, c, "k-bytes", builder, cache.WithSingleflight(group))
+					if err != nil || !found {
+						t.Errorf("GetEx[%d] = (%v, %v), want found nil err", i, found, err)
+						return
+					}
+					results[i] = v
+				})
+			}
+			synctest.Wait()
+			close(gate)
+			wg.Wait()
+
+			results[0][0] = 'X'
+			for i := 1; i < n; i++ {
+				if string(results[i]) != "shared-bytes" {
+					t.Fatalf("caller %d saw mutated slice %q", i, results[i])
+				}
+			}
+		})
+	})
+}
+
+func TestSetObjectValidatesTTLBeforeMarshaling(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	c := mcache.NewByteCache()
+	defer func() { _ = c.Close() }()
+
+	marshalCalls := 0
+	enc := codec.EncoderFunc(func(v any) ([]byte, error) {
+		marshalCalls++
+		return json.Marshal(v)
+	})
+
+	if err := cache.SetObject[int](ctx, c, enc, "bad-ttl", 42, cache.WithExpiration(-time.Second)); !errors.Is(err, cache.ErrInvalidTTL) {
+		t.Fatalf("SetObject(-1s) = %v, want ErrInvalidTTL", err)
+	}
+	if err := cache.SetObject[int](ctx, c, enc, "bad-calc", 42, cache.WithDynamicTTL(func(string) (bool, time.Duration) {
+		return true, time.Minute
+	})); !errors.Is(err, cache.ErrTTLCalculatorType) {
+		t.Fatalf("SetObject(wrong calc) = %v, want ErrTTLCalculatorType", err)
+	}
+	if marshalCalls != 0 {
+		t.Fatalf("encoder Marshal called %d times on invalid TTL options, want 0", marshalCalls)
+	}
+	if err := cache.SetObject[int](ctx, c, nil, "nil-enc", 42); err == nil {
+		t.Fatal("SetObject(nil encoder) succeeded, want error")
+	}
+	if _, _, err := cache.GetObject[int](ctx, c, nil, "nil-dec"); err == nil {
+		t.Fatal("GetObject(nil decoder) succeeded, want error")
+	}
+}

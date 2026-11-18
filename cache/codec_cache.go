@@ -95,6 +95,9 @@ func (m *CodecCache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T
 }
 
 func (m *CodecCache[T]) marshalMap(valMap map[string]T) (map[string][]byte, error) {
+	if len(valMap) == 0 {
+		return nil, nil
+	}
 	rawMap := make(map[string][]byte, len(valMap))
 	for k, v := range valMap {
 		raw, err := m.codec.Marshal(v)
@@ -162,7 +165,7 @@ func (m *CodecCache[T]) MultiGet(ctx context.Context, keys []string) (map[string
 			// key space) instead of failing the whole batch. It is not deleted:
 			// another caller may have repaired the key since the snapshot, and
 			// single-key Get leaves such entries in place too.
-			log.Warn("cache: skipping undecodable entry",
+			log.WarnContext(ctx, "cache: skipping undecodable entry",
 				log.String("key", key),
 				log.Err(err),
 			)

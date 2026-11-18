@@ -17,7 +17,7 @@ import (
 	"github.com/go-sphere/sphere/cache/nocache"
 	"github.com/go-sphere/sphere/cache/nscache"
 	"github.com/go-sphere/sphere/cache/redis"
-	"github.com/go-sphere/sphere/test/redistest"
+	"github.com/go-sphere/sphere/internal/redistest"
 )
 
 type byteCacheFactory struct {

@@ -212,11 +212,7 @@ func (m *Cache[T]) MultiSet(ctx context.Context, valMap map[string]T) error {
 		return nil
 	}
 	var shardBuf [numGetDelShards]int
-	keys := make([]string, 0, len(valMap))
-	for key := range valMap {
-		keys = append(keys, key)
-	}
-	shards := m.lockMutationShards(keys, &shardBuf)
+	shards := lockMapMutationShards(m.mutationShards[:], valMap, &shardBuf)
 	defer m.unlockMutationShards(shards)
 	for k, v := range valMap {
 		var cost int64 = 1
@@ -244,11 +240,7 @@ func (m *Cache[T]) MultiSetWithTTL(ctx context.Context, valMap map[string]T, exp
 		return nil
 	}
 	var shardBuf [numGetDelShards]int
-	keys := make([]string, 0, len(valMap))
-	for key := range valMap {
-		keys = append(keys, key)
-	}
-	shards := m.lockMutationShards(keys, &shardBuf)
+	shards := lockMapMutationShards(m.mutationShards[:], valMap, &shardBuf)
 	defer m.unlockMutationShards(shards)
 	for k, v := range valMap {
 		var cost int64 = 1
@@ -327,6 +319,25 @@ func (m *Cache[T]) lockMutationShards(keys []string, buf *[numGetDelShards]int) 
 	return shards
 }
 
+func lockMapMutationShards[V any](mutationShards []sync.Mutex, valMap map[string]V, buf *[numGetDelShards]int) []int {
+	seen := [numGetDelShards]bool{}
+	n := 0
+	for key := range valMap {
+		shard := int(fnv32(key) % numGetDelShards)
+		if !seen[shard] {
+			seen[shard] = true
+			buf[n] = shard
+			n++
+		}
+	}
+	shards := buf[:n]
+	slices.Sort(shards)
+	for _, shard := range shards {
+		mutationShards[shard].Lock()
+	}
+	return shards
+}
+
 func (m *Cache[T]) unlockMutationShards(shards []int) {
 	for _, shard := range slices.Backward(shards) {
 		m.mutationShards[shard].Unlock()
@@ -342,7 +353,7 @@ func (m *Cache[T]) MultiGet(ctx context.Context, keys []string) (map[string]T, e
 	if len(keys) == 0 {
 		return make(map[string]T), nil
 	}
-	result := make(map[string]T)
+	result := make(map[string]T, len(keys))
 	for _, key := range keys {
 		val, found := m.cache.Get(key)
 		if found {
@@ -462,6 +473,9 @@ func NewByteCache() *ByteCache {
 // Only []byte is copied. Other value types are stored as-is, and the Core
 // documentation states that contract.
 func cloneValue[T any](val T) T {
+	if _, ok := any((*T)(nil)).(*[]byte); !ok {
+		return val
+	}
 	raw, ok := any(val).([]byte)
 	if !ok || raw == nil {
 		return val

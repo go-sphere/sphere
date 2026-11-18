@@ -23,8 +23,9 @@
 // DelAll enumerates keys and deletes them in batches; it does not call DropAll
 // (unsafe against concurrent reads). The scan+delete is not atomic. GetDel
 // retries badger.ErrConflict until success, miss, or ctx.Err(). Keys and
-// GetDel honour ctx; most other methods ignore it. TTLs are rounded up to whole
-// seconds. The empty key "" is rejected with badger.ErrEmptyKey. MultiSet,
+// TTLs are rounded up to whole seconds. The empty key "", keys prefixed with
+// "!badger!", and keys longer than BadgerDB's key-size limit (65000 bytes) are
+// rejected (badger.ErrEmptyKey / badger.ErrInvalidKey). MultiSet,
 // MultiSetWithTTL and MultiDel commit a batch in one transaction unless it
 // exceeds badger's transaction size limit, in which case they commit it in
 // several. NewDatabase and NewDatabaseWithOptions own the DB;

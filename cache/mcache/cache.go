@@ -128,11 +128,23 @@ func (t *Map[K, S]) Get(ctx context.Context, key K) (S, bool, error) {
 	t.rw.RUnlock()
 
 	if expired {
-		t.deleteExpired([]K{key})
+		t.deleteExpiredKey(key)
 		var zeroValue S
 		return zeroValue, false, nil
 	}
 	return val, ok, nil
+}
+
+// deleteExpiredKey deletes key if it is still past its TTL once the write lock
+// is held. A key refreshed by a write since the caller's read is kept.
+func (t *Map[K, S]) deleteExpiredKey(key K) {
+	t.rw.Lock()
+	defer t.rw.Unlock()
+
+	if exp, ok := t.expiration[key]; ok && time.Now().After(exp) {
+		delete(t.store, key)
+		delete(t.expiration, key)
+	}
 }
 
 // deleteExpired deletes each key that is still past its TTL once the write
@@ -234,7 +246,11 @@ func (t *Map[K, S]) Keys(ctx context.Context, prefix string) ([]string, error) {
 	t.rw.RLock()
 	defer t.rw.RUnlock()
 	now := time.Now()
-	keys := make([]string, 0, len(t.store))
+	initCap := 0
+	if prefix == "" {
+		initCap = len(t.store)
+	}
+	keys := make([]string, 0, initCap)
 	for k := range t.store {
 		if exp, ok := t.expiration[k]; ok && now.After(exp) {
 			continue
@@ -292,7 +308,7 @@ func (t *Map[K, S]) Exists(ctx context.Context, key K) (bool, error) {
 	t.rw.RUnlock()
 
 	if expired {
-		t.deleteExpired([]K{key})
+		t.deleteExpiredKey(key)
 		return false, nil
 	}
 	return ok, nil
@@ -317,6 +333,9 @@ func (t *Map[K, S]) Close() error {
 // Only []byte is copied. Other value types are stored as-is, and the Core
 // documentation states that contract.
 func cloneValue[S any](val S) S {
+	if _, ok := any((*S)(nil)).(*[]byte); !ok {
+		return val
+	}
 	raw, ok := any(val).([]byte)
 	if !ok || raw == nil {
 		return val

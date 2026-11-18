@@ -76,10 +76,10 @@ func TestSetObjectAndGetObject(t *testing.T) {
 	c := mcache.NewMapCache[[]byte]()
 
 	want := payload{Value: "ok"}
-	if err := cache.SetObject[payload, codec.EncoderFunc](ctx, c, json.Marshal, "obj", want); err != nil {
+	if err := cache.SetObject(ctx, c, codec.EncoderFunc(json.Marshal), "obj", want); err != nil {
 		t.Fatalf("SetObject: %v", err)
 	}
-	got, found, err := cache.GetObject[payload, codec.DecoderFunc](ctx, c, json.Unmarshal, "obj")
+	got, found, err := cache.GetObject[payload](ctx, c, codec.DecoderFunc(json.Unmarshal), "obj")
 	if err != nil {
 		t.Fatalf("GetObject: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestSetObjectAndGetObject(t *testing.T) {
 		t.Fatalf("GetObject mismatch: found=%v got=%+v want=%+v", found, got, want)
 	}
 
-	_, found, err = cache.GetObject[payload, codec.DecoderFunc](ctx, c, json.Unmarshal, "missing")
+	_, found, err = cache.GetObject[payload](ctx, c, codec.DecoderFunc(json.Unmarshal), "missing")
 	if err != nil {
 		t.Fatalf("GetObject missing: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestSetObjectAndGetObject(t *testing.T) {
 	}
 
 	encErr := errors.New("encode")
-	err = cache.SetObject[payload, codec.EncoderFunc](ctx, c, codec.EncoderFunc(func(v any) ([]byte, error) {
+	err = cache.SetObject(ctx, c, codec.EncoderFunc(func(v any) ([]byte, error) {
 		return nil, encErr
 	}), "obj_err", want)
 	if !errors.Is(err, encErr) {
@@ -106,7 +106,7 @@ func TestSetObjectAndGetObject(t *testing.T) {
 	if err = c.Set(ctx, "broken", []byte("not-json")); err != nil {
 		t.Fatalf("set broken payload: %v", err)
 	}
-	_, _, err = cache.GetObject[payload, codec.DecoderFunc](ctx, c, json.Unmarshal, "broken")
+	_, _, err = cache.GetObject[payload](ctx, c, codec.DecoderFunc(json.Unmarshal), "broken")
 	if err == nil {
 		t.Fatalf("expected GetObject decode error")
 	}
@@ -123,10 +123,10 @@ func TestSetObjectDynamicTTLUsesOriginalValue(t *testing.T) {
 	c := &spyExpirableCache[[]byte]{}
 	want := payload{TTL: 5 * time.Second}
 
-	err := cache.SetObject[payload, codec.EncoderFunc](
+	err := cache.SetObject(
 		ctx,
 		c,
-		json.Marshal,
+		codec.EncoderFunc(json.Marshal),
 		"dynamic",
 		want,
 		cache.WithDynamicTTL(func(value payload) (bool, time.Duration) {
@@ -156,10 +156,10 @@ func TestDynamicTTLTypeMismatch(t *testing.T) {
 	ctx := context.Background()
 	c := &spyExpirableCache[[]byte]{}
 
-	err := cache.SetObject[payload, codec.EncoderFunc](
+	err := cache.SetObject(
 		ctx,
 		c,
-		json.Marshal,
+		codec.EncoderFunc(json.Marshal),
 		"mismatch",
 		payload{N: 1},
 		cache.WithDynamicTTL(func(raw []byte) (bool, time.Duration) {
@@ -315,11 +315,11 @@ func TestGetObjectExAndGetJsonEx(t *testing.T) {
 	}
 
 	builderCalls := 0
-	got, found, err := cache.GetObjectEx[payload, codec.DecoderFunc, codec.EncoderFunc](
+	got, found, err := cache.GetObjectEx(
 		ctx,
 		c,
-		json.Unmarshal,
-		json.Marshal,
+		codec.DecoderFunc(json.Unmarshal),
+		codec.EncoderFunc(json.Marshal),
 		"hit",
 		func() (payload, error) {
 			builderCalls++

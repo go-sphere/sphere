@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -208,4 +209,73 @@ func TestEmptyKeyRejected(t *testing.T) {
 	if _, _, err := db.Get(ctx, ""); !errors.Is(err, badger.ErrEmptyKey) {
 		t.Fatalf("Get(\"\") = %v, want ErrEmptyKey", err)
 	}
+}
+
+func TestGetDelCanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	db := newTestDB(t)
+	if err := db.Set(t.Context(), "keep", []byte("v")); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if _, _, err := db.GetDel(ctx, "keep"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("GetDel(canceled) = %v, want context.Canceled", err)
+	}
+	if _, found, err := db.Get(t.Context(), "keep"); err != nil || !found {
+		t.Fatalf("Get after canceled GetDel = (%v, %v), want preserved", found, err)
+	}
+}
+
+func TestCloseConcurrentAndBatchAfterClose(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("empty batches report ErrDBClosed after owned Close", func(t *testing.T) {
+		d, err := NewDatabaseWithOptions(badger.DefaultOptions(t.TempDir()).WithLogger(nil))
+		if err != nil {
+			t.Fatalf("NewDatabaseWithOptions: %v", err)
+		}
+		if err := d.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+
+		if err := d.MultiSet(ctx, nil); !errors.Is(err, badger.ErrDBClosed) {
+			t.Fatalf("MultiSet(nil) after Close = %v, want ErrDBClosed", err)
+		}
+		if err := d.MultiSetWithTTL(ctx, map[string][]byte{}, time.Minute); !errors.Is(err, badger.ErrDBClosed) {
+			t.Fatalf("MultiSetWithTTL(empty) after Close = %v, want ErrDBClosed", err)
+		}
+		if err := d.MultiDel(ctx, nil); !errors.Is(err, badger.ErrDBClosed) {
+			t.Fatalf("MultiDel(nil) after Close = %v, want ErrDBClosed", err)
+		}
+		if _, err := d.MultiGet(ctx, nil); !errors.Is(err, badger.ErrDBClosed) {
+			t.Fatalf("MultiGet(nil) after Close = %v, want ErrDBClosed", err)
+		}
+	})
+
+	t.Run("concurrent writes racing owned Close", func(t *testing.T) {
+		d, err := NewDatabaseWithOptions(badger.DefaultOptions("").WithInMemory(true).WithLogger(nil))
+		if err != nil {
+			t.Fatalf("NewDatabaseWithOptions: %v", err)
+		}
+
+		var wg sync.WaitGroup
+		for i := range 8 {
+			wg.Go(func() {
+				for j := range 50 {
+					err := d.Set(ctx, fmt.Sprintf("k-%d-%d", i, j), []byte("v"))
+					if err != nil && !errors.Is(err, badger.ErrDBClosed) {
+						t.Errorf("unexpected Set error during Close race: %v", err)
+						return
+					}
+				}
+			})
+		}
+		wg.Go(func() {
+			if err := d.Close(); err != nil {
+				t.Errorf("Close: %v", err)
+			}
+		})
+		wg.Wait()
+	})
 }

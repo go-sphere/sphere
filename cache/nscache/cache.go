@@ -3,15 +3,21 @@ package nscache
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/go-sphere/sphere/cache"
 )
 
-// ErrInvalidNamespace is returned by NewNSCacheChecked when namespace contains
-// ":". Colons are reserved as the separator between namespace and key.
-var ErrInvalidNamespace = errors.New("nscache: namespace must not contain ':'")
+// ErrInvalidNamespace is returned by NewNSCacheChecked when namespace is
+// empty or contains ":". Colons are reserved as the separator between namespace
+// and key.
+var ErrInvalidNamespace = errors.New("nscache: namespace must not be empty or contain ':'")
+
+// ErrNilCache is returned by NewNSCacheChecked when cache is nil (including a
+// typed nil).
+var ErrNilCache = errors.New("nscache: cache is required")
 
 // NSCache is a namespaced cache wrapper that prefixes every key with
 // "<namespace>:" before delegating to an underlying cache.Cache.
@@ -32,6 +38,7 @@ var ErrInvalidNamespace = errors.New("nscache: namespace must not contain ':'")
 // "a:" prefix, and DelAll or Keys on "a" would reach into "a:b".
 type NSCache[S any] struct {
 	namespace string
+	prefix    string
 	cache     cache.Cache[S]
 }
 
@@ -41,22 +48,40 @@ type NSCache[S any] struct {
 func NewNSCache[S any](namespace string, cache cache.Cache[S]) *NSCache[S] {
 	return &NSCache[S]{
 		namespace: namespace,
+		prefix:    namespace + ":",
 		cache:     cache,
 	}
 }
 
-// NewNSCacheChecked wraps cache with a validated namespace. A namespace that
-// contains ":" returns ErrInvalidNamespace because it would overlap another
-// namespace under the prefix-based Keys and DelAll implementation.
+// NewNSCacheChecked wraps cache with a validated namespace and non-nil backend.
+// An empty namespace or one containing ":" returns ErrInvalidNamespace because
+// it would overlap another namespace under the prefix-based Keys and DelAll
+// implementation. A nil (or typed-nil) cache returns ErrNilCache.
 func NewNSCacheChecked[S any](namespace string, cache cache.Cache[S]) (*NSCache[S], error) {
-	if strings.Contains(namespace, ":") {
+	if isNilCache(cache) {
+		return nil, ErrNilCache
+	}
+	if namespace == "" || strings.Contains(namespace, ":") {
 		return nil, ErrInvalidNamespace
 	}
 	return NewNSCache(namespace, cache), nil
 }
 
+func isNilCache[S any](c cache.Cache[S]) bool {
+	if c == nil {
+		return true
+	}
+	v := reflect.ValueOf(c)
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
 func (n *NSCache[S]) keygen(key string) string {
-	return n.namespace + ":" + key
+	return n.prefix + key
 }
 
 func (n *NSCache[S]) Set(ctx context.Context, key string, val S) error {
@@ -80,6 +105,9 @@ func (n *NSCache[S]) Exists(ctx context.Context, key string) (bool, error) {
 }
 
 func (n *NSCache[S]) MultiSet(ctx context.Context, valMap map[string]S) error {
+	if len(valMap) == 0 {
+		return n.cache.MultiSet(ctx, nil)
+	}
 	prefixedValMap := make(map[string]S, len(valMap))
 	for k, v := range valMap {
 		prefixedValMap[n.keygen(k)] = v
@@ -88,6 +116,15 @@ func (n *NSCache[S]) MultiSet(ctx context.Context, valMap map[string]S) error {
 }
 
 func (n *NSCache[S]) MultiGet(ctx context.Context, keys []string) (map[string]S, error) {
+	if len(keys) == 0 {
+		res, err := n.cache.MultiGet(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		if len(res) == 0 {
+			return make(map[string]S), nil
+		}
+	}
 	prefixedKeys := make([]string, len(keys))
 	for i, k := range keys {
 		prefixedKeys[i] = n.keygen(k)
@@ -97,15 +134,17 @@ func (n *NSCache[S]) MultiGet(ctx context.Context, keys []string) (map[string]S,
 		return nil, err
 	}
 	unprefixedRes := make(map[string]S, len(res))
-	prefix := n.namespace + ":"
 	for k, v := range res {
-		unprefixedKey := strings.TrimPrefix(k, prefix)
+		unprefixedKey := strings.TrimPrefix(k, n.prefix)
 		unprefixedRes[unprefixedKey] = v
 	}
 	return unprefixedRes, nil
 }
 
 func (n *NSCache[S]) MultiDel(ctx context.Context, keys []string) error {
+	if len(keys) == 0 {
+		return n.cache.MultiDel(ctx, nil)
+	}
 	prefixedKeys := make([]string, len(keys))
 	for i, k := range keys {
 		prefixedKeys[i] = n.keygen(k)
@@ -118,6 +157,12 @@ func (n *NSCache[S]) SetWithTTL(ctx context.Context, key string, val S, expirati
 }
 
 func (n *NSCache[S]) MultiSetWithTTL(ctx context.Context, valMap map[string]S, expiration time.Duration) error {
+	if expiration < 0 {
+		return cache.ErrInvalidTTL
+	}
+	if len(valMap) == 0 {
+		return n.cache.MultiSetWithTTL(ctx, nil, expiration)
+	}
 	prefixedValMap := make(map[string]S, len(valMap))
 	for k, v := range valMap {
 		prefixedValMap[n.keygen(k)] = v
@@ -145,7 +190,7 @@ func (n *NSCache[S]) DelAll(ctx context.Context) error {
 	}
 	// lister.Keys already returns fully prefixed keys, so pass them straight
 	// to MultiDel without stripping and re-prefixing every key.
-	keys, err := lister.Keys(ctx, n.keygen(""))
+	keys, err := lister.Keys(ctx, n.prefix)
 	if err != nil {
 		return err
 	}
@@ -182,10 +227,9 @@ func (n *NSCache[S]) Keys(ctx context.Context, prefix string) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
-	nsPrefix := n.keygen("")
 	trimmed := make([]string, 0, len(keys))
 	for _, k := range keys {
-		trimmed = append(trimmed, strings.TrimPrefix(k, nsPrefix))
+		trimmed = append(trimmed, strings.TrimPrefix(k, n.prefix))
 	}
 	return trimmed, nil
 }

@@ -181,6 +181,24 @@ func TestByteCacheTTLZeroNeverExpires(t *testing.T) {
 					t.Fatalf("expected key %q to persist with zero TTL", key)
 				}
 			}
+
+			// Overwriting a TTL-bearing key with Set or SetWithTTL(..., 0) clears its TTL.
+			if err := c.MultiSetWithTTL(ctx, map[string][]byte{
+				"ttl_control":  []byte("temp"),
+				"cleared_set":  []byte("old"),
+				"cleared_zero": []byte("old"),
+			}, 250*time.Millisecond); err != nil {
+				t.Fatalf("seed TTL overwrite keys: %v", err)
+			}
+			if err := c.Set(ctx, "cleared_set", []byte("persisted_set")); err != nil {
+				t.Fatalf("Set cleared_set: %v", err)
+			}
+			if err := c.SetWithTTL(ctx, "cleared_zero", []byte("persisted_zero"), 0); err != nil {
+				t.Fatalf("SetWithTTL cleared_zero: %v", err)
+			}
+			assertEventuallyNotFound(t, c, "ttl_control")
+			assertCacheValue(t, c, "cleared_set", "persisted_set")
+			assertCacheValue(t, c, "cleared_zero", "persisted_zero")
 		})
 	}
 }
@@ -219,9 +237,13 @@ func TestByteCacheNegativeTTLRejected(t *testing.T) {
 	}
 
 	t.Run("nocache", func(t *testing.T) {
+		ctx := t.Context()
 		c := noCacheFactory().new(t)
-		if err := c.SetWithTTL(t.Context(), "neg", []byte("v"), -time.Second); !errors.Is(err, cache.ErrInvalidTTL) {
+		if err := c.SetWithTTL(ctx, "neg", []byte("v"), -time.Second); !errors.Is(err, cache.ErrInvalidTTL) {
 			t.Fatalf("SetWithTTL negative: got err=%v want ErrInvalidTTL", err)
+		}
+		if err := c.MultiSetWithTTL(ctx, map[string][]byte{"neg": []byte("v")}, -time.Second); !errors.Is(err, cache.ErrInvalidTTL) {
+			t.Fatalf("MultiSetWithTTL negative: got err=%v want ErrInvalidTTL", err)
 		}
 	})
 }
@@ -299,6 +321,20 @@ func TestNoCacheContract(t *testing.T) {
 	}
 	if exists {
 		t.Fatalf("NoCache Exists mismatch: expected false")
+	}
+
+	gotDel, found, err := c.GetDel(ctx, "a")
+	if err != nil || found || len(gotDel) != 0 {
+		t.Fatalf("NoCache GetDel = (%q, %v, %v), want empty not found", gotDel, found, err)
+	}
+	if err := c.Del(ctx, "a"); err != nil {
+		t.Fatalf("NoCache Del: %v", err)
+	}
+	if err := c.MultiDel(ctx, []string{"a", "b"}); err != nil {
+		t.Fatalf("NoCache MultiDel: %v", err)
+	}
+	if err := c.DelAll(ctx); err != nil {
+		t.Fatalf("NoCache DelAll: %v", err)
 	}
 }
 
@@ -510,6 +546,46 @@ func TestByteCacheValueOwnership(t *testing.T) {
 				}
 				if string(second) != "value" {
 					t.Fatalf("mutating a returned value changed the cached value: got %q", second)
+				}
+			})
+
+			t.Run("ttl and bulk paths copy values on write and read", func(t *testing.T) {
+				ttlBuf := []byte("ttl-orig")
+				if err := c.SetWithTTL(ctx, "own-ttl", ttlBuf, time.Minute); err != nil {
+					t.Fatalf("SetWithTTL: %v", err)
+				}
+				copy(ttlBuf, "MUTATED!")
+				assertCacheValue(t, c, "own-ttl", "ttl-orig")
+
+				msBuf := []byte("ms-orig")
+				if err := c.MultiSet(ctx, map[string][]byte{"own-ms": msBuf}); err != nil {
+					t.Fatalf("MultiSet: %v", err)
+				}
+				copy(msBuf, "MUTATED")
+
+				mstBuf := []byte("mst-orig")
+				if err := c.MultiSetWithTTL(ctx, map[string][]byte{"own-mst": mstBuf}, time.Minute); err != nil {
+					t.Fatalf("MultiSetWithTTL: %v", err)
+				}
+				copy(mstBuf, "MUTATED!")
+
+				mg, err := c.MultiGet(ctx, []string{"own-ms", "own-mst"})
+				if err != nil {
+					t.Fatalf("MultiGet: %v", err)
+				}
+				if string(mg["own-ms"]) != "ms-orig" || string(mg["own-mst"]) != "mst-orig" {
+					t.Fatalf("MultiGet mismatch after caller buffer mutation: %q, %q", mg["own-ms"], mg["own-mst"])
+				}
+				mg["own-ms"][0] = 'X'
+				assertCacheValue(t, c, "own-ms", "ms-orig")
+
+				gd, found, err := c.GetDel(ctx, "own-mst")
+				if err != nil || !found || string(gd) != "mst-orig" {
+					t.Fatalf("GetDel = (%q, %v, %v), want mst-orig", gd, found, err)
+				}
+				gd[0] = 'Z'
+				if again, found, err := c.Get(ctx, "own-mst"); err != nil || found || len(again) != 0 {
+					t.Fatalf("Get after GetDel = (%q, %v, %v), want missing", again, found, err)
 				}
 			})
 		})

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -48,11 +49,24 @@ func (c *ByteCache) Set(ctx context.Context, key string, val []byte) error {
 	return c.SetWithTTL(ctx, key, val, 0)
 }
 
+func normalizeRedisTTL(expiration time.Duration) time.Duration {
+	if expiration <= 0 {
+		return expiration
+	}
+	if rem := expiration % time.Millisecond; rem != 0 {
+		if expiration > math.MaxInt64-(time.Millisecond-rem) {
+			return (expiration / time.Millisecond) * time.Millisecond
+		}
+		return expiration + (time.Millisecond - rem)
+	}
+	return expiration
+}
+
 func (c *ByteCache) SetWithTTL(ctx context.Context, key string, val []byte, expiration time.Duration) error {
 	if expiration < 0 {
 		return cache.ErrInvalidTTL
 	}
-	return c.client.Set(ctx, key, val, expiration).Err()
+	return c.client.Set(ctx, key, val, normalizeRedisTTL(expiration)).Err()
 }
 
 func (c *ByteCache) MultiSet(ctx context.Context, valMap map[string][]byte) error {
@@ -66,9 +80,10 @@ func (c *ByteCache) MultiSetWithTTL(ctx context.Context, valMap map[string][]byt
 	if len(valMap) == 0 {
 		return nil
 	}
+	ttl := normalizeRedisTTL(expiration)
 	pipe := c.client.Pipeline()
 	for k, v := range valMap {
-		pipe.Set(ctx, k, v, expiration)
+		pipe.Set(ctx, k, v, ttl)
 	}
 	_, err := pipe.Exec(ctx)
 	return err
@@ -108,7 +123,7 @@ func (c *ByteCache) MultiGet(ctx context.Context, keys []string) (map[string][]b
 		return nil, err
 	}
 
-	result := make(map[string][]byte)
+	result := make(map[string][]byte, len(keys))
 	for i, key := range keys {
 		if vals[i] != nil {
 			raw, ok := vals[i].(string)
@@ -199,12 +214,13 @@ func escapeGlob(s string) string {
 	}
 	var b strings.Builder
 	b.Grow(len(s) + 4)
-	for _, r := range s {
-		switch r {
+	for i := range len(s) {
+		c := s[i]
+		switch c {
 		case '*', '?', '[', ']', '\\':
 			b.WriteByte('\\')
 		}
-		b.WriteRune(r)
+		b.WriteByte(c)
 	}
 	return b.String()
 }

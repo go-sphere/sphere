@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/go-sphere/confstore/codec"
@@ -61,6 +62,7 @@ func WithExpiration(expiration time.Duration) Option {
 	return func(o *loadOptions) {
 		o.hasTTL = true
 		o.expiration = expiration
+		o.ttlCalculator = nil
 	}
 }
 
@@ -69,6 +71,7 @@ func WithNeverExpire() Option {
 	return func(o *loadOptions) {
 		o.hasTTL = false
 		o.expiration = -1
+		o.ttlCalculator = nil
 	}
 }
 
@@ -136,32 +139,61 @@ func setValueWithOptions[S, T any](ctx context.Context, c ExpirableCache[S], key
 	return c.Set(ctx, key, storedValue)
 }
 
-func setObjectWithOptions[T any, E codec.Encoder](ctx context.Context, c ExpirableByteCache, e E, key string, value T, opts *loadOptions) error {
+func setObjectWithOptions[T any](ctx context.Context, c ExpirableByteCache, e codec.Encoder, key string, value T, opts *loadOptions) error {
+	if e == nil {
+		return errors.New("cache: nil encoder")
+	}
+	if opts.ttlCalculator != nil {
+		hasTTL, expiration, err := opts.ttlCalculator(value)
+		if err != nil {
+			return err
+		}
+		if hasTTL && expiration < 0 {
+			return ErrInvalidTTL
+		}
+		data, err := e.Marshal(value)
+		if err != nil {
+			return err
+		}
+		if hasTTL {
+			return c.SetWithTTL(ctx, key, data, expiration)
+		}
+		return c.Set(ctx, key, data)
+	}
+	if opts.hasTTL && opts.expiration < 0 {
+		return ErrInvalidTTL
+	}
 	data, err := e.Marshal(value)
 	if err != nil {
 		return err
 	}
-	return setValueWithOptions(ctx, c, key, data, value, opts)
+	if opts.hasTTL {
+		return c.SetWithTTL(ctx, key, data, opts.expiration)
+	}
+	return c.Set(ctx, key, data)
 }
 
 // SetObject stores a typed object in a byte cache by encoding it with the provided encoder.
 // This is useful for storing structured data that needs to be serialized before caching.
-func SetObject[T any, E codec.Encoder](ctx context.Context, c ExpirableByteCache, e E, key string, value T, options ...Option) error {
+func SetObject[T any](ctx context.Context, c ExpirableByteCache, e codec.Encoder, key string, value T, options ...Option) error {
 	return setObjectWithOptions(ctx, c, e, key, value, newOptions(options...))
 }
 
 // SetJson stores a typed object in a byte cache by encoding it as JSON.
 // This is a convenience function that uses JSON marshaling for serialization.
 func SetJson[T any](ctx context.Context, c ExpirableByteCache, key string, value T, options ...Option) error {
-	return SetObject[T, codec.EncoderFunc](ctx, c, json.Marshal, key, value, options...)
+	return SetObject[T](ctx, c, codec.EncoderFunc(json.Marshal), key, value, options...)
 }
 
 // GetObject retrieves and decodes a typed object from a byte cache using the provided decoder.
 // Returns the decoded object, whether it was found, and any error that occurred during retrieval or decoding.
 // A decode failure returns found=false and an error wrapping ErrDecode; the entry is left in place.
-func GetObject[T any, D codec.Decoder](ctx context.Context, c ExpirableByteCache, d D, key string) (T, bool, error) {
-	data, found, err := c.Get(ctx, key)
+func GetObject[T any](ctx context.Context, c ExpirableByteCache, d codec.Decoder, key string) (T, bool, error) {
 	var value T
+	if d == nil {
+		return value, false, errors.New("cache: nil decoder")
+	}
+	data, found, err := c.Get(ctx, key)
 	if err != nil {
 		return value, false, err
 	}
@@ -179,7 +211,7 @@ func GetObject[T any, D codec.Decoder](ctx context.Context, c ExpirableByteCache
 // GetJson retrieves and decodes a JSON-encoded object from a byte cache.
 // This is a convenience function that uses JSON unmarshalling for deserialization.
 func GetJson[T any](ctx context.Context, c ExpirableByteCache, key string) (T, bool, error) {
-	return GetObject[T, codec.DecoderFunc](ctx, c, json.Unmarshal, key)
+	return GetObject[T](ctx, c, codec.DecoderFunc(json.Unmarshal), key)
 }
 
 // FetchCached is a function type that defines a builder for fetching cached objects.
@@ -215,15 +247,15 @@ func GetEx[T any](ctx context.Context, c ExpirableCache[T], key string, builder 
 // GetObjectEx is GetEx for a byte cache with an explicit decoder/encoder.
 // Setter errors after a successful builder are ignored and an undecodable
 // entry is rebuilt and overwritten, same as GetEx.
-func GetObjectEx[T any, D codec.Decoder, E codec.Encoder](ctx context.Context, c ExpirableByteCache, d D, e E, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
+func GetObjectEx[T any](ctx context.Context, c ExpirableByteCache, d codec.Decoder, e codec.Encoder, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return load[T](
 		ctx,
 		key,
 		func(ctx context.Context, k string) (T, bool, error) {
-			return GetObject[T, D](ctx, c, d, k)
+			return GetObject[T](ctx, c, d, k)
 		},
 		func(ctx context.Context, k string, v T, opts *loadOptions) error {
-			return setObjectWithOptions[T, E](ctx, c, e, k, v, opts)
+			return setObjectWithOptions[T](ctx, c, e, k, v, opts)
 		},
 		builder,
 		options...,
@@ -232,7 +264,7 @@ func GetObjectEx[T any, D codec.Decoder, E codec.Encoder](ctx context.Context, c
 
 // GetJsonEx is GetObjectEx with encoding/json.
 func GetJsonEx[T any](ctx context.Context, c ExpirableByteCache, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
-	return GetObjectEx[T, codec.DecoderFunc, codec.EncoderFunc](ctx, c, json.Unmarshal, json.Marshal, key, builder, options...)
+	return GetObjectEx[T](ctx, c, codec.DecoderFunc(json.Unmarshal), codec.EncoderFunc(json.Marshal), key, builder, options...)
 }
 
 func load[T any](
@@ -250,7 +282,7 @@ func load[T any](
 			var zero T
 			return zero, false, gErr
 		}
-		log.Warn("cache: rebuilding undecodable entry",
+		log.WarnContext(ctx, "cache: rebuilding undecodable entry",
 			log.String("key", key),
 			log.Err(gErr),
 		)
@@ -287,7 +319,15 @@ func loadShared[T any](
 	builder FetchCached[T],
 	opts *loadOptions,
 ) (T, error) {
-	writeCtx := context.WithoutCancel(ctx)
+	var zero T
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return zero, err
+	}
+	writeBase := context.WithoutCancel(ctx)
+	deadline, hasDeadline := ctx.Deadline()
 	ch := group.DoChan(key, func() (val any, err error) {
 		// DoChan re-panics on a fresh goroutine, which no caller can recover,
 		// so carry the panic back to the callers instead.
@@ -298,11 +338,16 @@ func loadShared[T any](
 		}()
 		nObj, err := builder()
 		if err == nil {
+			writeCtx := writeBase
+			if hasDeadline {
+				var cancel context.CancelFunc
+				writeCtx, cancel = context.WithDeadline(writeBase, deadline)
+				defer cancel()
+			}
 			_ = setter(writeCtx, key, nObj, opts)
 		}
 		return nObj, err
 	})
-	var zero T
 	select {
 	case res := <-ch:
 		if p, ok := res.Err.(*builderPanic); ok {
@@ -320,10 +365,24 @@ func loadShared[T any](
 		if !ok {
 			panic(fmt.Sprintf("cache: singleflight value type mismatch: got %T, want %T", res.Val, zero))
 		}
-		return obj, nil
+		return cloneLoadedValue(obj), nil
 	case <-ctx.Done():
 		return zero, ctx.Err()
 	}
+}
+
+func cloneLoadedValue[T any](val T) T {
+	if _, ok := any((*T)(nil)).(*[]byte); !ok {
+		return val
+	}
+	raw, ok := any(val).([]byte)
+	if !ok || raw == nil {
+		return val
+	}
+	if cloned, ok := any(slices.Clone(raw)).(T); ok {
+		return cloned
+	}
+	return val
 }
 
 // builderPanic carries a panic out of a shared build so it can be re-raised

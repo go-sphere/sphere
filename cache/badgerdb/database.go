@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"slices"
+	"sync"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -30,7 +32,16 @@ type Database struct {
 	// owned reports whether this Database opened the underlying BadgerDB
 	// instance and is therefore responsible for closing it. Injected instances
 	// are not owned.
-	owned bool
+	owned   bool
+	closeMu sync.RWMutex
+	closed  bool
+}
+
+func (d *Database) checkOpenLocked() error {
+	if d.owned && d.closed {
+		return badger.ErrDBClosed
+	}
+	return nil
 }
 
 // NewDatabase creates a new BadgerDB cache with the specified configuration.
@@ -73,6 +84,11 @@ func NewDatabaseWithOptions(opts badger.Options) (*Database, error) {
 }
 
 func (d *Database) Set(ctx context.Context, key string, val []byte) error {
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
+		return err
+	}
 	return d.db.Update(func(txn *badger.Txn) error {
 		return txn.SetEntry(badger.NewEntry([]byte(key), val))
 	})
@@ -81,6 +97,11 @@ func (d *Database) Set(ctx context.Context, key string, val []byte) error {
 func (d *Database) SetWithTTL(ctx context.Context, key string, val []byte, expiration time.Duration) error {
 	if expiration < 0 {
 		return cache.ErrInvalidTTL
+	}
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
+		return err
 	}
 	return d.db.Update(func(txn *badger.Txn) error {
 		entry := badger.NewEntry([]byte(key), val)
@@ -96,18 +117,29 @@ func (d *Database) SetWithTTL(ctx context.Context, key string, val []byte, expir
 // badger's transaction size limit is committed in several transactions, so on
 // error the chunks committed before it stay written (see cache.Bulk).
 func (d *Database) MultiSet(ctx context.Context, valMap map[string][]byte) error {
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
+		return err
+	}
 	if len(valMap) == 0 {
 		return nil
 	}
 	w := d.newBatchWriter()
 	defer w.discard()
 	for k, v := range valMap {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		err := w.write(func(txn *badger.Txn) error {
 			return txn.SetEntry(badger.NewEntry([]byte(k), v))
 		})
 		if err != nil {
 			return err
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	return w.commit()
 }
@@ -117,6 +149,11 @@ func (d *Database) MultiSet(ctx context.Context, valMap map[string][]byte) error
 func (d *Database) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte, expiration time.Duration) error {
 	if expiration < 0 {
 		return cache.ErrInvalidTTL
+	}
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
+		return err
 	}
 	if len(valMap) == 0 {
 		return nil
@@ -128,6 +165,9 @@ func (d *Database) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte
 	w := d.newBatchWriter()
 	defer w.discard()
 	for k, v := range valMap {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		err := w.write(func(txn *badger.Txn) error {
 			entry := badger.NewEntry([]byte(k), v)
 			// expiration == 0 leaves ExpiresAt at 0: never expire.
@@ -137,6 +177,9 @@ func (d *Database) MultiSetWithTTL(ctx context.Context, valMap map[string][]byte
 		if err != nil {
 			return err
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	return w.commit()
 }
@@ -187,6 +230,11 @@ func badgerExpiresAt(expiration time.Duration) uint64 {
 }
 
 func (d *Database) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
+		return nil, false, err
+	}
 	var val []byte
 	err := d.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(key))
@@ -217,6 +265,14 @@ func (d *Database) Get(ctx context.Context, key string) ([]byte, bool, error) {
 // committed nothing, and once the winner's delete lands the retry simply
 // reports the key as missing.
 func (d *Database) GetDel(ctx context.Context, key string) ([]byte, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
+		return nil, false, err
+	}
 	for {
 		var val []byte
 		err := d.db.Update(func(txn *badger.Txn) error {
@@ -247,10 +303,15 @@ func (d *Database) GetDel(ctx context.Context, key string) ([]byte, bool, error)
 }
 
 func (d *Database) MultiGet(ctx context.Context, keys []string) (map[string][]byte, error) {
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
+		return nil, err
+	}
 	if len(keys) == 0 {
 		return make(map[string][]byte), nil
 	}
-	res := make(map[string][]byte)
+	res := make(map[string][]byte, len(keys))
 	err := d.db.View(func(txn *badger.Txn) error {
 		for _, key := range keys {
 			item, err := txn.Get([]byte(key))
@@ -275,6 +336,11 @@ func (d *Database) MultiGet(ctx context.Context, keys []string) (map[string][]by
 }
 
 func (d *Database) Del(ctx context.Context, key string) error {
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
+		return err
+	}
 	return d.db.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(key))
 	})
@@ -283,18 +349,29 @@ func (d *Database) Del(ctx context.Context, key string) error {
 // MultiDel removes every key, splitting the batch across transactions like
 // MultiSet.
 func (d *Database) MultiDel(ctx context.Context, keys []string) error {
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
+		return err
+	}
 	if len(keys) == 0 {
 		return nil
 	}
 	w := d.newBatchWriter()
 	defer w.discard()
 	for _, key := range keys {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		err := w.write(func(txn *badger.Txn) error {
 			return txn.Delete([]byte(key))
 		})
 		if err != nil {
 			return err
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	return w.commit()
 }
@@ -321,24 +398,65 @@ func (d *Database) DelAll(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	keys, err := d.Keys(ctx, "")
-	if err != nil {
-		return err
-	}
-	for len(keys) > 0 {
+	var seekKey []byte
+	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		batch := keys
-		if len(batch) > delAllBatchSize {
-			batch = keys[:delAllBatchSize]
+		batch, nextSeek, err := d.nextKeyBatch(ctx, seekKey, delAllBatchSize)
+		if err != nil {
+			return err
+		}
+		if len(batch) == 0 {
+			return nil
 		}
 		if err := d.MultiDel(ctx, batch); err != nil {
 			return err
 		}
-		keys = keys[len(batch):]
+		if nextSeek == nil {
+			return nil
+		}
+		seekKey = nextSeek
 	}
-	return nil
+}
+
+func (d *Database) nextKeyBatch(ctx context.Context, seekKey []byte, limit int) ([]string, []byte, error) {
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
+		return nil, nil, err
+	}
+	var keys []string
+	var lastKey []byte
+	err := d.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		if len(seekKey) == 0 {
+			it.Rewind()
+		} else {
+			it.Seek(seekKey)
+		}
+		for ; it.Valid() && len(keys) < limit; it.Next() {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			k := it.Item().Key()
+			keys = append(keys, string(k))
+			if len(keys) == limit {
+				lastKey = slices.Clone(k)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(lastKey) == 0 {
+		return keys, nil, nil
+	}
+	return keys, append(lastKey, 0), nil
 }
 
 // Keys returns every key whose name starts with prefix. It uses a read-only
@@ -346,6 +464,11 @@ func (d *Database) DelAll(ctx context.Context) error {
 // LSM keyspace.
 func (d *Database) Keys(ctx context.Context, prefix string) ([]string, error) {
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
 		return nil, err
 	}
 	var keys []string
@@ -372,6 +495,11 @@ func (d *Database) Keys(ctx context.Context, prefix string) ([]string, error) {
 }
 
 func (d *Database) Exists(ctx context.Context, key string) (bool, error) {
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
+		return false, err
+	}
 	err := d.db.View(func(txn *badger.Txn) error {
 		_, err := txn.Get([]byte(key))
 		return err
@@ -389,13 +517,24 @@ func (d *Database) Exists(ctx context.Context, key string) (bool, error) {
 // was injected (not owned), Close is a no-op and leaves it open for its owner
 // to close; only an instance opened by this Database is closed here.
 func (d *Database) Close() error {
-	if d.owned {
-		return d.db.Close()
+	if !d.owned {
+		return nil
 	}
-	return nil
+	d.closeMu.Lock()
+	defer d.closeMu.Unlock()
+	if d.closed {
+		return nil
+	}
+	d.closed = true
+	return d.db.Close()
 }
 
 // Sync flushes in-memory writes to disk.
 func (d *Database) Sync() error {
+	d.closeMu.RLock()
+	defer d.closeMu.RUnlock()
+	if err := d.checkOpenLocked(); err != nil {
+		return err
+	}
 	return d.db.Sync()
 }

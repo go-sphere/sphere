@@ -14,7 +14,7 @@ import (
 	"github.com/go-sphere/sphere/cache/nocache"
 	"github.com/go-sphere/sphere/cache/nscache"
 	"github.com/go-sphere/sphere/cache/redis"
-	"github.com/go-sphere/sphere/test/redistest"
+	"github.com/go-sphere/sphere/internal/redistest"
 )
 
 type backendFactory struct {
@@ -54,12 +54,8 @@ func backendFactories() []backendFactory {
 		{
 			name: "redis",
 			new: func(tb testing.TB) cache.ByteCache {
-				t, ok := tb.(*testing.T)
-				if !ok {
-					tb.Fatalf("redis factory requires *testing.T")
-				}
-				t.Helper()
-				client := redistest.NewTestRedisClient(t)
+				tb.Helper()
+				client := redistest.NewTestRedisClient(tb)
 				c := redis.NewByteCache(client)
 				tb.Cleanup(func() { _ = c.Close() })
 				return c
@@ -151,8 +147,8 @@ func TestNewNSCacheCheckedValidatesNamespace(t *testing.T) {
 	backend := mcache.NewByteCache()
 	t.Cleanup(func() { _ = backend.Close() })
 
-	for _, namespace := range []string{"a:b", ":"} {
-		t.Run(namespace, func(t *testing.T) {
+	for _, namespace := range []string{"", "a:b", ":"} {
+		t.Run("invalid/"+namespace, func(t *testing.T) {
 			got, err := nscache.NewNSCacheChecked[[]byte](namespace, backend)
 			if !errors.Is(err, nscache.ErrInvalidNamespace) {
 				t.Fatalf("NewNSCacheChecked(%q) error = %v, want ErrInvalidNamespace", namespace, err)
@@ -162,6 +158,16 @@ func TestNewNSCacheCheckedValidatesNamespace(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("nil cache", func(t *testing.T) {
+		if _, err := nscache.NewNSCacheChecked[[]byte]("safe", nil); !errors.Is(err, nscache.ErrNilCache) {
+			t.Fatalf("NewNSCacheChecked(nil) error = %v, want ErrNilCache", err)
+		}
+		var typedNil *mcache.Map[string, []byte]
+		if _, err := nscache.NewNSCacheChecked[[]byte]("safe", typedNil); !errors.Is(err, nscache.ErrNilCache) {
+			t.Fatalf("NewNSCacheChecked(typed nil) error = %v, want ErrNilCache", err)
+		}
+	})
 
 	got, err := nscache.NewNSCacheChecked[[]byte]("safe", backend)
 	if err != nil {
