@@ -18,6 +18,15 @@ func MapToZapFields(attrs map[string]any) []zap.Field {
 	fields := make([]zap.Field, 0, len(attrs))
 	for _, k := range keys {
 		v := attrs[k]
+		if sv, ok := v.(slog.Value); ok {
+			if f := AttrToZapField(corelog.Attr{Key: k, Value: sv}); f.Type != zapcore.SkipType {
+				fields = append(fields, f)
+			}
+			continue
+		}
+		if k == "" {
+			continue
+		}
 		fields = append(fields, zap.Any(k, v))
 	}
 	return fields
@@ -31,18 +40,26 @@ const (
 // AttrToZapField converts attr to a zap field. An error stored under "error"
 // uses zap.Error even if it also implements a zap marshaling interface. Other
 // arbitrary values follow zap.Any's dispatch rules, including inside groups.
+// Empty-key non-group attrs and empty groups return zap.Skip(); empty-key
+// groups inline their children at the enclosing level.
 func AttrToZapField(attr corelog.Attr) zap.Field {
-	return attrToZapFieldDepth(attr, 0, nil)
+	budget := maxGroupNodes
+	return attrToZapFieldDepth(attr, 0, &budget)
 }
 
 func attrToZapFieldDepth(attr corelog.Attr, depth int, budget *int) zap.Field {
-	if budget != nil {
-		*budget--
-		if depth > maxGroupDepth || *budget < 0 {
-			return zap.String(attr.Key, fmt.Sprintf("<unformattable %T: cyclic or deeper than %d levels>", attr.Value.Any(), maxGroupDepth))
+	*budget--
+	if depth > maxGroupDepth || *budget < 0 {
+		key := attr.Key
+		if key == "" {
+			key = "attr_error"
 		}
+		return zap.String(key, fmt.Sprintf("<unformattable %T: cyclic or deeper than %d levels>", attr.Value.Any(), maxGroupDepth))
 	}
 	v := attr.Value.Resolve()
+	if v.Kind() != slog.KindGroup && attr.Key == "" {
+		return zap.Skip()
+	}
 	switch v.Kind() {
 	case slog.KindString:
 		return zap.String(attr.Key, v.String())
@@ -59,12 +76,29 @@ func attrToZapFieldDepth(attr corelog.Attr, depth int, budget *int) zap.Field {
 	case slog.KindTime:
 		return zap.Time(attr.Key, v.Time())
 	case slog.KindGroup:
+		group := v.Group()
+		if len(group) == 0 {
+			return zap.Skip()
+		}
+		fields := make([]zap.Field, 0, len(group))
+		for _, a := range group {
+			f := attrToZapFieldDepth(a, depth+1, budget)
+			if f.Type != zapcore.SkipType {
+				fields = append(fields, f)
+			}
+		}
+		if len(fields) == 0 {
+			return zap.Skip()
+		}
 		// Encode the group through an ObjectMarshaler rather than flattening it
 		// into a map[string]any: a map goes through zap's reflection/JSON path,
 		// which renders a nested time.Duration as its nanosecond integer, loses
 		// error fields and collapses duplicate keys, making the output depend on
 		// nesting depth.
-		return zap.Object(attr.Key, groupObject{attrs: v.Group(), depth: depth + 1, budget: budget})
+		if attr.Key == "" {
+			return zap.Inline(groupObject{fields: fields})
+		}
+		return zap.Object(attr.Key, groupObject{fields: fields})
 	case slog.KindAny:
 		if err, ok := v.Any().(error); ok && attr.Key == "error" {
 			return zap.Error(err)
@@ -75,22 +109,15 @@ func attrToZapFieldDepth(attr corelog.Attr, depth int, budget *int) zap.Field {
 	}
 }
 
-// groupObject encodes a slog group with the same typed encoders used for
-// top-level attrs, recursively up to maxGroupDepth and maxGroupNodes.
+// groupObject encodes pre-resolved group fields with the same typed encoders
+// used for top-level attrs, bounded by maxGroupDepth and maxGroupNodes.
 type groupObject struct {
-	attrs  []slog.Attr
-	depth  int
-	budget *int
+	fields []zap.Field
 }
 
 func (g groupObject) MarshalLogObject(enc zapcore.ObjectEncoder) error {
-	budget := g.budget
-	if budget == nil {
-		b := maxGroupNodes
-		budget = &b
-	}
-	for _, a := range g.attrs {
-		attrToZapFieldDepth(a, g.depth, budget).AddTo(enc)
+	for _, f := range g.fields {
+		f.AddTo(enc)
 	}
 	return nil
 }
@@ -100,7 +127,15 @@ func mapToSlogAttrs(attrs map[string]any) []slog.Attr {
 
 	out := make([]slog.Attr, 0, len(attrs))
 	for _, k := range keys {
-		out = append(out, slog.Any(k, attrs[k]))
+		v := attrs[k]
+		if sv, ok := v.(slog.Value); ok {
+			out = append(out, slog.Attr{Key: k, Value: sv})
+			continue
+		}
+		if k == "" {
+			continue
+		}
+		out = append(out, slog.Any(k, v))
 	}
 	return out
 }

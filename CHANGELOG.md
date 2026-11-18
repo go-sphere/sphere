@@ -188,7 +188,14 @@ Each is described under its own heading in `compat/behavior-changes.md`.
 - `local`, `s3`: `ListFiles` with a huge `limit` no longer panics or
   preallocates for it, and `s3` requests only one key past the page.
 - `docs`: the relaxed CORS wrapper advertises `PATCH` instead of the
-  nonexistent `UPDATE`.
+  nonexistent `UPDATE`, and echoes non-empty `Access-Control-Request-Headers`
+  with `Vary: Access-Control-Request-Headers`.
+- `log`, `log/logbuffer`, `log/zapx`: `logbuffer` stores non-finite float
+  values (`NaN`, `+Inf`, `-Inf`) as strings so entries remain JSON-marshalable;
+  `StdioBackend` and `zapx` skip empty-key non-group attrs and empty groups and
+  inline empty-key groups (`slog.Group("", ...)`) at the enclosing level.
+- `reverseproxy`: `CreateCacheReverseProxy` clones inbound `X-Forwarded-For`
+  headers instead of aliasing the request header slice.
 - A nil `Option` is ignored by `boot`, `pool`, `auth`, `ratelimiter`,
   `requestid`, `stack`, `telemetry` and `reverseproxy`, as it already was
   elsewhere.

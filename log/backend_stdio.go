@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"io"
+	"log/slog"
 	"maps"
 	"os"
 	"runtime/debug"
@@ -161,27 +162,59 @@ func (b *StdioBackend) apply(options ...Option) *StdioBackend {
 }
 
 // renderAttrs renders backend-level attrs in key order as " key=value" pairs.
-// A panicking value is isolated to its own key so sibling preset attrs keep rendering.
+// Empty keys without a group value and empty groups are skipped; empty-key
+// slog groups inline their members. A panicking value is isolated to its own
+// key so sibling preset attrs keep rendering.
 func renderAttrs(attrs map[string]any) string {
 	var sb strings.Builder
 	for _, k := range slices.Sorted(maps.Keys(attrs)) {
+		v := attrs[k]
+		if sv, ok := v.(slog.Value); ok {
+			appendSlogAttrSafely(&sb, Attr{Key: k, Value: sv})
+			continue
+		}
+		if k == "" {
+			continue
+		}
 		sb.WriteByte(' ')
 		sb.WriteString(quoteIfNeeded(k))
 		sb.WriteByte('=')
-		sb.WriteString(renderAttrValueSafely(attrs[k]))
+		sb.WriteString(renderAttrValueSafely(v))
 	}
 	return sb.String()
+}
+
+func appendSlogAttrSafely(sb *strings.Builder, a Attr) {
+	var rendered strings.Builder
+	defer func() {
+		if r := recover(); r != nil {
+			key := a.Key
+			if key == "" {
+				key = "attr_error"
+			}
+			sb.WriteByte(' ')
+			sb.WriteString(quoteIfNeeded(key))
+			sb.WriteByte('=')
+			sb.WriteString(panicTextSafely(r))
+		}
+	}()
+	appendSlogAttr(&rendered, a)
+	sb.WriteString(rendered.String())
+}
+
+func panicTextSafely(r any) (out string) {
+	defer func() {
+		if recover() != nil {
+			out = "unprintable"
+		}
+	}()
+	return quoteIfNeeded("<panic: " + safefmt.Sprint(r) + ">")
 }
 
 func renderAttrValueSafely(v any) (out string) {
 	defer func() {
 		if r := recover(); r != nil {
-			defer func() {
-				if recover() != nil {
-					out = "unprintable"
-				}
-			}()
-			out = quoteIfNeeded("<panic: " + safefmt.Sprint(r) + ">")
+			out = panicTextSafely(r)
 		}
 	}()
 	return formatAny(v)
@@ -205,10 +238,7 @@ func (b *StdioBackend) buildLine(level Level, msg string, caller string, attrs [
 	sb.WriteString(quoteIfNeeded(msg))
 	sb.WriteString(b.attrsText)
 	for _, a := range attrs {
-		sb.WriteByte(' ')
-		sb.WriteString(quoteIfNeeded(a.Key))
-		sb.WriteByte('=')
-		sb.WriteString(formatSlogValue(a.Value))
+		appendSlogAttr(&sb, a)
 	}
 	sb.WriteByte('\n')
 	return sb.String()

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -346,7 +347,7 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 			// Preserve NewSingleHostReverseProxy's default Host behavior. The
 			// configured director may still override it after URL rewriting.
 			req.Out.Host = req.In.Host
-			req.Out.Header["X-Forwarded-For"] = req.In.Header["X-Forwarded-For"]
+			req.Out.Header["X-Forwarded-For"] = slices.Clone(req.In.Header["X-Forwarded-For"])
 			req.SetXForwarded()
 			// Stash the client request before the director mutates the outbound
 			// one. Cache key and cacheability are properties of what the client

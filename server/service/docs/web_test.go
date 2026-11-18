@@ -140,6 +140,48 @@ func TestWithCORS(t *testing.T) {
 		if slices.Contains(methods, "UPDATE") {
 			t.Errorf("Allow-Methods = %q, lists non-existent method UPDATE", methods)
 		}
+		if got, want := rec.Header().Get("Access-Control-Allow-Headers"), "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization"; got != want {
+			t.Errorf("Allow-Headers = %q, want %q", got, want)
+		}
+		if slices.Contains(rec.Header().Values("Vary"), "Access-Control-Request-Headers") {
+			t.Errorf("Vary = %q, did not expect Access-Control-Request-Headers", rec.Header().Values("Vary"))
+		}
+	})
+
+	t.Run("OPTIONS preflight echoes custom Access-Control-Request-Headers", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodOptions, "/api", nil)
+		req.Header.Set("Origin", "http://localhost:3000")
+		req.Header.Set("Access-Control-Request-Headers", "  X-Custom-Header, X-Trace-Id  ")
+		rec := httptest.NewRecorder()
+		corsHandler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, want 204", rec.Code)
+		}
+		if got, want := rec.Header().Get("Access-Control-Allow-Headers"), "X-Custom-Header, X-Trace-Id"; got != want {
+			t.Fatalf("Allow-Headers = %q, want %q", got, want)
+		}
+		if !slices.Contains(rec.Header().Values("Vary"), "Access-Control-Request-Headers") {
+			t.Fatalf("Vary = %q, want Access-Control-Request-Headers", rec.Header().Values("Vary"))
+		}
+	})
+
+	t.Run("OPTIONS preflight with blank Access-Control-Request-Headers uses default", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodOptions, "/api", nil)
+		req.Header.Set("Origin", "http://localhost:3000")
+		req.Header.Set("Access-Control-Request-Headers", "   ")
+		rec := httptest.NewRecorder()
+		corsHandler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, want 204", rec.Code)
+		}
+		if got, want := rec.Header().Get("Access-Control-Allow-Headers"), "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization"; got != want {
+			t.Fatalf("Allow-Headers = %q, want %q", got, want)
+		}
+		if slices.Contains(rec.Header().Values("Vary"), "Access-Control-Request-Headers") {
+			t.Fatalf("Vary = %q, did not expect Access-Control-Request-Headers", rec.Header().Values("Vary"))
+		}
 	})
 
 	// Never credentialed: reflecting the Origin together with

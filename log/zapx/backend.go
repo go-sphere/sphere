@@ -134,7 +134,9 @@ func (z *Backend) Log(ctx context.Context, level corelog.Level, msg string, attr
 
 	fields := make([]zap.Field, 0, len(attrs))
 	for _, a := range attrs {
-		fields = append(fields, AttrToZapField(a))
+		if f := AttrToZapField(a); f.Type != zapcore.SkipType {
+			fields = append(fields, f)
+		}
 	}
 	ce.Write(fields...)
 }

@@ -1393,6 +1393,58 @@ func TestReverseProxyUpstreamAbruptCloseIsNotCached(t *testing.T) {
 	}
 }
 
+func TestCreateCacheReverseProxy_ClonesXForwardedFor(t *testing.T) {
+	cache := setupTestCache(t)
+	var gotForwardedFor string
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotForwardedFor = r.Header.Get("X-Forwarded-For")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	backendURL, err := url.Parse(backend.URL)
+	if err != nil {
+		t.Fatalf("Parse URL: %v", err)
+	}
+
+	proxy, err := CreateCacheReverseProxy(
+		cache,
+		WithTargetURL(backendURL),
+		WithDirector(func(r *http.Request) {
+			if got := r.Header.Get("X-Forwarded-For"); got != "10.0.0.1, 192.0.2.10" {
+				t.Errorf("director X-Forwarded-For = %q, want %q", got, "10.0.0.1, 192.0.2.10")
+			}
+			r.Header["X-Forwarded-For"] = append(r.Header["X-Forwarded-For"], "9.9.9.9")
+			r.Header["X-Forwarded-For"][0] = "mutated"
+		}),
+	)
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+
+	forwarded := make([]string, 1, 4)
+	forwarded[0] = "10.0.0.1"
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/xff", nil)
+	req.RemoteAddr = "192.0.2.10:1234"
+	req.Header["X-Forwarded-For"] = forwarded
+
+	rec := httptest.NewRecorder()
+	proxy.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if forwarded[0] != "10.0.0.1" {
+		t.Fatalf("inbound X-Forwarded-For slice was mutated: %v", forwarded)
+	}
+	if expanded := forwarded[:2]; expanded[1] != "" {
+		t.Fatalf("inbound X-Forwarded-For backing array was overwritten: %q", expanded[1])
+	}
+	if gotForwardedFor != "mutated" {
+		t.Fatalf("upstream X-Forwarded-For = %q, want %q", gotForwardedFor, "mutated")
+	}
+}
+
 func waitForCondition(t *testing.T, timeout time.Duration, check func() (bool, error)) {
 	t.Helper()
 	deadline := time.NewTimer(timeout)

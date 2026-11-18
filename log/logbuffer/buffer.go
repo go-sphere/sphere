@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"math"
 	"reflect"
 	"slices"
 	"sync"
@@ -25,14 +26,17 @@ import (
 // With applies them), so later changes to the logged value do not reach the
 // entry. Each value is one of:
 //   - nil, or a value whose kind is string, bool, or an int, uint or float
-//     kind, kept as logged, as are time.Time and time.Duration;
+//     kind, kept as logged (except non-finite floats, which become "NaN",
+//     "+Inf", or "-Inf" so Entry remains JSON-marshalable), as are time.Time
+//     and time.Duration;
 //   - an error's message as a string (nil for a typed nil pointer);
 //   - map[string]any for a group, holding values of these same types;
 //   - json.RawMessage holding json.Marshal of any other value;
 //   - a string with the value's fmt text when json.Marshal fails or panics.
 //
 // json.Marshal of an Entry therefore encodes every marshalable value exactly
-// as it would encode the value itself.
+// as it would encode the value itself (non-finite floats are stored as strings
+// because encoding/json rejects them).
 //
 // Attrs is owned by the ring: the same map is retained for History and handed
 // to every subscriber and backfill, so callers must not mutate it.
@@ -438,11 +442,22 @@ func renderValue(v any) any {
 	case nil, time.Time, time.Duration:
 		return v
 	}
-	switch reflect.ValueOf(v).Kind() {
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
 	case reflect.String, reflect.Bool,
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
-		reflect.Float32, reflect.Float64:
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return v
+	case reflect.Float32, reflect.Float64:
+		f := rv.Float()
+		switch {
+		case math.IsNaN(f):
+			return "NaN"
+		case math.IsInf(f, 1):
+			return "+Inf"
+		case math.IsInf(f, -1):
+			return "-Inf"
+		}
 		return v
 	default:
 	}

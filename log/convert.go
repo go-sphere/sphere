@@ -11,6 +11,52 @@ import (
 	"github.com/go-sphere/sphere/log/internal/safefmt"
 )
 
+func appendSlogAttr(sb *strings.Builder, a slog.Attr) {
+	budget := maxFormatNodes
+	walkSlogAttr(a, 0, &budget, func(key, rendered string) {
+		sb.WriteByte(' ')
+		sb.WriteString(quoteIfNeeded(key))
+		sb.WriteByte('=')
+		sb.WriteString(rendered)
+	})
+}
+
+// walkSlogAttr formats a according to slog rules: non-group attrs with an empty
+// key and empty groups are skipped, and groups with an empty key inline their
+// members into the enclosing level. Group traversal is bounded by maxFormatDepth
+// and maxFormatNodes just like formatSlogValueDepth.
+func walkSlogAttr(a slog.Attr, depth int, budget *int, emit func(key, rendered string)) {
+	*budget--
+	if depth > maxFormatDepth || *budget < 0 {
+		key := a.Key
+		if key == "" {
+			key = "attr_error"
+		}
+		emit(key, quoteIfNeeded(fmt.Sprintf("<unformattable %T: cyclic or deeper than %d levels>", a.Value.Any(), maxFormatDepth)))
+		return
+	}
+	v := a.Value.Resolve()
+	if v.Kind() == slog.KindGroup {
+		group := v.Group()
+		if a.Key == "" {
+			for _, ga := range group {
+				walkSlogAttr(ga, depth+1, budget, emit)
+			}
+			return
+		}
+		formatted, ok := formatGroup(group, depth+1, budget)
+		if !ok {
+			return
+		}
+		emit(a.Key, formatted)
+		return
+	}
+	if a.Key == "" {
+		return
+	}
+	emit(a.Key, formatResolvedSlogValue(v, depth, budget))
+}
+
 func formatSlogValue(v slog.Value) string {
 	budget := maxFormatNodes
 	return formatSlogValueDepth(v, 0, &budget)
@@ -27,7 +73,10 @@ func formatSlogValueDepth(v slog.Value, depth int, budget *int) string {
 	if depth > maxFormatDepth || *budget < 0 {
 		return quoteIfNeeded(fmt.Sprintf("<unformattable %T: cyclic or deeper than %d levels>", v.Any(), maxFormatDepth))
 	}
-	v = v.Resolve()
+	return formatResolvedSlogValue(v.Resolve(), depth, budget)
+}
+
+func formatResolvedSlogValue(v slog.Value, depth int, budget *int) string {
 	switch v.Kind() {
 	case slog.KindString:
 		return quoteIfNeeded(v.String())
@@ -44,23 +93,30 @@ func formatSlogValueDepth(v slog.Value, depth int, budget *int) string {
 	case slog.KindTime:
 		return quoteIfNeeded(v.Time().Format(time.RFC3339Nano))
 	case slog.KindGroup:
-		return formatGroup(v.Group(), depth+1, budget)
-	case slog.KindAny:
-		return formatAny(v.Any())
+		formatted, ok := formatGroup(v.Group(), depth+1, budget)
+		if !ok {
+			return "{}"
+		}
+		return formatted
 	default:
 		return formatAny(v.Any())
 	}
 }
 
-func formatGroup(attrs []slog.Attr, depth int, budget *int) string {
+func formatGroup(attrs []slog.Attr, depth int, budget *int) (string, bool) {
 	if len(attrs) == 0 {
-		return "{}"
+		return "", false
 	}
 	parts := make([]string, 0, len(attrs))
 	for _, a := range attrs {
-		parts = append(parts, quoteIfNeeded(a.Key)+"="+formatSlogValueDepth(a.Value, depth, budget))
+		walkSlogAttr(a, depth, budget, func(key, rendered string) {
+			parts = append(parts, quoteIfNeeded(key)+"="+rendered)
+		})
 	}
-	return "{" + strings.Join(parts, ",") + "}"
+	if len(parts) == 0 {
+		return "", false
+	}
+	return "{" + strings.Join(parts, ",") + "}", true
 }
 
 // maxFormatNodes bounds how many values one formatSlogValue call renders.

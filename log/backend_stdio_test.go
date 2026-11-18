@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
+	"math"
 	"os"
 	"strings"
 	"testing"
@@ -290,5 +292,72 @@ func TestStdioBackendIsolatesPerKeyPresetPanicAndUsesSafefmtInRecover(t *testing
 	}
 	if gotPanic := renderAttrValueSafely(panicMarshaler{}); !strings.Contains(gotPanic, "PANIC") {
 		t.Fatalf("renderAttrValueSafely(panicMarshaler) = %q", gotPanic)
+	}
+}
+
+type inlineGroupValuer struct{}
+
+func (inlineGroupValuer) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("resolved_inline", "yes"))
+}
+
+type scalarValuer struct{}
+
+func (scalarValuer) LogValue() slog.Value {
+	return slog.StringValue("resolved_scalar")
+}
+
+type cyclicInlineValuer struct{}
+
+func (c cyclicInlineValuer) LogValue() slog.Value {
+	return slog.GroupValue(slog.Any("", c))
+}
+
+func TestStdioBackendSkipsEmptyAttrsAndInlinesEmptyKeyGroups(t *testing.T) {
+	b := NewStdioBackend(
+		WithAttrs(map[string]any{
+			"":             "ignored_preset",
+			"empty_preset": slog.GroupValue(),
+			"keep":         "ok",
+		}),
+	).With(
+		WithAttrs(map[string]any{
+			"": slog.GroupValue(String("preset_inlined", "p")),
+		}),
+	)
+
+	out := captureStdout(t, func() {
+		b.Log(context.Background(), LevelInfo, "hello",
+			slog.Attr{},
+			String("", "ignored"),
+			Group("empty"),
+			Group("empty_zero", slog.Attr{}),
+			Group("empty_nested", Group("inner")),
+			Group("", String("inlined", "1"), Int("n", 2), slog.Attr{}, Group("empty_inner")),
+			Group("outer", slog.Attr{}, Group("", String("k", "v")), Group("empty"), Int("m", 3)),
+			Any("", inlineGroupValuer{}),
+			Any("", scalarValuer{}),
+			Float64("nan", math.NaN()),
+			Float64("pos_inf", math.Inf(1)),
+			Float64("neg_inf", math.Inf(-1)),
+		)
+	})
+
+	line := strings.TrimSpace(out)
+	wantSuffix := ` msg=hello preset_inlined=p keep=ok inlined=1 n=2 outer={k=v,m=3} resolved_inline=yes nan=NaN pos_inf=+Inf neg_inf=-Inf`
+	if !strings.HasSuffix(line, wantSuffix) {
+		t.Fatalf("line = %q, want suffix %q", line, wantSuffix)
+	}
+	for _, unwanted := range []string{`""=`, `empty=`, `empty_zero=`, `empty_nested=`, `empty_preset=`, `empty_inner=`, `ignored`, `resolved_scalar`} {
+		if strings.Contains(line, unwanted) {
+			t.Fatalf("line %q unexpectedly contained %q", line, unwanted)
+		}
+	}
+
+	cyclicOut := captureStdout(t, func() {
+		NewStdioBackend().Log(context.Background(), LevelInfo, "cyclic", Any("", cyclicInlineValuer{}))
+	})
+	if !strings.Contains(cyclicOut, "attr_error=") || !strings.Contains(cyclicOut, "unformattable") {
+		t.Fatalf("cyclic inline output = %q, want attr_error with unformattable", cyclicOut)
 	}
 }

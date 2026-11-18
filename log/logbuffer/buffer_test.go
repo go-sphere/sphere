@@ -506,3 +506,62 @@ func TestBufferBoundsCyclicSlogGroupsAndCyclicPanics(t *testing.T) {
 		t.Fatalf("expected attr_error with unformattable for cyclic panic, got %#v", entries[2].Attrs)
 	}
 }
+
+func TestBufferNonFiniteFloatsAndEmptyKeyAttrs(t *testing.T) {
+	b := New(4, log.WithAttrs(map[string]any{
+		"preset_nan":    math.NaN(),
+		"preset_f32":    float32(2.5),
+		"preset_f32inf": float32(math.Inf(1)),
+	}))
+	b.Log(context.Background(), log.LevelInfo, "floats",
+		log.Float64("nan", math.NaN()),
+		log.Float64("pos_inf", math.Inf(1)),
+		log.Float64("neg_inf", math.Inf(-1)),
+		log.Float64("finite", 1.5),
+		log.Any("f32_inf", float32(math.Inf(-1))),
+		log.Any("f32_finite", float32(2.5)),
+		slog.Attr{},
+		log.String("", "ignored"),
+		log.Group("", log.String("inlined", "yes"), slog.Attr{}),
+	)
+
+	entries, _ := b.History(0, 4, log.LevelDebug)
+	if len(entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(entries))
+	}
+	attrs := entries[0].Attrs
+	if attrs["preset_nan"] != "NaN" {
+		t.Errorf("preset_nan = %#v, want %q", attrs["preset_nan"], "NaN")
+	}
+	if attrs["preset_f32"] != float32(2.5) {
+		t.Errorf("preset_f32 = %#v (%T), want float32(2.5)", attrs["preset_f32"], attrs["preset_f32"])
+	}
+	if attrs["preset_f32inf"] != "+Inf" {
+		t.Errorf("preset_f32inf = %#v, want %q", attrs["preset_f32inf"], "+Inf")
+	}
+	if attrs["nan"] != "NaN" || attrs["pos_inf"] != "+Inf" || attrs["neg_inf"] != "-Inf" {
+		t.Errorf("non-finite float attrs = %#v", attrs)
+	}
+	if attrs["finite"] != 1.5 {
+		t.Errorf("finite = %#v (%T), want float64(1.5)", attrs["finite"], attrs["finite"])
+	}
+	if attrs["f32_inf"] != "-Inf" {
+		t.Errorf("f32_inf = %#v, want %q", attrs["f32_inf"], "-Inf")
+	}
+	if attrs["f32_finite"] != 2.5 {
+		t.Errorf("f32_finite = %#v (%T), want float64(2.5)", attrs["f32_finite"], attrs["f32_finite"])
+	}
+	if _, exists := attrs[""]; exists {
+		t.Errorf("empty key attr leaked into %#v", attrs)
+	}
+	if attrs["inlined"] != "yes" {
+		t.Errorf("inlined = %#v, want %q", attrs["inlined"], "yes")
+	}
+	raw, err := json.Marshal(entries[0])
+	if err != nil {
+		t.Fatalf("json.Marshal(entry) with non-finite floats failed: %v", err)
+	}
+	if !strings.Contains(string(raw), `"nan":"NaN"`) || !strings.Contains(string(raw), `"pos_inf":"+Inf"`) || !strings.Contains(string(raw), `"neg_inf":"-Inf"`) {
+		t.Fatalf("marshaled entry JSON = %s", raw)
+	}
+}

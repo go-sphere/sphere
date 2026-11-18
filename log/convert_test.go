@@ -164,3 +164,17 @@ func TestFormatAnyWalksSharedSubtreesOnce(t *testing.T) {
 		t.Fatal("formatAny did not finish on a value with shared subtrees")
 	}
 }
+
+func TestFormatGroupSkipsEmptyAndInlinesEmptyKeyMembers(t *testing.T) {
+	got := formatSlogValue(Group("outer",
+		slog.Attr{},
+		String("", "ignored"),
+		Group("empty"),
+		Group("empty_zero", slog.Attr{}),
+		Group("", String("a", "1"), Int("b", 2)),
+		String("c", "3"),
+	).Value)
+	if want := "{a=1,b=2,c=3}"; got != want {
+		t.Fatalf("formatSlogValue = %q, want %q", got, want)
+	}
+}
