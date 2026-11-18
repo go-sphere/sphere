@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -9,8 +10,10 @@ import (
 	"time"
 
 	"github.com/go-sphere/confstore/codec"
+	"github.com/go-sphere/sphere/core/task"
+	"github.com/go-sphere/sphere/core/task/tasktest"
+	"github.com/go-sphere/sphere/internal/redistest"
 	"github.com/go-sphere/sphere/mq"
-	"github.com/go-sphere/sphere/test/redistest"
 )
 
 func TestOptionsValidationAndNilOption(t *testing.T) {
@@ -83,6 +86,8 @@ func TestPubSubSubscriptionStopWaitsAndCloseLeavesClientOpen(t *testing.T) {
 
 	entered := make(chan struct{})
 	release := make(chan struct{})
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	defer releaseOnce()
 	once := sync.OnceFunc(func() { close(entered) })
 	sub, err := ps.Subscribe(t.Context(), "topic", func(context.Context, int) error {
 		once()
@@ -113,7 +118,7 @@ func TestPubSubSubscriptionStopWaitsAndCloseLeavesClientOpen(t *testing.T) {
 		t.Fatal("StopTopic closed done before stopped subscription handler finished")
 	case <-time.After(50 * time.Millisecond):
 	}
-	close(release)
+	releaseOnce()
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
@@ -129,4 +134,80 @@ func TestPubSubSubscriptionStopWaitsAndCloseLeavesClientOpen(t *testing.T) {
 	if err := client.Ping(t.Context()).Err(); err != nil {
 		t.Fatalf("injected redis client closed unexpectedly: %v", err)
 	}
+}
+
+func TestQueueDecodeErrorOnConsumeAndTryConsume(t *testing.T) {
+	ctx := t.Context()
+	client := redistest.NewTestRedisClient(t)
+	q, err := NewQueue[int](WithClient(client))
+	if err != nil {
+		t.Fatalf("NewQueue: %v", err)
+	}
+
+	badPayload := []byte("not-an-int")
+	if err := client.RPush(ctx, "decode-try", badPayload).Err(); err != nil {
+		t.Fatalf("RPush: %v", err)
+	}
+	_, found, err := q.TryConsume(ctx, "decode-try")
+	var decErr *DecodeError
+	if !errors.As(err, &decErr) || !found || !bytes.Equal(decErr.Raw, badPayload) {
+		t.Fatalf("TryConsume undecodable = (found=%v, err=%v), want found=true & *DecodeError", found, err)
+	}
+
+	if err := client.RPush(ctx, "decode-consume", badPayload).Err(); err != nil {
+		t.Fatalf("RPush consume: %v", err)
+	}
+	_, err = q.Consume(ctx, "decode-consume")
+	decErr = nil
+	if !errors.As(err, &decErr) || !bytes.Equal(decErr.Raw, badPayload) {
+		t.Fatalf("Consume undecodable = %v, want *DecodeError with raw payload", err)
+	}
+}
+
+func TestPubSubCustomCodecPanicRecoveryAndMessageQueueLifecycle(t *testing.T) {
+	client := redistest.NewTestRedisClient(t)
+	panickingCodec := codec.NewCodec(
+		codec.JsonCodec().Marshal,
+		func(data []byte, v any) error {
+			if string(data) == `"boom"` {
+				panic("codec boom")
+			}
+			return codec.JsonCodec().Unmarshal(data, v)
+		},
+	)
+	ps, err := NewPubSub[string](WithClient(client), WithCodec(panickingCodec))
+	if err != nil {
+		t.Fatalf("NewPubSub: %v", err)
+	}
+	t.Cleanup(func() { _ = ps.Stop(context.Background()) })
+
+	received := make(chan string, 1)
+	if _, err := ps.Subscribe(t.Context(), "codec-panic", func(_ context.Context, msg string) error {
+		received <- msg
+		return nil
+	}); err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+	if err := ps.Broadcast(t.Context(), "codec-panic", "boom"); err != nil {
+		t.Fatalf("Broadcast boom: %v", err)
+	}
+	if err := ps.Broadcast(t.Context(), "codec-panic", "ok"); err != nil {
+		t.Fatalf("Broadcast ok: %v", err)
+	}
+	select {
+	case got := <-received:
+		if got != "ok" {
+			t.Fatalf("received %q, want ok", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("subscription did not stay alive after codec panic")
+	}
+
+	tasktest.AssertLifecycleContract(t, func() task.Task {
+		mqInst, err := NewMessageQueue[int](WithClient(client))
+		if err != nil {
+			t.Fatalf("NewMessageQueue: %v", err)
+		}
+		return mqInst
+	})
 }

@@ -16,17 +16,13 @@ type MessageQueue[T any] struct {
 // NewMessageQueue creates a new Redis-based message queue that supports both queue and pub/sub operations.
 // Both components share the same Redis client and codec configuration.
 func NewMessageQueue[T any](opt ...Option) (*MessageQueue[T], error) {
-	queue, err := NewQueue[T](opt...)
-	if err != nil {
-		return nil, err
-	}
-	pubSub, err := NewPubSub[T](opt...)
-	if err != nil {
+	opts := newOptions(opt...)
+	if err := opts.validate(); err != nil {
 		return nil, err
 	}
 	return &MessageQueue[T]{
-		Queue:  queue,
-		PubSub: pubSub,
+		Queue:  newQueueWithOptions[T](opts),
+		PubSub: newPubSubWithOptions[T](opts),
 	}, nil
 }
 

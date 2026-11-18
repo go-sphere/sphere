@@ -14,9 +14,10 @@ type MessageQueue[T any] struct {
 // NewMessageQueue creates a new memory-based message queue that supports both queue and pub/sub operations.
 // The same options apply to both the underlying queue and pub/sub components.
 func NewMessageQueue[T any](opt ...Option) *MessageQueue[T] {
+	opts := newOptions(opt...)
 	return &MessageQueue[T]{
-		Queue:  NewQueue[T](opt...),
-		PubSub: NewPubSub[T](opt...),
+		Queue:  newQueueWithOptions[T](opts),
+		PubSub: newPubSubWithOptions[T](opts),
 	}
 }
 

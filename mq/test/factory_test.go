@@ -9,10 +9,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/go-sphere/sphere/internal/redistest"
 	"github.com/go-sphere/sphere/mq"
 	"github.com/go-sphere/sphere/mq/memory"
 	redismq "github.com/go-sphere/sphere/mq/redis"
-	"github.com/go-sphere/sphere/test/redistest"
 )
 
 type queueFactory struct {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/go-sphere/sphere/log"
@@ -129,5 +130,31 @@ func TestSlogLoggerInheritsCallerAndStack(t *testing.T) {
 	}
 	if got[0]["stacktrace"] == nil {
 		t.Errorf("entry = %v, want a stacktrace", got[0])
+	}
+}
+
+func TestStacktraceStartsAtUserCallSite(t *testing.T) {
+	for name, wrap := range wrapperShapes() {
+		t.Run(name, func(t *testing.T) {
+			backend, entries := newFileBackend(t, log.WithStackAt(log.LevelError))
+			lg := log.NewLogger(wrap(backend))
+			lg.ErrorContext(context.Background(), "boom")
+
+			got := entries()
+			if len(got) != 1 {
+				t.Fatalf("entries = %v, want 1", got)
+			}
+			st, ok := got[0]["stacktrace"].(string)
+			if !ok || st == "" {
+				t.Fatalf("missing stacktrace: %#v", got[0])
+			}
+			firstLine, _, _ := strings.Cut(st, "\n")
+			if strings.Contains(firstLine, "/sphere/log.") || strings.Contains(firstLine, "/sphere/log/zapx.") {
+				t.Fatalf("stacktrace top frame leaked log package internals: %q", firstLine)
+			}
+			if !strings.Contains(firstLine, "TestStacktraceStartsAtUserCallSite") {
+				t.Fatalf("stacktrace top frame = %q, want TestStacktraceStartsAtUserCallSite", firstLine)
+			}
+		})
 	}
 }

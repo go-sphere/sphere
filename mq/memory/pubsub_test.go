@@ -23,6 +23,8 @@ func TestBroadcastDropsWhenSubscriberQueueFull(t *testing.T) {
 
 	started := make(chan struct{})
 	release := make(chan struct{})
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	defer releaseOnce()
 	received := make(chan int, 4)
 	if _, err := p.Subscribe(ctx, "topic", func(_ context.Context, data int) error {
 		if data == 1 {
@@ -50,7 +52,7 @@ func TestBroadcastDropsWhenSubscriberQueueFull(t *testing.T) {
 		t.Fatalf("Broadcast 3 should neither block nor fail: %v", err)
 	}
 
-	close(release)
+	releaseOnce()
 	for _, want := range []int{1, 2} {
 		select {
 		case got := <-received:

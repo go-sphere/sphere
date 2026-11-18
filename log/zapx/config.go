@@ -1,16 +1,20 @@
 package zapx
 
 import (
+	"log/slog"
+	"math"
+
 	corelog "github.com/go-sphere/sphere/log"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
+	"go.uber.org/zap/zapcore"
 )
 
 const defaultLevel = "info"
 
 // Config defines zap backend output and level settings. Level is a zap
 // level string (default "info"); an invalid value falls back to Info.
-// log.WithMinLevel is ignored; set Level instead.
+// log.WithMinLevel passed to NewBackend overrides Level.
 type Config struct {
 	File    FileConfig    `json:"file" yaml:"file"`
 	Console ConsoleConfig `json:"console" yaml:"console"`
@@ -57,11 +61,30 @@ func zapOptions(o corelog.Options) []zap.Option {
 	default:
 		break
 	}
-	if o.AddStackAt != nil {
+	if o.DisableStack {
+		opts = append(opts, zap.AddStacktrace(zapcore.InvalidLevel))
+	} else if o.AddStackAt != nil {
 		opts = append(opts, zap.AddStacktrace(logLevelToZapLevel(*o.AddStackAt)))
+	}
+	if o.MinLevel != nil {
+		opts = append(opts, zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+			return wrapCoreMinLevel(core, o.MinLevel)
+		}))
 	}
 	return opts
 }
+
+func wrapCoreMinLevel(core zapcore.Core, minLevel *corelog.Level) zapcore.Core {
+	if minLevel == nil {
+		return core
+	}
+	incCore, err := zapcore.NewIncreaseLevelCore(core, logLevelToZapLevel(*minLevel))
+	if err != nil {
+		return core
+	}
+	return incCore
+}
+
 func zapSlogOptions(o corelog.Options) []zapslog.HandlerOption {
 	opts := make([]zapslog.HandlerOption, 0, 4)
 	switch o.AddCaller {
@@ -75,8 +98,12 @@ func zapSlogOptions(o corelog.Options) []zapslog.HandlerOption {
 	if o.Name != "" {
 		opts = append(opts, zapslog.WithName(o.Name))
 	}
-	if o.AddStackAt != nil {
+	if !o.DisableStack && o.AddStackAt != nil {
 		opts = append(opts, zapslog.AddStacktraceAt(logLevelToSlogLevel(*o.AddStackAt)))
+	} else {
+		// zapslog defaults to slog.LevelError when AddStacktraceAt is omitted;
+		// disable stacktraces when log.WithStackAt was not configured or DisableStack was set.
+		opts = append(opts, zapslog.AddStacktraceAt(slog.Level(math.MaxInt)))
 	}
 	return opts
 }

@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 )
 
@@ -207,4 +208,65 @@ func TestPublishRacingClosePreservesAcceptedMessages(t *testing.T) {
 			t.Fatalf("Consume accepted message = (%d, %v), want (7, nil)", data, err)
 		}
 	}
+}
+
+func TestPublishFullQueueUnblocksMultipleProducersAndRaceClose(t *testing.T) {
+	t.Run("full queue drains wake all waiting producers", func(t *testing.T) {
+		ctx := t.Context()
+		q := NewQueue[int](WithQueueSize(2))
+		defer func() { _ = q.Close() }()
+
+		for i := range 2 {
+			if err := q.Publish(ctx, "topic", i); err != nil {
+				t.Fatalf("seed Publish(%d): %v", i, err)
+			}
+		}
+
+		const producers = 3
+		errCh := make(chan error, producers)
+		var wg sync.WaitGroup
+		for i := range producers {
+			wg.Go(func() {
+				errCh <- q.Publish(ctx, "topic", 10+i)
+			})
+		}
+
+		var got []int
+		for range 2 + producers {
+			v, err := q.Consume(ctx, "topic")
+			if err != nil {
+				t.Fatalf("Consume: %v", err)
+			}
+			got = append(got, v)
+		}
+		wg.Wait()
+		close(errCh)
+		for err := range errCh {
+			if err != nil {
+				t.Fatalf("blocked Publish error: %v", err)
+			}
+		}
+		if len(got) != 2+producers {
+			t.Fatalf("consumed %d messages, want %d", len(got), 2+producers)
+		}
+	})
+
+	t.Run("blocked publish unblocks with ErrQueueClosed on Close", func(t *testing.T) {
+		ctx := t.Context()
+		q := NewQueue[int](WithQueueSize(1))
+		if err := q.Publish(ctx, "topic", 1); err != nil {
+			t.Fatalf("seed Publish: %v", err)
+		}
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- q.Publish(ctx, "topic", 2)
+		}()
+		if err := q.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := <-errCh; !errors.Is(err, ErrQueueClosed) {
+			t.Fatalf("blocked Publish after Close = %v, want ErrQueueClosed", err)
+		}
+	})
 }

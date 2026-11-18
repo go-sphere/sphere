@@ -13,7 +13,6 @@ import (
 )
 
 type subscription[T any] struct {
-	parent  *PubSub[T]
 	topic   string
 	handler mq.Handler[T]
 	ch      chan T
@@ -22,6 +21,12 @@ type subscription[T any] struct {
 	done    chan struct{}
 	stop    sync.Once
 }
+
+var closedChan = func() chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
+}()
 
 func (s *subscription[T]) Stop() error {
 	// Keep the subscription registered until run() exits so StopTopic/RequestStop
@@ -72,7 +77,10 @@ type PubSub[T any] struct {
 // NewPubSub creates an in-memory PubSub. The default per-subscription buffer
 // holds 100 messages.
 func NewPubSub[T any](opt ...Option) *PubSub[T] {
-	opts := newOptions(opt...)
+	return newPubSubWithOptions[T](newOptions(opt...))
+}
+
+func newPubSubWithOptions[T any](opts *options) *PubSub[T] {
 	return &PubSub[T]{
 		identifier: opts.identifier,
 		queueSize:  opts.queueSize,
@@ -91,6 +99,9 @@ func (p *PubSub[T]) Identifier() string {
 // Broadcast are available before Start; Start is only the task lifecycle wait.
 // A caller running Start outside task.Group must still call Stop for cleanup.
 func (p *PubSub[T]) Start(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	select {
 	case <-p.done:
 		return nil
@@ -109,6 +120,9 @@ func (p *PubSub[T]) Start(ctx context.Context) error {
 // subscriber. Drops are counted per topic and reported in one warning per
 // topic at most every 10s, carrying the number dropped since the previous one.
 func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
@@ -202,7 +216,6 @@ func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler mq.Hand
 
 	subCtx, cancel := context.WithCancel(ctx)
 	sub := &subscription[T]{
-		parent:  p,
 		topic:   topic,
 		handler: handler,
 		ch:      make(chan T, p.queueSize),
@@ -332,6 +345,9 @@ func (p *PubSub[T]) Done() <-chan struct{} {
 // ctx cancellation. A handler must call RequestStop instead of waiting on
 // itself through Stop.
 func (p *PubSub[T]) Stop(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	stopErr := p.RequestStop()
 	select {
 	case <-p.done:
@@ -342,16 +358,21 @@ func (p *PubSub[T]) Stop(ctx context.Context) error {
 	case <-p.done:
 		return stopErr
 	case <-ctx.Done():
-		return fmt.Errorf("mq memory: stop: %w", errors.Join(stopErr, ctx.Err()))
+		if stopErr != nil {
+			return fmt.Errorf("mq memory: stop: %w", errors.Join(stopErr, ctx.Err()))
+		}
+		return fmt.Errorf("mq memory: stop: %w", ctx.Err())
 	}
 }
 
 func subscriptionsDone[T any](subs []*subscription[T]) <-chan struct{} {
-	done := make(chan struct{})
-	if len(subs) == 0 {
-		close(done)
-		return done
+	switch len(subs) {
+	case 0:
+		return closedChan
+	case 1:
+		return subs[0].done
 	}
+	done := make(chan struct{})
 	go func() {
 		for _, sub := range subs {
 			<-sub.done

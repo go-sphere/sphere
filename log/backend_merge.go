@@ -35,7 +35,8 @@ func MapContextAttrExtractor(extractor ContextMapExtractor) ContextAttrExtractor
 
 // MergeAttrs merges base attrs with explicit attrs. Explicit attrs override
 // same-key values from base in place, keeping the first position of each key.
-// When either slice is empty the other is returned unchanged (not copied).
+// Attrs with an empty key (inline groups) are never collapsed. When either
+// slice is empty the other is returned unchanged (not copied).
 func MergeAttrs(base []Attr, explicit []Attr) []Attr {
 	if len(base) == 0 {
 		return explicit
@@ -43,27 +44,43 @@ func MergeAttrs(base []Attr, explicit []Attr) []Attr {
 	if len(explicit) == 0 {
 		return base
 	}
-	out := make([]Attr, 0, len(base)+len(explicit))
-	index := make(map[string]int, len(base)+len(explicit))
-	for _, a := range base {
-		// A repeated key in base overwrites its earlier slot instead of
-		// appending: two attrs under one key are what the merge exists to
-		// avoid, and leaving both would let a later explicit override patch
-		// only the last one.
-		if i, ok := index[a.Key]; ok {
-			out[i] = a
-			continue
+	total := len(base) + len(explicit)
+	out := make([]Attr, 0, total)
+	if total <= 8 {
+		for _, slice := range [][]Attr{base, explicit} {
+			for _, a := range slice {
+				if a.Key == "" {
+					out = append(out, a)
+					continue
+				}
+				if idx := slices.IndexFunc(out, func(c Attr) bool { return c.Key == a.Key }); idx >= 0 {
+					out[idx] = a
+					continue
+				}
+				out = append(out, a)
+			}
 		}
-		index[a.Key] = len(out)
-		out = append(out, a)
+		return out
 	}
-	for _, a := range explicit {
-		if i, ok := index[a.Key]; ok {
-			out[i] = a
-			continue
+
+	index := make(map[string]int, total)
+	for _, slice := range [][]Attr{base, explicit} {
+		for _, a := range slice {
+			if a.Key == "" {
+				out = append(out, a)
+				continue
+			}
+			// A repeated key in base overwrites its earlier slot instead of
+			// appending: two attrs under one key are what the merge exists to
+			// avoid, and leaving both would let a later explicit override patch
+			// only the last one.
+			if i, ok := index[a.Key]; ok {
+				out[i] = a
+				continue
+			}
+			index[a.Key] = len(out)
+			out = append(out, a)
 		}
-		index[a.Key] = len(out)
-		out = append(out, a)
 	}
 	return out
 }
@@ -76,7 +93,7 @@ func MergeAttrs(base []Attr, explicit []Attr) []Attr {
 // backend. Only the Context logging methods carry a caller context; the others
 // pass context.Background to the extractor.
 func WrapBackendWithContextMerge(backend Backend, extractor ContextAttrExtractor) Backend {
-	if backend == nil || extractor == nil {
+	if isNilBackend(backend) || extractor == nil {
 		return backend
 	}
 	return &contextMergeBackend{next: backend, extractor: extractor}
@@ -95,6 +112,13 @@ type contextMergeBackend struct {
 
 func (b *contextMergeBackend) Log(ctx context.Context, level Level, msg string, attrs ...Attr) {
 	b.next.Log(ctx, level, msg, MergeAttrs(b.extractor(ctx), attrs)...)
+}
+
+func (b *contextMergeBackend) Enabled(level Level) bool {
+	if le, ok := b.next.(levelEnabler); ok {
+		return le.Enabled(level)
+	}
+	return true
 }
 
 func (b *contextMergeBackend) Sync() error {

@@ -26,8 +26,11 @@ type Options struct {
 	// AddStackAt is the level at and above which a stack is attached; nil
 	// means unchanged.
 	AddStackAt *Level
+	// DisableStack clears any inherited AddStackAt setting.
+	DisableStack bool
 	// MinLevel is the minimum emitted level; nil means unchanged. Not every
-	// backend honors it (zapx ignores it).
+	// sink can lower below its root threshold (zapx applies it at construction
+	// and can tighten via With).
 	MinLevel *Level
 	// Attrs are preset fields added to every entry; later options win on
 	// key collisions.
@@ -40,10 +43,12 @@ type Options struct {
 type Option = func(*Options)
 
 // WithName sets the logger name for identification purposes.
-// The name appears in log output to help distinguish between different loggers.
+// Empty names leave the current logger name unchanged.
 func WithName(name string) Option {
 	return func(o *Options) {
-		o.Name = name
+		if name != "" {
+			o.Name = name
+		}
 	}
 }
 
@@ -76,12 +81,23 @@ func WithStackAt(level Level) Option {
 	return func(o *Options) {
 		l := level
 		o.AddStackAt = &l
+		o.DisableStack = false
+	}
+}
+
+// DisableStack removes automatic stack trace attachment from log entries,
+// clearing any threshold inherited from a parent logger.
+func DisableStack() Option {
+	return func(o *Options) {
+		o.DisableStack = true
+		o.AddStackAt = nil
 	}
 }
 
 // WithMinLevel sets the minimum level for log entries to be emitted.
-// StdioBackend honors it; zapx does not — set zapx.Config.Level instead.
-// WithStackAt is not a level filter.
+// Built-in backends (including StdioBackend, logbuffer, and zapx) honor it;
+// on derived zapx backends, WithMinLevel can raise the threshold above the
+// sink's level. WithStackAt is not a level filter.
 func WithMinLevel(level Level) Option {
 	return func(o *Options) {
 		l := level
@@ -102,24 +118,18 @@ func WithAttrs(attrs map[string]any) Option {
 	}
 }
 
-func newOptions(opts ...Option) *Options {
-	defaults := &Options{
-		AddCaller: AddCallerStatusKeep,
-		Attrs:     make(map[string]any),
-	}
-	for _, opt := range opts {
-		if opt != nil {
-			opt(defaults)
-		}
-	}
-	return defaults
-}
-
 // NewOptions applies opts to the defaults (AddCallerStatusKeep, no name,
 // no level settings, empty Attrs) and returns a copy that shares no mutable
 // state with the options, so backend adapters can retain it.
 func NewOptions(opts ...Option) Options {
-	o := newOptions(opts...)
+	o := Options{
+		AddCaller: AddCallerStatusKeep,
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&o)
+		}
+	}
 	attrs := make(map[string]any, len(o.Attrs))
 	maps.Copy(attrs, o.Attrs)
 	var stackAt *Level
@@ -133,10 +143,11 @@ func NewOptions(opts ...Option) Options {
 		minLevel = &l
 	}
 	return Options{
-		Name:       o.Name,
-		AddCaller:  o.AddCaller,
-		AddStackAt: stackAt,
-		MinLevel:   minLevel,
-		Attrs:      attrs,
+		Name:         o.Name,
+		AddCaller:    o.AddCaller,
+		AddStackAt:   stackAt,
+		DisableStack: o.DisableStack,
+		MinLevel:     minLevel,
+		Attrs:        attrs,
 	}
 }

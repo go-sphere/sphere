@@ -555,3 +555,29 @@ func TestContextFacadeNormalizesNilContext(t *testing.T) {
 		}
 	}
 }
+
+type panicFormatArg struct{}
+
+func (panicFormatArg) String() string { panic("formatted even when disabled") }
+
+func TestDisabledFormatMethodsSkipSprintf(t *testing.T) {
+	orig := logger()
+	defer func() { std.Store(orig) }()
+
+	InitWithBackends(NewStdioBackend(WithMinLevel(LevelError)))
+	Debugf("value: %s", panicFormatArg{})
+	Infof("value: %s", panicFormatArg{})
+	Warnf("value: %s", panicFormatArg{})
+
+	lg := NewLogger(NewStdioBackend(WithMinLevel(LevelError)))
+	lg.Debugf("value: %s", panicFormatArg{})
+	lg.Infof("value: %s", panicFormatArg{})
+	lg.Warnf("value: %s", panicFormatArg{})
+}
+
+func TestWithNameEmptyLeavesNameUnchanged(t *testing.T) {
+	opts := NewOptions(WithName("api"), WithName(""))
+	if opts.Name != "api" {
+		t.Fatalf("NewOptions(WithName('api'), WithName('')).Name = %q, want 'api'", opts.Name)
+	}
+}

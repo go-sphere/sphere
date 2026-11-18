@@ -8,7 +8,6 @@ import (
 
 	corelog "github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/log/internal/callsite"
-	"github.com/go-sphere/sphere/log/internal/safefmt"
 	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
@@ -55,10 +54,11 @@ const coreCallerOffset = 2
 // fails: an invalid conf.Level falls back to info, and a config with the
 // console disabled and no FileName discards every entry. The log file, when
 // configured, is opened lazily on first write. The caller owns the returned
-// Backend and should Sync then Close it at shutdown. log.WithMinLevel is
-// ignored.
+// Backend and should Sync then Close it at shutdown. log.WithMinLevel overrides
+// conf.Level when supplied.
 func NewBackend(conf Config, options ...corelog.Option) *Backend {
-	core, file := newCore(conf)
+	resolved := corelog.NewOptions(options...)
+	core, file := newCore(conf, resolved.MinLevel)
 	backend := newBackendFromCore(core, options...)
 	backend.file = file
 	return backend
@@ -93,6 +93,11 @@ func joinName(base, next string) string {
 // A level outside LevelDebug..LevelError is clamped to the nearest of them.
 // Attrs are not resolved when the level is disabled, so an expensive LogValuer
 // costs nothing then.
+// Enabled reports whether entries at level will be emitted by this backend.
+func (z *Backend) Enabled(level corelog.Level) bool {
+	return z.coreLogger.Core().Enabled(logLevelToZapLevel(level))
+}
+
 func (z *Backend) Log(ctx context.Context, level corelog.Level, msg string, attrs ...corelog.Attr) {
 	zapLevel := logLevelToZapLevel(level)
 	ce := z.coreLogger.Check(zapLevel, msg)
@@ -100,32 +105,32 @@ func (z *Backend) Log(ctx context.Context, level corelog.Level, msg string, attr
 		return
 	}
 	var caller zapcore.EntryCaller
-	if z.addCaller {
-		if frame, ok := callsite.Frame(); ok {
-			caller = zapcore.EntryCaller{
-				Defined:  true,
-				PC:       frame.PC,
-				File:     frame.File,
-				Line:     frame.Line,
-				Function: frame.Function,
+	if z.addCaller || ce.Stack != "" {
+		if frame, skip, ok := callsite.FrameSkip(); ok {
+			if z.addCaller {
+				caller = zapcore.EntryCaller{
+					Defined:  true,
+					PC:       frame.PC,
+					File:     frame.File,
+					Line:     frame.Line,
+					Function: frame.Function,
+				}
+				ce.Caller = caller
+			}
+			if ce.Stack != "" {
+				ce.Stack = zap.StackSkip("", skip).String
 			}
 		}
-		ce.Caller = caller
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			var errText string
-			func() {
-				defer func() {
-					if recover() != nil {
-						errText = "unprintable"
-					}
-				}()
-				errText = safefmt.Sprint(r)
-			}()
+			errText := formatPanicSafely(r)
 			if fallback := z.coreLogger.Check(zapLevel, msg); fallback != nil {
 				if z.addCaller {
 					fallback.Caller = caller
+				}
+				if ce.Stack != "" {
+					fallback.Stack = ce.Stack
 				}
 				fallback.Write(zap.String("attr_error", errText))
 			}
@@ -143,7 +148,7 @@ func (z *Backend) Log(ctx context.Context, level corelog.Level, msg string, attr
 
 // With returns a derived backend that shares the parent's sinks. The derived
 // backend does not own the file handle, so Close on it is a no-op.
-// log.WithMinLevel is ignored; the zap level is fixed by Config.Level.
+// log.WithMinLevel can tighten (raise) the threshold on a derived backend.
 func (z *Backend) With(options ...corelog.Option) corelog.Backend {
 	return z.with(options...)
 }
@@ -156,7 +161,7 @@ func (z *Backend) with(options ...corelog.Option) *Backend {
 	}
 	logger = logger.WithOptions(zapOptions(resolved)...)
 	if len(resolved.Attrs) > 0 {
-		logger = logger.With(MapToZapFields(resolved.Attrs)...)
+		logger = safeWithFields(logger, MapToZapFields(resolved.Attrs))
 	}
 	next := &Backend{
 		zapLogger:  logger,
@@ -172,7 +177,9 @@ func (z *Backend) with(options ...corelog.Option) *Backend {
 		next.addCaller = false
 	default:
 	}
-	if resolved.AddStackAt != nil {
+	if resolved.DisableStack {
+		next.stackAt = nil
+	} else if resolved.AddStackAt != nil {
 		next.stackAt = resolved.AddStackAt
 	}
 	return next
@@ -211,14 +218,79 @@ func (z *Backend) SlogHandler(options ...corelog.Option) slog.Handler {
 	if resolved.AddCaller == corelog.AddCallerStatusKeep && z.addCaller {
 		resolved.AddCaller = corelog.AddCallerStatusEnable
 	}
-	if resolved.AddStackAt == nil {
+	if resolved.DisableStack {
+		resolved.AddStackAt = nil
+	} else if resolved.AddStackAt == nil {
 		resolved.AddStackAt = z.stackAt
 	}
-	var h slog.Handler = zapslog.NewHandler(z.zapLogger.Core(), zapSlogOptions(resolved)...)
+	core := wrapCoreMinLevel(z.zapLogger.Core(), resolved.MinLevel)
+	var h slog.Handler = zapslog.NewHandler(core, zapSlogOptions(resolved)...)
 	if len(resolved.Attrs) > 0 {
-		h = h.WithAttrs(mapToSlogAttrs(resolved.Attrs))
+		h = safeSlogWithAttrs(h, mapToSlogAttrs(resolved.Attrs))
 	}
 	return h
+}
+
+func safeWithFields(logger *zap.Logger, fields []zap.Field) *zap.Logger {
+	var out *zap.Logger
+	ok := func() bool {
+		defer func() {
+			_ = recover()
+		}()
+		out = logger.With(fields...)
+		return true
+	}()
+	if ok && out != nil {
+		return out
+	}
+	for _, f := range fields {
+		logger = safeWithSingleField(logger, f)
+	}
+	return logger
+}
+
+func safeWithSingleField(logger *zap.Logger, field zap.Field) (out *zap.Logger) {
+	defer func() {
+		if r := recover(); r != nil {
+			key := field.Key
+			if key == "" {
+				key = "attr_error"
+			}
+			out = logger.With(zap.String(key, "<panic: "+formatPanicSafely(r)+">"))
+		}
+	}()
+	return logger.With(field)
+}
+
+func safeSlogWithAttrs(h slog.Handler, attrs []slog.Attr) slog.Handler {
+	var out slog.Handler
+	ok := func() bool {
+		defer func() {
+			_ = recover()
+		}()
+		out = h.WithAttrs(attrs)
+		return true
+	}()
+	if ok && out != nil {
+		return out
+	}
+	for _, a := range attrs {
+		h = safeSlogWithSingleAttr(h, a)
+	}
+	return h
+}
+
+func safeSlogWithSingleAttr(h slog.Handler, attr slog.Attr) (out slog.Handler) {
+	defer func() {
+		if r := recover(); r != nil {
+			key := attr.Key
+			if key == "" {
+				key = "attr_error"
+			}
+			out = h.WithAttrs([]slog.Attr{slog.String(key, "<panic: "+formatPanicSafely(r)+">")})
+		}
+	}()
+	return h.WithAttrs([]slog.Attr{attr})
 }
 
 // SlogLogger returns a *slog.Logger whose handler is SlogHandler.
@@ -255,13 +327,16 @@ func (c consoleSyncer) Sync() error {
 
 // newCore builds the zap core for conf and returns the rotating file writer it
 // opened, or nil when conf declares no file sink. The caller owns the writer.
-func newCore(conf Config) (zapcore.Core, io.Closer) {
+func newCore(conf Config, minLevel *corelog.Level) (zapcore.Core, io.Closer) {
 	if conf.Level == "" {
 		conf.Level = defaultLevel
 	}
 	levelRaw, err := zapcore.ParseLevel(conf.Level)
 	if err != nil {
 		levelRaw = zap.InfoLevel
+	}
+	if minLevel != nil {
+		levelRaw = logLevelToZapLevel(*minLevel)
 	}
 	level := zap.NewAtomicLevelAt(levelRaw)
 

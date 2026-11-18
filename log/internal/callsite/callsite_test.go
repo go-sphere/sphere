@@ -14,6 +14,8 @@ func TestInTree(t *testing.T) {
 		{root + "/zapx.(*Backend).Log", true},
 		{root + "/logbuffer.(*Buffer).Log", true},
 		{root + "/internal/callsite.Frame", true},
+		{root + ".Fn[example.com/other.T]", true},
+		{root + ".(*Box[go.shape.struct { X example.com/other/pkg.T }]).Emit", true},
 		{root + "_test.TestCaller", false},
 		{root + "/zapx_test.TestCaller", false},
 		{root + "x.Info", false},

@@ -97,6 +97,12 @@ func (b *StdioBackend) buildLineSafely(level Level, msg, caller string, attrs []
 	return b.buildLine(level, msg, caller, attrs)
 }
 
+// Enabled reports whether entries at level will be emitted.
+func (b *StdioBackend) Enabled(level Level) bool {
+	level = min(max(level, LevelDebug), LevelError)
+	return level >= b.minLevel
+}
+
 // Sync is a no-op; lines are written unbuffered. It always returns nil.
 func (b *StdioBackend) Sync() error {
 	return nil
@@ -109,11 +115,9 @@ func (b *StdioBackend) With(options ...Option) Backend {
 }
 
 func (b *StdioBackend) clone() *StdioBackend {
-	attrs := make(map[string]any, len(b.attrs))
-	maps.Copy(attrs, b.attrs)
 	return &StdioBackend{
 		name:      b.name,
-		attrs:     attrs,
+		attrs:     b.attrs,
 		attrsText: b.attrsText,
 		minLevel:  b.minLevel,
 		addCaller: b.addCaller,
@@ -141,9 +145,11 @@ func (b *StdioBackend) apply(options ...Option) *StdioBackend {
 	default:
 		break
 	}
-	// AddStackAt controls stack trace attachment, not filtering, matching the
-	// zapx backend's zap.AddStacktrace semantics.
-	if o.AddStackAt != nil {
+	// AddStackAt / DisableStack controls stack trace attachment, not filtering,
+	// matching the zapx backend's zap.AddStacktrace semantics.
+	if o.DisableStack {
+		b.stackAt = nil
+	} else if o.AddStackAt != nil {
 		l := min(max(*o.AddStackAt, LevelDebug), LevelError)
 		b.stackAt = &l
 	}
@@ -152,11 +158,11 @@ func (b *StdioBackend) apply(options ...Option) *StdioBackend {
 		b.minLevel = *o.MinLevel
 	}
 	if len(o.Attrs) > 0 {
-		if b.attrs == nil {
-			b.attrs = make(map[string]any, len(o.Attrs))
-		}
-		maps.Copy(b.attrs, o.Attrs)
-		b.attrsText = renderAttrs(b.attrs)
+		attrs := make(map[string]any, len(b.attrs)+len(o.Attrs))
+		maps.Copy(attrs, b.attrs)
+		maps.Copy(attrs, o.Attrs)
+		b.attrs = attrs
+		b.attrsText = renderAttrs(attrs)
 	}
 	return b
 }

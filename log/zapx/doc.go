@@ -32,7 +32,8 @@
 // Close does not seal the backend. Close does not flush; call Sync first if
 // buffered entries must land.
 //
-// log.WithMinLevel is ignored; set Config.Level (a zap level string, default
-// "info"). An invalid Level falls back to info. FileConfig.MaxSize is in
-// megabytes, MaxAge in days, and MaxBackups is a file count.
+// Config.Level is a zap level string (default "info"); an invalid Level falls
+// back to info. log.WithMinLevel passed to NewBackend overrides Config.Level,
+// and With/SlogHandler can tighten the threshold further. FileConfig.MaxSize is
+// in megabytes, MaxAge in days, and MaxBackups is a file count.
 package zapx

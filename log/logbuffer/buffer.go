@@ -162,6 +162,11 @@ func (b *Buffer) ID() string {
 	return b.id
 }
 
+// Enabled reports whether entries at level will be recorded in the ring.
+func (b *Buffer) Enabled(level log.Level) bool {
+	return clampLevel(level) >= b.minLevel
+}
+
 // Log implements log.Backend: it records the entry into the ring and fans it
 // out to live subscribers without ever blocking on a slow one. A level outside
 // LevelDebug..LevelError is clamped to the nearest of them first.
@@ -213,6 +218,10 @@ func (v *view) Log(_ context.Context, level log.Level, msg string, attrs ...log.
 		return
 	}
 	v.buf.publish(level, msg, v.name, v.attrs, attrs)
+}
+
+func (v *view) Enabled(level log.Level) bool {
+	return clampLevel(level) >= v.minLevel
 }
 
 func (v *view) Sync() error { return nil }
@@ -391,6 +400,13 @@ func withPreset(base, attrs map[string]any) map[string]any {
 	out := make(map[string]any, len(base)+len(attrs))
 	maps.Copy(out, base)
 	for k, v := range attrs {
+		if sv, ok := v.(slog.Value); ok {
+			setSafe(out, k, func() { addAttr(out, log.Attr{Key: k, Value: sv}) })
+			continue
+		}
+		if k == "" {
+			continue
+		}
 		setSafe(out, k, func() { out[k] = renderValue(v) })
 	}
 	return out
@@ -403,6 +419,9 @@ func withPreset(base, attrs map[string]any) map[string]any {
 func mergeAttrs(preset map[string]any, attrs []log.Attr) (out map[string]any) {
 	if len(preset) == 0 && len(attrs) == 0 {
 		return nil
+	}
+	if len(attrs) == 0 {
+		return preset
 	}
 	out = make(map[string]any, len(preset)+len(attrs))
 	maps.Copy(out, preset)
@@ -432,22 +451,35 @@ func setSafe(dst map[string]any, key string, fn func()) {
 // renders as {}. A typed nil error pointer becomes nil instead of calling
 // Error on it.
 func renderValue(v any) any {
+	if v == nil {
+		return nil
+	}
+	if msg, ok := safefmt.Check(v); !ok {
+		return msg
+	}
 	if err, ok := v.(error); ok {
 		if rv := reflect.ValueOf(err); rv.Kind() == reflect.Pointer && rv.IsNil() {
 			return nil
 		}
 		return err.Error()
 	}
-	switch v.(type) {
-	case nil, time.Time, time.Duration:
-		return v
+	switch val := v.(type) {
+	case time.Time:
+		if y := val.Year(); y < 0 || y > 9999 {
+			return safefmt.Sprint(val)
+		}
+		return val
+	case time.Duration:
+		return val
 	}
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.String, reflect.Bool,
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return v
+		if _, hasMarshaler := v.(json.Marshaler); !hasMarshaler {
+			return v
+		}
 	case reflect.Float32, reflect.Float64:
 		f := rv.Float()
 		switch {
@@ -458,7 +490,9 @@ func renderValue(v any) any {
 		case math.IsInf(f, -1):
 			return "-Inf"
 		}
-		return v
+		if _, hasMarshaler := v.(json.Marshaler); !hasMarshaler {
+			return v
+		}
 	default:
 	}
 	if raw, ok := marshal(v); ok {
@@ -512,7 +546,9 @@ func addAttrDepth(dst map[string]any, attr log.Attr, depth int, budget *int) {
 		for _, ga := range group {
 			addAttrDepth(nested, ga, depth+1, budget)
 		}
-		dst[attr.Key] = nested
+		if len(nested) > 0 {
+			dst[attr.Key] = nested
+		}
 		return
 	}
 	if attr.Key == "" {

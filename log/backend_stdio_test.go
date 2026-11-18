@@ -361,3 +361,30 @@ func TestStdioBackendSkipsEmptyAttrsAndInlinesEmptyKeyGroups(t *testing.T) {
 		t.Fatalf("cyclic inline output = %q, want attr_error with unformattable", cyclicOut)
 	}
 }
+
+func TestStdioBackendDisableStackClearsInheritedStackAt(t *testing.T) {
+	parent := NewStdioBackend(WithStackAt(LevelError))
+	child := parent.With(DisableStack())
+	reEnabled := child.With(WithStackAt(LevelError))
+
+	parentOut := captureStderr(t, func() {
+		parent.Log(context.Background(), LevelError, "parent_err")
+	})
+	if !strings.Contains(parentOut, "stack=") {
+		t.Fatalf("parent should still emit stack, got %q", parentOut)
+	}
+
+	childOut := captureStderr(t, func() {
+		child.Log(context.Background(), LevelError, "child_err")
+	})
+	if strings.Contains(childOut, "stack=") {
+		t.Fatalf("child with DisableStack emitted unexpected stack: %q", childOut)
+	}
+
+	reEnabledOut := captureStderr(t, func() {
+		reEnabled.Log(context.Background(), LevelError, "re_err")
+	})
+	if !strings.Contains(reEnabledOut, "stack=") {
+		t.Fatalf("re-enabled child should emit stack again, got %q", reEnabledOut)
+	}
+}

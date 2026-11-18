@@ -280,3 +280,38 @@ func TestContextMergeBackendForwardsClose(t *testing.T) {
 		t.Fatal("Close() must reach the wrapped backend")
 	}
 }
+
+func TestMergeAttrsPreservesMultipleEmptyKeyInlineGroups(t *testing.T) {
+	got := MergeAttrs(
+		[]Attr{Group("", String("a", "1")), String("x", "old")},
+		[]Attr{Group("", String("b", "2")), String("x", "new")},
+	)
+	if len(got) != 3 {
+		t.Fatalf("len(MergeAttrs) = %d, want 3 (2 inline groups + 1 merged key)", len(got))
+	}
+	if got[0].Key != "" || got[1].Key != "x" || got[1].Value.String() != "new" || got[2].Key != "" {
+		t.Fatalf("unexpected merged attrs order/values: %#v", got)
+	}
+
+	// Also exercise the >8 attr map branch.
+	manyBase := make([]Attr, 0, 10)
+	for i := range 9 {
+		manyBase = append(manyBase, Int("k"+string(rune('a'+i)), i))
+	}
+	manyBase = append(manyBase, Group("", String("g1", "1")))
+	gotMany := MergeAttrs(manyBase, []Attr{Group("", String("g2", "2"))})
+	inlineCount := 0
+	for _, a := range gotMany {
+		if a.Key == "" {
+			inlineCount++
+		}
+	}
+	if inlineCount != 2 {
+		t.Fatalf("inlineCount = %d, want 2", inlineCount)
+	}
+
+	var typedNil *recordingBackend
+	if WrapBackendWithContextMerge(typedNil, func(context.Context) []Attr { return nil }) != typedNil {
+		t.Fatal("expected typed-nil backend to be returned unchanged")
+	}
+}

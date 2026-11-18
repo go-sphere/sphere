@@ -13,22 +13,29 @@ import (
 // chains. Cycles are caught by identity, not by this bound.
 const maxDepth = 128
 
-// Sprint returns fmt.Sprint(v), or a "<unformattable T: ...>" placeholder when
-// v is cyclic or deeper than maxDepth reflection levels. The structural check
-// covers every value, including those with Error, String or Format methods,
-// because such a method can format its own cycle.
-func Sprint(v any) string {
+// Check reports whether v can be formatted safely with fmt.Sprint. If v is
+// cyclic or deeper than maxDepth reflection levels it returns a
+// "<unformattable T: ...>" placeholder and false; otherwise it returns ("", true).
+func Check(v any) (string, bool) {
 	// fmt.Sprint has no cycle detection, so a self-referential container recurses
 	// until the goroutine stack is exhausted. That failure is fatal and cannot be
 	// recovered — unlike a panic from a MarshalJSON, which the backend catches —
 	// so it has to be prevented rather than handled. Values that are cyclic or
 	// implausibly deep are reported instead of formatted.
-	w := formatWalk{
-		onPath:   make(map[containerKey]struct{}),
-		verified: make(map[containerKey]int),
-	}
+	var w formatWalk
 	if _, ok := w.walk(reflect.ValueOf(v), 0); !ok {
-		return fmt.Sprintf("<unformattable %T: cyclic or deeper than %d levels>", v, maxDepth)
+		return fmt.Sprintf("<unformattable %T: cyclic or deeper than %d levels>", v, maxDepth), false
+	}
+	return "", true
+}
+
+// Sprint returns fmt.Sprint(v), or a "<unformattable T: ...>" placeholder when
+// v is cyclic or deeper than maxDepth reflection levels. The structural check
+// covers every value, including those with Error, String or Format methods,
+// because such a method can format its own cycle.
+func Sprint(v any) string {
+	if msg, ok := Check(v); !ok {
+		return msg
 	}
 	return fmt.Sprint(v)
 }
@@ -46,12 +53,13 @@ type containerKey struct {
 }
 
 // formatWalk checks whether a value can be handed to fmt.Sprint without risking
-// unbounded recursion. onPath holds the containers on the current path, so a
-// value reachable from itself is rejected while the same value appearing twice
-// side by side is not. verified maps each container already found acyclic to
-// the number of levels below it, so a shared subtree is walked once instead of
-// once per path that reaches it.
+// unbounded recursion. Active containers on the current path live in a small
+// fixed stack buffer first and spill to onPath only when deeper than 8, so
+// everyday errors and small structs allocate zero maps. verified maps shared
+// subtrees to their heights once depth warrants memoization.
 type formatWalk struct {
+	stackBuf [8]containerKey
+	stackLen int
 	onPath   map[containerKey]struct{}
 	verified map[containerKey]int
 }
@@ -78,14 +86,42 @@ func (w *formatWalk) walk(rv reflect.Value, depth int) (height int, ok bool) {
 		if rv.Kind() == reflect.Slice {
 			key.length = rv.Len()
 		}
-		if _, ok := w.onPath[key]; ok {
-			return 0, false
+		if w.onPath != nil {
+			if _, ok := w.onPath[key]; ok {
+				return 0, false
+			}
+		} else {
+			for i := range w.stackLen {
+				if w.stackBuf[i] == key {
+					return 0, false
+				}
+			}
 		}
-		if h, ok := w.verified[key]; ok {
-			return h, depth+h <= maxDepth
+		if w.verified != nil {
+			if h, ok := w.verified[key]; ok {
+				return h, depth+h <= maxDepth
+			}
 		}
-		w.onPath[key] = struct{}{}
-		defer delete(w.onPath, key)
+		if w.onPath != nil {
+			w.onPath[key] = struct{}{}
+			defer delete(w.onPath, key)
+		} else if w.stackLen < len(w.stackBuf) {
+			w.stackBuf[w.stackLen] = key
+			w.stackLen++
+			defer func() {
+				w.stackLen--
+				if w.onPath != nil {
+					delete(w.onPath, key)
+				}
+			}()
+		} else {
+			w.onPath = make(map[containerKey]struct{}, w.stackLen+4)
+			for i := range w.stackLen {
+				w.onPath[w.stackBuf[i]] = struct{}{}
+			}
+			w.onPath[key] = struct{}{}
+			defer delete(w.onPath, key)
+		}
 
 		switch rv.Kind() {
 		case reflect.Pointer:
@@ -102,7 +138,10 @@ func (w *formatWalk) walk(rv reflect.Value, depth int) (height int, ok bool) {
 		default: // slice
 			height, ok = w.elems(rv, depth)
 		}
-		if ok {
+		if ok && (depth > 0 || w.onPath != nil) {
+			if w.verified == nil {
+				w.verified = make(map[containerKey]int)
+			}
 			w.verified[key] = height
 		}
 		return height, ok

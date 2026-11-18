@@ -42,9 +42,10 @@
 // [SlogBackend] is likewise optional: zapx.Backend implements it, and
 // MultiBackend and the context-merge wrapper forward it.
 //
-// StdioBackend honors [WithMinLevel]. zapx does not; set zapx.Config.Level
-// instead. [WithStackAt] attaches a stack at that level and above; it is not
-// a level filter. The built-in backends clamp an entry level outside
+// Both StdioBackend and zapx honor [WithMinLevel] (on derived zapx backends,
+// WithMinLevel can raise the threshold above the sink's level). [WithStackAt]
+// attaches a stack at that level and above, and [DisableStack] clears it; it
+// is not a level filter. The built-in backends clamp an entry level outside
 // [LevelDebug]..[LevelError] to the nearest of them.
 //
 // [WrapBackendWithContextMerge] injects attributes extracted from a

@@ -74,20 +74,26 @@ type Queue[T any] struct {
 // contact Redis.
 func NewQueue[T any](opt ...Option) (*Queue[T], error) {
 	opts := newOptions(opt...)
-	err := opts.validate()
-	if err != nil {
+	if err := opts.validate(); err != nil {
 		return nil, err
 	}
+	return newQueueWithOptions[T](opts), nil
+}
+
+func newQueueWithOptions[T any](opts *options) *Queue[T] {
 	return &Queue[T]{
 		client: opts.client,
 		codec:  opts.codec,
-	}, nil
+	}
 }
 
 // Publish encodes data with the configured codec and appends it to the
 // topic list (RPUSH). The list is unbounded; Publish does not block on
 // consumers.
 func (q *Queue[T]) Publish(ctx context.Context, topic string, data T) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -103,6 +109,9 @@ func (q *Queue[T]) Publish(ctx context.Context, topic string, data T) error {
 // A decode failure after pop returns a DecodeError holding the raw bytes.
 func (q *Queue[T]) Consume(ctx context.Context, topic string) (T, error) {
 	var zero T
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return zero, err
@@ -132,6 +141,12 @@ func (q *Queue[T]) Consume(ctx context.Context, topic string) (T, error) {
 // found=true and returns a DecodeError with the raw bytes; check err first.
 func (q *Queue[T]) TryConsume(ctx context.Context, topic string) (T, bool, error) {
 	var zero T
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return zero, false, err
+	}
 	raw, err := q.client.LPop(ctx, topic).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
@@ -152,6 +167,12 @@ func (q *Queue[T]) TryConsume(ctx context.Context, topic string) (T, bool, error
 // PurgeQueue deletes the topic key, discarding every pending message. A
 // missing topic is not an error.
 func (q *Queue[T]) PurgeQueue(ctx context.Context, topic string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return q.client.Del(ctx, topic).Err()
 }
 

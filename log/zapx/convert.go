@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"reflect"
 	"slices"
 
 	corelog "github.com/go-sphere/sphere/log"
+	"github.com/go-sphere/sphere/log/internal/safefmt"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -27,7 +29,7 @@ func MapToZapFields(attrs map[string]any) []zap.Field {
 		if k == "" {
 			continue
 		}
-		fields = append(fields, zap.Any(k, v))
+		fields = append(fields, safeAnyField(k, v))
 	}
 	return fields
 }
@@ -100,13 +102,115 @@ func attrToZapFieldDepth(attr corelog.Attr, depth int, budget *int) zap.Field {
 		}
 		return zap.Object(attr.Key, groupObject{fields: fields})
 	case slog.KindAny:
-		if err, ok := v.Any().(error); ok && attr.Key == "error" {
-			return zap.Error(err)
+		raw := v.Any()
+		if msg, ok := safefmt.Check(raw); !ok {
+			return zap.String(attr.Key, msg)
 		}
-		return zap.Any(attr.Key, v.Any())
+		if err, ok := raw.(error); ok && attr.Key == "error" {
+			return zap.Error(wrapSafeError(err))
+		}
+		return safeCheckedAnyField(attr.Key, raw)
 	default:
-		return zap.Any(attr.Key, fmt.Sprint(v.Any()))
+		return zap.Any(attr.Key, safefmt.Sprint(v.Any()))
 	}
+}
+
+func safeAnyField(key string, raw any) zap.Field {
+	if msg, ok := safefmt.Check(raw); !ok {
+		return zap.String(key, msg)
+	}
+	return safeCheckedAnyField(key, raw)
+}
+
+func safeCheckedAnyField(key string, raw any) zap.Field {
+	switch v := raw.(type) {
+	case zapcore.ObjectMarshaler, zapcore.ArrayMarshaler, []zap.Field:
+		return zap.Any(key, raw)
+	case error:
+		return zap.NamedError(key, wrapSafeError(v))
+	case []error:
+		wrapped := make([]error, len(v))
+		for i, err := range v {
+			wrapped[i] = wrapSafeError(err)
+		}
+		return zap.Errors(key, wrapped)
+	case fmt.Stringer:
+		// Guard against Stringer panicking with a cyclic value that zapcore
+		// would otherwise format via fmt.Errorf("PANIC=%v", rerr).
+		if _, isObj := raw.(zapcore.ObjectMarshaler); !isObj && !isTypedNil(raw) {
+			return zap.Stringer(key, safeStringer{s: v})
+		}
+		return zap.Any(key, raw)
+	default:
+		return zap.Any(key, raw)
+	}
+}
+
+func isTypedNil(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface:
+		return rv.IsNil()
+	default:
+		return false
+	}
+}
+
+func wrapSafeError(err error) error {
+	if err == nil || isTypedNil(err) {
+		return err
+	}
+	return safeError{err: err}
+}
+
+type safeError struct {
+	err error
+}
+
+func (e safeError) Error() string {
+	msg, panicked := safeStringCall(e.err.Error)
+	if panicked {
+		panic(msg)
+	}
+	return msg
+}
+
+func (e safeError) Unwrap() error {
+	return e.err
+}
+
+type safeStringer struct {
+	s fmt.Stringer
+}
+
+func (s safeStringer) String() string {
+	msg, panicked := safeStringCall(s.s.String)
+	if panicked {
+		panic(msg)
+	}
+	return msg
+}
+
+func safeStringCall(fn func() string) (out string, panicked bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			panicked = true
+			out = formatPanicSafely(r)
+		}
+	}()
+	return fn(), false
+}
+
+func formatPanicSafely(r any) (out string) {
+	defer func() {
+		if recover() != nil {
+			out = "unprintable"
+		}
+	}()
+	return safefmt.Sprint(r)
 }
 
 // groupObject encodes pre-resolved group fields with the same typed encoders

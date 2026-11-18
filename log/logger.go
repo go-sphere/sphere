@@ -46,8 +46,19 @@ type Logger interface {
 	Sync() error
 }
 
+type levelEnabler interface {
+	Enabled(Level) bool
+}
+
 type coreLogger struct {
 	backend Backend
+}
+
+func (l *coreLogger) enabled(level Level) bool {
+	if le, ok := l.backend.(levelEnabler); ok {
+		return le.Enabled(level)
+	}
+	return true
 }
 
 // Backend returns the underlying backend for bridge adapters.
@@ -95,18 +106,30 @@ func (l *coreLogger) ErrorContext(ctx context.Context, msg string, attrs ...Attr
 }
 
 func (l *coreLogger) Debugf(format string, args ...any) {
+	if !l.enabled(LevelDebug) {
+		return
+	}
 	l.backend.Log(context.Background(), LevelDebug, fmt.Sprintf(format, args...))
 }
 
 func (l *coreLogger) Infof(format string, args ...any) {
+	if !l.enabled(LevelInfo) {
+		return
+	}
 	l.backend.Log(context.Background(), LevelInfo, fmt.Sprintf(format, args...))
 }
 
 func (l *coreLogger) Warnf(format string, args ...any) {
+	if !l.enabled(LevelWarn) {
+		return
+	}
 	l.backend.Log(context.Background(), LevelWarn, fmt.Sprintf(format, args...))
 }
 
 func (l *coreLogger) Errorf(format string, args ...any) {
+	if !l.enabled(LevelError) {
+		return
+	}
 	l.backend.Log(context.Background(), LevelError, fmt.Sprintf(format, args...))
 }
 
@@ -155,7 +178,7 @@ func InitWithBackends(backends ...Backend) {
 	// to silence logging on purpose.
 	usable := 0
 	for _, b := range backends {
-		if b != nil {
+		if !isNilBackend(b) {
 			usable++
 		}
 	}
@@ -188,7 +211,11 @@ func DebugContext(ctx context.Context, msg string, attrs ...Attr) {
 
 // Debugf logs at LevelDebug using fmt.Sprintf. It does not take a context.
 func Debugf(format string, args ...any) {
-	logger().backend.Log(context.Background(), LevelDebug, fmt.Sprintf(format, args...))
+	l := logger()
+	if !l.enabled(LevelDebug) {
+		return
+	}
+	l.backend.Log(context.Background(), LevelDebug, fmt.Sprintf(format, args...))
 }
 
 // Info logs at LevelInfo through the global logger.
@@ -204,7 +231,11 @@ func InfoContext(ctx context.Context, msg string, attrs ...Attr) {
 
 // Infof logs at LevelInfo using fmt.Sprintf. It does not take a context.
 func Infof(format string, args ...any) {
-	logger().backend.Log(context.Background(), LevelInfo, fmt.Sprintf(format, args...))
+	l := logger()
+	if !l.enabled(LevelInfo) {
+		return
+	}
+	l.backend.Log(context.Background(), LevelInfo, fmt.Sprintf(format, args...))
 }
 
 // Warn logs at LevelWarn through the global logger.
@@ -220,7 +251,11 @@ func WarnContext(ctx context.Context, msg string, attrs ...Attr) {
 
 // Warnf logs at LevelWarn using fmt.Sprintf. It does not take a context.
 func Warnf(format string, args ...any) {
-	logger().backend.Log(context.Background(), LevelWarn, fmt.Sprintf(format, args...))
+	l := logger()
+	if !l.enabled(LevelWarn) {
+		return
+	}
+	l.backend.Log(context.Background(), LevelWarn, fmt.Sprintf(format, args...))
 }
 
 // Error logs at LevelError through the global logger.
@@ -236,7 +271,11 @@ func ErrorContext(ctx context.Context, msg string, attrs ...Attr) {
 
 // Errorf logs at LevelError using fmt.Sprintf. It does not take a context.
 func Errorf(format string, args ...any) {
-	logger().backend.Log(context.Background(), LevelError, fmt.Sprintf(format, args...))
+	l := logger()
+	if !l.enabled(LevelError) {
+		return
+	}
+	l.backend.Log(context.Background(), LevelError, fmt.Sprintf(format, args...))
 }
 
 // With returns a Logger derived from the backend installed at call time.

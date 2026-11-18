@@ -6,20 +6,24 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/go-sphere/confstore/codec"
+	"github.com/go-sphere/sphere/core/safe"
 	"github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/mq"
 	"github.com/redis/go-redis/v9"
 )
 
-// ErrPubSubClosed is an alias of mq.ErrPubSubClosed.
-//
-// Deprecated: match mq.ErrPubSubClosed instead.
-var ErrPubSubClosed = mq.ErrPubSubClosed
+const channelSendTimeout = 100 * time.Millisecond
+
+var closedChan = func() chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
+}()
 
 type subscription[T any] struct {
-	parent  *PubSub[T]
 	topic   string
 	handler mq.Handler[T]
 	raw     *redis.PubSub
@@ -79,13 +83,17 @@ func NewPubSub[T any](opt ...Option) (*PubSub[T], error) {
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
+	return newPubSubWithOptions[T](opts), nil
+}
+
+func newPubSubWithOptions[T any](opts *options) *PubSub[T] {
 	return &PubSub[T]{
 		identifier:    opts.identifier,
 		client:        opts.client,
 		codec:         opts.codec,
 		subscriptions: make(map[string][]*subscription[T]),
 		done:          make(chan struct{}),
-	}, nil
+	}
 }
 
 // Identifier returns the task.Task identifier configured with WithIdentifier.
@@ -97,6 +105,9 @@ func (p *PubSub[T]) Identifier() string {
 // Broadcast are available before Start; Start is only the task lifecycle wait.
 // A caller running Start outside task.Group must still call Stop for cleanup.
 func (p *PubSub[T]) Start(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	select {
 	case <-p.done:
 		return nil
@@ -113,6 +124,9 @@ func (p *PubSub[T]) Start(ctx context.Context) error {
 // Broadcast publishes to topic. Calls that begin after RequestStop return
 // mq.ErrPubSubClosed even though the injected Redis client remains usable.
 func (p *PubSub[T]) Broadcast(ctx context.Context, topic string, data T) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	p.mu.RLock()
 	closed := p.closed
 	p.mu.RUnlock()
@@ -164,7 +178,6 @@ func (p *PubSub[T]) Subscribe(ctx context.Context, topic string, handler mq.Hand
 
 	subCtx, cancel := context.WithCancel(ctx)
 	sub := &subscription[T]{
-		parent:  p,
 		topic:   topic,
 		handler: handler,
 		raw:     raw,
@@ -192,8 +205,9 @@ func (p *PubSub[T]) run(sub *subscription[T]) {
 	defer close(sub.done)
 	defer func() { _ = sub.requestStop() }()
 	defer p.remove(sub)
+	defer safe.Recover()
 
-	messages := sub.raw.Channel()
+	messages := sub.raw.Channel(redis.WithChannelSendTimeout(channelSendTimeout))
 	for {
 		select {
 		case <-sub.ctx.Done():
@@ -206,13 +220,22 @@ func (p *PubSub[T]) run(sub *subscription[T]) {
 				return
 			}
 			var data T
-			if err := p.codec.Unmarshal([]byte(msg.Payload), &data); err != nil {
+			if err := p.unmarshal(msg.Payload, &data); err != nil {
 				log.Error("failed to unmarshal subscription message", log.Err(err), log.String("topic", sub.topic))
 				continue
 			}
 			p.dispatch(sub.ctx, sub.topic, sub.handler, data)
 		}
 	}
+}
+
+func (p *PubSub[T]) unmarshal(payload string, out *T) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("panic in codec unmarshal: %v", recovered)
+		}
+	}()
+	return p.codec.Unmarshal([]byte(payload), out)
 }
 
 func (p *PubSub[T]) dispatch(ctx context.Context, topic string, handler mq.Handler[T], data T) {
@@ -300,6 +323,9 @@ func (p *PubSub[T]) Done() <-chan struct{} {
 // ctx cancellation. A handler must call RequestStop instead of waiting on
 // itself through Stop.
 func (p *PubSub[T]) Stop(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	stopErr := p.RequestStop()
 	select {
 	case <-p.done:
@@ -310,16 +336,21 @@ func (p *PubSub[T]) Stop(ctx context.Context) error {
 	case <-p.done:
 		return stopErr
 	case <-ctx.Done():
-		return fmt.Errorf("redis mq: stop: %w", errors.Join(stopErr, ctx.Err()))
+		if stopErr != nil {
+			return fmt.Errorf("redis mq: stop: %w", errors.Join(stopErr, ctx.Err()))
+		}
+		return fmt.Errorf("redis mq: stop: %w", ctx.Err())
 	}
 }
 
 func subscriptionsDone[T any](subs []*subscription[T]) <-chan struct{} {
-	done := make(chan struct{})
-	if len(subs) == 0 {
-		close(done)
-		return done
+	switch len(subs) {
+	case 0:
+		return closedChan
+	case 1:
+		return subs[0].done
 	}
+	done := make(chan struct{})
 	go func() {
 		for _, sub := range subs {
 			<-sub.done

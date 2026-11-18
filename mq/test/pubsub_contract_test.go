@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-sphere/sphere/core/task"
+	"github.com/go-sphere/sphere/core/task/tasktest"
 	"github.com/go-sphere/sphere/mq"
 )
 
@@ -292,6 +294,8 @@ func TestPubSubStopWaitsForRunningHandler(t *testing.T) {
 
 			entered := make(chan struct{})
 			release := make(chan struct{})
+			releaseOnce := sync.OnceFunc(func() { close(release) })
+			defer releaseOnce()
 			if _, err := ps.Subscribe(ctx, "topic", func(context.Context, int) error {
 				close(entered)
 				<-release
@@ -317,7 +321,7 @@ func TestPubSubStopWaitsForRunningHandler(t *testing.T) {
 				t.Fatalf("Stop returned before handler finished: %v", err)
 			case <-time.After(50 * time.Millisecond):
 			}
-			close(release)
+			releaseOnce()
 			if err := <-stopResult; err != nil {
 				t.Fatalf("Stop: %v", err)
 			}
@@ -464,6 +468,8 @@ func TestPubSubStopHonorsContext(t *testing.T) {
 			ps := factory.newInt(t)
 			entered := make(chan struct{})
 			release := make(chan struct{})
+			releaseOnce := sync.OnceFunc(func() { close(release) })
+			defer releaseOnce()
 			if _, err := ps.Subscribe(t.Context(), "topic", func(context.Context, int) error {
 				close(entered)
 				<-release
@@ -485,7 +491,7 @@ func TestPubSubStopHonorsContext(t *testing.T) {
 			if err := ps.Stop(shutdownCtx); !errors.Is(err, context.DeadlineExceeded) {
 				t.Fatalf("Stop error = %v, want context.DeadlineExceeded", err)
 			}
-			close(release)
+			releaseOnce()
 			select {
 			case <-ps.Done():
 			case <-time.After(2 * time.Second):
@@ -501,6 +507,8 @@ func TestPubSubStopDropsBufferedMessages(t *testing.T) {
 			ps := factory.newInt(t)
 			entered := make(chan struct{})
 			release := make(chan struct{})
+			releaseOnce := sync.OnceFunc(func() { close(release) })
+			defer releaseOnce()
 			var calls atomic.Int32
 			if _, err := ps.Subscribe(t.Context(), "topic", func(context.Context, int) error {
 				if calls.Add(1) == 1 {
@@ -525,7 +533,7 @@ func TestPubSubStopDropsBufferedMessages(t *testing.T) {
 			if err := ps.RequestStop(); err != nil {
 				t.Fatalf("RequestStop: %v", err)
 			}
-			close(release)
+			releaseOnce()
 			select {
 			case <-ps.Done():
 			case <-time.After(2 * time.Second):
@@ -787,6 +795,16 @@ func TestPubSubSubscriptionStopKeepsHandlerTrackedUntilExit(t *testing.T) {
 			case <-time.After(2 * time.Second):
 				t.Fatal("sub.Done did not close after handler returned")
 			}
+		})
+	}
+}
+
+func TestPubSubLifecycleContract(t *testing.T) {
+	for _, factory := range pubSubFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			tasktest.AssertLifecycleContract(t, func() task.Task {
+				return factory.newInt(t)
+			})
 		})
 	}
 }

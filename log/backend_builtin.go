@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"reflect"
 )
 
 type nopBackend struct{}
@@ -17,12 +18,27 @@ func NewNopBackend() Backend {
 
 func (nopBackend) Log(context.Context, Level, string, ...Attr) {}
 
+func (nopBackend) Enabled(Level) bool { return false }
+
 func (nopBackend) Sync() error {
 	return nil
 }
 
 func (n nopBackend) With(options ...Option) Backend {
 	return n
+}
+
+func isNilBackend(b Backend) bool {
+	if b == nil {
+		return true
+	}
+	v := reflect.ValueOf(b)
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 // MultiBackend fans each log entry out to its child backends in order.
@@ -49,7 +65,7 @@ func (m *MultiBackend) Backends() []Backend {
 func NewMultiBackend(backends ...Backend) Backend {
 	clean := make([]Backend, 0, len(backends))
 	for _, b := range backends {
-		if b != nil {
+		if !isNilBackend(b) {
 			clean = append(clean, b)
 		}
 	}
@@ -60,6 +76,17 @@ func NewMultiBackend(backends ...Backend) Backend {
 		return clean[0]
 	}
 	return &MultiBackend{backends: clean}
+}
+
+// Enabled reports true when any child backend is enabled for level (or does not
+// expose a level check).
+func (m *MultiBackend) Enabled(level Level) bool {
+	for _, b := range m.backends {
+		if le, ok := b.(levelEnabler); !ok || le.Enabled(level) {
+			return true
+		}
+	}
+	return false
 }
 
 // Log forwards the entry to every child in order.

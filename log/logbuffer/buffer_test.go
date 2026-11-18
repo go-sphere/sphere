@@ -565,3 +565,64 @@ func TestBufferNonFiniteFloatsAndEmptyKeyAttrs(t *testing.T) {
 		t.Fatalf("marshaled entry JSON = %s", raw)
 	}
 }
+
+type failingScalarMarshaler string
+
+func (failingScalarMarshaler) MarshalJSON() ([]byte, error) {
+	return nil, errors.New("scalar marshal boom")
+}
+
+func TestBufferPresetSlogValueEmptyGroupAndBadTimeJSON(t *testing.T) {
+	b := New(4, log.WithAttrs(map[string]any{
+		"":     "ignored_preset",
+		"sv":   slog.GroupValue(slog.String("k", "v")),
+		"badt": time.Date(12000, 1, 1, 0, 0, 0, 0, time.UTC),
+		"badm": failingScalarMarshaler("secret"),
+	}))
+	b.Log(context.Background(), log.LevelInfo, "msg",
+		log.Group("empty"),
+		log.Group("empty_children", slog.Attr{}),
+	)
+
+	entries, _ := b.History(0, 4, log.LevelDebug)
+	if len(entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(entries))
+	}
+	if _, exists := entries[0].Attrs[""]; exists {
+		t.Fatalf("empty preset key leaked: %#v", entries[0].Attrs)
+	}
+	if _, exists := entries[0].Attrs["empty"]; exists {
+		t.Fatalf("empty group leaked: %#v", entries[0].Attrs)
+	}
+	if _, exists := entries[0].Attrs["empty_children"]; exists {
+		t.Fatalf("group with empty children leaked: %#v", entries[0].Attrs)
+	}
+	sv, ok := entries[0].Attrs["sv"].(map[string]any)
+	if !ok || sv["k"] != "v" {
+		t.Fatalf("preset slog.Value = %#v, want map{k:v}", entries[0].Attrs["sv"])
+	}
+	if _, err := json.Marshal(entries[0]); err != nil {
+		t.Fatalf("json.Marshal(entry) failed: %v", err)
+	}
+}
+
+func TestParseLevel(t *testing.T) {
+	for _, tc := range []struct {
+		in     string
+		want   log.Level
+		wantOK bool
+	}{
+		{"debug", log.LevelDebug, true},
+		{"info", log.LevelInfo, true},
+		{"warn", log.LevelWarn, true},
+		{"warning", log.LevelWarn, true},
+		{"error", log.LevelError, true},
+		{"", log.LevelDebug, false},
+		{"INFO", log.LevelDebug, false},
+	} {
+		got, ok := ParseLevel(tc.in)
+		if got != tc.want || ok != tc.wantOK {
+			t.Errorf("ParseLevel(%q) = (%v, %v), want (%v, %v)", tc.in, got, ok, tc.want, tc.wantOK)
+		}
+	}
+}

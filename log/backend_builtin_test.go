@@ -97,4 +97,18 @@ func TestMultiBackendCloseForwardsToChildren(t *testing.T) {
 	if second.closed != 1 {
 		t.Errorf("second child closed %d times, want 1", second.closed)
 	}
+
+	gotBackends := multi.Backends()
+	if len(gotBackends) != 3 {
+		t.Fatalf("Backends() len = %d, want 3", len(gotBackends))
+	}
+	var nilMulti *MultiBackend
+	if nilMulti.Backends() != nil {
+		t.Fatal("(*MultiBackend)(nil).Backends() should be nil")
+	}
+
+	var typedNil *closableBackend
+	if got := NewMultiBackend(typedNil); got == nil || got.With() != NewNopBackend() {
+		t.Fatalf("NewMultiBackend(typedNil) = %#v, want nopBackend", got)
+	}
 }
