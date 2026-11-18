@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -80,6 +81,9 @@ const uploadTokenNamespace = "sphere-upload-token"
 // given (including closing an owned cache if construction fails). It is not a CDN or S3 driver; the name is historical.
 func NewCDNAdapter(conf Config, cache cache.ByteCache, store storage.Storage, options ...Option) (*FileServer, error) {
 	opts := newOptions(options...)
+	if isNilInterface(cache) {
+		return nil, errors.New("cache is required")
+	}
 	closeOwned := func(err error) (*FileServer, error) {
 		if opts.ownsCache && cache != nil {
 			if closeErr := cache.Close(); closeErr != nil {
@@ -88,10 +92,7 @@ func NewCDNAdapter(conf Config, cache cache.ByteCache, store storage.Storage, op
 		}
 		return nil, err
 	}
-	if cache == nil {
-		return nil, errors.New("cache is required")
-	}
-	if store == nil {
+	if isNilInterface(store) {
 		return closeOwned(errors.New("store is required"))
 	}
 	if conf.PutBase == "" {
@@ -209,6 +210,10 @@ func (a *FileServer) GenerateUploadAuth(ctx context.Context, req storage.UploadA
 	if err != nil {
 		return storage.UploadAuthResult{}, err
 	}
+	key, err = storage.NormalizeKey(key)
+	if err != nil {
+		return storage.UploadAuthResult{}, err
+	}
 	// The configured token TTL is the ceiling; req.TTL may only shorten it.
 	ttl := storage.ResolveUploadTTL(req.TTL, a.config.KeyTTL, defaultKeyTTL)
 	newToken, err := a.opts.createFileKey(ctx)
@@ -218,11 +223,11 @@ func (a *FileServer) GenerateUploadAuth(ctx context.Context, req storage.UploadA
 	if err := validateUploadToken(newToken); err != nil {
 		return storage.UploadAuthResult{}, err
 	}
-	if err := a.cache.SetWithTTL(ctx, newToken, []byte(key), ttl); err != nil {
-		return storage.UploadAuthResult{}, err
-	}
 	uri, err := url.JoinPath(a.config.PutBase, newToken)
 	if err != nil {
+		return storage.UploadAuthResult{}, err
+	}
+	if err := a.cache.SetWithTTL(ctx, newToken, []byte(key), ttl); err != nil {
 		return storage.UploadAuthResult{}, err
 	}
 	return storage.UploadAuthResult{
@@ -245,17 +250,8 @@ func (a *FileServer) GenerateUploadAuth(ctx context.Context, req storage.UploadA
 // WithCacheControl they also carry Cache-Control. A missing object answers
 // 404 and an invalid key 400.
 func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
-	sharedHeaders := map[string]string{}
-	if a.opts.downloadCacheControl != "" {
-		sharedHeaders["Cache-Control"] = a.opts.downloadCacheControl
-	}
-	// This endpoint serves user-uploaded bytes under a content type derived from
-	// the key's extension, so .html and .svg come back as text/html and
-	// image/svg+xml and execute on the origin serving GetBase. nosniff stops the
-	// browser from upgrading an unknown or absent type into something
-	// executable, and attachment disposition stops the declared type from
-	// rendering at all. See WithInlineDownload for opting out.
-	sharedHeaders["X-Content-Type-Options"] = "nosniff"
+	cacheControl := a.opts.downloadCacheControl
+	inlineDownload := a.opts.inlineDownload
 	// The named wildcard registers as-is on every adapter; do not pass it
 	// through FixWildcardPathIfNeed, whose anonymous form httpx rejects.
 	route.Handle(http.MethodGet, "/*filename", func(ctx httpx.Context) error {
@@ -277,10 +273,17 @@ func (a *FileServer) RegisterFileDownloader(route httpx.Router) {
 			}
 			return httpx.InternalServerError(err)
 		}
-		for k, v := range sharedHeaders {
-			ctx.SetHeader(k, v)
+		if cacheControl != "" {
+			ctx.SetHeader("Cache-Control", cacheControl)
 		}
-		if !a.opts.inlineDownload {
+		// This endpoint serves user-uploaded bytes under a content type derived from
+		// the key's extension, so .html and .svg come back as text/html and
+		// image/svg+xml and execute on the origin serving GetBase. nosniff stops the
+		// browser from upgrading an unknown or absent type into something
+		// executable, and attachment disposition stops the declared type from
+		// rendering at all. See WithInlineDownload for opting out.
+		ctx.SetHeader("X-Content-Type-Options", "nosniff")
+		if !inlineDownload {
 			ctx.SetHeader("Content-Disposition", contentDisposition(filename))
 		}
 		// result.Reader is expected to be closed by httpx.DataFromReader, so we don't close it here.
@@ -355,11 +358,16 @@ func (a *FileServer) RegisterFileUploader(route httpx.Router) {
 		if limited != nil && limited.exceeded {
 			// A store that ignored the read error must not keep a truncated object.
 			if err == nil {
-				_ = a.store.DeleteFile(context.WithoutCancel(ctx.Context()), uploadKey)
+				cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx.Context()), 10*time.Second)
+				_ = a.store.DeleteFile(cleanupCtx, uploadKey)
+				cancel()
 			}
 			return uploadTooLargeError()
 		}
 		if err != nil {
+			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				return uploadTooLargeError()
+			}
 			return httpx.InternalServerError(err)
 		}
 		return defaultUploadSuccessWithData(ctx, uploadKey, a.GenerateURL(uploadKey))
@@ -385,9 +393,9 @@ func (l *limitedBody) Read(p []byte) (int, error) {
 		return 0, errUploadTooLarge
 	}
 	// Ask for one byte past the limit so an oversize body is detected without
-	// waiting for EOF.
-	if int64(len(p)) > l.remaining+1 {
-		p = p[:l.remaining+1]
+	// waiting for EOF, without overflowing when remaining == math.MaxInt64.
+	if len(p) > 0 && int64(len(p))-1 > l.remaining {
+		p = p[:int(l.remaining)+1]
 	}
 	n, err := l.r.Read(p)
 	if int64(n) > l.remaining {
@@ -400,15 +408,14 @@ func (l *limitedBody) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// normalizeWildcardParam strips the leading "/" a wildcard parameter can still
-// carry for a doubled separator ("//a.png" matches with "/a.png"). httpx now
-// strips it for an ordinary path on every adapter, and storage.NormalizeKey
-// trims it again, so this does not change which object is served — it keeps the
-// empty-filename guard above meaningful, which is the part that would move: a
-// key of "/" would otherwise reach the store and come back as an invalid-name
-// 400 instead of the 404 this endpoint answers when no filename was given.
+// normalizeWildcardParam strips leading "/" characters a wildcard parameter can
+// carry for repeated separators ("//a.png" matches with "/a.png"). httpx now
+// strips one for an ordinary path on every adapter, and storage.NormalizeKey
+// trims leading slashes again, so this keeps the empty-filename guard above
+// meaningful: keys like "//" reach empty and answer 404 instead of an
+// invalid-name 400.
 func normalizeWildcardParam(raw string) string {
-	return strings.TrimPrefix(raw, "/")
+	return strings.TrimLeft(raw, "/")
 }
 
 func validateUploadToken(token string) error {
@@ -416,9 +423,22 @@ func validateUploadToken(token string) error {
 		return errors.New("fileserver: invalid upload token")
 	}
 	for _, r := range token {
-		if r <= 0x20 || r == 0x7f || r == '/' || r == '\\' || r == '?' || r == '#' {
+		if r <= 0x20 || r >= 0x7f || r == '/' || r == '\\' || r == '?' || r == '#' || r == '%' {
 			return errors.New("fileserver: invalid upload token")
 		}
 	}
 	return nil
+}
+
+func isNilInterface(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Pointer, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
+		return rv.IsNil()
+	default:
+		return false
+	}
 }

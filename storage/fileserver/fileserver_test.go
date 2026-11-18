@@ -1,16 +1,21 @@
 package fileserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/go-sphere/httpx/httpxmock"
+	"github.com/go-sphere/httpx/stdx"
 	"github.com/go-sphere/sphere/cache"
 	"github.com/go-sphere/sphere/cache/mcache"
 	"github.com/go-sphere/sphere/cache/memory"
@@ -74,6 +79,14 @@ func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
+		var typedNil *mcache.Map[string, []byte]
+		_, err = NewCDNAdapter(Config{
+			PutBase: "https://example.com",
+			GetBase: "https://example.com",
+		}, typedNil, noopStorage{}, WithOwnedCache())
+		if err == nil {
+			t.Fatal("expected error for typed-nil cache, got nil")
+		}
 	})
 
 	t.Run("nil store", func(t *testing.T) {
@@ -83,6 +96,14 @@ func TestNewCDNAdapter_ValidateDependencies(t *testing.T) {
 		}, newCache(t), nil)
 		if err == nil {
 			t.Fatal("expected error, got nil")
+		}
+		var typedNilStore *FileServer
+		_, err = NewCDNAdapter(Config{
+			PutBase: "https://example.com",
+			GetBase: "https://example.com",
+		}, newCache(t), typedNilStore)
+		if err == nil {
+			t.Fatal("expected error for typed-nil store, got nil")
 		}
 	})
 
@@ -294,8 +315,10 @@ func TestNormalizeWildcardParam(t *testing.T) {
 		want string
 	}{
 		{name: "leading slash", in: "/a/b/c.png", want: "a/b/c.png"},
+		{name: "repeated leading slashes", in: "///a/b/c.png", want: "a/b/c.png"},
 		{name: "no leading slash", in: "a/b/c.png", want: "a/b/c.png"},
 		{name: "root slash", in: "/", want: ""},
+		{name: "root slashes", in: "///", want: ""},
 		{name: "empty", in: "", want: ""},
 	}
 
@@ -346,7 +369,7 @@ func TestUploadTokensAreNamespaced(t *testing.T) {
 }
 
 func TestGenerateUploadAuth_RejectsInvalidCustomTokens(t *testing.T) {
-	for _, badToken := range []string{"", ".", "..", "a/b", "a\\b", "tok?x=1", "tok#frag", "bad tok", "tok\x00"} {
+	for _, badToken := range []string{"", ".", "..", "a/b", "a\\b", "tok?x=1", "tok#frag", "tok%20", "bad tok", "tok\x00", "tok\u00e9"} {
 		c := mcache.NewByteCache()
 		server, err := NewCDNAdapter(
 			Config{PutBase: "https://upload.example.com", GetBase: "https://cdn.example.com"},
@@ -367,5 +390,70 @@ func TestGenerateUploadAuth_RejectsInvalidCustomTokens(t *testing.T) {
 			t.Fatalf("Keys after rejected token %q = %v (err=%v), want empty", badToken, keys, err)
 		}
 		_ = c.Close()
+	}
+
+	c := mcache.NewByteCache()
+	defer func() { _ = c.Close() }()
+	badPutServer, err := NewCDNAdapter(
+		Config{PutBase: "://bad-put-base", GetBase: "https://cdn.example.com"},
+		c,
+		noopStorage{},
+		WithCreateFileKey(func(context.Context) (string, error) { return "valid-token", nil }),
+	)
+	if err != nil {
+		t.Fatalf("NewCDNAdapter(bad PutBase): %v", err)
+	}
+	if _, err := badPutServer.GenerateUploadAuth(context.Background(), storage.UploadAuthRequest{FileName: "a.png"}); err == nil {
+		t.Fatal("GenerateUploadAuth with invalid PutBase succeeded, want error")
+	}
+	if keys, err := c.Keys(context.Background(), ""); err != nil || len(keys) != 0 {
+		t.Fatalf("Keys after failed PutBase JoinPath = %v (err=%v), want empty", keys, err)
+	}
+}
+
+type maxBytesFailStore struct {
+	noopStorage
+}
+
+func (maxBytesFailStore) UploadFile(context.Context, io.Reader, string) (string, error) {
+	return "", &http.MaxBytesError{Limit: 4}
+}
+
+func TestLimitedBodyMaxInt64AndMaxBytesErrorStatus(t *testing.T) {
+	lb := &limitedBody{r: bytes.NewReader([]byte("hello")), remaining: math.MaxInt64}
+	buf := make([]byte, 16)
+	n, err := lb.Read(buf)
+	if err != nil && !errors.Is(err, io.EOF) {
+		t.Fatalf("limitedBody(MaxInt64).Read = (%d, %v)", n, err)
+	}
+	if string(buf[:n]) != "hello" {
+		t.Fatalf("limitedBody(MaxInt64) read = %q, want hello", buf[:n])
+	}
+
+	c := mcache.NewByteCache()
+	t.Cleanup(func() { _ = c.Close() })
+	srv, err := NewCDNAdapter(Config{
+		PutBase: "https://upload.example.com",
+		GetBase: "https://cdn.example.com",
+	}, c, maxBytesFailStore{}, WithCreateFileKey(func(context.Context) (string, error) {
+		return "tok-max", nil
+	}))
+	if err != nil {
+		t.Fatalf("NewCDNAdapter: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+	if _, err := srv.GenerateUploadAuth(t.Context(), storage.UploadAuthRequest{FileName: "a.txt"}); err != nil {
+		t.Fatalf("GenerateUploadAuth: %v", err)
+	}
+
+	engine := stdx.New()
+	httpHandler := engine.(http.Handler)
+	srv.RegisterFileUploader(engine.Group("/upload"))
+
+	req := httptest.NewRequest(http.MethodPut, "/upload/tok-max", strings.NewReader("payload"))
+	rec := httptest.NewRecorder()
+	httpHandler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("uploader with MaxBytesError status = %d, want %d (body %s)", rec.Code, http.StatusRequestEntityTooLarge, rec.Body.String())
 	}
 }

@@ -7,7 +7,9 @@ import (
 	"io/fs"
 	"mime"
 	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"syscall"
@@ -44,6 +46,9 @@ const (
 func writeFileAtomic(destPath string, src io.Reader) error {
 	mode := defaultFileMode
 	if stat, err := os.Stat(destPath); err == nil {
+		if !stat.Mode().IsRegular() {
+			return errors.New("destination exists and is not a regular file")
+		}
 		// Preserve the permissions of the file being replaced.
 		mode = stat.Mode().Perm()
 	} else if !os.IsNotExist(err) {
@@ -91,6 +96,9 @@ func writeFileAtomic(destPath string, src io.Reader) error {
 // new content is published and any previous content at the key is gone. A
 // caller retrying on this error overwrites rather than restores.
 func syncDir(dir string) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
 	d, err := os.Open(dir)
 	if err != nil {
 		return err
@@ -114,7 +122,6 @@ func isMissing(err error) bool {
 // NewClient; the zero value is not usable. Client holds no mutable state and
 // may be used concurrently; it owns no resources that need closing.
 type Client struct {
-	config  Config
 	rootDir string
 }
 
@@ -135,48 +142,47 @@ func NewClient(conf Config) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		config:  conf,
 		rootDir: rootDir,
 	}, nil
 }
 
 func (c *Client) resolvedRootDir() (string, error) {
-	if c.rootDir != "" {
-		return c.rootDir, nil
+	if c == nil || c.rootDir == "" {
+		return "", errors.New("local storage client is not initialized")
 	}
-	rootDir, err := filepath.Abs(c.config.RootDir)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Clean(rootDir), nil
+	return c.rootDir, nil
 }
 
-// fixFilePath resolves and validates file paths to prevent directory traversal attacks.
-// It ensures that all file operations stay within the configured root directory.
-//
-// The key is normalized first so this driver agrees with the others on which
-// keys are valid and which keys denote the same object; the filesystem checks
-// below stay as the last line of defence.
-func (c *Client) fixFilePath(key string) (string, error) {
-	key, err := storage.NormalizeKey(key)
+func (c *Client) resolveKeyPath(key string) (string, string, error) {
+	normalizedKey, err := storage.NormalizeKey(key)
 	if err != nil {
-		return "", err
+		return "", "", err
+	}
+	if runtime.GOOS == "windows" && (filepath.VolumeName(normalizedKey) != "" || strings.ContainsRune(normalizedKey, ':')) {
+		return "", "", storageerr.ErrFileNameInvalid
 	}
 	rootDir, err := c.resolvedRootDir()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	filePath := filepath.Clean(filepath.Join(rootDir, filepath.Clean(key)))
+	filePath := filepath.Clean(filepath.Join(rootDir, filepath.Clean(normalizedKey)))
 	rel, err := filepath.Rel(rootDir, filePath)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	// rel == "." means the key resolves to the root directory itself (e.g. an
 	// empty key, ".", or "/"); such keys are not valid file targets.
 	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return "", storageerr.ErrFileNameInvalid
+		return "", "", storageerr.ErrFileNameInvalid
 	}
-	return filePath, nil
+	return filePath, normalizedKey, nil
+}
+
+// fixFilePath resolves and validates file paths to prevent directory traversal attacks.
+// It ensures that all file operations stay within the configured root directory.
+func (c *Client) fixFilePath(key string) (string, error) {
+	filePath, _, err := c.resolveKeyPath(key)
+	return filePath, err
 }
 
 // UploadFile uploads data from a reader to the local filesystem with the specified key.
@@ -189,24 +195,26 @@ func (c *Client) fixFilePath(key string) (string, error) {
 // already replaced what was there): the write happened, but it may not survive
 // a power loss.
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	// The normalized key is the one returned: it addresses this object on
 	// every driver, while the caller's spelling may not.
-	key, err := storage.NormalizeKey(key)
+	filePath, key, err := c.resolveKeyPath(key)
 	if err != nil {
 		return "", err
 	}
-	filePath, err := c.fixFilePath(key)
-	if err != nil {
-		return "", err
-	}
-	err = os.MkdirAll(filepath.Dir(filePath), 0o750)
-	if err != nil {
-		return "", err
+	if file == nil {
+		return "", errors.New("local: nil file reader")
 	}
 	// Bail out early if the caller has already cancelled. The streaming copy
 	// below is not itself interruptible via ctx, so cancellation issued mid
 	// copy is not enforced; the write is atomic either way.
 	if err = ctx.Err(); err != nil {
+		return "", err
+	}
+	err = os.MkdirAll(filepath.Dir(filePath), 0o750)
+	if err != nil {
 		return "", err
 	}
 	if err = writeFileAtomic(filePath, file); err != nil {
@@ -218,6 +226,12 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 // UploadLocalFile copies an existing local file into storage under key.
 // The source path is read, not renamed or removed.
 func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	raw, err := os.Open(file)
 	if err != nil {
 		return "", err
@@ -229,10 +243,16 @@ func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 }
 
 // IsFileExists checks whether a file exists in the local filesystem storage.
-// A missing key or a directory reports (false, nil); an invalid key fails with
-// storageerr.ErrFileNameInvalid.
+// A missing key or a non-regular entry (such as a directory) reports
+// (false, nil); an invalid key fails with storageerr.ErrFileNameInvalid.
 func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
-	filePath, err := c.fixFilePath(key)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	filePath, _, err := c.resolveKeyPath(key)
 	if err != nil {
 		return false, err
 	}
@@ -243,8 +263,7 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 		}
 		return false, err
 	}
-	// A directory is never a retrievable file; report it as non-existent.
-	if stat.IsDir() {
+	if !stat.Mode().IsRegular() {
 		return false, nil
 	}
 	return true, nil
@@ -252,10 +271,16 @@ func (c *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 
 // StatFile returns lightweight metadata for a file without opening its contents.
 // It implements storage.FileStater. MIME comes from the key's extension and is
-// empty when unknown. A missing key or a directory fails with
+// empty when unknown. A missing key or non-regular entry fails with
 // storageerr.ErrNotFound.
 func (c *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, error) {
-	filePath, err := c.fixFilePath(key)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return storage.FileInfo{}, err
+	}
+	filePath, normalizedKey, err := c.resolveKeyPath(key)
 	if err != nil {
 		return storage.FileInfo{}, err
 	}
@@ -266,12 +291,11 @@ func (c *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 		}
 		return storage.FileInfo{}, err
 	}
-	// A directory is never a retrievable file; report it as missing.
-	if stat.IsDir() {
+	if !stat.Mode().IsRegular() {
 		return storage.FileInfo{}, storageerr.ErrNotFound
 	}
 	return storage.FileInfo{
-		MIME: mime.TypeByExtension(filepath.Ext(key)),
+		MIME: mime.TypeByExtension(path.Ext(normalizedKey)),
 		Size: stat.Size(),
 	}, nil
 }
@@ -291,10 +315,16 @@ func (c *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 // Symlinks are skipped: the walk only reports regular files, even though a
 // symlink to one inside the root remains readable through DownloadFile.
 func (c *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int) ([]string, string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
+	}
 	if limit <= 0 {
 		limit = 1000
 	}
-	prefix = strings.TrimPrefix(prefix, "/")
+	prefix = strings.TrimLeft(prefix, "/")
 	cursor = strings.TrimPrefix(cursor, "/")
 	rootDir, err := c.resolvedRootDir()
 	if err != nil {
@@ -311,6 +341,9 @@ func (c *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 	var all []string
 	walkErr := filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
+			if path != rootDir && isMissing(err) {
+				return nil
+			}
 			return err
 		}
 		if e := ctx.Err(); e != nil {
@@ -372,9 +405,25 @@ func (c *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 // type based on the file extension (empty when unknown), and the file size.
 // A missing key or a directory fails with storageerr.ErrNotFound.
 func (c *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
-	filePath, err := c.fixFilePath(key)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return storage.DownloadResult{}, err
+	}
+	filePath, normalizedKey, err := c.resolveKeyPath(key)
 	if err != nil {
 		return storage.DownloadResult{}, err
+	}
+	preStat, err := os.Stat(filePath)
+	if err != nil {
+		if isMissing(err) {
+			return storage.DownloadResult{}, storageerr.ErrNotFound
+		}
+		return storage.DownloadResult{}, err
+	}
+	if !preStat.Mode().IsRegular() {
+		return storage.DownloadResult{}, storageerr.ErrNotFound
 	}
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -388,15 +437,13 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 		_ = file.Close()
 		return storage.DownloadResult{}, err
 	}
-	// Never hand back a directory handle; treat it as a missing file so the
-	// caller does not leak the descriptor or hit EISDIR on read.
-	if stat.IsDir() {
+	if !stat.Mode().IsRegular() {
 		_ = file.Close()
 		return storage.DownloadResult{}, storageerr.ErrNotFound
 	}
 	return storage.DownloadResult{
 		Reader: file,
-		MIME:   mime.TypeByExtension(filepath.Ext(key)),
+		MIME:   mime.TypeByExtension(path.Ext(normalizedKey)),
 		Size:   stat.Size(),
 	}, nil
 }
@@ -404,7 +451,13 @@ func (c *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 // DeleteFile removes a file from the local filesystem storage.
 // Deletion is idempotent: a key that holds no regular file reports success.
 func (c *Client) DeleteFile(ctx context.Context, key string) error {
-	filePath, err := c.fixFilePath(key)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	filePath, _, err := c.resolveKeyPath(key)
 	if err != nil {
 		return err
 	}
@@ -465,11 +518,17 @@ func (c *Client) checkOverwrite(path string, overwrite bool) error {
 // fails with storageerr.ErrNotFound; an existing destination with overwrite
 // false fails with storageerr.ErrDestExists. Moving a key onto itself is a no-op.
 func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourcePath, err := c.fixFilePath(sourceKey)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	sourcePath, _, err := c.resolveKeyPath(sourceKey)
 	if err != nil {
 		return err
 	}
-	destinationPath, err := c.fixFilePath(destinationKey)
+	destinationPath, _, err := c.resolveKeyPath(destinationKey)
 	if err != nil {
 		return err
 	}
@@ -519,13 +578,29 @@ func (c *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 // directory sync reports an error for content that is already there and may not
 // survive a power loss. See syncDir.
 func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
-	sourcePath, err := c.fixFilePath(sourceKey)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	sourcePath, _, err := c.resolveKeyPath(sourceKey)
 	if err != nil {
 		return err
 	}
-	destinationPath, err := c.fixFilePath(destinationKey)
+	destinationPath, _, err := c.resolveKeyPath(destinationKey)
 	if err != nil {
 		return err
+	}
+	preStat, err := os.Stat(sourcePath)
+	if err != nil {
+		if isMissing(err) {
+			return storageerr.ErrNotFound
+		}
+		return err
+	}
+	if !preStat.Mode().IsRegular() {
+		return storageerr.ErrNotFound
 	}
 	srcFile, err := os.Open(sourcePath)
 	if err != nil {

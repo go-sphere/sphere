@@ -457,6 +457,9 @@ func TestClient_CopySameKeyAndNonRegularDestination(t *testing.T) {
 			t.Fatalf("MoveFile(to dir, overwrite=%v) succeeded, want error", overwrite)
 		}
 	}
+	if _, err := client.UploadFile(ctx, strings.NewReader("payload"), "a"); err == nil {
+		t.Fatal("UploadFile(to dir) succeeded, want error")
+	}
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatalf("ReadDir(root): %v", err)
@@ -493,5 +496,54 @@ func TestClient_RelativeRootDirSurvivesChdir(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(other, "store")); !os.IsNotExist(err) {
 		t.Fatalf("unexpected relative store directory created in new cwd: %v", err)
+	}
+}
+
+func TestClient_UninitializedCanceledAndTrailingSlashMIME(t *testing.T) {
+	var zero Client
+	var nilClient *Client
+	for _, c := range []*Client{&zero, nilClient} {
+		if _, err := c.UploadFile(t.Context(), strings.NewReader("x"), "a.txt"); err == nil {
+			t.Fatal("UploadFile on uninitialized Client succeeded, want error")
+		}
+		if _, _, err := c.ListFiles(t.Context(), "", "", 10); err == nil {
+			t.Fatal("ListFiles on uninitialized Client succeeded, want error")
+		}
+	}
+
+	client, err := NewClient(Config{RootDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.UploadFile(t.Context(), nil, "a.txt"); err == nil {
+		t.Fatal("UploadFile(nil reader) succeeded, want error")
+	}
+
+	canceled, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := client.IsFileExists(canceled, "a.txt"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("IsFileExists(canceled) = %v, want context.Canceled", err)
+	}
+	if _, err := client.StatFile(canceled, "a.txt"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("StatFile(canceled) = %v, want context.Canceled", err)
+	}
+	if _, _, err := client.ListFiles(canceled, "", "", 10); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ListFiles(canceled) = %v, want context.Canceled", err)
+	}
+
+	if _, err := client.UploadFile(t.Context(), strings.NewReader("png"), "dir/pic.png"); err != nil {
+		t.Fatal(err)
+	}
+	info, err := client.StatFile(t.Context(), "dir/pic.png/")
+	if err != nil || info.MIME != "image/png" {
+		t.Fatalf("StatFile(trailing slash) = %+v, %v; want image/png", info, err)
+	}
+	dl, err := client.DownloadFile(t.Context(), "dir/pic.png/")
+	if err != nil {
+		t.Fatalf("DownloadFile(trailing slash) = %v", err)
+	}
+	_ = dl.Reader.Close()
+	if dl.MIME != "image/png" {
+		t.Fatalf("DownloadFile(trailing slash) MIME = %q, want image/png", dl.MIME)
 	}
 }
