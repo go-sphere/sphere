@@ -1,6 +1,6 @@
 # Behaviour Changes since v0.0.3
 
-`api-incompatibilities.txt` is produced by `apidiff` and only sees **signature**
+`api-incompatibilities-from-v0.0.3.txt` is produced by `apidiff` and only sees **signature**
 changes. This file records changes where the signature is identical but the
 runtime behaviour is not — exactly the changes a compiler cannot catch and an
 upgrade can silently break.
@@ -160,7 +160,7 @@ caller cannot forge.
 Measured from v0.0.6. These remove process-global side effects from package
 init and stop the storage layer from carrying HTTP semantics. Several are
 silent: the code compiles unchanged and the difference shows up at runtime.
-Signature removals are in `api-incompatibilities.txt`; the upgrade steps are
+Signature removals are in `api-incompatibilities-from-v0.0.3.txt`; the upgrade steps are
 summarized in `CHANGELOG.md`.
 
 ### Importing `core/boot` no longer sets the timezone
@@ -428,7 +428,7 @@ Any identifier persisted under v0.0.3 — an ID, a code, a cache key — is not
 readable under v0.0.4: it stops decoding or silently maps to different data.
 Re-encode, or keep the v0.0.3 alphabet around as a migration table.
 (`utils/encoding/baseconv/basenum.go:5`; the constant change is also in
-`api-incompatibilities.txt`)
+`api-incompatibilities-from-v0.0.3.txt`)
 
 ### `afterStop` hooks no longer share an expired shutdown context
 

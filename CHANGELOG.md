@@ -1,10 +1,10 @@
 # Changelog
 
 This file starts at v0.0.7. Earlier releases had no changelog; their
-signature changes are listed in `compat/api-incompatibilities.txt` and their
-runtime behaviour changes in `compat/behavior-changes.md`, both measured from
-v0.0.3. The section "Earlier changes that shipped without a changelog" below
-points at the ones most likely to surprise an upgrade.
+signature changes are listed in `compat/api-incompatibilities-from-v0.0.3.txt`
+and their runtime behaviour changes in `compat/behavior-changes.md`, both
+measured from v0.0.3. The section "Earlier changes that shipped without a
+changelog" below points at the ones most likely to surprise an upgrade.
 
 ## Unreleased
 
@@ -30,6 +30,9 @@ Each is described under its own heading in `compat/behavior-changes.md`.
 - Removed unused exported identifiers: `cache.IsZero`, `log.Field`,
   `cache/redis.ErrorType`, `mq/memory.ErrNoMessage` and
   `captcha.VerificationStorage`.
+- `mq/redis.ErrPubSubClosed` is removed. It was a Deprecated alias of
+  `mq.ErrPubSubClosed`, which is what the redis driver's `Broadcast` and
+  `Subscribe` actually return; match `mq.ErrPubSubClosed` instead.
 
 ### Added
 
@@ -415,7 +418,7 @@ listed here because each changes what an upgrading caller sees:
 
 - **`secure.CryptPassword` returns `(string, error)`.** The old single-value
   form fell back to plaintext on failure; every call site must handle the
-  error. (`compat/api-incompatibilities.txt`)
+  error. (`compat/api-incompatibilities-from-v0.0.3.txt`)
 - **Injected cache instances are not closed by `Close()`.**
   `redis.NewByteCache(client)`, `badgerdb.NewDatabaseWithBadger(db)` and
   `memory.NewMemoryCacheWithRistretto(cache, …)` no longer close what they were

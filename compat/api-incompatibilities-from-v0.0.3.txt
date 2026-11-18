@@ -1,0 +1,108 @@
+# Signature incompatibilities apidiff reports against a v0.0.3 baseline, which
+# is what scripts/check-api-compat.sh used before it moved to the latest
+# release tag. Kept for downstream upgraders still coming from v0.0.3; the gate
+# does not read this file.
+#
+# This is a superset of api-incompatibilities.txt, not a disjoint half of it: a
+# symbol that still existed at the current baseline and was removed after it
+# appears in both files. Do not "deduplicate" the two — pruning an entry from
+# the active allowlist breaks the gate.
+- ./core/task.WithAutoStopTimeout: removed
+- ./core/task.WithManagerAutoStopTimeout: removed
+- ./storage/fileserver.WithCreateFileKey: changed from func(func(ctx context.Context, server *FileServer, filename string) (string, error)) Option to func(func(ctx context.Context) (string, error)) Option
+- ./utils/secure.CryptPassword: changed from func(string) string to func(string) (string, error)
+- ./utils/encoding/baseconv.AlphabetBase32: value changed from "0123456789ABCDEFGHJKLMNPQRSTVWXYZ" to "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+# Semantic note: a data-format change, not a rename. The v0.0.3 alphabet had 33 symbols (present:
+# L, absent: U, contradicting its own doc comment); the new one is 32-symbol Crockford base32
+# (I/L/O/U excluded). v0.0.3-encoded values no longer decode under this package: strings containing
+# L fail with "invalid character", and every other multi-character string decodes to different bytes
+# (M-Z shift one position, and the base changed 33->32). Persisted IDs, codes and cache keys must
+# be re-encoded or migrated with the old alphabet kept as a table. See "Base32 identifiers changed
+# alphabet" in compat/behavior-changes.md.
+- ./core/task.ErrGroupNotStarted: removed
+- ./server/middleware/cors.NewCORS: changed from func(...Option) github.com/go-sphere/httpx.Middleware to func(...Option) (github.com/go-sphere/httpx.Middleware, error)
+- ./infra/sqlite.Driver.Driver: removed
+- modernc.org/sqlite.(*Driver).RegisterConnectionHook, method set of *Driver: removed
+# Semantic note: the removal is the whole promoted surface, not just the exported field. v0.0.3
+# embedded a zero-value modernc *Driver, so RegisterConnectionHook / RegisterScalarFunction /
+# RegisterCollationUtf8 (and the rest of its method set) were callable on sphere's Driver — and
+# silently hollow, since they mutated the zero instance rather than the registered one. The new
+# Driver holds an unexported base instance, so nothing is promoted: call those functions through
+# their modernc package-level forms instead, which mutate the registered driver. See "infra/sqlite
+# delegates to modernc's registered driver instance" in compat/behavior-changes.md.
+- ./server/middleware/online.NewOnline: changed from func() *Online to func(...Option) *Online
+- ./server/middleware/ratelimiter.NewNewRateLimiterByClientIP: removed
+- ./server/middleware/ratelimiter.WithSetTTL: removed
+- ./mq.PubSub[T any].Done: added
+- ./mq.PubSub[T any].Stop: added
+- ./mq.PubSub[T any].StopTopic: added
+- ./mq.PubSub[T any].Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, Handler[T]) (Subscription, error)
+- ./mq.PubSub[T any].UnsubscribeAll: removed
+- ./mq.PubSub[T].Done: added
+- ./mq.PubSub[T].Stop: added
+- ./mq.PubSub[T].StopTopic: added
+- ./mq.PubSub[T].Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, Handler[T]) (Subscription, error)
+- ./mq.PubSub[T].UnsubscribeAll, method set of MessageQueue: removed
+- io.Closer.Close, method set of PubSub: removed
+- ./mq/redis.(*PubSub[T]).Close: removed
+- ./mq/redis.(*PubSub[T]).Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, github.com/go-sphere/sphere/mq.Handler[T]) (github.com/go-sphere/sphere/mq.Subscription, error)
+- ./mq/redis.(*PubSub[T]).UnsubscribeAll, method set of *MessageQueue: removed
+- ./mq/redis.(*PubSub[T]).UnsubscribeAll, method set of MessageQueue: removed
+- ./mq/redis.(*PubSub[T]).UnsubscribeAll: removed
+- ./mq/memory.(*PubSub[T]).Close: removed
+- ./mq/memory.(*PubSub[T]).Subscribe: changed from func(context.Context, string, func(data T) error) error to func(context.Context, string, github.com/go-sphere/sphere/mq.Handler[T]) (github.com/go-sphere/sphere/mq.Subscription, error)
+- ./mq/memory.(*PubSub[T]).UnsubscribeAll, method set of *MessageQueue: removed
+- ./mq/memory.(*PubSub[T]).UnsubscribeAll, method set of MessageQueue: removed
+- ./mq/memory.(*PubSub[T]).UnsubscribeAll: removed
+- ./mq/memory.Subscription: removed
+- ./core/task.Task.Identifier: added
+- ./core/task.Task.Start: added
+- ./core/task.Task.Stop: added
+- ./mq.PubSub[T any].RequestStop: added
+- ./mq.PubSub[T].RequestStop: added
+- ./log/zapx.(*Backend).ZapLogger: changed from func() *go.uber.org/zap.Logger to func(...github.com/go-sphere/sphere/log.Option) *go.uber.org/zap.Logger
+- ./storage/storageerr.ErrorDistExisted: removed
+- ./storage/storageerr.ErrorFileNameInvalid: removed
+- ./storage/storageerr.ErrorNotFound: removed
+# Semantic note: ZapLogger gained the variadic options so a caller can derive a
+# logger (log.WithAttrs and friends) without mutating the backend; the parameter
+# is additive, but apidiff reports the signature as incompatible because a
+# variadic change rewrites the exported type of the method. The three storageerr
+# names were the backwards-compatible aliases and alternate spellings dropped by
+# "chore: Remove deprecated storageerr aliases" in favour of ErrNotFound,
+# ErrDestExists and ErrFileNameInvalid; callers should use those.
+- ./core/boot.WithLoggerInit: removed
+# Semantic note: WithLoggerInit was the Deprecated zap-specific shortcut; it was the only reason
+# core/boot imported log/zapx (and through it zap and lumberjack). Replace
+# boot.WithLoggerInit(version, conf) with
+# boot.WithLoggerBackend(zapx.NewBackend(conf, log.WithAttrs(map[string]any{"version": version}))),
+# which is exactly what it did. No caller existed in the go-sphere organization at removal (v0.0.7).
+- ./cache.IsZero: removed
+- ./log.Field: removed
+- ./cache/redis.ErrorType: removed
+- ./mq/memory.ErrNoMessage: removed
+- ./utils/exp/captcha.VerificationStorage: removed
+# Semantic note: dead exported surface with no caller in the go-sphere workspace. ErrNoMessage
+# and redis.ErrorType were never returned; IsZero and the Field alias had no users; the captcha
+# storage type was unreachable because VerificationSystem keeps it in an unexported field.
+- package github.com/go-sphere/sphere/test/redistest: removed
+# Semantic note: internal test fixture moved to internal/redistest (widened to testing.TB) so
+# external callers cannot couple to miniredis test helpers.
+- ./storage.DefaultKeyBuilder: removed
+- ./storage.KeepFileNameKeyBuilder: removed
+- ./storage/urlhandler.ErrorNotVerifyHost: removed
+# Semantic note: Deprecated helpers/aliases removed in favour of BuildUploadFileName +
+# JoinUploadKey (DefaultKeyBuilder/KeepFileNameKeyBuilder collided on concurrent same-second
+# uploads) and ErrHostVerificationFailed.
+- ./utils/encoding/baseconv.StdRaw32Encoding: removed
+- ./utils/encoding/baseconv.StdRaw62Encoding: removed
+# Semantic note: "Raw" was inverted relative to stdlib encoding/base32 (meaning padded here);
+# replaced by StdPadded32Encoding (with '=' padding) and Std62Encoding (unpadded, matching
+# mathematical base62 encoding output).
+- ./cache.GetObject: changed from func[T any, D github.com/go-sphere/confstore/codec.Decoder](context.Context, ExpirableByteCache, D, string) (T, bool, error) to func[T any](context.Context, ExpirableByteCache, github.com/go-sphere/confstore/codec.Decoder, string) (T, bool, error)
+- ./cache.GetObjectEx: changed from func[T any, D github.com/go-sphere/confstore/codec.Decoder, E github.com/go-sphere/confstore/codec.Encoder](context.Context, ExpirableByteCache, D, E, string, FetchCached[T], ...Option) (T, bool, error) to func[T any](context.Context, ExpirableByteCache, github.com/go-sphere/confstore/codec.Decoder, github.com/go-sphere/confstore/codec.Encoder, string, FetchCached[T], ...Option) (T, bool, error)
+- ./cache.SetObject: changed from func[T any, E github.com/go-sphere/confstore/codec.Encoder](context.Context, ExpirableByteCache, E, string, T, ...Option) error to func[T any](context.Context, ExpirableByteCache, github.com/go-sphere/confstore/codec.Encoder, string, T, ...Option) error
+# Semantic note: dropped redundant Encoder/Decoder type parameters in favour of plain
+# codec.Encoder / codec.Decoder interface arguments, matching NewCodecCache[T]. Callers passing
+# un-converted json.Marshal/json.Unmarshal must wrap them in codec.EncoderFunc/codec.DecoderFunc
+# or omit extra type arguments in favour of SetJson/GetJson/GetJsonEx.

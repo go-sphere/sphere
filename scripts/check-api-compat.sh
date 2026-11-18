@@ -5,7 +5,16 @@ set -euo pipefail
 export GOWORK=off
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-BASELINE_VERSION=${API_BASELINE_VERSION:-v0.0.3}
+# API_BASELINE_VERSION overrides the baseline; otherwise use the latest release
+# tag, falling back to the previous tag when HEAD itself is the release.
+if [[ -n "${API_BASELINE_VERSION:-}" ]]; then
+	BASELINE_VERSION="$API_BASELINE_VERSION"
+else
+	BASELINE_VERSION=$(git -C "$ROOT_DIR" describe --tags --abbrev=0 --match 'v[0-9]*')
+	if git -C "$ROOT_DIR" tag --points-at HEAD | grep -Fxq "$BASELINE_VERSION"; then
+		BASELINE_VERSION=$(git -C "$ROOT_DIR" describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^)
+	fi
+fi
 APIDIFF_VERSION=${APIDIFF_VERSION:-v0.0.0-20261113113407-e3970619a1a4}
 MODULE_PATH=github.com/go-sphere/sphere
 ALLOWLIST="$ROOT_DIR/compat/api-incompatibilities.txt"
@@ -28,12 +37,6 @@ mkdir -p "$BASELINE_DIR"
 	cd "$BASELINE_DIR"
 	go mod init sphere-api-baseline >/dev/null
 	go get "$MODULE_PATH@$BASELINE_VERSION" >/dev/null
-	if [[ "$BASELINE_VERSION" == "v0.0.3" ]]; then
-		# v0.0.3 selected an older confstore release that no longer contains every
-		# package imported by the tag. Override only the dependency version so the
-		# released Sphere packages can be loaded for API inspection.
-		go get github.com/go-sphere/confstore@v0.0.4 >/dev/null
-	fi
 	resolved_version=$(go list -m -f '{{.Version}}' "$MODULE_PATH")
 	if [[ "$resolved_version" != "$BASELINE_VERSION" ]]; then
 		echo "Resolved baseline version $resolved_version does not match requested $BASELINE_VERSION" >&2

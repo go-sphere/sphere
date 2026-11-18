@@ -1,11 +1,19 @@
 # Compatibility Baseline
 
-`scripts/check-api-compat.sh` compares the current module with `v0.0.3` using
-`golang.org/x/exp/cmd/apidiff`.
+`scripts/check-api-compat.sh` compares the current module with the latest
+release tag using `golang.org/x/exp/cmd/apidiff`. The baseline tag is resolved
+with `git describe --tags --abbrev=0 --match 'v[0-9]*'`; when that tag points
+at HEAD the script falls back to the previous tag, since a tagged HEAD is the
+release itself. Set `API_BASELINE_VERSION` to measure against a different tag.
 
-`api-incompatibilities.txt` records incompatibilities that already existed
-after `v0.0.3`. The check accepts those historical entries but fails when a new
-incompatible change appears.
+`api-incompatibilities.txt` is the active allowlist: it records incompatible
+changes, relative to the latest release tag, that are accepted. The check
+fails when apidiff reports a change the file does not contain.
+
+`api-incompatibilities-from-v0.0.3.txt` is the set apidiff reports against a
+v0.0.3 baseline, the gate's previous baseline, kept for downstream upgraders
+still coming from v0.0.3. It is a superset of the active allowlist rather than
+a disjoint historical half, and the gate does not read it.
 
 `behavior-changes.md` records changes that keep the same signature but change
 runtime behaviour. `apidiff` cannot see those, so they are maintained by hand.
