@@ -1,6 +1,7 @@
 package httpz
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"net/http"
@@ -59,26 +60,27 @@ func WithFormFileKey(key string) WithFormOption {
 }
 
 // WithFormAllowExtensions restricts file uploads to specific file extensions.
-// Extensions are matched case-insensitively. If no extensions are provided,
+// Extensions are matched case-insensitively. A later call replaces any
+// previous allowlist; passing no valid extensions clears the restriction so
 // all file types are allowed.
 func WithFormAllowExtensions(extensions ...string) WithFormOption {
 	return func(options *WithFormOptions) {
-		if options.allowExtensions == nil {
-			options.allowExtensions = make(map[string]struct{}, len(extensions))
-		}
+		allowed := make(map[string]struct{}, len(extensions))
 		for _, ext := range extensions {
 			ext = strings.ToLower(strings.TrimSpace(ext))
-			if ext == "" {
+			if ext == "" || ext == "." {
 				continue
 			}
 			if !strings.HasPrefix(ext, ".") {
 				ext = "." + ext
 			}
-			options.allowExtensions[ext] = struct{}{}
+			allowed[ext] = struct{}{}
 		}
-		if len(options.allowExtensions) == 0 {
+		if len(allowed) == 0 {
 			options.allowExtensions = nil
+			return
 		}
+		options.allowExtensions = allowed
 	}
 }
 
@@ -158,10 +160,29 @@ func fileTooLargeError(filename string) error {
 func WithFormFileBytes[T any](handler func(ctx httpx.Context, file []byte, filename string) (T, error), options ...WithFormOption) httpx.Handler {
 	return WithFormFileReader(func(ctx httpx.Context, file io.ReadSeekCloser, filename string) (T, error) {
 		var zero T
-		all, err := io.ReadAll(file)
+		all, err := readAllPreSized(file)
 		if err != nil {
 			return zero, err
 		}
 		return handler(ctx, all, filename)
 	}, options...)
+}
+
+func readAllPreSized(r io.ReadSeeker) ([]byte, error) {
+	cur, curErr := r.Seek(0, io.SeekCurrent)
+	end, endErr := r.Seek(0, io.SeekEnd)
+	if curErr == nil {
+		if _, err := r.Seek(cur, io.SeekStart); err != nil {
+			return nil, err
+		}
+	}
+	if curErr != nil || endErr != nil || end <= cur {
+		return io.ReadAll(r)
+	}
+	const maxPrealloc = 10 << 20
+	buf := bytes.NewBuffer(make([]byte, 0, min(end-cur, maxPrealloc)))
+	if _, err := buf.ReadFrom(r); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

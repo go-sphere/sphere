@@ -3,12 +3,14 @@ package telemetry
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/httpx/httpxmock"
+	"github.com/go-sphere/httpx/stdx"
 	"github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/server/httpz"
 	"github.com/go-sphere/sphere/server/middleware/logger"
@@ -432,3 +434,53 @@ func TestNoopProviderPassThrough(t *testing.T) {
 func (*capture) Sync() error { return nil }
 
 func (c *capture) With(...log.Option) log.Backend { return c }
+
+func TestClientCanceledThroughWithJsonAndUnrelatedCancel(t *testing.T) {
+	serveWithCtx := func(reqCtx context.Context, mws []httpx.Middleware, handler httpx.Handler) {
+		app := stdx.New()
+		app.Use(mws...)
+		app.Group("").GET("/cancel", handler)
+		req := httptest.NewRequest(http.MethodGet, "/cancel", nil).WithContext(reqCtx)
+		app.(http.Handler).ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	canceledReqCtx, cancelReq := context.WithCancel(t.Context())
+	cancelReq()
+
+	// 1. WithJson returns reqCtx.Err() (rendered 500 and swallowed) when client canceled:
+	// neither tracing span nor metrics should treat this as a server failure.
+	p1, mws1 := traceOnly(t)
+	mp1 := newMP()
+	mws1 = append(mws1, mustMetrics(t, WithMeterProvider(mp1)))
+	serveWithCtx(canceledReqCtx, mws1, httpz.WithJson(func(c httpx.Context) (int, error) {
+		return 0, c.Context().Err()
+	}))
+	s1 := only(t, p1)
+	if s1.code != codes.Unset {
+		t.Fatalf("client cancel via WithJson: span code = %v, want Unset", s1.code)
+	}
+	if _, ok := s1.attrs[keyErrorType]; ok {
+		t.Fatalf("client cancel via WithJson: unexpected error.type = %v", s1.attrs[keyErrorType])
+	}
+	if _, ok := setOf(mp1.hist.sets[0])[keyErrorType]; ok {
+		t.Fatalf("client cancel via WithJson: unexpected metric error.type = %v", setOf(mp1.hist.sets[0])[keyErrorType])
+	}
+
+	// 2. Client canceled, but handler returns an unrelated internal error: MUST mark span Error.
+	p2, mws2 := traceOnly(t)
+	serveWithCtx(canceledReqCtx, mws2, httpz.WithJson(func(httpx.Context) (int, error) {
+		return 0, errBoom
+	}))
+	if s2 := only(t, p2); s2.code != codes.Error || s2.attrs[keyErrorType].AsString() != "500" {
+		t.Fatalf("unrelated error during client cancel: code=%v attrs=%v", s2.code, s2.attrs)
+	}
+
+	// 3. Parent reqCtx is NOT canceled, handler returns child context.Canceled: MUST mark span Error.
+	p3, mws3 := traceOnly(t)
+	serveWithCtx(t.Context(), mws3, httpz.WithJson(func(httpx.Context) (int, error) {
+		return 0, context.Canceled
+	}))
+	if s3 := only(t, p3); s3.code != codes.Error || s3.attrs[keyErrorType].AsString() != "500" {
+		t.Fatalf("child-only cancel: code=%v attrs=%v", s3.code, s3.attrs)
+	}
+}

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/go-sphere/httpx"
@@ -129,12 +130,18 @@ func WithTransform(f func(text string) (string, error)) Option {
 // A missing prefix is not an error; the raw string is parsed.
 func WithPrefixTransform(prefix string) Option {
 	prefix = strings.TrimSpace(prefix)
+	spaced := ""
 	if len(prefix) > 0 {
-		prefix = prefix + " "
+		spaced = prefix + " "
 	}
 	return WithTransform(func(text string) (string, error) {
-		if len(prefix) > 0 && len(text) >= len(prefix) && strings.EqualFold(text[:len(prefix)], prefix) {
-			text = strings.TrimSpace(text[len(prefix):])
+		if len(prefix) > 0 {
+			if strings.EqualFold(strings.TrimSpace(text), prefix) {
+				return "", nil
+			}
+			if len(text) >= len(spaced) && strings.EqualFold(text[:len(spaced)], spaced) {
+				text = strings.TrimSpace(text[len(spaced):])
+			}
 		}
 		return text, nil
 	})
@@ -152,6 +159,9 @@ func WithAbortOnError(abort bool) Option {
 }
 
 func unauthorizedError(err error) error {
+	if se, ok := errors.AsType[httpx.StatusError](err); ok && se.GetStatus() == http.StatusUnauthorized {
+		return err
+	}
 	if messageErr, ok := errors.AsType[httpx.MessageError](err); ok {
 		return httpx.UnauthorizedError(err, messageErr.GetMessage())
 	}

@@ -27,7 +27,7 @@ type Option func(*config)
 // the list.
 func WithAllowOrigins(origins ...string) Option {
 	return func(cfg *config) {
-		cfg.allowOrigins = copyStrings(origins)
+		cfg.allowOrigins = slices.Clone(origins)
 	}
 }
 
@@ -36,7 +36,7 @@ func WithAllowOrigins(origins ...string) Option {
 // advertises OPTIONS only.
 func WithAllowMethods(methods ...string) Option {
 	return func(cfg *config) {
-		cfg.allowMethods = copyStrings(methods)
+		cfg.allowMethods = slices.Clone(methods)
 	}
 }
 
@@ -45,14 +45,14 @@ func WithAllowMethods(methods ...string) Option {
 // "Origin,Content-Type,Accept,Authorization" when the request names none.
 func WithAllowHeaders(headers ...string) Option {
 	return func(cfg *config) {
-		cfg.allowHeaders = copyStrings(headers)
+		cfg.allowHeaders = slices.Clone(headers)
 	}
 }
 
 // WithExposeHeaders defines which headers are exposed to browser clients.
 func WithExposeHeaders(headers ...string) Option {
 	return func(cfg *config) {
-		cfg.exposeHeaders = copyStrings(headers)
+		cfg.exposeHeaders = slices.Clone(headers)
 	}
 }
 
@@ -72,27 +72,27 @@ func WithMaxAge(ttl time.Duration) Option {
 	}
 }
 
-// ErrWildcardWithCredentials rejects the "*" + AllowCredentials combination.
-// The Fetch standard forbids it: a browser refuses a wildcard Allow-Origin on a
-// credentialed request. Reflecting the request origin back would "work", but it
-// turns the configuration into an allow-any-origin-with-cookies policy, which is
-// exactly what "*" is meant to prevent. List the origins explicitly instead —
-// per-origin wildcards such as "https://*.example.com" remain valid.
+// ErrWildcardWithCredentials rejects unbounded wildcard origins paired with AllowCredentials.
+// The Fetch standard forbids "*" + AllowCredentials: true, and reflecting the
+// request Origin on an unbounded wildcard pattern ("*", "**", "https://*",
+// "*://*", "*:*", "*.*") turns the middleware into an allow-any-origin-with-cookies
+// policy. List explicit origins or constrain the wildcard to a concrete host
+// such as "https://*.example.com" or "http://localhost:*".
 var ErrWildcardWithCredentials = errors.New("cors: \"*\" cannot be combined with AllowCredentials; list explicit origins")
 
 // NewCORS creates an httpx middleware that applies configurable CORS headers.
 // By default it allows standard HTTP verbs and reflects requested headers.
 // Allowed origins should be explicitly configured via WithAllowOrigins (or "*" for public APIs).
-// It returns ErrWildcardWithCredentials when the configuration pairs a bare "*"
-// origin with credentials, so the misconfiguration surfaces at startup rather
-// than becoming a runtime hole.
+// It returns ErrWildcardWithCredentials when the configuration pairs credentials
+// with "*" or another unbounded wildcard origin pattern, so the misconfiguration
+// surfaces at startup rather than becoming a runtime hole.
 //
 // Options are applied in order (nil options are skipped) and copied at
 // construction. Every OPTIONS request is answered with 204 without calling
 // the next handler; other requests get the CORS headers and continue.
 func NewCORS(options ...Option) (httpx.Middleware, error) {
 	cfg := newConfig(options...)
-	if cfg.allowCredentials && cfg.hasWildcardOrigin() {
+	if cfg.allowCredentials && cfg.hasUnboundedWildcardOrigin() {
 		return nil, ErrWildcardWithCredentials
 	}
 	return func(next httpx.Handler) httpx.Handler {
@@ -123,6 +123,13 @@ func NewCORS(options ...Option) (httpx.Middleware, error) {
 	}, nil
 }
 
+type compiledOrigin struct {
+	raw         string
+	lower       string
+	hasScheme   bool
+	hasWildcard bool
+}
+
 type config struct {
 	allowOrigins     []string
 	allowMethods     []string
@@ -131,6 +138,7 @@ type config struct {
 	allowCredentials bool
 	maxAge           time.Duration
 
+	compiledOrigins    []compiledOrigin
 	allowMethodsValue  string
 	allowHeadersValue  string
 	exposeHeadersValue string
@@ -162,7 +170,20 @@ func newConfig(options ...Option) *config {
 	return cfg
 }
 
+func compileOrigin(allowed string) compiledOrigin {
+	return compiledOrigin{
+		raw:         allowed,
+		lower:       strings.ToLower(allowed),
+		hasScheme:   strings.Contains(allowed, "://"),
+		hasWildcard: strings.Contains(allowed, "*"),
+	}
+}
+
 func (c *config) compile() {
+	c.compiledOrigins = make([]compiledOrigin, len(c.allowOrigins))
+	for i, origin := range c.allowOrigins {
+		c.compiledOrigins[i] = compileOrigin(origin)
+	}
 	if len(c.allowMethods) == 0 {
 		c.allowMethods = []string{http.MethodOptions}
 	}
@@ -201,6 +222,7 @@ func (c *config) apply(method, origin, reqHeaders string, setHeader func(string,
 	if c.hasAllowHeaders {
 		setHeader("Access-Control-Allow-Headers", c.allowHeadersValue)
 	} else if reqHeaders != "" {
+		setHeader("Vary", "Access-Control-Request-Headers")
 		setHeader("Access-Control-Allow-Headers", reqHeaders)
 	} else {
 		setHeader("Access-Control-Allow-Headers", defaultAllowHeaders)
@@ -221,40 +243,88 @@ func (c *config) hasWildcardOrigin() bool {
 	return slices.Contains(c.allowOrigins, "*")
 }
 
+// hasUnboundedWildcardOrigin reports whether any configured origin contains a
+// wildcard without any fixed (wildcard-free) domain label in its host.
+func (c *config) hasUnboundedWildcardOrigin() bool {
+	return slices.ContainsFunc(c.allowOrigins, isUnboundedWildcardOrigin)
+}
+
+func isUnboundedWildcardOrigin(allowed string) bool {
+	if !strings.Contains(allowed, "*") {
+		return false
+	}
+	if allowed == "*" {
+		return true
+	}
+	rest := allowed
+	if idx := strings.Index(rest, "://"); idx != -1 {
+		rest = rest[idx+3:]
+	}
+	if slash := strings.IndexByte(rest, '/'); slash != -1 {
+		rest = rest[:slash]
+	}
+	var host string
+	if strings.HasPrefix(rest, "[") {
+		end := strings.IndexByte(rest, ']')
+		if end == -1 {
+			return true
+		}
+		host = rest[:end+1]
+	} else if colon := strings.LastIndexByte(rest, ':'); colon != -1 {
+		host = rest[:colon]
+	} else {
+		host = rest
+	}
+	if host == "" {
+		return true
+	}
+	for label := range strings.SplitSeq(host, ".") {
+		if label != "" && !strings.Contains(label, "*") {
+			return false
+		}
+	}
+	return true
+}
+
 func (c *config) resolveOrigin(requestOrigin string) string {
+	lowerOrigin, lowerHost, validOrigin := parseOrigin(requestOrigin)
+	if len(c.compiledOrigins) > 0 {
+		for _, allowed := range c.compiledOrigins {
+			if allowed.raw == "*" {
+				// Always the literal wildcard: NewCORS rejects "*" together with
+				// credentials, so there is no case left where reflecting the request
+				// origin would be correct.
+				return "*"
+			}
+			if validOrigin && matchCompiledOrigin(lowerOrigin, lowerHost, allowed) {
+				return requestOrigin
+			}
+		}
+		return ""
+	}
 	for _, allowed := range c.allowOrigins {
 		if allowed == "*" {
-			// Always the literal wildcard: NewCORS rejects "*" together with
-			// credentials, so there is no case left where reflecting the request
-			// origin would be correct.
 			return "*"
 		}
-		if originMatches(requestOrigin, allowed) {
+		if validOrigin && matchCompiledOrigin(lowerOrigin, lowerHost, compileOrigin(allowed)) {
 			return requestOrigin
 		}
 	}
 	return ""
 }
 
-func originMatches(requestOrigin, allowed string) bool {
-	if requestOrigin == "" || allowed == "" {
+func matchCompiledOrigin(lowerOrigin, lowerHost string, allowed compiledOrigin) bool {
+	if allowed.lower == "" {
 		return false
 	}
-	if strings.Contains(allowed, "://") {
-		if strings.Contains(allowed, "*") {
-			return wildcardMatch(strings.ToLower(requestOrigin), strings.ToLower(allowed))
-		}
-		return strings.EqualFold(requestOrigin, allowed)
+	candidate := lowerHost
+	if allowed.hasScheme {
+		candidate = lowerOrigin
 	}
-
-	host := extractHost(requestOrigin)
-	if host == "" {
-		return false
+	if allowed.hasWildcard {
+		return wildcardMatch(candidate, allowed.lower)
 	}
-	if strings.Contains(allowed, "*") {
-		return wildcardMatch(strings.ToLower(host), strings.ToLower(allowed))
-	}
-	return strings.EqualFold(host, allowed)
+	return candidate == allowed.lower
 }
 
 func wildcardMatch(value, pattern string) bool {
@@ -287,19 +357,19 @@ func wildcardMatch(value, pattern string) bool {
 	return patternIdx == len(pattern)
 }
 
-func extractHost(origin string) string {
+func parseOrigin(origin string) (lowerOrigin, lowerHost string, ok bool) {
+	if origin == "" {
+		return "", "", false
+	}
 	parsed, err := url.Parse(origin)
 	if err != nil {
-		return ""
+		return "", "", false
 	}
-	return parsed.Host
-}
-
-func copyStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
+	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return "", "", false
 	}
-	out := make([]string, len(values))
-	copy(out, values)
-	return out
+	if parsed.User != nil || parsed.Path != "" || parsed.RawPath != "" || parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" {
+		return "", "", false
+	}
+	return strings.ToLower(parsed.Scheme + "://" + parsed.Host), strings.ToLower(parsed.Host), true
 }

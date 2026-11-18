@@ -193,6 +193,18 @@ func TestWithFormOptionsDefaults(t *testing.T) {
 		t.Errorf("extensions must be lowercased: %v", custom.allowExtensions)
 	}
 
+	overridden := newWithFormOptions(WithFormAllowExtensions(".jpg", ".png"), WithFormAllowExtensions(".gif"))
+	if len(overridden.allowExtensions) != 1 {
+		t.Fatalf("later WithFormAllowExtensions must replace earlier list, got %v", overridden.allowExtensions)
+	}
+	if _, ok := overridden.allowExtensions[".gif"]; !ok {
+		t.Fatalf("expected .gif only, got %v", overridden.allowExtensions)
+	}
+
+	cleared := newWithFormOptions(WithFormAllowExtensions(".jpg"), WithFormAllowExtensions())
+	if cleared.allowExtensions != nil {
+		t.Fatalf("empty WithFormAllowExtensions must clear previous list, got %v", cleared.allowExtensions)
+	}
 }
 
 // TestWithFormFileReaderDeclaredLengthTooLarge pins that a body declaring a
@@ -299,6 +311,28 @@ func TestWithFormFileReaderOverflowMaxBytesAndNilOption(t *testing.T) {
 		}
 		if ctx.StatusCode() != http.StatusRequestEntityTooLarge {
 			t.Fatalf("status = %d, want %d", ctx.StatusCode(), http.StatusRequestEntityTooLarge)
+		}
+	})
+
+	t.Run("dot extension is ignored and WithFormFileBytes reads full payload", func(t *testing.T) {
+		opts := newWithFormOptions(WithFormAllowExtensions(" . "))
+		if opts.allowExtensions != nil {
+			t.Fatalf("allowExtensions = %v, want nil when only bare dot given", opts.allowExtensions)
+		}
+
+		ctx := uploadContext(t, "note.txt", []byte("hello bytes"))
+		var gotBytes []byte
+		var gotName string
+		handler := WithFormFileBytes(func(_ httpx.Context, data []byte, filename string) (string, error) {
+			gotBytes = data
+			gotName = filename
+			return filename, nil
+		}, WithFormAllowExtensions(".", ".txt"))
+		if err := handler(ctx); err != nil {
+			t.Fatalf("WithFormFileBytes: %v", err)
+		}
+		if ctx.StatusCode() != http.StatusOK || string(gotBytes) != "hello bytes" || gotName != "note.txt" {
+			t.Fatalf("status=%d bytes=%q name=%q", ctx.StatusCode(), gotBytes, gotName)
 		}
 	})
 }

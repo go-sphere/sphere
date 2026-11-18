@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -384,6 +385,13 @@ func TestRecoveryEntriesAgree(t *testing.T) {
 			_ = h(ctx)
 			if ctx.StatusCode() != http.StatusInternalServerError {
 				t.Fatalf("status = %d, want 500", ctx.StatusCode())
+			}
+			var body httpz.ErrorResponse
+			if err := json.Unmarshal([]byte(ctx.BodyString()), &body); err != nil {
+				t.Fatalf("unmarshal 500 error body %q: %v", ctx.BodyString(), err)
+			}
+			if body.Success || body.Message != "internal server error" {
+				t.Fatalf("unexpected 500 body = %+v", body)
 			}
 		})
 		t.Run(name+"/abort", func(t *testing.T) {

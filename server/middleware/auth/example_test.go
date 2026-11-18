@@ -74,7 +74,7 @@ func Example() {
 	get("/api/admin/stats", issue(7, "viewer"))
 	get("/api/admin/stats", issue(1, "admin"))
 	// Output:
-	// 401 {"success":false,"code":0,"message":"没有提供有效的认证信息"}
+	// 401 {"success":false,"code":0,"message":"authentication credentials not provided"}
 	// 200 {"success":true,"data":7}
 	// 403 {"success":false,"code":0,"message":"no permission to access this resource"}
 	// 200 ok

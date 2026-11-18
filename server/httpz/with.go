@@ -84,15 +84,7 @@ func WithJson[T any](handler func(ctx httpx.Context) (T, error)) httpx.Handler {
 		if ctx.Committed() {
 			return nil
 		}
-		// Respect a status code the handler may have set via ctx.Status
-		// (e.g. 201 Created); StatusCode is part of the httpx.Context contract.
-		// When the status is unset or out of range we fall back to 200 OK.
-		// 1xx are never final statuses, and 204/304 forbid a body, so they are
-		// written via NoContent instead of the JSON envelope.
-		status := http.StatusOK
-		if code := ctx.StatusCode(); code >= 200 && code <= 599 {
-			status = code
-		}
+		status := resolveSuccessStatus(ctx)
 		if status == http.StatusNoContent || status == http.StatusNotModified {
 			return ctx.NoContent(status)
 		}
@@ -104,11 +96,11 @@ func WithJson[T any](handler func(ctx httpx.Context) (T, error)) httpx.Handler {
 }
 
 // WithText wraps a (string, error) handler as an httpx handler that writes
-// the string as a text response with status 200 on success and
-// AbortWithJsonError on failure. Unlike WithJson it does not honor a status set
-// through ctx.Status. As with WithJson, nothing is written when the handler
-// already committed the response. Panics are handled as described on
-// WithRecover.
+// the string as a text response on success and AbortWithJsonError on failure.
+// Like WithJson, the success status is 200 unless the handler set a status in
+// the 200–599 range through ctx.Status (for example 201), and 204 or 304 is
+// written with no body. Nothing is written when the handler already committed
+// the response. Panics are handled as described on WithRecover.
 func WithText(handler func(ctx httpx.Context) (string, error)) httpx.Handler {
 	return WithRecover("WithText panic", func(ctx httpx.Context) error {
 		data, err := handler(ctx)
@@ -118,6 +110,19 @@ func WithText(handler func(ctx httpx.Context) (string, error)) httpx.Handler {
 		if ctx.Committed() {
 			return nil
 		}
-		return ctx.Text(200, data)
+		status := resolveSuccessStatus(ctx)
+		if status == http.StatusNoContent || status == http.StatusNotModified {
+			return ctx.NoContent(status)
+		}
+		return ctx.Text(status, data)
 	})
+}
+
+// resolveSuccessStatus returns a valid status set via ctx.Status (200–599) or
+// defaults to 200 OK.
+func resolveSuccessStatus(ctx httpx.Context) int {
+	if code := ctx.StatusCode(); code >= 200 && code <= 599 {
+		return code
+	}
+	return http.StatusOK
 }

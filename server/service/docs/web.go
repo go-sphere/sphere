@@ -12,6 +12,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -76,7 +77,7 @@ func (w *Web) newHandler() (http.Handler, error) {
 			return nil, fmt.Errorf("docs: target %s has no swagger spec", target.Address)
 		}
 		name, description := resolveTarget(target.Spec, target.Address)
-		if name == "" || strings.Contains(name, "/") {
+		if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) || path.Clean(name) != name {
 			return nil, fmt.Errorf("docs: target %s has invalid swagger instance name %q", target.Address, name)
 		}
 		// Route prefixes are the lowercased instance name, so two targets that
@@ -126,6 +127,7 @@ func resolveTarget(spec *swag.Spec, address string) (name, description string) {
 // NewWebServer creates a new documentation web server with the given configuration.
 // It does not validate conf or listen; Start does both.
 func NewWebServer(conf Config) *Web {
+	conf.Targets = slices.Clone(conf.Targets)
 	return &Web{
 		config: conf,
 	}
@@ -141,6 +143,7 @@ func NewWebServerWithEngine(conf Config, engine httpx.Engine) (*Web, error) {
 	if engine == nil {
 		panic("docs: NewWebServerWithEngine requires a non-nil engine")
 	}
+	conf.Targets = slices.Clone(conf.Targets)
 	w := &Web{
 		config: conf,
 		engine: engine,

@@ -3,8 +3,8 @@
 //
 // [Log] records one entry per request after the downstream chain: Info when
 // it succeeds, Error when it returns an error. [RecoveryLog] recovers a panic
-// so the process stays up, logs it at Error, and finishes the request as HTTP
-// 500 with no body; http.ErrAbortHandler is re-panicked, as in
+// so the process stays up, logs it at Error, and finishes the request as a
+// JSON 500 error envelope; http.ErrAbortHandler is re-panicked, as in
 // httpz.WithRecover.
 //
 // # Usage

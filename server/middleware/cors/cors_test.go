@@ -267,3 +267,79 @@ func TestCORSKeepsExistingVary(t *testing.T) {
 		t.Fatalf("Vary = %q, want [Accept-Encoding Origin]", got)
 	}
 }
+
+func TestCORS_RejectsSpoofedOriginsAndEmitsVaryRequestHeaders(t *testing.T) {
+	t.Parallel()
+
+	mw, err := NewCORS(WithAllowOrigins("https://example.com", "https://*.example.com"))
+	if err != nil {
+		t.Fatalf("NewCORS: %v", err)
+	}
+
+	for _, spoofed := range []string{
+		"https://evil.com/https://example.com",
+		"https://example.com@evil.com",
+		"javascript:alert(1)//https://example.com",
+		"ftp://example.com",
+		"https://example.com?redirect=https://evil.com",
+		"https://example.com#frag",
+		"null",
+	} {
+		ctx := newRequestContext(http.MethodGet, map[string]string{"Origin": spoofed})
+		next := &httpxmock.Handler{}
+		if err := httpxmock.Run(ctx, next.Handle, mw); err != nil {
+			t.Fatalf("Run(%q): %v", spoofed, err)
+		}
+		if got := ctx.ResponseHeader("Access-Control-Allow-Origin"); got != "" {
+			t.Fatalf("spoofed origin %q was accepted: Allow-Origin=%q", spoofed, got)
+		}
+	}
+
+	// Echoing Access-Control-Request-Headers must include Vary: Access-Control-Request-Headers.
+	echoCtx := newRequestContext(http.MethodOptions, map[string]string{
+		"Origin":                         "https://app.example.com",
+		"Access-Control-Request-Headers": "X-Foo, Authorization",
+	})
+	if err := httpxmock.Run(echoCtx, (&httpxmock.Handler{}).Handle, mw); err != nil {
+		t.Fatalf("Run(echo): %v", err)
+	}
+	vary := echoCtx.ResponseHeaderValues("Vary")
+	if !slices.Equal(vary, []string{"Origin", "Access-Control-Request-Headers"}) {
+		t.Fatalf("Vary = %v, want [Origin Access-Control-Request-Headers]", vary)
+	}
+}
+
+func TestNewCORSRejectsBroadWildcardsWithCredentials(t *testing.T) {
+	t.Parallel()
+
+	rejected := []string{
+		"*",
+		"**",
+		"https://*",
+		"http://*",
+		"*://*",
+		"*:*",
+		"*.*",
+		"https://*:*",
+		"https://*:443",
+		"*a*",
+	}
+	for _, pattern := range rejected {
+		_, err := NewCORS(WithAllowOrigins(pattern), WithAllowCredentials(true))
+		if !errors.Is(err, ErrWildcardWithCredentials) {
+			t.Errorf("NewCORS(%q, credentials=true) err = %v, want ErrWildcardWithCredentials", pattern, err)
+		}
+	}
+
+	accepted := []string{
+		"https://*.example.com",
+		"http://localhost:*",
+		"http://[::1]:*",
+		"http://*.internal",
+	}
+	for _, pattern := range accepted {
+		if _, err := NewCORS(WithAllowOrigins(pattern), WithAllowCredentials(true)); err != nil {
+			t.Errorf("NewCORS(%q, credentials=true) unexpected err = %v", pattern, err)
+		}
+	}
+}

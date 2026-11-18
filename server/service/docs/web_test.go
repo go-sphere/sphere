@@ -569,3 +569,40 @@ func TestWebStartTwiceReturnsError(t *testing.T) {
 		t.Fatal("second Start succeeded, want error")
 	}
 }
+
+func TestDocsRejectsInvalidInstanceNamesAndClonesTargets(t *testing.T) {
+	t.Parallel()
+
+	for _, bad := range []string{"", ".", "..", "a/b", `a\b`, "v1/", "v1/.."} {
+		w := NewWebServer(Config{Targets: []Target{{
+			Address: "http://127.0.0.1:8080",
+			Spec:    &swag.Spec{InfoInstanceName: bad},
+		}}})
+		if _, err := w.newHandler(); err == nil {
+			t.Fatalf("newHandler accepted invalid instance name %q", bad)
+		}
+	}
+
+	targets := []Target{{
+		Address: "http://127.0.0.1:8080",
+		Spec:    &swag.Spec{InfoInstanceName: "svc1"},
+	}}
+	w := NewWebServer(Config{Targets: targets})
+	targets[0].Address = "http://127.0.0.1:8082"
+	if w.config.Targets[0].Address != "http://127.0.0.1:8080" {
+		t.Fatalf("Targets slice was not cloned by NewWebServer: %+v", w.config.Targets)
+	}
+
+	targets2 := []Target{{
+		Address: "http://127.0.0.1:8080",
+		Spec:    &swag.Spec{InfoInstanceName: "svc2"},
+	}}
+	w2, err := NewWebServerWithEngine(Config{Targets: targets2}, stdx.New())
+	if err != nil {
+		t.Fatalf("NewWebServerWithEngine: %v", err)
+	}
+	targets2[0].Address = "http://127.0.0.1:8081"
+	if w2.config.Targets[0].Address != "http://127.0.0.1:8080" {
+		t.Fatalf("Targets slice was not cloned by NewWebServerWithEngine: %+v", w2.config.Targets)
+	}
+}

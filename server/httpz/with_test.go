@@ -168,6 +168,32 @@ func TestWithText(t *testing.T) {
 		}
 	})
 
+	t.Run("honors ctx.Status and NoContent for 204/304", func(t *testing.T) {
+		ctxCreated := httpxmock.New(nil)
+		if err := WithText(func(c httpx.Context) (string, error) {
+			c.Status(http.StatusCreated)
+			return "created", nil
+		})(ctxCreated); err != nil {
+			t.Fatalf("WithText(201): %v", err)
+		}
+		if ctxCreated.StatusCode() != http.StatusCreated || ctxCreated.BodyString() != "created" {
+			t.Fatalf("got (%d, %q), want (201, created)", ctxCreated.StatusCode(), ctxCreated.BodyString())
+		}
+
+		for _, code := range []int{http.StatusNoContent, http.StatusNotModified} {
+			ctxEmpty := httpxmock.New(nil)
+			if err := WithText(func(c httpx.Context) (string, error) {
+				c.Status(code)
+				return "ignored", nil
+			})(ctxEmpty); err != nil {
+				t.Fatalf("WithText(%d): %v", code, err)
+			}
+			if ctxEmpty.StatusCode() != code || ctxEmpty.BodyString() != "" {
+				t.Fatalf("code %d: got (%d, %q), want (%d, empty)", code, ctxEmpty.StatusCode(), ctxEmpty.BodyString(), code)
+			}
+		}
+	})
+
 	t.Run("error", func(t *testing.T) {
 		ctx := httpxmock.New(nil)
 		handler := WithText(func(httpx.Context) (string, error) {

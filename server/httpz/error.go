@@ -130,6 +130,7 @@ func AbortWithJsonError(ctx httpx.Context, err error) {
 		})
 		return
 	}
+	ctx.Set("sphere.httpz.aborted_error", err)
 	status, resp := buildErrorResponse(err)
 	_ = ctx.JSON(status, resp)
 }
@@ -143,8 +144,11 @@ func ErrorStatus(err error) int {
 	if err == nil {
 		return http.StatusInternalServerError
 	}
-	status, _ := buildErrorResponse(err)
-	return status
+	_, status, _ := (*defaultErrorParser.Load())(err)
+	if status < 100 || status > 599 {
+		return http.StatusInternalServerError
+	}
+	return int(status)
 }
 
 // buildErrorResponse maps err to an HTTP status and the standard

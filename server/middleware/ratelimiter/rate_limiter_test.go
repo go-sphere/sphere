@@ -3,6 +3,7 @@ package ratelimiter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"runtime"
 	"strings"
@@ -531,4 +532,62 @@ func TestRateLimiter_ZeroLimiterInitialMissAndRecheckReturn500(t *testing.T) {
 			t.Fatal("next must not be called")
 		}
 	})
+
+	t.Run("nil limiter from createLimiter returns 500 without storing", func(t *testing.T) {
+		mw := NewRateLimiter(
+			func(httpx.Context) string { return "nil-lim" },
+			func(httpx.Context) (*rate.Limiter, time.Duration) {
+				return nil, time.Minute
+			},
+		)
+		next := &httpxmock.Handler{}
+		err := httpxmock.Run(httpxmock.New(nil), next.Handle, mw)
+		if err == nil {
+			t.Fatal("expected 500 error, got nil")
+		}
+		if _, status, _ := httpx.ParseError(err); status != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want 500", status)
+		}
+		if next.Called() {
+			t.Fatal("next must not be called")
+		}
+	})
+}
+
+func TestNewRateLimiterDefaultMapCacheDeterministicAndTrims(t *testing.T) {
+	t.Parallel()
+
+	opts := newOptions()
+	if opts.defaultMap == nil {
+		t.Fatal("expected default mcache.Map to be configured")
+	}
+	// Seed an already-expired limiter directly in the default map so maybeTrim
+	// can reclaim it when the throttle interval has elapsed.
+	if err := opts.defaultMap.SetWithTTL(t.Context(), "stale-ip", rate.NewLimiter(rate.Every(time.Hour), 1), time.Nanosecond); err != nil {
+		t.Fatalf("seed stale entry: %v", err)
+	}
+	time.Sleep(time.Millisecond)
+	opts.lastTrimNano.Store(time.Now().Add(-2 * time.Minute).UnixNano())
+	opts.maybeTrim(time.Now())
+	if got := opts.defaultMap.Count(); got != 0 {
+		t.Fatalf("Count after maybeTrim = %d, want 0", got)
+	}
+
+	var created atomic.Int64
+	mw := NewRateLimiterByClientIP(time.Hour, 1, time.Minute)
+	for i := range 200 {
+		ip := fmt.Sprintf("192.0.2.%d", i)
+		req1 := httpxmock.New(nil, httpxmock.WithClientIP(ip))
+		if err := httpxmock.Run(req1, nil, mw); err != nil {
+			t.Fatalf("first request for %s failed: %v", ip, err)
+		}
+		req2 := httpxmock.New(nil, httpxmock.WithClientIP(ip))
+		if err := httpxmock.Run(req2, nil, mw); err == nil {
+			t.Fatalf("second immediate request for %s was not rate limited", ip)
+		}
+		created.Add(1)
+	}
+	if created.Load() != 200 {
+		t.Fatalf("checked %d keys, want 200", created.Load())
+	}
 }

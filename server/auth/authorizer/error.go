@@ -10,17 +10,17 @@ var (
 	// TokenNotFoundError is 401 when the request carries no usable token.
 	TokenNotFoundError = httpx.UnauthorizedError(
 		errors.New("AuthorizerError:TOKEN_NOT_FOUND"),
-		"没有提供有效的认证信息",
+		"authentication credentials not provided",
 	)
 	// NeedLoginError is 401 when ContextUtils finds no Data[I] on the context.
 	NeedLoginError = httpx.UnauthorizedError(
 		errors.New("AuthorizerError:NEED_LOGIN"),
-		"需要登录才能访问",
+		"authentication required",
 	)
 	// PermissionError is 403 when CheckAuthID sees a UID mismatch.
 	PermissionError = httpx.ForbiddenError(
 		errors.New("AuthorizerError:PERMISSION_DENIED"),
-		"没有权限访问该资源",
+		"permission denied",
 	)
 	// MissingUIDError is returned by Claims.GetUID when the token carries no
 	// identity. A zero UID must never be treated as an authenticated user: it
@@ -30,6 +30,6 @@ var (
 	// access token.
 	MissingUIDError = httpx.UnauthorizedError(
 		errors.New("AuthorizerError:MISSING_UID"),
-		"认证信息缺少用户标识",
+		"authentication token missing user identifier",
 	)
 )

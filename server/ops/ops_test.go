@@ -2,6 +2,7 @@ package ops
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,8 @@ import (
 	"time"
 
 	"github.com/go-sphere/httpx/stdx"
+	"github.com/go-sphere/sphere/core/task"
+	"github.com/go-sphere/sphere/core/task/tasktest"
 	"github.com/go-sphere/sphere/server/httpz"
 )
 
@@ -126,5 +129,29 @@ func TestHandlerSkipsNilOptions(t *testing.T) {
 	}
 	if w := get(t, h, http.MethodGet, PprofPrefix); w.Code != http.StatusOK {
 		t.Fatalf("pprof = %d, want 200", w.Code)
+	}
+}
+
+func TestServerLifecycleContractAndNilGuards(t *testing.T) {
+	tasktest.AssertLifecycleContract(t, func() task.Task {
+		return NewServer("127.0.0.1:0")
+	})
+
+	var zero Server
+	if err := zero.Start(t.Context()); err == nil {
+		t.Fatal("zero Server.Start succeeded, want error")
+	}
+	if err := zero.Stop(t.Context()); err != nil {
+		t.Fatalf("zero Server.Stop = %v, want nil", err)
+	}
+	var nilSrv *Server
+	if nilSrv.Addr() != "" {
+		t.Fatalf("nil Server.Addr = %q, want empty", nilSrv.Addr())
+	}
+	if err := nilSrv.Start(t.Context()); err == nil || errors.Is(err, context.Canceled) {
+		t.Fatalf("nil Server.Start = %v, want init error", err)
+	}
+	if err := nilSrv.Stop(t.Context()); err != nil {
+		t.Fatalf("nil Server.Stop = %v, want nil", err)
 	}
 }

@@ -41,7 +41,8 @@
 // # Caching rules
 //
 //   - The default cache key is the inbound Host followed by the request URI,
-//     for GET requests only; other methods are never cached. A custom key
+//     for GET requests without Authorization or Cookie headers; other methods
+//     and credentialed requests bypass the shared cache. A custom key
 //     (WithCacheKeyFunc and WithServeCacheKeyFunc) should keep the Host: the
 //     client chooses it and the proxy forwards it upstream as
 //     X-Forwarded-Host, so leaving it out lets one request decide what every

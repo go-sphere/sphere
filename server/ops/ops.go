@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -104,6 +105,8 @@ type Server struct {
 	srv     *http.Server
 	bound   atomic.Pointer[string]
 	started atomic.Bool
+	mu      sync.Mutex
+	stopped bool
 }
 
 var _ task.Task = (*Server)(nil)
@@ -128,6 +131,9 @@ func (s *Server) Identifier() string { return "ops" }
 // Addr returns the address the listener is bound to, or "" before Start has
 // bound it. It differs from the configured address when that used port 0.
 func (s *Server) Addr() string {
+	if s == nil {
+		return ""
+	}
 	if p := s.bound.Load(); p != nil {
 		return *p
 	}
@@ -139,15 +145,31 @@ func (s *Server) Addr() string {
 // single use: a second Start returns an error, and a Start after Stop returns
 // nil as soon as the listener has been closed again.
 func (s *Server) Start(_ context.Context) error {
+	if s == nil || s.srv == nil {
+		return errors.New("ops: server is not initialized")
+	}
 	if s.started.Swap(true) {
 		return errors.New("ops: server already started")
+	}
+	s.mu.Lock()
+	stopped := s.stopped
+	s.mu.Unlock()
+	if stopped {
+		return nil
 	}
 	ln, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return err
 	}
+	s.mu.Lock()
+	if s.stopped {
+		s.mu.Unlock()
+		_ = ln.Close()
+		return nil
+	}
 	a := ln.Addr().String()
 	s.bound.Store(&a)
+	s.mu.Unlock()
 	if err := s.srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -158,5 +180,12 @@ func (s *Server) Start(_ context.Context) error {
 // requests until ctx expires, then force-closes. It is safe to call more
 // than once and before Start.
 func (s *Server) Stop(ctx context.Context) error {
-	return httpz.StopServer(ctx, s.srv)
+	if s == nil || s.srv == nil {
+		return nil
+	}
+	s.mu.Lock()
+	s.stopped = true
+	srv := s.srv
+	s.mu.Unlock()
+	return httpz.StopServer(ctx, srv)
 }

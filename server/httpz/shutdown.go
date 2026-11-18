@@ -41,7 +41,7 @@ func StopServer(ctx context.Context, server *http.Server) error {
 		}
 		return err
 	}
-	log.Warn("http server couldn't stop gracefully in time, doing force stop")
+	log.WarnContext(ctx, "http server couldn't stop gracefully in time, doing force stop")
 	if closeErr := server.Close(); closeErr != nil && !errors.Is(closeErr, http.ErrServerClosed) {
 		return closeErr
 	}

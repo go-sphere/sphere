@@ -1,6 +1,8 @@
 package selector
 
 import (
+	"slices"
+
 	"github.com/go-sphere/httpx"
 )
 
@@ -55,6 +57,7 @@ func NewLogicalNotMatcher(matcher Matcher) Matcher {
 
 // NewLogicalOrMatcher returns a matcher that is true if any matcher matches. An empty list is false.
 func NewLogicalOrMatcher(matchers ...Matcher) Matcher {
+	matchers = slices.Clone(matchers)
 	return MatchFunc(func(ctx httpx.Context) bool {
 		for _, m := range matchers {
 			if m != nil && m.Match(ctx) {
@@ -67,6 +70,7 @@ func NewLogicalOrMatcher(matchers ...Matcher) Matcher {
 
 // NewLogicalAndMatcher returns a matcher that is true only if every matcher matches. An empty list is true.
 func NewLogicalAndMatcher(matchers ...Matcher) Matcher {
+	matchers = slices.Clone(matchers)
 	return MatchFunc(func(ctx httpx.Context) bool {
 		for _, m := range matchers {
 			if m == nil || !m.Match(ctx) {

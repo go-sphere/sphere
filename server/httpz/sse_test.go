@@ -3,6 +3,7 @@ package httpz
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -888,5 +890,58 @@ func TestWithSSEEagerCommitUnencodableFirstMessageSendsErrorEvent(t *testing.T) 
 	}
 	if !strings.Contains(body, "event: error\n") {
 		t.Fatalf("body = %q, want terminal error event", body)
+	}
+}
+
+type countMarshaler struct {
+	Msg   string
+	count *atomic.Int32
+}
+
+func (m countMarshaler) MarshalJSON() ([]byte, error) {
+	m.count.Add(1)
+	return json.Marshal(struct {
+		Msg string `json:"msg"`
+	}{Msg: m.Msg})
+}
+
+type failBeforeCommitStreamCtx struct {
+	baseContext
+	streamErr error
+}
+
+func (c *failBeforeCommitStreamCtx) Stream(int, string, func(io.Writer) error) error {
+	return c.streamErr
+}
+
+func TestWithSSEFirstMessageSingleMarshalAndPreCommitError(t *testing.T) {
+	var marshals atomic.Int32
+	engine := stdx.New()
+	engine.Group("").GET("/sse", WithSSE(func(ctx httpx.Context) (SSEStream[countMarshaler], error) {
+		return func(send func(countMarshaler) error) error {
+			return send(countMarshaler{Msg: "once", count: &marshals})
+		}, nil
+	}, WithSSEHeartbeat(0)))
+
+	status, _, body := sseDo(t, engine, "/sse")
+	if status != http.StatusOK || !strings.Contains(body, `"msg":"once"`) {
+		t.Fatalf("status=%d body=%q", status, body)
+	}
+	if got := marshals.Load(); got != 1 {
+		t.Fatalf("MarshalJSON calls = %d, want 1", got)
+	}
+
+	mock := httpxmock.New(nil)
+	ctx := &failBeforeCommitStreamCtx{baseContext: mock, streamErr: errors.New("stream setup failed")}
+	h := WithSSE(func(httpx.Context) (SSEStream[sseMsg], error) {
+		return func(send func(sseMsg) error) error {
+			return send(sseMsg{Msg: "first"})
+		}, nil
+	}, WithSSEHeartbeat(0))
+	if err := h(ctx); err != nil {
+		t.Fatalf("WithSSE handler err = %v", err)
+	}
+	if mock.StatusCode() != http.StatusInternalServerError {
+		t.Fatalf("pre-commit Stream failure status = %d, want 500", mock.StatusCode())
 	}
 }

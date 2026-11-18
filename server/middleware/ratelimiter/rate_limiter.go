@@ -2,20 +2,26 @@ package ratelimiter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/cache"
-	"github.com/go-sphere/sphere/cache/memory"
+	"github.com/go-sphere/sphere/cache/mcache"
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/time/rate"
 )
 
+const defaultTrimInterval = time.Minute
+
 type options struct {
-	cache      cache.Cache[*rate.Limiter]
-	setTimeout time.Duration
+	cache        cache.Cache[*rate.Limiter]
+	defaultMap   *mcache.Map[string, *rate.Limiter]
+	lastTrimNano atomic.Int64
+	setTimeout   time.Duration
 }
 
 func newOptions(opts ...Option) *options {
@@ -25,12 +31,28 @@ func newOptions(opts ...Option) *options {
 			opt(defaults)
 		}
 	}
-	// Built after the options so a WithCache cache does not orphan a default
-	// one with its background goroutines.
+	// Built after the options so a WithCache cache does not orphan a default one.
 	if defaults.cache == nil {
-		defaults.cache = memory.NewMemoryCache[*rate.Limiter]()
+		m := mcache.NewMapCache[*rate.Limiter]()
+		defaults.cache = m
+		defaults.defaultMap = m
+		defaults.lastTrimNano.Store(time.Now().UnixNano())
 	}
 	return defaults
+}
+
+func (o *options) maybeTrim(now time.Time) {
+	if o.defaultMap == nil {
+		return
+	}
+	last := o.lastTrimNano.Load()
+	nowNano := now.UnixNano()
+	if nowNano-last < int64(defaultTrimInterval) {
+		return
+	}
+	if o.lastTrimNano.CompareAndSwap(last, nowNano) {
+		o.defaultMap.Trim()
+	}
 }
 
 // Option is a functional option for configuring the rate limiter middleware.
@@ -38,7 +60,8 @@ func newOptions(opts ...Option) *options {
 type Option func(*options)
 
 // WithCache sets a custom cache implementation for storing rate limiters.
-// The default cache is an in-memory cache.
+// The default cache is a deterministic in-memory map cache trimmed lazily on
+// writes rather than a probabilistic or background-goroutine cache.
 //
 // The limiter is stored as a live in-process object and never round-trips
 // through serialization: rate.Limiter has no exported fields, so a codec-
@@ -123,6 +146,9 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 						return cached, nil
 					}
 					newLimiter, expire := createLimiter(ctx)
+					if newLimiter == nil {
+						return nil, errors.New("ratelimiter: createLimiter returned nil")
+					}
 					// Every concurrent waiter for this key shares this result, so
 					// the cache write must not inherit the triggering request's
 					// cancellation: its disconnect would fail all waiters.
@@ -132,6 +158,7 @@ func NewRateLimiter(key func(httpx.Context) string, createLimiter func(httpx.Con
 					if err != nil {
 						return nil, err
 					}
+					opts.maybeTrim(time.Now())
 					return newLimiter, nil
 				})
 				if nErr != nil {

@@ -245,13 +245,14 @@ func WithSSE[T any](prepare func(ctx httpx.Context) (SSEStream[T], error), opts 
 			// once the stream is committed it can only surface as a log line
 			// behind an empty 200 stream. Failing here keeps the error on the
 			// WithRecover path, which renders a plain JSON 500.
-			if _, err := json.Marshal(first); err != nil {
+			rawFirst, err := json.Marshal(first)
+			if err != nil {
 				cancel(errSSEStreamEnded)
 				drainSSE(result)
 				return fmt.Errorf("httpz: WithSSE first message is not JSON-serializable: %w", err)
 			}
 			return serveSSE(ctx, conf, cancel, func(w *httpx.SSEWriter) error {
-				return pumpSSE(w, conf, reqCtx, first, frames, done, result, cancel)
+				return pumpSSE(w, conf, reqCtx, first, json.RawMessage(rawFirst), frames, done, result, cancel)
 			})
 		case <-reqCtx.Done():
 			cancel(context.Cause(reqCtx))
@@ -299,6 +300,10 @@ func serveSSE(ctx httpx.Context, conf sseOptions, cancel context.CancelCauseFunc
 		}
 		return err
 	})
+	if err != nil && !ctx.Committed() {
+		cancel(err)
+		return err
+	}
 	if err != nil && !reported.Load() {
 		fail(err)
 	}
@@ -314,6 +319,7 @@ func pumpSSE[T any](
 	conf sseOptions,
 	reqCtx context.Context,
 	first T,
+	firstRaw json.RawMessage,
 	frames <-chan T,
 	done <-chan struct{},
 	result <-chan error,
@@ -326,13 +332,19 @@ func pumpSSE[T any](
 		return reason
 	}
 
-	if err := w.SendJSON("", first); err != nil {
+	var firstErr error
+	if firstRaw != nil {
+		firstErr = w.SendJSON("", firstRaw)
+	} else {
+		firstErr = w.SendJSON("", first)
+	}
+	if firstErr != nil {
 		// Best effort terminator: in eager-commit mode the first frame was not
 		// pre-marshaled in the gate, so an encode failure reaches pumpSSE with
 		// the stream already committed and the client still listening.
-		_, resp := buildErrorResponse(err)
+		_, resp := buildErrorResponse(firstErr)
 		_ = w.SendJSON(SSEEventError, resp)
-		return abort(err)
+		return abort(firstErr)
 	}
 
 	var ticker *time.Ticker
@@ -429,7 +441,7 @@ func pumpSSEEager[T any](
 			if ticker != nil {
 				ticker.Stop()
 			}
-			return pumpSSE(w, conf, reqCtx, first, frames, done, result, cancel)
+			return pumpSSE(w, conf, reqCtx, first, nil, frames, done, result, cancel)
 		case <-heartbeat:
 			if err := w.Comment(""); err != nil {
 				cancel(err)

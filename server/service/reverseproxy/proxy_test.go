@@ -265,7 +265,9 @@ func TestServeCacheReverseProxy_QueryParametersAreIsolated(t *testing.T) {
 func TestServeCacheReverseProxy_CustomCacheKeyFunc(t *testing.T) {
 	cache := setupTestCache(t)
 
+	var backendCalls atomic.Int32
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backendCalls.Add(1)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("response"))
 	}))
@@ -290,15 +292,34 @@ func TestServeCacheReverseProxy_CustomCacheKeyFunc(t *testing.T) {
 		t.Fatalf("Failed to create proxy: %v", err)
 	}
 
-	handler := ServeCacheReverseProxy(cache, proxy)
+	handler := ServeCacheReverseProxy(cache, proxy, WithServeCacheKeyFunc(customKeyFunc))
 
-	// Request with query parameters
+	// First request populates cache via upstream.
 	req := httptest.NewRequest(http.MethodGet, "/api?user=123", nil)
 	rec := httptest.NewRecorder()
 	handler(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
+	if rec.Code != http.StatusOK || rec.Body.String() != "response" {
+		t.Fatalf("first response = %d %q, want 200 response", rec.Code, rec.Body.String())
+	}
+
+	waitForCondition(t, 2*time.Second, func() (bool, error) {
+		ok, err := cache.Exists(t.Context(), "/api?user=123")
+		if errors.Is(err, ErrCacheNotFound) {
+			return false, nil
+		}
+		return ok, err
+	})
+
+	// Second request hits cache without calling upstream again.
+	req2 := httptest.NewRequest(http.MethodGet, "/api?user=123", nil)
+	rec2 := httptest.NewRecorder()
+	handler(rec2, req2)
+	if rec2.Code != http.StatusOK || rec2.Body.String() != "response" {
+		t.Fatalf("cached response = %d %q, want 200 response", rec2.Code, rec2.Body.String())
+	}
+	if calls := backendCalls.Load(); calls != 1 {
+		t.Fatalf("backend calls = %d, want 1", calls)
 	}
 }
 
@@ -306,7 +327,9 @@ func TestServeCacheReverseProxy_CustomCacheKeyFunc(t *testing.T) {
 func TestServeCacheReverseProxy_CustomResponseChecker(t *testing.T) {
 	cache := setupTestCache(t)
 
+	var backendCalls atomic.Int32
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backendCalls.Add(1)
 		if strings.Contains(r.URL.Path, "error") {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
@@ -334,13 +357,32 @@ func TestServeCacheReverseProxy_CustomResponseChecker(t *testing.T) {
 
 	handler := ServeCacheReverseProxy(cache, proxy)
 
-	// Request that returns 500
+	// Request that returns 500 populates cache.
 	req := httptest.NewRequest(http.MethodGet, "/error", nil)
 	rec := httptest.NewRecorder()
 	handler(rec, req)
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("Expected status 500, got %d", rec.Code)
+	}
+
+	waitForCondition(t, 2*time.Second, func() (bool, error) {
+		ok, err := cache.Exists(t.Context(), "example.com/error")
+		if errors.Is(err, ErrCacheNotFound) {
+			return false, nil
+		}
+		return ok, err
+	})
+
+	// Second request replays cached 500 response without hitting upstream again.
+	req2 := httptest.NewRequest(http.MethodGet, "/error", nil)
+	rec2 := httptest.NewRecorder()
+	handler(rec2, req2)
+	if rec2.Code != http.StatusInternalServerError || rec2.Body.String() != "response" {
+		t.Fatalf("cached error response = %d %q, want 500 response", rec2.Code, rec2.Body.String())
+	}
+	if calls := backendCalls.Load(); calls != 1 {
+		t.Fatalf("backend calls = %d, want 1", calls)
 	}
 }
 
@@ -408,7 +450,7 @@ func TestServeCacheReverseProxy_CacheHitPreservesStatus(t *testing.T) {
 // a status outside 100-999, so out-of-range and unparseable values must fall
 // back to 200 instead of reaching WriteHeader.
 func TestServeCacheReverseProxy_CacheHitRejectsInvalidStatus(t *testing.T) {
-	for _, poisoned := range []string{"0", "-1", "99", "600", "1000", "99999", "not-a-number"} {
+	for _, poisoned := range []string{"0", "-1", "99", "100", "199", "600", "1000", "99999", "not-a-number"} {
 		t.Run(poisoned, func(t *testing.T) {
 			cache := setupTestCache(t)
 			ctx := (&http.Request{}).Context()
@@ -554,8 +596,14 @@ func TestDefaultResponseCacheCheck(t *testing.T) {
 		{name: "request carries authorization", mutate: func(req *http.Request, _ *http.Response) {
 			req.Header.Set("Authorization", "Bearer alice-token")
 		}},
+		{name: "request carries empty authorization", mutate: func(req *http.Request, _ *http.Response) {
+			req.Header["Authorization"] = []string{""}
+		}},
 		{name: "request carries cookie", mutate: func(req *http.Request, _ *http.Response) {
 			req.Header.Set("Cookie", "session=alice")
+		}},
+		{name: "request carries empty cookie", mutate: func(req *http.Request, _ *http.Response) {
+			req.Header["Cookie"] = []string{""}
 		}},
 		{name: "response sets a cookie", mutate: func(_ *http.Request, resp *http.Response) {
 			resp.Header.Add("Set-Cookie", "session=alice; HttpOnly")
@@ -597,8 +645,21 @@ func TestDefaultResponseCacheCheck(t *testing.T) {
 		{name: "encoded response", mutate: func(_ *http.Request, resp *http.Response) {
 			resp.Header.Set("Content-Encoding", "gzip")
 		}},
+		{name: "empty content-encoding", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header["Content-Encoding"] = []string{""}
+		}},
+		{name: "multi-header content-encoding identity and gzip", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Add("Content-Encoding", "identity")
+			resp.Header.Add("Content-Encoding", "gzip")
+		}},
+		{name: "comma content-encoding identity and br", mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Content-Encoding", "identity, br")
+		}},
 		{name: "identity encoding", want: true, mutate: func(_ *http.Request, resp *http.Response) {
 			resp.Header.Set("Content-Encoding", "identity")
+		}},
+		{name: "duplicate identity encoding", want: true, mutate: func(_ *http.Request, resp *http.Response) {
+			resp.Header.Set("Content-Encoding", "identity, identity")
 		}},
 		{name: "vary on a header not in the key", mutate: func(_ *http.Request, resp *http.Response) {
 			resp.Header.Set("Vary", "Accept-Language")
@@ -1464,5 +1525,142 @@ func waitForCondition(t *testing.T, timeout time.Duration, check func() (bool, e
 		case <-deadline.C:
 			t.Fatalf("condition not met within %s", timeout)
 		}
+	}
+}
+
+func TestServeCacheReverseProxy_NonBodyStatusesAndLowercaseStatusHeader(t *testing.T) {
+	c := setupTestCache(t)
+	ctx := t.Context()
+
+	// Pre-seeded 204 and lowercase x-sphere-cache-status entries replay cleanly
+	// without leaking internal headers or writing a body for 204/304.
+	if err := c.Save(ctx, "example.com/no-content-cached", http.Header{
+		cacheStatusHeader: []string{"204"},
+	}, strings.NewReader("ignored-body")); err != nil {
+		t.Fatalf("Save(204): %v", err)
+	}
+	if err := c.Save(ctx, "example.com/lowercase-status", http.Header{
+		"x-sphere-cache-status": []string{"201"},
+		"Content-Type":          []string{"text/plain"},
+	}, strings.NewReader("created")); err != nil {
+		t.Fatalf("Save(201): %v", err)
+	}
+
+	var calls atomic.Int32
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		switch r.URL.Path {
+		case "/upstream-204":
+			w.WriteHeader(http.StatusNoContent)
+		case "/upstream-304":
+			w.WriteHeader(http.StatusNotModified)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer backend.Close()
+
+	backendURL, _ := url.Parse(backend.URL)
+	proxy, err := CreateCacheReverseProxy(c,
+		WithTargetURL(backendURL),
+		WithResponseCacheCheck(func(*http.Response) bool { return true }),
+	)
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+	handler := ServeCacheReverseProxy(c, proxy)
+
+	rec204 := httptest.NewRecorder()
+	handler(rec204, httptest.NewRequest(http.MethodGet, "http://example.com/no-content-cached", nil))
+	if rec204.Code != http.StatusNoContent || rec204.Body.Len() != 0 {
+		t.Fatalf("cached 204 = %d %q, want 204 empty", rec204.Code, rec204.Body.String())
+	}
+
+	recLower := httptest.NewRecorder()
+	handler(recLower, httptest.NewRequest(http.MethodGet, "http://example.com/lowercase-status", nil))
+	if recLower.Code != http.StatusCreated || recLower.Body.String() != "created" {
+		t.Fatalf("cached lowercase 201 = %d %q, want 201 created", recLower.Code, recLower.Body.String())
+	}
+	for k := range recLower.Header() {
+		if strings.EqualFold(k, cacheStatusHeader) {
+			t.Fatalf("internal status header %q leaked to client", k)
+		}
+	}
+
+	// Upstream 204 and 304 must pass through without wrapping/caching bodies.
+	for _, p := range []string{"/upstream-204", "/upstream-304"} {
+		rec := httptest.NewRecorder()
+		handler(rec, httptest.NewRequest(http.MethodGet, "http://example.com"+p, nil))
+		if _, err := c.Exists(ctx, "example.com"+p); !errors.Is(err, ErrCacheNotFound) {
+			t.Fatalf("path %s unexpectedly entered cache: err=%v", p, err)
+		}
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("upstream calls = %d, want 2", calls.Load())
+	}
+}
+
+// TestServeCacheReverseProxy_CredentialedRequestBypassesCachedAnonymousResponse
+// pins the read-side symmetry with defaultResponseCacheCheck: once an anonymous
+// caller populates the cache for a URL, a caller carrying Authorization or
+// Cookie must bypass the shared cached entry and fetch its own response.
+func TestServeCacheReverseProxy_CredentialedRequestBypassesCachedAnonymousResponse(t *testing.T) {
+	c := setupTestCache(t)
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch {
+		case r.Header.Get("Authorization") != "":
+			_, _ = w.Write([]byte("user-bearer"))
+		case r.Header.Get("Cookie") != "":
+			_, _ = w.Write([]byte("user-cookie"))
+		default:
+			_, _ = w.Write([]byte("public-anon"))
+		}
+	}))
+	defer backend.Close()
+
+	backendURL, _ := url.Parse(backend.URL)
+	proxy, err := CreateCacheReverseProxy(c, WithTargetURL(backendURL))
+	if err != nil {
+		t.Fatalf("CreateCacheReverseProxy: %v", err)
+	}
+	handler := ServeCacheReverseProxy(c, proxy)
+
+	// Populate shared cache with anonymous response.
+	anonReq1 := httptest.NewRequest(http.MethodGet, "http://example.com/api/feed", nil)
+	anonRec1 := httptest.NewRecorder()
+	handler(anonRec1, anonReq1)
+	if anonRec1.Code != http.StatusOK || anonRec1.Body.String() != "public-anon" {
+		t.Fatalf("anon1 = %d %q, want 200 public-anon", anonRec1.Code, anonRec1.Body.String())
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, err := c.Exists(t.Context(), "example.com/api/feed"); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("anonymous response was not cached in time")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	// Bearer request bypasses the cached anonymous entry.
+	authReq := httptest.NewRequest(http.MethodGet, "http://example.com/api/feed", nil)
+	authReq.Header.Set("Authorization", "Bearer tok")
+	authRec := httptest.NewRecorder()
+	handler(authRec, authReq)
+	if authRec.Code != http.StatusOK || authRec.Body.String() != "user-bearer" {
+		t.Fatalf("bearer = %d %q, want 200 user-bearer", authRec.Code, authRec.Body.String())
+	}
+
+	// Cookie request bypasses the cached anonymous entry.
+	cookieReq := httptest.NewRequest(http.MethodGet, "http://example.com/api/feed", nil)
+	cookieReq.Header.Set("Cookie", "sid=123")
+	cookieRec := httptest.NewRecorder()
+	handler(cookieRec, cookieReq)
+	if cookieRec.Code != http.StatusOK || cookieRec.Body.String() != "user-cookie" {
+		t.Fatalf("cookie = %d %q, want 200 user-cookie", cookieRec.Code, cookieRec.Body.String())
 	}
 }

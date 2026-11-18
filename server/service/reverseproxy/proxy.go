@@ -23,6 +23,13 @@ import (
 // It is stripped from the response headers before they are sent to the client.
 const cacheStatusHeader = "X-Sphere-Cache-Status"
 
+var copyBufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, 32*1024)
+		return &b
+	},
+}
+
 type (
 	// RequestCacheKeyFunc derives a cache key from a request. An empty key means do not cache.
 	RequestCacheKeyFunc func(*http.Request) string
@@ -124,13 +131,19 @@ type Options struct {
 // Option configures CreateCacheReverseProxy. A nil Option is ignored.
 type Option = func(*Options)
 
-// defaultCacheKey keys GET requests on the inbound Host followed by the request
-// URI. The Host belongs in the key because the client chooses it and the proxy
-// forwards it upstream as X-Forwarded-Host: an upstream that builds URLs from
-// that header would otherwise let one request with a forged Host store the
-// response every other client is served.
+// defaultCacheKey keys uncredentialed GET requests on the inbound Host followed
+// by the request URI. Requests carrying Authorization or Cookie return "" so
+// credentialed callers bypass shared cached responses and fetch directly from
+// upstream (matching defaultResponseCacheCheck on the write side). The Host
+// belongs in the key because the client chooses it and the proxy forwards it
+// upstream as X-Forwarded-Host: an upstream that builds URLs from that header
+// would otherwise let one request with a forged Host store the response every
+// other client is served.
 func defaultCacheKey(request *http.Request) string {
-	if request.Method != http.MethodGet {
+	if request == nil || request.Method != http.MethodGet {
+		return ""
+	}
+	if len(request.Header.Values("Authorization")) > 0 || len(request.Header.Values("Cookie")) > 0 {
 		return ""
 	}
 	return request.Host + request.URL.RequestURI()
@@ -160,7 +173,7 @@ func defaultResponseCacheCheck(resp *http.Response) bool {
 		return false
 	}
 	// A credentialed request yields a response scoped to that caller.
-	if resp.Request.Header.Get("Authorization") != "" || resp.Request.Header.Get("Cookie") != "" {
+	if len(resp.Request.Header.Values("Authorization")) > 0 || len(resp.Request.Header.Values("Cookie")) > 0 {
 		return false
 	}
 	// Storing a Set-Cookie would hand one client's session to the next.
@@ -171,8 +184,21 @@ func defaultResponseCacheCheck(resp *http.Response) bool {
 	// appears with a custom director. The key carries no encoding dimension,
 	// so a stored gzip/br variant would be replayed to clients that never
 	// offered it — refuse to store it instead.
-	if ce := resp.Header.Get("Content-Encoding"); ce != "" && !strings.EqualFold(ce, "identity") {
-		return false
+	for _, ce := range resp.Header.Values("Content-Encoding") {
+		hasToken := false
+		for enc := range strings.SplitSeq(ce, ",") {
+			enc = strings.TrimSpace(enc)
+			if enc == "" {
+				continue
+			}
+			hasToken = true
+			if !strings.EqualFold(enc, "identity") {
+				return false
+			}
+		}
+		if !hasToken {
+			return false
+		}
 	}
 	if hasUncacheableDirective(resp.Header.Values("Cache-Control")) {
 		return false
@@ -369,6 +395,9 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 		// stored in Rewrite so the checker and key derivation match the cache
 		// lookup path.
 		resp.Request = inboundRequest(resp.Request)
+		if resp.StatusCode < 200 || resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusNotModified {
+			return nil
+		}
 		if !conf.checker(resp) {
 			return nil
 		}
@@ -407,7 +436,13 @@ func CreateCacheReverseProxy(cache Cache, opts ...Option) (*httputil.ReverseProx
 			// pipe for the same reason, extended to a backend that is merely
 			// slow: the queue's Write never blocks, so Save's pace cannot become
 			// the client's.
-			buf := make([]byte, 32*1024)
+			bufPtr, _ := copyBufPool.Get().(*[]byte)
+			if bufPtr == nil {
+				b := make([]byte, 32*1024)
+				bufPtr = &b
+			}
+			defer copyBufPool.Put(bufPtr)
+			buf := *bufPtr
 			cacheBroken := false
 			for {
 				n, readErr := originalBody.Read(buf)
@@ -562,12 +597,20 @@ func ServeCacheReverseProxy(cache Cache, proxy *httputil.ReverseProxy, opts ...S
 					// Replay the persisted status code instead of hardcoding 200,
 					// skipping the internal status header without mutating the map.
 					status := http.StatusOK
-					if s := header.Get(cacheStatusHeader); s != "" {
+					statusVal := header.Get(cacheStatusHeader)
+					if statusVal == "" {
+						for k, vals := range header {
+							if strings.EqualFold(k, cacheStatusHeader) && len(vals) > 0 {
+								statusVal = vals[0]
+								break
+							}
+						}
+					}
+					if statusVal != "" {
 						// Validate the range before replaying: net/http panics on a
-						// status outside 100-999, so a corrupted or poisoned cache
-						// entry would otherwise take down the request goroutine.
-						// Fall back to 200 for anything unparseable or out of range.
-						if code, pErr := strconv.Atoi(s); pErr == nil && code >= 100 && code <= 599 {
+						// status outside 100-999 and 1xx are not final statuses, so a
+						// corrupted or poisoned cache entry falls back to 200.
+						if code, pErr := strconv.Atoi(statusVal); pErr == nil && code >= 200 && code <= 599 {
 							status = code
 						}
 					}
@@ -582,7 +625,16 @@ func ServeCacheReverseProxy(cache Cache, proxy *httputil.ReverseProxy, opts ...S
 					}
 					w.WriteHeader(status)
 					defer ignoreCloseError(body.Close)
-					if _, cErr := io.Copy(w, body); cErr != nil {
+					if status == http.StatusNoContent || status == http.StatusNotModified {
+						return
+					}
+					bufPtr, _ := copyBufPool.Get().(*[]byte)
+					if bufPtr == nil {
+						b := make([]byte, 32*1024)
+						bufPtr = &b
+					}
+					defer copyBufPool.Put(bufPtr)
+					if _, cErr := io.CopyBuffer(w, body, *bufPtr); cErr != nil {
 						conf.errorHandler(w, r, cErr)
 						return
 					}

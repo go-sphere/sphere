@@ -260,3 +260,32 @@ func TestZeroValueStopDoesNotPanic(t *testing.T) {
 		}
 	}
 }
+
+func TestNilOnlineAndPostStopMiddleware(t *testing.T) {
+	var nilOnline *Online
+	if nilOnline.OnlineCount() != 0 {
+		t.Fatal("nil OnlineCount != 0")
+	}
+	if err := nilOnline.Start(t.Context()); !errors.Is(err, ErrNotInitialized) {
+		t.Fatalf("nil Start = %v, want ErrNotInitialized", err)
+	}
+	if err := nilOnline.Stop(t.Context()); err != nil {
+		t.Fatalf("nil Stop = %v, want nil", err)
+	}
+	if err := httpxmock.Run(headerContext("X-User-ID", "u1"), (&httpxmock.Handler{}).Handle, nilOnline.Middleware(func(c httpx.Context) string { return c.Header("X-User-ID") }, time.Minute)); !errors.Is(err, ErrNotInitialized) {
+		t.Fatalf("nil Middleware = %v, want ErrNotInitialized", err)
+	}
+
+	o := NewOnline()
+	_ = o.Stop(t.Context())
+	next := &httpxmock.Handler{}
+	if err := httpxmock.Run(headerContext("X-User-ID", "u1"), next.Handle, o.Middleware(func(c httpx.Context) string { return c.Header("X-User-ID") }, time.Minute)); err != nil {
+		t.Fatalf("post-stop Middleware = %v", err)
+	}
+	if !next.Called() {
+		t.Fatal("post-stop Middleware did not call next")
+	}
+	if o.OnlineCount() != 0 {
+		t.Fatalf("post-stop OnlineCount = %d, want 0 (stopped tracker must not accumulate new keys)", o.OnlineCount())
+	}
+}

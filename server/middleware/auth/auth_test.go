@@ -267,3 +267,34 @@ func TestAuthLoaderErrorWithoutAbortSkipsParser(t *testing.T) {
 		t.Fatal("parserToken should not be called when loader fails with abortOnError=false")
 	}
 }
+
+func TestBareBearerAndNoDouble401Wrap(t *testing.T) {
+	t.Parallel()
+
+	parserCalled := false
+	sentinel401 := httpx.UnauthorizedError(errors.New("custom-401"), "custom message")
+	parser := authorizer.ParserFunc[int64, stubClaims](func(context.Context, string) (stubClaims, error) {
+		parserCalled = true
+		return stubClaims{}, sentinel401
+	})
+
+	mw := NewAuthMiddleware(parser, WithPrefixTransform(AuthorizationPrefixBearer))
+	for _, hdr := range []string{"Bearer", "bearer   "} {
+		ctx := headerContext(AuthorizationHeader, hdr)
+		err := httpxmock.Run(ctx, (&httpxmock.Handler{}).Handle, mw)
+		if !errors.Is(err, authorizer.TokenNotFoundError) {
+			t.Fatalf("header %q: err = %v, want TokenNotFoundError", hdr, err)
+		}
+		if parserCalled {
+			t.Fatalf("parser called for bare prefix %q", hdr)
+		}
+	}
+
+	err := httpxmock.Run(headerContext(AuthorizationHeader, "Bearer real-tok"), (&httpxmock.Handler{}).Handle, mw)
+	if !errors.Is(err, sentinel401) {
+		t.Fatalf("err = %v, want sentinel401", err)
+	}
+	if err != sentinel401 {
+		t.Fatalf("401 error was double-wrapped: got %#v, want %#v", err, sentinel401)
+	}
+}

@@ -123,7 +123,7 @@ func NewTracing(opts ...Option) httpx.Middleware {
 				if status != 0 {
 					span.SetAttributes(statusAttr(status))
 				}
-				if isServerError(status) && !clientCanceled(base, err) {
+				if isServerError(status) && !clientCanceled(ctx, base, err) {
 					if kv, ok := errorTypeAttr(status, false); ok {
 						span.SetAttributes(kv)
 					}

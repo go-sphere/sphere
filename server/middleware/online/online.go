@@ -83,7 +83,7 @@ func NewOnline(options ...Option) *Online {
 func (l *Online) Middleware(keygen func(ctx httpx.Context) string, ttl time.Duration) httpx.Middleware {
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
-			if l.cache == nil {
+			if l == nil || l.cache == nil {
 				// A zero-value Online has no backing cache; dereferencing it
 				// panics on the request path. Start already fails fast with
 				// ErrNotInitialized, so reaching a request through the zero
@@ -91,6 +91,13 @@ func (l *Online) Middleware(keygen func(ctx httpx.Context) string, ttl time.Dura
 				// NewOnline — fail the request with the same diagnosable
 				// error.
 				return ErrNotInitialized
+			}
+			if l.done != nil {
+				select {
+				case <-l.done:
+					return next(ctx)
+				default:
+				}
 			}
 			key := keygen(ctx)
 			if key != "" {
@@ -106,7 +113,7 @@ func (l *Online) Middleware(keygen func(ctx httpx.Context) string, ttl time.Dura
 // reclaims them, so a caller that polls this as a metric may briefly over-count.
 // An Online built via its zero value tracks nothing, so the count is 0.
 func (l *Online) OnlineCount() int {
-	if l.cache == nil {
+	if l == nil || l.cache == nil {
 		return 0
 	}
 	return l.cache.Count()
@@ -125,8 +132,11 @@ func (l *Online) Identifier() string {
 // (returning nil). After Stop, Start returns nil immediately, so a tracker
 // cannot be restarted.
 func (l *Online) Start(ctx context.Context) error {
-	if l.trimInterval <= 0 {
+	if l == nil || l.trimInterval <= 0 || l.done == nil || l.cache == nil {
 		return ErrNotInitialized
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	ticker := time.NewTicker(l.trimInterval)
 	defer ticker.Stop()
@@ -147,7 +157,7 @@ func (l *Online) Start(ctx context.Context) error {
 // Tracked keys stay readable after Stop, but expired keys are no longer
 // reclaimed.
 func (l *Online) Stop(ctx context.Context) error {
-	if l.done == nil {
+	if l == nil || l.done == nil {
 		// Zero value: Start returned ErrNotInitialized, so there is no sweep
 		// to end, and closing the nil channel would panic.
 		return nil

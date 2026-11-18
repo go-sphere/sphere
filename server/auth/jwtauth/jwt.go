@@ -110,7 +110,8 @@ func (g *JwtAuth[T]) GenerateToken(ctx context.Context, claims T) (string, error
 func (g *JwtAuth[T]) ParseToken(ctx context.Context, signedToken string) (T, error) {
 	claims, err := g.parseToken(signedToken)
 	if err != nil {
-		return claims, httpx.UnauthorizedError(err)
+		var zero T
+		return zero, httpx.UnauthorizedError(err)
 	}
 	return claims, nil
 }
@@ -127,47 +128,41 @@ func (g *JwtAuth[T]) parseToken(signedToken string) (T, error) {
 			return claims, err
 		}
 		return claims, nil
-	} else {
-		// Otherwise, first parse it into a map, then attempt to convert it into T.
-		// JSON numbers stay json.Number so 64-bit integers above 2^53 survive the
-		// round trip instead of being rounded through float64.
-		token, err := jwt.Parse(signedToken, g.keyFunc, jwt.WithExpirationRequired(), jwt.WithJSONNumber())
-		if err != nil {
-			return claims, err
-		}
-		if err := checkPayloadIsOneJSONValue(signedToken); err != nil {
-			return claims, err
-		}
-		// Here, mapstructure cannot be used because it has issues with converting anonymous fields.
-		raw, err := json.Marshal(token.Claims)
-		if err != nil {
-			return claims, err
-		}
-		err = json.Unmarshal(raw, &claims)
-		if err != nil {
-			return claims, err
-		}
-		return claims, nil
 	}
+	// Otherwise, verify signature and registered claims with MapClaims + WithJSONNumber
+	// first (using json.Decoder so forged payloads fail HMAC before trailing-byte checks),
+	// then unmarshal the single JSON payload directly into T.
+	if _, err := jwt.Parse(signedToken, g.keyFunc, jwt.WithExpirationRequired(), jwt.WithJSONNumber()); err != nil {
+		return claims, err
+	}
+	payload, err := decodeSingleJSONPayload(signedToken)
+	if err != nil {
+		return claims, err
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return claims, err
+	}
+	if validator, ok := any(claims).(jwt.ClaimsValidator); ok {
+		if err := validator.Validate(); err != nil {
+			return claims, fmt.Errorf("%w: %w", jwt.ErrTokenInvalidClaims, err)
+		}
+	}
+	return claims, nil
 }
 
-// checkPayloadIsOneJSONValue rejects a token whose payload segment holds
-// anything but a single JSON value. golang-jwt decodes the payload with a
-// json.Decoder when WithJSONNumber is set, which stops after the first value and
-// ignores trailing bytes, unlike the json.Unmarshal path used otherwise. The
-// signature is still verified by the parser; this only keeps both paths equally
-// strict about the payload syntax.
-func checkPayloadIsOneJSONValue(signedToken string) error {
+// decodeSingleJSONPayload returns the decoded payload bytes when the token
+// payload segment is a single valid JSON value. golang-jwt decodes the payload
+// with a json.Decoder when WithJSONNumber is set, which stops after the first
+// value and ignores trailing bytes, unlike the json.Unmarshal path used
+// otherwise. The signature is still verified by the parser before this runs.
+func decodeSingleJSONPayload(signedToken string) ([]byte, error) {
 	parts := strings.Split(signedToken, ".")
 	if len(parts) != 3 {
-		return nil // the parser reports the malformed structure
+		return nil, fmt.Errorf("%w: payload is not a single JSON value", jwt.ErrTokenMalformed)
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(parts[1], "="))
-	if err != nil {
-		return nil // the parser reports the bad encoding
+	if err != nil || !json.Valid(payload) {
+		return nil, fmt.Errorf("%w: payload is not a single JSON value", jwt.ErrTokenMalformed)
 	}
-	if !json.Valid(payload) {
-		return fmt.Errorf("%w: payload is not a single JSON value", jwt.ErrTokenMalformed)
-	}
-	return nil
+	return payload, nil
 }

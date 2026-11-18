@@ -1,6 +1,7 @@
 package jwtauth
 
 import (
+	"slices"
 	"time"
 
 	"github.com/go-sphere/sphere/server/auth/authorizer"
@@ -29,7 +30,7 @@ func NewRBACClaims[T authorizer.UID](uid T, subject string, roles []string, expi
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 		UID:   uid,
-		Roles: roles,
+		Roles: slices.Clone(roles),
 	}
 }
 

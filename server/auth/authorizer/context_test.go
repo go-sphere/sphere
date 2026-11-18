@@ -207,3 +207,30 @@ func TestSentinelErrorsCarryStatuses(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthorizerSentinelErrorMessages(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		err        error
+		wantStatus int32
+		wantMsg    string
+	}{
+		{name: "TokenNotFoundError", err: TokenNotFoundError, wantStatus: 401, wantMsg: "authentication credentials not provided"},
+		{name: "NeedLoginError", err: NeedLoginError, wantStatus: 401, wantMsg: "authentication required"},
+		{name: "PermissionError", err: PermissionError, wantStatus: 403, wantMsg: "permission denied"},
+		{name: "MissingUIDError", err: MissingUIDError, wantStatus: 401, wantMsg: "authentication token missing user identifier"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			code, status, msg := httpx.ParseError(tc.err)
+			if status != tc.wantStatus {
+				t.Fatalf("status = %d, want %d", status, tc.wantStatus)
+			}
+			if code != 0 {
+				t.Fatalf("code = %d, want 0", code)
+			}
+			if msg != tc.wantMsg {
+				t.Fatalf("message = %q, want %q", msg, tc.wantMsg)
+			}
+		})
+	}
+}

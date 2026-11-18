@@ -1,14 +1,16 @@
 package logger
 
 import (
+	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/server/httpz"
 )
+
+var errInternalServerPanic = errors.New("ServerError:PANIC")
 
 // UnmatchedRoute is the route attr value logged when the request matched no
 // route pattern, so the field stays low-cardinality.
@@ -65,7 +67,8 @@ func Log(lg log.BaseLogger) httpx.Middleware {
 			if route == "" {
 				route = UnmatchedRoute
 			}
-			attrs := []log.Attr{
+			attrs := make([]log.Attr, 0, 9)
+			attrs = append(attrs,
 				log.Int("status", responseStatus(ctx, err)),
 				log.String("method", ctx.Method()),
 				log.String("path", path),
@@ -74,7 +77,7 @@ func Log(lg log.BaseLogger) httpx.Middleware {
 				log.String("ip", ctx.ClientIP()),
 				log.String("user-agent", ctx.Header("User-Agent")),
 				log.Duration("latency", time.Since(start)),
-			}
+			)
 			if err != nil {
 				logWith(lg, ctx, log.LevelError, path, append(attrs, log.Err(err)))
 				return err
@@ -100,13 +103,14 @@ func responseStatus(ctx httpx.Context, err error) int {
 
 // RecoveryLog returns middleware that recovers panics from the downstream chain.
 // The panic is logged with Error with the panic value; when stack is true
-// the entry also includes a stack trace. The request is finished as HTTP 500
-// with no body, unless the response is already committed, in which case
-// nothing more is written. The middleware returns nil, so enclosing middleware
-// sees a successful chain; use RecoveryLogErr to surface the panic as an error.
-// When lg implements log.ContextLogger the entry is written with ErrorContext
-// using the request's context. Like httpz.WithRecover, it re-panics
-// http.ErrAbortHandler without logging it, so net/http can drop the connection.
+// the entry also includes a stack trace. The request is finished as a JSON 500
+// error envelope via httpz.AbortWithJsonError, unless the response is already
+// committed, in which case nothing more is written. The middleware returns nil,
+// so enclosing middleware sees a successful chain; use RecoveryLogErr to
+// surface the panic as an error. When lg implements log.ContextLogger the entry
+// is written with ErrorContext using the request's context. Like
+// httpz.WithRecover, it re-panics http.ErrAbortHandler without logging it, so
+// net/http can drop the connection.
 func RecoveryLog(lg log.BaseLogger, stack bool) httpx.Middleware {
 	return recoveryLog(lg, stack, false)
 }
@@ -128,9 +132,9 @@ func (e *PanicError) Unwrap() error {
 	return err
 }
 
-// RecoveryLogErr behaves like RecoveryLog — same logging, same 500 without a
-// body — but returns a *PanicError for a recovered panic instead of nil, so
-// enclosing middleware (for example Log) records the request as failed.
+// RecoveryLogErr behaves like RecoveryLog — same logging, same JSON 500 error
+// envelope — but returns a *PanicError for a recovered panic instead of nil,
+// so enclosing middleware (for example Log) records the request as failed.
 func RecoveryLogErr(lg log.BaseLogger, stack bool) httpx.Middleware {
 	return recoveryLog(lg, stack, true)
 }
@@ -155,8 +159,12 @@ func recoveryLog(lg log.BaseLogger, stack, asError bool) httpx.Middleware {
 						logWith(lg, ctx, log.LevelError, "[Recovery from panic]", attrs)
 					},
 					func(ctx httpx.Context) {
-						ctx.Status(http.StatusInternalServerError)
-						_ = ctx.NoContent(http.StatusInternalServerError)
+						httpz.AbortWithJsonError(ctx,
+							httpx.InternalServerError(
+								errInternalServerPanic,
+								"internal server error",
+							),
+						)
 					},
 				)
 				if asError {

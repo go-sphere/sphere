@@ -208,3 +208,25 @@ func TestSelectorNilGuards(t *testing.T) {
 		t.Fatalf("ran=%d called=%v, want 0/true", ran, next.Called())
 	}
 }
+
+func TestLogicalMatchersCloneInputSlice(t *testing.T) {
+	t.Parallel()
+
+	ctx := httpxmock.New(nil)
+	yes := MatchFunc(func(httpx.Context) bool { return true })
+	no := MatchFunc(func(httpx.Context) bool { return false })
+
+	orInput := []Matcher{no}
+	orMatcher := NewLogicalOrMatcher(orInput...)
+	orInput[0] = yes
+	if orMatcher.Match(ctx) {
+		t.Fatal("NewLogicalOrMatcher reflected post-construction slice mutation")
+	}
+
+	andInput := []Matcher{yes}
+	andMatcher := NewLogicalAndMatcher(andInput...)
+	andInput[0] = no
+	if !andMatcher.Match(ctx) {
+		t.Fatal("NewLogicalAndMatcher reflected post-construction slice mutation")
+	}
+}

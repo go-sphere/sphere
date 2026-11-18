@@ -499,3 +499,76 @@ func TestJwtAuth_NilOptionsAndForgedTrailingPayload(t *testing.T) {
 		t.Fatalf("forged token err = %v, want ErrTokenSignatureInvalid", err)
 	}
 }
+
+type validatedPointerClaims struct {
+	jwt.RegisteredClaims
+	Tenant string `json:"tenant"`
+}
+
+func (c *validatedPointerClaims) Validate() error {
+	if c.Tenant != "allowed" {
+		return errors.New("forbidden tenant")
+	}
+	return nil
+}
+
+func TestJwtAuth_PointerClaimsValidatorAndZeroOnError(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	exp := time.Now().Add(time.Hour)
+
+	auth := NewJwtAuth[*validatedPointerClaims]("secret")
+	badTok, err := auth.GenerateToken(ctx, &validatedPointerClaims{
+		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(exp)},
+		Tenant:           "denied",
+	})
+	if err != nil {
+		t.Fatalf("GenerateToken(bad): %v", err)
+	}
+	gotBad, err := auth.ParseToken(ctx, badTok)
+	if !errors.Is(err, jwt.ErrTokenInvalidClaims) {
+		t.Fatalf("ParseToken(bad) err = %v, want ErrTokenInvalidClaims", err)
+	}
+	if gotBad != nil {
+		t.Fatalf("ParseToken(bad) returned non-nil claims %+v on error", gotBad)
+	}
+
+	goodTok, err := auth.GenerateToken(ctx, &validatedPointerClaims{
+		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(exp)},
+		Tenant:           "allowed",
+	})
+	if err != nil {
+		t.Fatalf("GenerateToken(good): %v", err)
+	}
+	gotGood, err := auth.ParseToken(ctx, goodTok)
+	if err != nil {
+		t.Fatalf("ParseToken(good): %v", err)
+	}
+	if gotGood == nil || gotGood.Tenant != "allowed" {
+		t.Fatalf("ParseToken(good) = %+v, want tenant allowed", gotGood)
+	}
+
+	rbacAuth := NewJwtAuth[*RBACClaims[int64]]("secret")
+	expiredTok, err := rbacAuth.GenerateToken(ctx, &RBACClaims[int64]{
+		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour))},
+		UID:              77,
+	})
+	if err != nil {
+		t.Fatalf("GenerateToken(expired): %v", err)
+	}
+	gotExpired, err := rbacAuth.ParseToken(ctx, expiredTok)
+	if err == nil {
+		t.Fatal("ParseToken(expired) succeeded, want error")
+	}
+	if gotExpired != nil {
+		t.Fatalf("ParseToken(expired) returned non-nil claims %+v on error", gotExpired)
+	}
+
+	roles := []string{"viewer"}
+	cloned := NewRBACClaims[int64](1, "alice", roles, exp)
+	roles[0] = "admin"
+	if len(cloned.Roles) != 1 || cloned.Roles[0] != "viewer" {
+		t.Fatalf("cloned.Roles mutated via caller slice: %v", cloned.Roles)
+	}
+}
