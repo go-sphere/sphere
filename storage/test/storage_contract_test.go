@@ -67,6 +67,29 @@ func storageFactories() []storageFactory {
 			new:                   func(t *testing.T) storage.Storage { return newFakeQiniuStorage(t) },
 			overwriteReadsMayFail: true,
 		},
+		{
+			name: "fileserver",
+			new: func(t *testing.T) storage.Storage {
+				t.Helper()
+				storeCache := memory.NewByteCache()
+				t.Cleanup(func() { _ = storeCache.Close() })
+				store, err := kvcache.NewClient(kvcache.Config{}, storeCache)
+				if err != nil {
+					t.Fatalf("new kvcache storage: %v", err)
+				}
+				tokenCache := memory.NewByteCache()
+				t.Cleanup(func() { _ = tokenCache.Close() })
+				fs, err := fileserver.NewCDNAdapter(fileserver.Config{
+					PutBase: "https://put.example.com",
+					GetBase: "https://get.example.com",
+				}, tokenCache, store)
+				if err != nil {
+					t.Fatalf("new fileserver storage: %v", err)
+				}
+				t.Cleanup(func() { _ = fs.Close() })
+				return fs
+			},
+		},
 	}
 }
 
@@ -792,6 +815,86 @@ func TestStorageFileUsedAsDirectory(t *testing.T) {
 			}
 			if got := readStorageFile(t, ctx, store, "a"); got != "body" {
 				t.Fatalf("file a = %q, want it untouched", got)
+			}
+		})
+	}
+}
+
+func TestStorageUploadLocalFileDoesNotSniffLocalExtension(t *testing.T) {
+	for _, factory := range storageFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			ctx := t.Context()
+			store := factory.new(t)
+
+			localHTML := filepath.Join(t.TempDir(), "payload.html")
+			const payload = "<html><body>opaque</body></html>"
+			if err := os.WriteFile(localHTML, []byte(payload), 0o600); err != nil {
+				t.Fatalf("WriteFile() error = %v", err)
+			}
+
+			key, err := store.UploadLocalFile(ctx, localHTML, "blobs/opaque")
+			if err != nil {
+				t.Fatalf("UploadLocalFile() error = %v", err)
+			}
+			if key != "blobs/opaque" {
+				t.Fatalf("UploadLocalFile() key = %q, want %q", key, "blobs/opaque")
+			}
+
+			res, err := store.DownloadFile(ctx, "blobs/opaque")
+			if err != nil {
+				t.Fatalf("DownloadFile() error = %v", err)
+			}
+			body, readErr := io.ReadAll(res.Reader)
+			_ = res.Reader.Close()
+			if readErr != nil || string(body) != payload {
+				t.Fatalf("DownloadFile() = %q err=%v, want %q", body, readErr, payload)
+			}
+			if strings.Contains(strings.ToLower(res.MIME), "html") {
+				t.Fatalf("DownloadFile().MIME = %q, must not sniff local .html extension", res.MIME)
+			}
+			if stater, ok := store.(storage.FileStater); ok {
+				info, err := stater.StatFile(ctx, "blobs/opaque")
+				if err != nil {
+					t.Fatalf("StatFile() error = %v", err)
+				}
+				if strings.Contains(strings.ToLower(info.MIME), "html") {
+					t.Fatalf("StatFile().MIME = %q, must not sniff local .html extension", info.MIME)
+				}
+			}
+		})
+	}
+}
+
+func TestStorageMoveNoOverwriteRejectsExistingDestination(t *testing.T) {
+	for _, factory := range storageFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			ctx := t.Context()
+			store := factory.new(t)
+			if _, err := store.UploadFile(ctx, strings.NewReader("source-data"), "src.txt"); err != nil {
+				t.Fatalf("UploadFile(src) error = %v", err)
+			}
+			if _, err := store.UploadFile(ctx, strings.NewReader("dest-data"), "dst.txt"); err != nil {
+				t.Fatalf("UploadFile(dst) error = %v", err)
+			}
+			if err := store.MoveFile(ctx, "src.txt", "dst.txt", false); !errors.Is(err, storageerr.ErrDestExists) {
+				t.Fatalf("MoveFile(overwrite=false) error = %v, want ErrDestExists", err)
+			}
+			if got := readStorageFile(t, ctx, store, "src.txt"); got != "source-data" {
+				t.Fatalf("src.txt = %q, want %q", got, "source-data")
+			}
+			if got := readStorageFile(t, ctx, store, "dst.txt"); got != "dest-data" {
+				t.Fatalf("dst.txt = %q, want %q", got, "dest-data")
+			}
+		})
+	}
+}
+
+func TestStorageUploadFileNilReaderRejected(t *testing.T) {
+	for _, factory := range storageFactories() {
+		t.Run(factory.name, func(t *testing.T) {
+			store := factory.new(t)
+			if _, err := store.UploadFile(t.Context(), nil, "nil.txt"); err == nil {
+				t.Fatal("UploadFile(nil reader) succeeded, want error")
 			}
 		})
 	}

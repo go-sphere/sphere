@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -104,7 +105,7 @@ func NewClient(conf Config) (*Client, error) {
 		config:  conf,
 		mac:     mac,
 
-		insecureHTTP: qiniuplain.Enabled(),
+		insecureHTTP: qiniuplain.Enabled(conf.AccessKey),
 	}, nil
 }
 
@@ -190,9 +191,18 @@ func (n *Client) serverUploadToken(key string) string {
 // form-uploaded, and a longer one is sent as a multipart upload of 4 MiB parts,
 // so memory stays bounded by the SDK's part queue whatever the body's length.
 func (n *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
+	}
+	if file == nil {
+		return "", errors.New("qiniu: nil file reader")
 	}
 	upToken := n.serverUploadToken(key)
 	ret := qiniuStorage.PutRet{}
@@ -217,10 +227,12 @@ const resumablePartSize = 4 << 20
 // form-uploaded; a longer one goes through the resumable (multipart) uploader,
 // which reads it part by part.
 func (n *Client) uploadStream(ctx context.Context, ret *qiniuStorage.PutRet, upToken, key string, file io.Reader) error {
-	head, err := io.ReadAll(io.LimitReader(file, resumablePartSize+1))
-	if err != nil {
+	head := make([]byte, resumablePartSize+1)
+	nRead, err := io.ReadFull(file, head)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return err
 	}
+	head = head[:nRead]
 	if len(head) <= resumablePartSize {
 		return qiniuStorage.NewFormUploader(n.sdkConfig()).Put(ctx, ret, upToken, key, bytes.NewReader(head), int64(len(head)), nil)
 	}
@@ -239,18 +251,22 @@ func canSeek(seeker io.Seeker) bool {
 // UploadLocalFile uploads an existing local file to Qiniu Cloud Object Storage with the specified key.
 // Overwrite and MIME behavior match UploadFile.
 func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
 	}
-	upToken := n.serverUploadToken(key)
-	ret := qiniuStorage.PutRet{}
-	formUploader := qiniuStorage.NewFormUploader(n.sdkConfig())
-	err = formUploader.PutFile(ctx, &ret, upToken, key, file, nil)
+	f, err := os.Open(file)
 	if err != nil {
 		return "", err
 	}
-	return ret.Key, nil
+	defer func() { _ = f.Close() }()
+	return n.UploadFile(ctx, f, key)
 }
 
 // StatFile returns lightweight metadata for a file without downloading its body.
@@ -258,6 +274,12 @@ func (n *Client) UploadLocalFile(ctx context.Context, file string, key string) (
 // A missing key fails with storageerr.ErrNotFound. ctx is not honored: the SDK
 // call has no context variant.
 func (n *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return storage.FileInfo{}, err
+	}
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return storage.FileInfo{}, err
@@ -283,14 +305,20 @@ func (n *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 // Keys not in storage.NormalizeKey form are skipped, so a page can hold fewer
 // keys than the backend returned, or none, while more remain.
 func (n *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int) ([]string, string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
+	}
 	if limit <= 0 || limit > 1000 {
 		limit = 1000
 	}
 	manager := qiniuStorage.NewBucketManager(n.mac, n.sdkConfig())
 	ret, hasNext, err := manager.ListFilesWithContext(ctx, n.config.Bucket,
 		// A prefix is not a key: an empty prefix means "list everything", so it
-		// is only stripped of a leading separator rather than normalized.
-		qiniuStorage.ListInputOptionsPrefix(strings.TrimPrefix(prefix, "/")),
+		// is only stripped of leading separators rather than normalized.
+		qiniuStorage.ListInputOptionsPrefix(strings.TrimLeft(prefix, "/")),
 		qiniuStorage.ListInputOptionsMarker(cursor),
 		qiniuStorage.ListInputOptionsLimit(limit),
 	)
@@ -316,6 +344,12 @@ func (n *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 // IsFileExists checks whether a file exists in the Qiniu Cloud Object Storage bucket.
 // A missing key reports (false, nil). ctx is not honored.
 func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return false, err
@@ -336,6 +370,12 @@ func (n *Client) IsFileExists(ctx context.Context, key string) (bool, error) {
 // content length. A missing key fails with storageerr.ErrNotFound. A body that
 // ends before Size bytes reads as an error wrapping io.ErrUnexpectedEOF.
 func (n *Client) DownloadFile(ctx context.Context, key string) (storage.DownloadResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return storage.DownloadResult{}, err
+	}
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return storage.DownloadResult{}, err
@@ -347,6 +387,9 @@ func (n *Client) DownloadFile(ctx context.Context, key string) (storage.Download
 			return storage.DownloadResult{}, storageerr.ErrNotFound
 		}
 		return storage.DownloadResult{}, err
+	}
+	if object == nil || object.Body == nil {
+		return storage.DownloadResult{}, errors.New("qiniu: download returned empty body")
 	}
 	// The SDK sets ContentLength from response headers before Get returns and
 	// does not update it while streaming. Reuse it instead of issuing another
@@ -405,6 +448,12 @@ func (r *sizeCheckedReader) Read(p []byte) (int, error) {
 // Deletion is idempotent: a key that does not exist reports success.
 // ctx is not honored.
 func (n *Client) DeleteFile(ctx context.Context, key string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return err
@@ -428,6 +477,12 @@ func (n *Client) DeleteFile(ctx context.Context, key string) error {
 // with storageerr.ErrDestExists. A move onto itself is a no-op when the source
 // exists. ctx is not honored.
 func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
 		return err
@@ -469,6 +524,12 @@ func (n *Client) MoveFile(ctx context.Context, sourceKey string, destinationKey 
 // itself leaves the object unchanged (or fails with storageerr.ErrDestExists
 // when overwrite is false) without issuing a copy request. ctx is not honored.
 func (n *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey string, overwrite bool) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	sourceKey, err := storage.NormalizeKey(sourceKey)
 	if err != nil {
 		return err

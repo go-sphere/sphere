@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -63,6 +64,8 @@ const (
 	defaultPartSize = 16 << 20
 	// minPartSize is the smallest part S3 accepts.
 	minPartSize = 5 << 20
+	// maxPartSize is the largest part S3 accepts.
+	maxPartSize = 5 << 30
 	// maxUploadParts is the most parts an S3 multipart upload may have.
 	maxUploadParts = 10000
 	// initialPartBuffer is the first allocation UploadFile makes for a body.
@@ -93,9 +96,15 @@ type Client struct {
 // an error for a PartSize below 5 MiB, an invalid Endpoint, or a PublicBase
 // that is not an absolute http or https URL.
 func NewClient(conf Config) (*Client, error) {
+	if strings.TrimSpace(conf.Bucket) == "" {
+		return nil, errors.New("s3: bucket is required")
+	}
 	conf.PartSize = cmp.Or(conf.PartSize, defaultPartSize)
 	if conf.PartSize < minPartSize {
 		return nil, fmt.Errorf("s3: part size %d is below the 5 MiB minimum", conf.PartSize)
+	}
+	if conf.PartSize > maxPartSize {
+		return nil, fmt.Errorf("s3: part size %d exceeds the 5 GiB maximum", conf.PartSize)
 	}
 	client, err := minio.New(conf.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(conf.AccessKeyID, conf.SecretAccessKey, conf.Token),
@@ -182,9 +191,18 @@ func (s *Client) GenerateUploadAuth(ctx context.Context, req storage.UploadAuthR
 // object in place. Content-Type comes from the key's extension. It returns the
 // normalized key.
 func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
+	}
+	if file == nil {
+		return "", errors.New("s3: nil file reader")
 	}
 	opts := minio.PutObjectOptions{
 		ContentType: mime.TypeByExtension(path.Ext(key)),
@@ -199,15 +217,15 @@ func (s *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 		// A full part may or may not be the whole body; one more byte decides.
 		var probe [1]byte
 		read, err := io.ReadFull(file, probe[:])
-		switch {
-		case read == 1:
+		if err != nil && !errors.Is(err, io.EOF) {
+			return "", err
+		}
+		if read == 1 {
 			rest := io.MultiReader(bytes.NewReader(probe[:]), file)
 			if err := s.uploadMultipart(ctx, key, buf, n, rest, opts); err != nil {
 				return "", err
 			}
 			return key, nil
-		case err != io.EOF:
-			return "", err
 		}
 	}
 	if _, err := s.client.PutObject(ctx, s.config.Bucket, key, bytes.NewReader(buf[:n]), int64(n), opts); err != nil {
@@ -278,12 +296,18 @@ func readPart(r io.Reader, buf []byte, size int) ([]byte, int, error) {
 // UploadLocalFile uploads an existing local file to S3-compatible storage with the specified key.
 // Content-Type comes from the key's extension. It returns the normalized key.
 func (s *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
 	}
 	info, err := s.client.FPutObject(ctx, s.config.Bucket, key, file, minio.PutObjectOptions{
-		ContentType: mime.TypeByExtension(path.Ext(key)),
+		ContentType: cmp.Or(mime.TypeByExtension(path.Ext(key)), "application/octet-stream"),
 	})
 	if err != nil {
 		return "", err
@@ -320,6 +344,9 @@ func (s *Client) StatFile(ctx context.Context, key string) (storage.FileInfo, er
 // ctx.Err() when ctx ends before the listing is exhausted rather than
 // returning a truncated page with an empty cursor.
 func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int) ([]string, string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if limit <= 0 {
 		limit = 1000
 	}
@@ -327,9 +354,9 @@ func (s *Client) ListFiles(ctx context.Context, prefix, cursor string, limit int
 	defer cancel()
 	ch := s.client.ListObjects(listCtx, s.config.Bucket, minio.ListObjectsOptions{
 		// A prefix is not a key: an empty prefix means "list everything", so it
-		// is only stripped of a leading separator rather than normalized.
-		Prefix:     strings.TrimPrefix(prefix, "/"),
-		StartAfter: strings.TrimPrefix(cursor, "/"),
+		// is only stripped of leading separators rather than normalized.
+		Prefix:     strings.TrimLeft(prefix, "/"),
+		StartAfter: strings.TrimLeft(cursor, "/"),
 		Recursive:  true,
 		// One key past the page is enough to tell whether more remain.
 		MaxKeys: min(limit, maxListKeys-1) + 1,

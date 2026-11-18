@@ -86,6 +86,15 @@ func testFileStaterContract(t *testing.T, store storage.Storage) {
 	if _, err = stater.StatFile(ctx, "missing/nope.txt"); !errors.Is(err, storageerr.ErrNotFound) {
 		t.Fatalf("StatFile(missing) error = %v, want %v", err, storageerr.ErrNotFound)
 	}
+
+	putFile(t, ctx, store, "dir/pic.png/", "png")
+	pngInfo, err := stater.StatFile(ctx, "dir/pic.png/")
+	if err != nil {
+		t.Fatalf("StatFile(dir/pic.png/) error = %v", err)
+	}
+	if !strings.HasPrefix(pngInfo.MIME, "image/png") {
+		t.Fatalf("StatFile(dir/pic.png/) mime = %q, want image/png prefix", pngInfo.MIME)
+	}
 }
 
 func TestFileListerContract(t *testing.T) {

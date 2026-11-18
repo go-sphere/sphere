@@ -556,8 +556,14 @@ func TestNewClientPartSize(t *testing.T) {
 	if client.config.PartSize != defaultPartSize {
 		t.Fatalf("PartSize = %d, want default %d", client.config.PartSize, defaultPartSize)
 	}
-	if _, err := NewClient(Config{Endpoint: "localhost:9000", PartSize: minPartSize - 1}); err == nil {
+	if _, err := NewClient(Config{Endpoint: "localhost:9000", Bucket: "bucket", PartSize: minPartSize - 1}); err == nil {
 		t.Fatal("NewClient accepted a part size below the S3 minimum")
+	}
+	if _, err := NewClient(Config{Endpoint: "localhost:9000", Bucket: "bucket", PartSize: maxPartSize + 1}); err == nil {
+		t.Fatal("NewClient accepted a part size above the S3 maximum")
+	}
+	if _, err := NewClient(Config{Endpoint: "localhost:9000", Bucket: "   "}); err == nil {
+		t.Fatal("NewClient accepted a blank bucket")
 	}
 }
 
@@ -641,5 +647,49 @@ func TestS3ClientUploadFileUsesPartSize(t *testing.T) {
 	obj, ok := fake.Object("big.bin")
 	if !ok || !bytes.Equal(obj.Data, data) {
 		t.Fatalf("stored object mismatch: ok=%v len=%d", ok, len(obj.Data))
+	}
+}
+
+func TestS3ClientValidationAndContext(t *testing.T) {
+	client, fake := newFakeClient(t, Config{PartSize: minPartSize})
+
+	if _, err := client.UploadFile(t.Context(), nil, "nil.txt"); err == nil {
+		t.Fatal("UploadFile(nil reader) succeeded, want error")
+	}
+
+	canceledCtx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := client.UploadFile(canceledCtx, strings.NewReader("data"), "canceled.txt"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("UploadFile(canceled) error = %v, want context.Canceled", err)
+	}
+
+	var nilCtx context.Context
+	if _, err := client.UploadFile(nilCtx, strings.NewReader("ok"), "dir/nilctx.txt"); err != nil {
+		t.Fatalf("UploadFile(nil ctx) error = %v", err)
+	}
+	keys, next, err := client.ListFiles(nilCtx, "///dir/", "", 10)
+	if err != nil {
+		t.Fatalf("ListFiles(nil ctx) error = %v", err)
+	}
+	if next != "" || !slices.Equal(keys, []string{"dir/nilctx.txt"}) {
+		t.Fatalf("ListFiles(///dir/) = %v, %q, want [dir/nilctx.txt], empty", keys, next)
+	}
+
+	localHTML := filepath.Join(t.TempDir(), "payload.html")
+	if err := os.WriteFile(localHTML, []byte("<script>alert(1)</script>"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if _, err := client.UploadLocalFile(canceledCtx, localHTML, "blobs/opaque"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("UploadLocalFile(canceled) error = %v, want context.Canceled", err)
+	}
+	if _, err := client.UploadLocalFile(t.Context(), localHTML, "blobs/opaque"); err != nil {
+		t.Fatalf("UploadLocalFile() error = %v", err)
+	}
+	obj, ok := fake.Object("blobs/opaque")
+	if !ok {
+		t.Fatal("stored object blobs/opaque missing")
+	}
+	if obj.MIME != "application/octet-stream" {
+		t.Fatalf("stored MIME = %q, want application/octet-stream", obj.MIME)
 	}
 }

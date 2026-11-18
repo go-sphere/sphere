@@ -3,10 +3,12 @@ package kvcache
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"mime"
 	"os"
 	"path"
+	"reflect"
 	"time"
 
 	"github.com/go-sphere/sphere/cache"
@@ -34,21 +36,46 @@ type Client struct {
 
 // NewClient creates a new cache-based storage client with the provided configuration and cache backend.
 // If no expiration time is specified, files are cached indefinitely.
-// It never returns an error and does not validate cache; a nil cache makes
-// every method panic. The caller keeps ownership of cache and closes it.
+// It returns an error when cache is nil (including a typed nil). The caller
+// keeps ownership of cache and closes it.
 func NewClient(conf Config, cache cache.ByteCache) (*Client, error) {
+	if isNilCache(cache) {
+		return nil, errors.New("kvcache: cache is required")
+	}
 	return &Client{
 		config: conf,
 		cache:  cache,
 	}, nil
 }
 
+func isNilCache(c cache.ByteCache) bool {
+	if c == nil {
+		return true
+	}
+	v := reflect.ValueOf(c)
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
 // UploadFile reads file fully into memory and stores it in the cache under
 // the normalized key, applying Config.Expires. It returns the normalized key.
 func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	key, err := storage.NormalizeKey(key)
 	if err != nil {
 		return "", err
+	}
+	if file == nil {
+		return "", errors.New("kvcache: nil file reader")
 	}
 	all, err := io.ReadAll(file)
 	if err != nil {
@@ -67,6 +94,12 @@ func (c *Client) UploadFile(ctx context.Context, file io.Reader, key string) (st
 
 // UploadLocalFile reads a local file and stores it in the cache with the specified key.
 func (c *Client) UploadLocalFile(ctx context.Context, file string, key string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	raw, err := os.Open(file)
 	if err != nil {
 		return "", err
@@ -184,6 +217,19 @@ func (c *Client) CopyFile(ctx context.Context, sourceKey string, destinationKey 
 	destinationKey, err = storage.NormalizeKey(destinationKey)
 	if err != nil {
 		return err
+	}
+	if sourceKey == destinationKey {
+		found, err := c.cache.Exists(ctx, sourceKey)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return storageerr.ErrNotFound
+		}
+		if !overwrite {
+			return storageerr.ErrDestExists
+		}
+		return nil
 	}
 	value, found, err := c.cache.Get(ctx, sourceKey)
 	if err != nil {

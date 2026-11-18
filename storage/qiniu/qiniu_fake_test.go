@@ -2,6 +2,7 @@ package qiniu
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -515,5 +516,75 @@ func TestClientCopySameKeyAndFakeSameKeyParity(t *testing.T) {
 	}
 	if err := client.CopyFile(ctx, "doc.txt", "doc.txt", true); err != nil {
 		t.Fatalf("CopyFile(same, overwrite=true) = %v, want nil", err)
+	}
+}
+
+func TestQiniuPlainScopedAndValidation(t *testing.T) {
+	_, _ = newFakeClient(t, Config{})
+	other, err := NewClient(Config{AccessKey: "other-ak", PublicBase: "https://cdn.example.com"})
+	if err != nil {
+		t.Fatalf("NewClient(other-ak) error = %v", err)
+	}
+	if other.insecureHTTP {
+		t.Fatal("qiniuplain affected a client with a different AccessKey")
+	}
+
+	client, fake := newFakeClient(t, Config{})
+	if _, err := client.UploadFile(t.Context(), nil, "nil.txt"); err == nil {
+		t.Fatal("UploadFile(nil reader) succeeded, want error")
+	}
+
+	canceledCtx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := client.UploadFile(canceledCtx, strings.NewReader("x"), "a.txt"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("UploadFile(canceled) error = %v, want context.Canceled", err)
+	}
+	if _, err := client.StatFile(canceledCtx, "a.txt"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("StatFile(canceled) error = %v, want context.Canceled", err)
+	}
+	if _, _, err := client.ListFiles(canceledCtx, "", "", 10); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ListFiles(canceled) error = %v, want context.Canceled", err)
+	}
+	if _, err := client.IsFileExists(canceledCtx, "a.txt"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("IsFileExists(canceled) error = %v, want context.Canceled", err)
+	}
+	if _, err := client.DownloadFile(canceledCtx, "a.txt"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("DownloadFile(canceled) error = %v, want context.Canceled", err)
+	}
+	if err := client.DeleteFile(canceledCtx, "a.txt"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("DeleteFile(canceled) error = %v, want context.Canceled", err)
+	}
+	if err := client.MoveFile(canceledCtx, "a.txt", "b.txt", true); !errors.Is(err, context.Canceled) {
+		t.Fatalf("MoveFile(canceled) error = %v, want context.Canceled", err)
+	}
+	if err := client.CopyFile(canceledCtx, "a.txt", "b.txt", true); !errors.Is(err, context.Canceled) {
+		t.Fatalf("CopyFile(canceled) error = %v, want context.Canceled", err)
+	}
+
+	localHTML := filepath.Join(t.TempDir(), "payload.html")
+	if err := os.WriteFile(localHTML, []byte("<b>hi</b>"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if _, err := client.UploadLocalFile(canceledCtx, localHTML, "blobs/opaque"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("UploadLocalFile(canceled) error = %v, want context.Canceled", err)
+	}
+	if _, err := client.UploadLocalFile(t.Context(), localHTML, "blobs/opaque"); err != nil {
+		t.Fatalf("UploadLocalFile() error = %v", err)
+	}
+	obj, ok := fake.Object("blobs/opaque")
+	if !ok {
+		t.Fatal("stored object blobs/opaque missing")
+	}
+	if strings.Contains(obj.MIME, "html") {
+		t.Fatalf("stored MIME = %q, must not sniff local .html extension", obj.MIME)
+	}
+
+	var nilCtx context.Context
+	keys, next, err := client.ListFiles(nilCtx, "///blobs/", "", 10)
+	if err != nil {
+		t.Fatalf("ListFiles(nil ctx) error = %v", err)
+	}
+	if next != "" || !slices.Equal(keys, []string{"blobs/opaque"}) {
+		t.Fatalf("ListFiles(///blobs/) = %v, %q, want [blobs/opaque], empty", keys, next)
 	}
 }

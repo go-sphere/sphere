@@ -115,7 +115,7 @@ func New(tb testing.TB, bucket string) *Server {
 	s.io = httptest.NewServer(withReqID(http.HandlerFunc(s.serveIO)))
 	// The fake only speaks plain http, so clients created while it runs must
 	// not insist on https.
-	release := qiniuplain.Acquire()
+	release := qiniuplain.Acquire(s.AccessKey)
 	registryMu.Lock()
 	registry[s.AccessKey] = s
 	registryMu.Unlock()

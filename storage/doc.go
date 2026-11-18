@@ -69,4 +69,11 @@
 // implement neither. [UploadAuthRequest].TTL is a ceiling: a client cannot
 // extend the driver's configured credential lifetime. [URLHandler].GenerateURL
 // produces public URLs; private-bucket signed download URLs are out of scope.
+//
+// Direct-upload MIME enforcement differs by driver capability: qiniu restricts
+// client-declared types to DefaultMimeLimit ("image/*;video/*") by default
+// (opt out with AnyMimeLimit), s3 locks the extension-derived Content-Type into
+// the presigned PUT signature, and fileserver serves uploads safely via
+// download-side response headers without restricting upload MIME types by
+// default.
 package storage

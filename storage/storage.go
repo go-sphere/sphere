@@ -80,8 +80,8 @@ const (
 	// original extension. It is the default.
 	UploadNamingStrategyRandomExt UploadNamingStrategy = "random_ext"
 	// UploadNamingStrategyHashExt names the file with the hex MD5 of the
-	// original name plus its extension, so the same name always maps to the
-	// same key.
+	// file's sanitized base name plus its extension, so the same base name
+	// always maps to the same key.
 	UploadNamingStrategyHashExt UploadNamingStrategy = "hash_ext"
 	// UploadNamingStrategyOriginal keeps the base name of the original file.
 	UploadNamingStrategyOriginal UploadNamingStrategy = "original"

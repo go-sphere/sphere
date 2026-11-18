@@ -7,6 +7,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/go-sphere/sphere/cache/mcache"
 	"github.com/go-sphere/sphere/cache/memory"
 	"github.com/go-sphere/sphere/storage/storageerr"
 )
@@ -73,4 +74,41 @@ func TestClientCopyFileOverwriteBehavior(t *testing.T) {
 			t.Fatalf("CopyFile() error = %v, want %v", copyErr, storageerr.ErrDestExists)
 		}
 	})
+
+	t.Run("same key copy", func(t *testing.T) {
+		if err := client.CopyFile(ctx, "missing.txt", "missing.txt", true); !errors.Is(err, storageerr.ErrNotFound) {
+			t.Fatalf("CopyFile(missing same) error = %v, want ErrNotFound", err)
+		}
+		if err := client.CopyFile(ctx, "source.txt", "source.txt", false); !errors.Is(err, storageerr.ErrDestExists) {
+			t.Fatalf("CopyFile(existing same, overwrite=false) error = %v, want ErrDestExists", err)
+		}
+		if err := client.CopyFile(ctx, "source.txt", "source.txt", true); err != nil {
+			t.Fatalf("CopyFile(existing same, overwrite=true) error = %v, want nil", err)
+		}
+	})
+
+	t.Run("nil reader and canceled ctx", func(t *testing.T) {
+		if _, err := client.UploadFile(ctx, nil, "nil.txt"); err == nil {
+			t.Fatal("UploadFile(nil reader) succeeded, want error")
+		}
+		canceledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+		if _, err := client.UploadFile(canceledCtx, bytes.NewBufferString("x"), "canceled.txt"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("UploadFile(canceled) error = %v, want context.Canceled", err)
+		}
+		var nilCtx context.Context
+		if _, err := client.UploadFile(nilCtx, bytes.NewBufferString("ok"), "nilctx.txt"); err != nil {
+			t.Fatalf("UploadFile(nil ctx) error = %v", err)
+		}
+	})
+}
+
+func TestNewClientRequiresNonNilCache(t *testing.T) {
+	if _, err := NewClient(Config{}, nil); err == nil {
+		t.Fatal("NewClient(nil) succeeded, want error")
+	}
+	var typedNil *mcache.Map[string, []byte]
+	if _, err := NewClient(Config{}, typedNil); err == nil {
+		t.Fatal("NewClient(typed nil) succeeded, want error")
+	}
 }
