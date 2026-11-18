@@ -48,5 +48,6 @@
 // returns [ErrAfterStart]; after Close, [ErrClosed]. Duplicate names return
 // [ErrDuplicateName]. Unregister of an unknown name is a no-op. Wrap custom
 // handlers with [RecoverHandler] or [RecoverPayloadHandler] to turn panics
-// into errors; both drivers already do this for registered handlers.
+// into errors; asynq applies these automatically so panicked tasks retry or
+// archive, while cron recovers and logs handler panics directly.
 package scheduler

@@ -107,6 +107,8 @@ func TestCronContractStopWaitsForRunningHandler(t *testing.T) {
 			s := factory.new(t)
 			started := make(chan struct{})
 			release := make(chan struct{})
+			releaseOnce := sync.OnceFunc(func() { close(release) })
+			defer releaseOnce()
 			signalStarted := sync.OnceFunc(func() { close(started) })
 			if err := s.Register("blocking", "@every 1s", func(context.Context) error {
 				signalStarted()
@@ -133,7 +135,7 @@ func TestCronContractStopWaitsForRunningHandler(t *testing.T) {
 				t.Fatalf("stop returned before handler finished: %v", err)
 			case <-time.After(150 * time.Millisecond):
 			}
-			close(release)
+			releaseOnce()
 			if err := <-stopDone; err != nil {
 				t.Fatalf("stop: %v", err)
 			}
@@ -156,6 +158,8 @@ func TestCronContractStopKeepsHandlerContextLiveWhileDraining(t *testing.T) {
 			s := factory.new(t)
 			started := make(chan struct{})
 			release := make(chan struct{})
+			releaseOnce := sync.OnceFunc(func() { close(release) })
+			defer releaseOnce()
 			handlerCtx := make(chan context.Context, 1)
 			signalStarted := sync.OnceFunc(func() { close(started) })
 
@@ -193,7 +197,7 @@ func TestCronContractStopKeepsHandlerContextLiveWhileDraining(t *testing.T) {
 				t.Errorf("in-flight handler context was cancelled while Stop was still draining: %v", err)
 			}
 
-			close(release)
+			releaseOnce()
 			if err := <-stopDone; err != nil {
 				t.Fatalf("stop: %v", err)
 			}
@@ -216,6 +220,8 @@ func TestCronContractParentCancelBeforeStopStillDrains(t *testing.T) {
 			s := factory.new(t)
 			started := make(chan struct{})
 			release := make(chan struct{})
+			releaseOnce := sync.OnceFunc(func() { close(release) })
+			defer releaseOnce()
 			handlerCtx := make(chan context.Context, 1)
 			signalStarted := sync.OnceFunc(func() { close(started) })
 			if err := s.Register("blocking", "@every 1s", func(ctx context.Context) error {
@@ -263,7 +269,7 @@ func TestCronContractParentCancelBeforeStopStillDrains(t *testing.T) {
 				t.Errorf("in-flight handler context was cancelled while Stop was still draining: %v", err)
 			}
 
-			close(release)
+			releaseOnce()
 			if err := <-stopDone; err != nil {
 				t.Fatalf("stop: %v", err)
 			}
@@ -277,6 +283,8 @@ func TestCronContractStopTimeoutThenRetrySucceeds(t *testing.T) {
 			s := factory.new(t)
 			started := make(chan struct{})
 			release := make(chan struct{})
+			releaseOnce := sync.OnceFunc(func() { close(release) })
+			defer releaseOnce()
 			signalStarted := sync.OnceFunc(func() { close(started) })
 			if err := s.Register("blocking", "@every 1s", func(context.Context) error {
 				signalStarted()
@@ -300,7 +308,7 @@ func TestCronContractStopTimeoutThenRetrySucceeds(t *testing.T) {
 
 			// Let the handler finish, then retry Stop with a fresh context: it must
 			// wait on the same shutdown signal and complete successfully.
-			close(release)
+			releaseOnce()
 			retryCtx, retryCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer retryCancel()
 			if err := s.Stop(retryCtx); err != nil {
@@ -333,6 +341,8 @@ func TestCronContractDrainAfterStopTimeoutReleasesStart(t *testing.T) {
 			s := factory.new(t)
 			started := make(chan struct{})
 			release := make(chan struct{})
+			releaseOnce := sync.OnceFunc(func() { close(release) })
+			defer releaseOnce()
 			signalStarted := sync.OnceFunc(func() { close(started) })
 			if err := s.Register("blocking", "@every 1s", func(context.Context) error {
 				signalStarted()
@@ -357,7 +367,7 @@ func TestCronContractDrainAfterStopTimeoutReleasesStart(t *testing.T) {
 
 			// Let the drain finish without retrying Stop: Start must still return
 			// and the scheduler must end up closed.
-			close(release)
+			releaseOnce()
 			select {
 			case err := <-doneStart:
 				if err != nil && !errors.Is(err, context.Canceled) {
@@ -395,6 +405,12 @@ func TestCronContractValidationAndAfterStartErrors(t *testing.T) {
 	for _, factory := range cronFactories() {
 		t.Run(factory.name, func(t *testing.T) {
 			s := factory.new(t)
+			if err := s.Register("", "@every 1s", func(context.Context) error { return nil }); err == nil {
+				t.Fatal("Register with empty name succeeded, want error")
+			}
+			if err := s.Register("   ", "@every 1s", func(context.Context) error { return nil }); err == nil {
+				t.Fatal("Register with whitespace name succeeded, want error")
+			}
 			if err := s.Register("nil-handler", "@every 1s", nil); err == nil {
 				t.Fatal("Register with nil handler succeeded, want error")
 			}

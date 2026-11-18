@@ -48,12 +48,10 @@ type Config struct {
 // closed here. Create it with NewScheduler; the zero value is not usable.
 // Methods are safe for concurrent use.
 type Scheduler struct {
-	conf    Config
-	client  *sasynq.Client
-	server  *sasynq.Server
-	mux     *sasynq.ServeMux
-	cron    *sasynq.Scheduler
-	options options
+	client *sasynq.Client
+	server *sasynq.Server
+	mux    *sasynq.ServeMux
+	cron   *sasynq.Scheduler
 
 	mu       sync.Mutex
 	handlers map[string]scheduler.PayloadHandlerFunc
@@ -63,11 +61,13 @@ type Scheduler struct {
 	// mounted records the kinds already attached to the ServeMux. asynq's mux
 	// panics on a duplicate pattern and cannot detach a handler, so each kind is
 	// mounted at most once for the lifetime of the scheduler.
-	mounted  map[string]struct{}
-	cronIDs  map[string]string
-	state    atomic.Int32
-	cancel   context.CancelFunc
-	stopDone <-chan struct{}
+	mounted    map[string]struct{}
+	cronIDs    map[string]string
+	state      atomic.Int32
+	stopped    atomic.Bool
+	handlerCtx atomic.Pointer[context.Context]
+	cancel     context.CancelFunc
+	stopDone   <-chan struct{}
 	// stopErr is the teardown outcome; it is written before stopDone is closed
 	// and read only after receiving from it.
 	stopErr error
@@ -78,21 +78,14 @@ type Scheduler struct {
 
 // NewScheduler builds a Scheduler after applying Config defaults. It returns
 // an error when WithClient was not supplied, when Queues does not include
-// "default" or contains a non-positive priority or blank queue name, or when
-// Timezone cannot be loaded. Nil options are ignored. It does not contact
-// Redis. The injected Redis client is not closed by Close.
+// "default" or contains a non-positive priority or blank queue name, when
+// LogLevel or GroupGracePeriod is invalid, or when Timezone cannot be loaded.
+// Nil options are ignored. It does not contact Redis. The injected Redis client
+// is not closed by Close.
 func NewScheduler(conf Config, opts ...Option) (*Scheduler, error) {
 	conf = applyDefaults(conf)
-	if _, ok := conf.Queues[defaultQueue]; !ok {
-		return nil, fmt.Errorf("scheduler/asynq: queues must include %q for periodic tasks", defaultQueue)
-	}
-	for name, prio := range conf.Queues {
-		if strings.TrimSpace(name) == "" {
-			return nil, fmt.Errorf("scheduler/asynq: queue name must not be empty")
-		}
-		if prio <= 0 {
-			return nil, fmt.Errorf("scheduler/asynq: queue %q priority must be positive, got %d", name, prio)
-		}
+	if err := validateQueues(conf.Queues); err != nil {
+		return nil, err
 	}
 
 	applied := options{
@@ -105,33 +98,32 @@ func NewScheduler(conf Config, opts ...Option) (*Scheduler, error) {
 		}
 	}
 
-	client, server, cron, err := newAsynqRuntime(conf, applied)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Scheduler{
-		conf:      conf,
-		client:    client,
-		server:    server,
+	sched := &Scheduler{
 		mux:       sasynq.NewServeMux(),
-		cron:      cron,
-		options:   applied,
 		handlers:  make(map[string]scheduler.PayloadHandlerFunc),
 		cronFuncs: make(map[string]scheduler.HandlerFunc),
 		mounted:   make(map[string]struct{}),
 		cronIDs:   make(map[string]string),
-	}, nil
+	}
+
+	client, server, cron, err := newAsynqRuntime(conf, applied, &sched.handlerCtx)
+	if err != nil {
+		return nil, err
+	}
+	sched.client = client
+	sched.server = server
+	sched.cron = cron
+	return sched, nil
 }
 
-func newAsynqRuntime(cfg Config, applied options) (*sasynq.Client, *sasynq.Server, *sasynq.Scheduler, error) {
+func newAsynqRuntime(cfg Config, applied options, baseCtxStore *atomic.Pointer[context.Context]) (*sasynq.Client, *sasynq.Server, *sasynq.Scheduler, error) {
 	if applied.client == nil {
 		return nil, nil, nil, errors.New("redis client is required")
 	}
 
 	serverCfg := sasynq.Config{
 		Concurrency:     cfg.Concurrency,
-		Queues:          cfg.Queues,
+		Queues:          maps.Clone(cfg.Queues),
 		StrictPriority:  cfg.StrictPriority,
 		ShutdownTimeout: cfg.ShutdownTimeout,
 		Logger:          applied.logger,
@@ -140,6 +132,26 @@ func newAsynqRuntime(cfg Config, applied options) (*sasynq.Client, *sasynq.Serve
 	}
 	for _, fn := range applied.serverConfig {
 		fn(&serverCfg)
+	}
+	if serverCfg.BaseContext == nil && baseCtxStore != nil {
+		serverCfg.BaseContext = func() context.Context {
+			if ptr := baseCtxStore.Load(); ptr != nil {
+				return *ptr
+			}
+			return context.Background()
+		}
+	}
+	if err := validateQueues(serverCfg.Queues); err != nil {
+		return nil, nil, nil, err
+	}
+	if err := validateLogLevel(serverCfg.LogLevel); err != nil {
+		return nil, nil, nil, err
+	}
+	if err := validateLogLevel(applied.logLevel); err != nil {
+		return nil, nil, nil, err
+	}
+	if serverCfg.GroupGracePeriod != 0 && serverCfg.GroupGracePeriod < time.Second {
+		return nil, nil, nil, fmt.Errorf("scheduler/asynq: group grace period must be 0 or >= 1s, got %s", serverCfg.GroupGracePeriod)
 	}
 
 	location := time.Local
@@ -161,6 +173,31 @@ func newAsynqRuntime(cfg Config, applied options) (*sasynq.Client, *sasynq.Serve
 		sasynq.NewServerFromRedisClient(applied.client, serverCfg),
 		sasynq.NewScheduler(sharedRedisConnOpt{client: applied.client}, schedulerOpts),
 		nil
+}
+
+func validateQueues(queues map[string]int) error {
+	if _, ok := queues[defaultQueue]; !ok {
+		return fmt.Errorf("scheduler/asynq: queues must include %q for periodic tasks", defaultQueue)
+	}
+	for name, prio := range queues {
+		if strings.TrimSpace(name) == "" {
+			return fmt.Errorf("scheduler/asynq: queue name must not be empty")
+		}
+		if prio <= 0 {
+			return fmt.Errorf("scheduler/asynq: queue %q priority must be positive, got %d", name, prio)
+		}
+	}
+	return nil
+}
+
+func validateLogLevel(level sasynq.LogLevel) error {
+	if level == 0 {
+		return nil
+	}
+	if level < sasynq.DebugLevel || level > sasynq.FatalLevel {
+		return fmt.Errorf("scheduler/asynq: invalid log level %d", level)
+	}
+	return nil
 }
 
 // sharedRedisConnOpt hands asynq's Scheduler a client it may close. asynq's
@@ -200,6 +237,9 @@ func (s *Scheduler) Identifier() string {
 func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) error {
 	if handler == nil {
 		return fmt.Errorf("scheduler/asynq: nil handler")
+	}
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("scheduler/asynq: empty job name")
 	}
 
 	s.mu.Lock()
@@ -358,6 +398,9 @@ func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, op
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	if strings.TrimSpace(kind) == "" {
 		return "", fmt.Errorf("scheduler/asynq: empty task kind")
 	}
@@ -380,7 +423,7 @@ func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, op
 	if !applied.Deadline.IsZero() {
 		asynqOpts = append(asynqOpts, sasynq.Deadline(applied.Deadline))
 	}
-	if applied.MaxRetry > 0 {
+	if applied.MaxRetry > 0 || (applied.HasMaxRetry() && applied.MaxRetry == 0) {
 		asynqOpts = append(asynqOpts, sasynq.MaxRetry(applied.MaxRetry))
 	}
 	if applied.Queue != "" {
@@ -412,9 +455,9 @@ func (s *Scheduler) Enqueue(ctx context.Context, kind string, payload []byte, op
 }
 
 // Start starts the asynq server and cron scheduler, then blocks until ctx is
-// cancelled or Stop begins, returning ctx.Err() in the former case and
-// context.Canceled in the latter. Returning does not mean asynq has drained;
-// Stop reports that.
+// cancelled or Stop begins, returning nil when Stop triggered the shutdown and
+// ctx.Err() when ctx was cancelled without Stop. Returning does not mean asynq
+// has drained; Stop reports that.
 // Start after a Stop that came first returns nil without starting the runtime;
 // a second Start returns scheduler.ErrAfterStart and Start after Close
 // scheduler.ErrClosed. Cancelling ctx without Stop leaves the runtime live —
@@ -446,6 +489,8 @@ func (s *Scheduler) Start(ctx context.Context) error {
 
 	runCtx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
+	hctx := context.WithoutCancel(ctx)
+	s.handlerCtx.Store(&hctx)
 
 	if err := s.server.Start(s.mux); err != nil {
 		s.state.Store(stateClosed)
@@ -468,7 +513,10 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	// Stop is the cleanup half of the Task contract. Returning here instead of
 	// draining lets the runner (Group, boot.Run) apply its shutdown budget to
 	// Stop. Cancelling the parent context without Stop leaves the runtime live.
-	return runCtx.Err()
+	if s.stopped.Load() {
+		return nil
+	}
+	return ctx.Err()
 }
 
 // Stop shuts the scheduler down and waits for the asynq server to drain.
@@ -499,16 +547,19 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 		// uses for its transition so that a later (or racing) Start returns
 		// without bringing the runtime up, as task.Group does. Dropping it left
 		// a runtime that nobody would stop.
+		s.stopped.Store(true)
 		s.state.Store(stateClosed)
 		s.stopPending = true
 		s.mu.Unlock()
 		return nil
 	case stateClosed:
+		s.stopped.Store(true)
 		s.mu.Unlock()
 		return nil
 	case stateRunning:
 		// First Stop call: trigger the underlying shutdown exactly once and record
 		// the channel that reports when the server has fully drained.
+		s.stopped.Store(true)
 		s.state.Store(stateStopping)
 		if s.cancel != nil {
 			s.cancel()
@@ -545,6 +596,12 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	// running or observed that same channel in stateStopping while holding mu.
 	done := s.stopDone
 	s.mu.Unlock()
+
+	select {
+	case <-done:
+		return s.stopErr
+	default:
+	}
 
 	select {
 	case <-done:
@@ -585,6 +642,11 @@ func (s *Scheduler) Close() error {
 func runStep(fn func()) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
+			safe.LogRecovered("scheduler/asynq", r)
+			if recErr, ok := r.(error); ok {
+				err = fmt.Errorf("scheduler/asynq: shutdown step panicked: %w", recErr)
+				return
+			}
 			err = fmt.Errorf("scheduler/asynq: shutdown step panicked: %v", r)
 		}
 	}()

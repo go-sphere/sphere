@@ -3,8 +3,11 @@ package cron
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/go-sphere/sphere/log"
 )
 
 // TestStopTimeoutKeepsHandlerCtxWhileAnotherStopWaits pins that one Stop
@@ -17,6 +20,8 @@ func TestStopTimeoutKeepsHandlerCtxWhileAnotherStopWaits(t *testing.T) {
 	}
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	defer releaseOnce()
 	cancelled := make(chan struct{}, 1)
 	if err := s.Register("job", "* * * * * *", func(ctx context.Context) error {
 		select {
@@ -69,8 +74,8 @@ func TestStopTimeoutKeepsHandlerCtxWhileAnotherStopWaits(t *testing.T) {
 	if err := s.Stop(context.Background()); err != nil {
 		t.Fatalf("final Stop: %v", err)
 	}
-	if err := <-startDone; !errors.Is(err, context.Canceled) {
-		t.Fatalf("Start = %v, want Canceled", err)
+	if err := <-startDone; err != nil {
+		t.Fatalf("Start = %v, want nil", err)
 	}
 }
 
@@ -97,5 +102,95 @@ func TestWithLoggerNilIsIgnored(t *testing.T) {
 	WithLogger(nil)(&o)
 	if o.logger == nil {
 		t.Fatal("WithLogger(nil) replaced the default logger with nil")
+	}
+}
+
+type countLogBackend struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (b *countLogBackend) Log(_ context.Context, _ log.Level, msg string, _ ...log.Attr) {
+	b.mu.Lock()
+	b.messages = append(b.messages, msg)
+	b.mu.Unlock()
+}
+
+func (b *countLogBackend) Sync() error                    { return nil }
+func (b *countLogBackend) With(...log.Option) log.Backend { return b }
+
+func (b *countLogBackend) count(msg string) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	n := 0
+	for _, m := range b.messages {
+		if m == msg {
+			n++
+		}
+	}
+	return n
+}
+
+func TestCronPanicLogsOnceAndStopWithExpiredCtxAfterDrain(t *testing.T) {
+	recorder := &countLogBackend{}
+	prev := log.With().Backend()
+	log.InitWithBackends(recorder)
+	t.Cleanup(func() { log.InitWithBackends(prev) })
+
+	s, err := NewScheduler(Config{Seconds: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	ran := make(chan struct{})
+	once := sync.OnceFunc(func() { close(ran) })
+	if err := s.Register("panic-once", "* * * * * *", func(context.Context) error {
+		defer once()
+		panic("boom")
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startDone := make(chan error, 1)
+	go func() { startDone <- s.Start(ctx) }()
+
+	select {
+	case <-ran:
+	case <-time.After(3 * time.Second):
+		t.Fatal("cron job did not run")
+	}
+	if err := s.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if err := <-startDone; err != nil {
+		t.Fatalf("Start = %v, want nil", err)
+	}
+
+	// Allow log delivery from deferred recover to settle, then verify no duplicate
+	// "cron handler failed" line accompanied the recovered panic.
+	if got := recorder.count("panic recovered"); got != 1 {
+		t.Fatalf("panic recovered logs = %d, want 1", got)
+	}
+	if got := recorder.count("cron handler failed"); got != 0 {
+		t.Fatalf("cron handler failed logs = %d, want 0 for recovered panic", got)
+	}
+
+	// Simulate an already-drained shutdown where Stop sees a done stopDone channel
+	// together with an expired caller context.
+	drainedStopDone := make(chan struct{})
+	close(drainedStopDone)
+	s2, err := NewScheduler(Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s2.state.Store(stateStopping)
+	s2.stopDone = drainedStopDone
+	expiredCtx, expiredCancel := context.WithCancel(context.Background())
+	expiredCancel()
+	if err := s2.Stop(expiredCtx); err != nil {
+		t.Fatalf("Stop with expired ctx when stopDone already closed = %v, want nil", err)
 	}
 }

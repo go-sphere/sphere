@@ -3,17 +3,24 @@ package scheduler
 import "time"
 
 // EnqueueOptions is the materialized set consumed by Producer.Enqueue.
-// Drivers apply only the fields they support; the asynq driver forwards only
-// MaxRetry > 0, so a value <= 0 leaves asynq's default (typically 25) in place
-// rather than disabling retries.
+// Drivers apply only the fields they support; the asynq driver forwards
+// MaxRetry whenever HasMaxRetry reports true (including WithMaxRetry(0), which
+// disables retries) or MaxRetry > 0.
 type EnqueueOptions struct {
-	Delay     time.Duration
-	Deadline  time.Time
-	MaxRetry  int
-	Queue     string
-	UniqueFor time.Duration
-	Retention time.Duration
-	TaskID    string
+	Delay       time.Duration
+	Deadline    time.Time
+	MaxRetry    int
+	maxRetrySet bool
+	Queue       string
+	UniqueFor   time.Duration
+	Retention   time.Duration
+	TaskID      string
+}
+
+// HasMaxRetry reports whether WithMaxRetry was supplied with a non-negative
+// retry budget, distinguishing an explicit WithMaxRetry(0) from an unset zero.
+func (o EnqueueOptions) HasMaxRetry() bool {
+	return o.maxRetrySet || o.MaxRetry > 0
 }
 
 // EnqueueOption customizes Producer.Enqueue.
@@ -33,18 +40,19 @@ func WithDeadline(t time.Time) EnqueueOption {
 	}
 }
 
-// WithMaxRetry sets the retry budget. The asynq driver forwards only values
-// > 0, so WithMaxRetry(0) (or a negative value) leaves asynq's default retry
-// count in place instead of disabling retries.
+// WithMaxRetry sets the retry budget. A non-negative value (including 0 to
+// disable retries) is forwarded by the asynq driver; a negative value leaves
+// the driver's default retry count in place.
 func WithMaxRetry(n int) EnqueueOption {
 	return func(o *EnqueueOptions) {
 		o.MaxRetry = n
+		o.maxRetrySet = n >= 0
 	}
 }
 
 // WithQueue selects the queue used by Enqueue; it must be one of the queues
-// configured on the Scheduler. Periodic tasks are unaffected and always run on
-// the "default" queue.
+// configured on the driver (for example, asynq's Config.Queues). Periodic
+// tasks are unaffected and always run on the "default" queue.
 func WithQueue(name string) EnqueueOption {
 	return func(o *EnqueueOptions) {
 		o.Queue = name

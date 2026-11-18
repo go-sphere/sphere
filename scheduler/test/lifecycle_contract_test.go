@@ -216,13 +216,61 @@ func TestSchedulerStopRacingStartIsHonoured(t *testing.T) {
 				}
 				select {
 				case err := <-startDone:
-					if err != nil && !errors.Is(err, context.Canceled) {
-						t.Fatalf("start = %v, want nil or context.Canceled", err)
+					if err != nil {
+						t.Fatalf("start = %v, want nil", err)
 					}
 				case <-time.After(2 * time.Second):
 					_ = s.Close()
 					t.Fatal("start stayed blocked after a concurrent Stop returned")
 				}
+			}
+		})
+	}
+}
+
+func TestSchedulerStartReturnsNilOnStopAndCtxErrOnCancel(t *testing.T) {
+	for _, factory := range cronFactories() {
+		t.Run(factory.name+"/stop", func(t *testing.T) {
+			s := factory.new(t)
+			startDone := make(chan error, 1)
+			go func() {
+				startDone <- s.Start(context.Background())
+			}()
+			waitFor(t, 2*time.Second, func() bool {
+				return errors.Is(s.Register("probe", "@every 1s", func(context.Context) error { return nil }), scheduler.ErrAfterStart)
+			})
+			if err := s.Stop(context.Background()); err != nil {
+				t.Fatalf("Stop: %v", err)
+			}
+			select {
+			case err := <-startDone:
+				if err != nil {
+					t.Fatalf("Start after Stop = %v, want nil", err)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("Start did not return after Stop")
+			}
+		})
+
+		t.Run(factory.name+"/cancel", func(t *testing.T) {
+			s := factory.new(t)
+			t.Cleanup(func() { _ = s.Close() })
+			ctx, cancel := context.WithCancel(context.Background())
+			startDone := make(chan error, 1)
+			go func() {
+				startDone <- s.Start(ctx)
+			}()
+			waitFor(t, 2*time.Second, func() bool {
+				return errors.Is(s.Register("probe", "@every 1s", func(context.Context) error { return nil }), scheduler.ErrAfterStart)
+			})
+			cancel()
+			select {
+			case err := <-startDone:
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("Start after parent cancel = %v, want context.Canceled", err)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("Start did not return after parent cancel")
 			}
 		})
 	}

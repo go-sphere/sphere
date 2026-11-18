@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-sphere/sphere/internal/redistest"
 	"github.com/go-sphere/sphere/scheduler"
 	asynqscheduler "github.com/go-sphere/sphere/scheduler/asynq"
 	cronscheduler "github.com/go-sphere/sphere/scheduler/cron"
-	"github.com/go-sphere/sphere/test/redistest"
 )
 
 type cronRuntime interface {

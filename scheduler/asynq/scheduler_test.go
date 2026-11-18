@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/go-sphere/sphere/internal/redistest"
 	"github.com/go-sphere/sphere/scheduler"
-	"github.com/go-sphere/sphere/test/redistest"
 	sasynq "github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
 )
@@ -204,8 +204,8 @@ func TestStopDoesNotLogSharedClientCloseError(t *testing.T) {
 	}
 	select {
 	case err := <-startDone:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("start = %v, want Canceled", err)
+		if err != nil {
+			t.Fatalf("start = %v, want nil", err)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("start did not return after stop")
@@ -225,7 +225,21 @@ func TestNewSchedulerRequiresRedisClient(t *testing.T) {
 }
 
 func TestWithMaxRetryRetriesFailures(t *testing.T) {
-	s := newTestScheduler(t)
+	client := redistest.NewTestRedisClient(t)
+	s, err := NewScheduler(Config{
+		ShutdownTimeout: time.Second,
+	}, WithClient(client), WithServerConfig(func(cfg *sasynq.Config) {
+		cfg.TaskCheckInterval = 50 * time.Millisecond
+		cfg.DelayedTaskCheckInterval = 50 * time.Millisecond
+		cfg.RetryDelayFunc = func(int, error, *sasynq.Task) time.Duration {
+			return 50 * time.Millisecond
+		}
+	}))
+	if err != nil {
+		t.Fatalf("create scheduler: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
 	var calls atomic.Int32
 	if err := s.Handle("retry", func(context.Context, []byte) error {
 		calls.Add(1)
@@ -240,7 +254,7 @@ func TestWithMaxRetryRetriesFailures(t *testing.T) {
 	}
 	waitFor(t, 10*time.Second, func() bool { return calls.Load() >= 3 })
 
-	inspector := sasynq.NewInspectorFromRedisClient(s.options.client)
+	inspector := sasynq.NewInspectorFromRedisClient(client)
 	t.Cleanup(func() { _ = inspector.Close() })
 	waitFor(t, 3*time.Second, func() bool {
 		tasks, err := inspector.ListArchivedTasks("default")
@@ -562,8 +576,8 @@ func TestStopHonoursContextWhileRedisStalls(t *testing.T) {
 	}
 	select {
 	case err := <-startDone:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("Start returned %v, want Canceled", err)
+		if err != nil {
+			t.Fatalf("Start returned %v, want nil", err)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Start did not return after Stop")
@@ -649,19 +663,150 @@ func TestConfigQueuesValidationCloneAndBlankEnqueueKind(t *testing.T) {
 	}
 
 	callerQueues := map[string]int{"default": 2}
-	s, err := NewScheduler(Config{Queues: callerQueues}, WithClient(client))
+	var seenServerQueues map[string]int
+	s, err := NewScheduler(Config{Queues: callerQueues}, WithClient(client), WithServerConfig(func(cfg *sasynq.Config) {
+		seenServerQueues = cfg.Queues
+		cfg.TaskCheckInterval = 50 * time.Millisecond
+	}))
 	if err != nil {
 		t.Fatalf("NewScheduler(valid): %v", err)
 	}
 	defer func() { _ = s.Close() }()
 	callerQueues["default"] = 0
-	if got := s.conf.Queues["default"]; got != 2 {
-		t.Fatalf("mutating caller Queues changed internal conf.Queues to %d, want 2", got)
+	if got := seenServerQueues["default"]; got != 2 {
+		t.Fatalf("mutating caller Queues changed server Queues to %d, want 2", got)
 	}
 
 	for _, kind := range []string{"", "   ", "\t\n"} {
 		if _, err := s.Enqueue(context.Background(), kind, nil); err == nil {
 			t.Fatalf("Enqueue(%q) succeeded, want empty task kind error", kind)
 		}
+	}
+}
+
+func TestNewSchedulerValidatesServerConfigAndContextPropagation(t *testing.T) {
+	client := redistest.NewTestRedisClient(t)
+
+	for _, opt := range []Option{
+		WithLogLevel(sasynq.LogLevel(-1)),
+		WithLogLevel(sasynq.LogLevel(99)),
+		WithServerConfig(func(cfg *sasynq.Config) { cfg.GroupGracePeriod = 500 * time.Millisecond }),
+		WithServerConfig(func(cfg *sasynq.Config) { cfg.Queues = map[string]int{"other": 1} }),
+	} {
+		if _, err := NewScheduler(Config{}, WithClient(client), opt); err == nil {
+			t.Fatal("NewScheduler with invalid option/server config succeeded, want error")
+		}
+	}
+
+	s, err := NewScheduler(Config{ShutdownTimeout: time.Second}, WithClient(client), WithServerConfig(func(cfg *sasynq.Config) {
+		cfg.TaskCheckInterval = 50 * time.Millisecond
+	}))
+	if err != nil {
+		t.Fatalf("NewScheduler: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := s.Enqueue(cancelled, "any", nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Enqueue(canceled) = %v, want context.Canceled", err)
+	}
+
+	type ctxKey struct{}
+	gotVal := make(chan string, 1)
+	if err := s.Handle("ctx.check", func(ctx context.Context, _ []byte) error {
+		v, _ := ctx.Value(ctxKey{}).(string)
+		gotVal <- v
+		return nil
+	}); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	startCtx := context.WithValue(context.Background(), ctxKey{}, "trace-42")
+	runCtx, runCancel := context.WithCancel(startCtx)
+	defer runCancel()
+	startDone := make(chan error, 1)
+	go func() { startDone <- s.Start(runCtx) }()
+	waitFor(t, time.Second, func() bool { return s.state.Load() == stateRunning })
+
+	if _, err := s.Enqueue(context.Background(), "ctx.check", nil); err != nil {
+		t.Fatalf("Enqueue ctx.check: %v", err)
+	}
+	select {
+	case v := <-gotVal:
+		if v != "trace-42" {
+			t.Fatalf("handler ctx value = %q, want trace-42", v)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("ctx.check task did not run")
+	}
+
+	if err := s.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if err := <-startDone; err != nil {
+		t.Fatalf("Start = %v, want nil", err)
+	}
+
+	// Deterministic Stop(expiredCtx) when stopDone is already closed.
+	drainedStopDone := make(chan struct{})
+	close(drainedStopDone)
+	s2, err := NewScheduler(Config{}, WithClient(client))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s2.state.Store(stateStopping)
+	s2.stopDone = drainedStopDone
+	if err := s2.Stop(cancelled); err != nil {
+		t.Fatalf("Stop(expired) when already drained = %v, want nil", err)
+	}
+}
+
+func TestEnqueueWithMaxRetryZeroDisablesRetries(t *testing.T) {
+	client := redistest.NewTestRedisClient(t)
+	s, err := NewScheduler(Config{
+		ShutdownTimeout: time.Second,
+	}, WithClient(client), WithServerConfig(func(cfg *sasynq.Config) {
+		cfg.TaskCheckInterval = 50 * time.Millisecond
+		cfg.DelayedTaskCheckInterval = 50 * time.Millisecond
+		cfg.RetryDelayFunc = func(int, error, *sasynq.Task) time.Duration {
+			return 50 * time.Millisecond
+		}
+	}))
+	if err != nil {
+		t.Fatalf("create scheduler: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	var calls atomic.Int32
+	if err := s.Handle("no-retry", func(context.Context, []byte) error {
+		calls.Add(1)
+		return errors.New("boom")
+	}); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	startTestScheduler(t, s)
+
+	if _, err := s.Enqueue(context.Background(), "no-retry", nil, scheduler.WithMaxRetry(0)); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+
+	inspector := sasynq.NewInspectorFromRedisClient(client)
+	t.Cleanup(func() { _ = inspector.Close() })
+	waitFor(t, 5*time.Second, func() bool {
+		tasks, err := inspector.ListArchivedTasks("default")
+		if err != nil {
+			return false
+		}
+		for _, task := range tasks {
+			if task.Type == "no-retry" {
+				return task.Retried == 0
+			}
+		}
+		return false
+	})
+	time.Sleep(150 * time.Millisecond)
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("calls = %d, want 1 with WithMaxRetry(0)", got)
 	}
 }

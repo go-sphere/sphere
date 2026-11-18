@@ -31,9 +31,10 @@
 //
 // # Shutdown
 //
-// The Scheduler implements task.Task. Start blocks until Stop. A Stop that
-// arrives before Start is honoured: Start then returns nil without starting
-// the runtime. Stop returning ctx.Err() does not mean asynq is idle: wait for
-// Stop or Close to return nil before closing the Redis client, because asynq
-// keeps using it while it drains.
+// The Scheduler implements task.Task. Start propagates Start's context values
+// through asynq's default BaseContext and blocks until Stop or context
+// cancellation. A Stop that arrives before Start is honoured: Start then returns
+// nil without starting the runtime. Stop returning ctx.Err() does not mean asynq
+// is idle: wait for Stop or Close to return nil before closing the Redis client,
+// because asynq keeps using it while it drains.
 package asynq

@@ -51,5 +51,5 @@ func Example() {
 	fmt.Println(<-started)
 	// Output:
 	// hello
-	// context canceled
+	// <nil>
 }

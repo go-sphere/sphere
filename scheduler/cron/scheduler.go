@@ -3,10 +3,12 @@ package cron
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/go-sphere/sphere/core/safe"
 	"github.com/go-sphere/sphere/log"
 	"github.com/go-sphere/sphere/scheduler"
 	rcron "github.com/robfig/cron/v3"
@@ -41,6 +43,7 @@ type Scheduler struct {
 
 	mu            sync.Mutex
 	state         atomic.Int32
+	stopped       atomic.Bool
 	handlerCtx    context.Context
 	cancel        context.CancelFunc
 	handlerCancel context.CancelFunc
@@ -103,6 +106,9 @@ func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) e
 	if handler == nil {
 		return fmt.Errorf("scheduler/cron: nil handler")
 	}
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("scheduler/cron: empty job name")
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -118,10 +124,10 @@ func (s *Scheduler) Register(name, spec string, handler scheduler.HandlerFunc) e
 		return scheduler.ErrDuplicateName
 	}
 
-	wrapped := scheduler.RecoverHandler(handler)
 	id, err := s.cron.AddFunc(spec, func() {
 		ctx := s.lifecycleContext()
-		if err := wrapped(ctx); err != nil {
+		defer safe.Recover()
+		if err := handler(ctx); err != nil {
 			log.ErrorContext(ctx, "cron handler failed", log.String("name", name), log.Err(err))
 		}
 	})
@@ -151,11 +157,12 @@ func (s *Scheduler) Unregister(name string) error {
 }
 
 // Start starts the cron and blocks until ctx is cancelled or Stop has
-// drained running jobs, returning context.Canceled in the latter case and
-// ctx.Err() in the former. A second Start returns scheduler.ErrAfterStart and
-// Start after Close returns scheduler.ErrClosed. Start after a Stop that came
-// first returns nil without starting the cron. Cancelling ctx without Stop
-// leaves the cron running; the owner must call Stop or Close.
+// drained running jobs, returning nil when Stop triggered the shutdown and
+// ctx.Err() when ctx was cancelled without Stop. A second Start returns
+// scheduler.ErrAfterStart and Start after Close returns scheduler.ErrClosed.
+// Start after a Stop that came first returns nil without starting the cron.
+// Cancelling ctx without Stop leaves the cron running; the owner must call
+// Stop or Close.
 func (s *Scheduler) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -195,7 +202,10 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	// Stop is the cleanup half of the Task contract. Returning here instead of
 	// draining lets the runner (Group, boot.Run) apply its shutdown budget to
 	// Stop. Cancelling the parent context without Stop leaves the runtime live.
-	return runCtx.Err()
+	if s.stopped.Load() {
+		return nil
+	}
+	return ctx.Err()
 }
 
 // Stop stops scheduling new runs and waits for in-flight jobs to return or
@@ -223,11 +233,13 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 		// uses for its transition so that a later (or racing) Start returns
 		// without bringing the runtime up, as task.Group does. Dropping it left
 		// a runtime that nobody would stop.
+		s.stopped.Store(true)
 		s.state.Store(stateClosed)
 		s.stopPending = true
 		s.mu.Unlock()
 		return nil
 	case stateClosed:
+		s.stopped.Store(true)
 		s.mu.Unlock()
 		return nil
 	case stateRunning:
@@ -235,6 +247,7 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 		// record the channel that reports when in-flight jobs have drained. The
 		// handler context is not cancelled yet: doing so would hand every
 		// in-flight handler a dead context and turn the drain into a formality.
+		s.stopped.Store(true)
 		s.state.Store(stateStopping)
 		stopDone := s.cron.Stop().Done()
 		s.stopDone = stopDone
@@ -254,6 +267,17 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	done := s.stopDone
 	s.stopWaiters++
 	s.mu.Unlock()
+
+	select {
+	case <-done:
+		s.mu.Lock()
+		s.stopWaiters--
+		s.mu.Unlock()
+		s.state.Store(stateClosed)
+		s.cancelRun()
+		return nil
+	default:
+	}
 
 	select {
 	case <-done:
