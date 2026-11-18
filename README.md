@@ -28,7 +28,8 @@ Sphere is not meant to replace Go's standard toolchain, Makefiles, Buf, Docker, 
 - **`server/middleware`** - Common middleware such as auth, CORS, logger, online tracking, rate limiting, request ID, telemetry (tracing and metrics), and middleware selectors, plus `server/middleware/stack` (standard middleware order) and `server/ops` (healthz and opt-in pprof on a separate listener).
 - **`cache`**, **`mq`**, **`scheduler`**, **`storage`** - Interfaces and default adapters for common service infrastructure.
 - **`log`** and **`log/logbuffer`** - Backend-agnostic logging plus a cursor-addressable in-memory tail for realtime delivery.
-- **`confstore`**, **`infra`** - Practical wrappers for configuration and infrastructure clients.
+- [**`confstore`**](https://github.com/go-sphere/confstore), **`infra`** - Configuration loading and practical wrappers for infrastructure clients (`redis`, `sqlite`).
+- **`core`**, **`search`**, **`utils`** - Lifecycle tasks and boot helpers (`core/boot`, `core/task`, `core/safe`), Meilisearch integration, and encoding/security/ID utilities.
 
 ### Project Bootstrap and Templates
 

@@ -73,6 +73,7 @@ This is the `github.com/go-sphere/sphere` Go module — a library-only collectio
 - `make test` — run the full test suite.
 - `make check` — the standard green gate: verify dependencies, lint, and test.
 - `make verify` — run `make check` plus race-enabled tests.
+- `make api-compat` — check public Go API compatibility against the tagged baseline via `apidiff`.
 - `make cover` — coverage via `-coverpkg`, so drivers exercised only by the `<pkg>/test` contract suites are credited (plain `go test -cover` shows them at 0%). Writes `coverage.out`; informational, not a CI gate.
 - `TAG=v0.0.1 make add-tags` / `make del-tags` — release tag management (signed tags pushed to origin).
 
@@ -99,13 +100,15 @@ Each backend-bound package exposes a small generic interface and one or more dri
 
 - `cache` — `Cache[S]` (= `Core[S] + Bulk[S] + TTL[S] + Evictor + io.Closer`), `ExpirableCache[S]`, and aliases `ByteCache` / `ExpirableByteCache`. Drivers: `memory`, `mcache`, `redis`, `badgerdb`, `nscache` (namespaced), `nocache`. `codec_cache.go` and `loader.go` layer serialization and read-through loading on top.
 - `mq` — `Queue[T]`, `PubSub[T]`, combined `MessageQueue[T]`. Drivers: `memory`, `redis`.
-- `storage` — `Storage` (upload/download/delete/move/copy) and `CDNStorage` (+ `URLHandler` + `UploadAuthorizer` for direct-to-storage uploads). Drivers: `local`, `s3`, `qiniu`. `fileserver` is an HTTP adapter; `urlhandler` and `storageerr` are shared helpers; `kvcache` caches storage metadata.
+- `storage` — `Storage` (upload/download/delete/move/copy) and `CDNStorage` (+ `URLHandler` + `UploadAuthorizer` for direct-to-storage uploads). Drivers: `local`, `s3`, `qiniu`, `kvcache` (stores blobs in a `cache.ByteCache`). `fileserver` exposes HTTP upload/download routes and `CDNStorage`; `urlhandler` and `storageerr` are shared helpers.
+- `scheduler` — `Cron` (`scheduler/cron`) and `Producer`/`Consumer`/`Scheduler` (`scheduler/asynq`).
+- `infra` — client constructors for `infra/redis` and `infra/sqlite`.
 - `search` — `meilisearch` driver behind `search.go`.
 - `log` — `Logger` interface (`BaseLogger + ContextLogger + FormatLogger`) over a `Backend`. Package-level functions (`log.Info`, `log.Errorf`, …) use an `atomic.Pointer[coreLogger]` global initialized to a `StdioBackend`; call `log.InitWithBackends(...)` early in `main` to swap it. `log/zapx` is the zap-backed implementation; structured attrs are constructed with `log.String`, `log.Any`, `log.Err`, etc.
 
 ### Test layout
 
-Tests are co-located with source as `_test.go` files. Cross-driver contract tests live under `<pkg>/test/` (e.g. `cache/test/interfaces_test.go`, `mq/test/queue_contract_test.go`, `storage/test/storage_test.go`) and exercise every driver against the same interface; when adding a new driver, register it with these contract tests instead of writing parallel ad-hoc cases. Shared fixtures like an embedded Redis live in `test/redistest`. Prefer table-driven tests with `t.Run` (existing suites in `cache/test` and `utils` are the pattern to follow).
+Tests are co-located with source as `_test.go` files. Cross-driver contract tests live under `<pkg>/test/` (e.g. `cache/test/interfaces_test.go`, `mq/test/queue_contract_test.go`, `storage/test/storage_test.go`) and exercise every driver against the same interface; when adding a new driver, register it with these contract tests instead of writing parallel ad-hoc cases. Shared fixtures like an embedded Redis live in `internal/redistest`. Prefer table-driven tests with `t.Run` (existing suites in `cache/test` and `utils` are the pattern to follow).
 
 ## Conventions
 

@@ -5,11 +5,10 @@ changes. This file records changes where the signature is identical but the
 runtime behaviour is not — exactly the changes a compiler cannot catch and an
 upgrade can silently break.
 
-Scope: the per-package pass below covers `cache/` only. The other top-level
-packages have not had a full behavioural review, but the security and
-correctness fixes listed under "Security and correctness fixes" and the
-confirmed silent changes under "Silent changes outside `cache/`" change
-observable behaviour outside `cache/` and are recorded there.
+Scope: this file records runtime behaviour changes since `v0.0.3` (and `v0.0.5` for
+the `httpx` upgrade) across `cache/` and confirmed cross-package security,
+correctness, and lifecycle fixes across `core/`, `infra/`, `log/`, `mq/`,
+`scheduler/`, `search/`, `server/`, `storage/`, and `utils/`.
 
 From v0.0.7 every runtime behaviour change recorded here must name the contract
 test that pins it, on a `Contract test:` line directly under its heading. A
@@ -345,9 +344,8 @@ no error, because ristretto reports reads on a closed cache as not-found.
 
 ## Silent changes outside `cache/`
 
-The scope note above was written before these were confirmed. All of them are
-behaviour changes with identical signatures, verified against the source and
-recorded here because nothing else in this file covers them.
+All entries below are signature-preserving behaviour changes verified against the
+source and recorded here because nothing else in this file covers them.
 
 ### Redis connectivity is no longer verified at construction
 
@@ -361,7 +359,7 @@ at the first command instead. For a background consumer that can be minutes
 later and surface only as a log line; on a request path it is a 500 that
 startup never noticed. Callers that used the constructor as a connectivity
 check must `Ping` explicitly — the return is a plain `*redis.Client`, so
-`client.Ping(ctx).Err()` is available. (`infra/redis/client.go:16`)
+`client.Ping(ctx).Err()` is available. (`infra/redis/client.go:21`)
 
 ### Meilisearch `Index`/`Delete` no longer ignore a failed task
 
@@ -377,7 +375,7 @@ for anything but `TaskStatusSucceeded`. Writes that previously returned nil
 when the task failed now fail loudly, with a message that names the status and
 the server's error code, and a caller that reasoned "nil means accepted" has
 to distinguish "accepted and indexed" from "accepted then failed".
-(`search/meilisearch/meili.go:73`, `:85`)
+(`search/meilisearch/meili.go:97`, `:126`)
 
 ### `boot.Run` no longer swallows `context.Canceled` from `Start`
 
@@ -392,8 +390,8 @@ already filters the cancellation its own teardown causes. What changed is the
 race: a task reporting a wrapped `context.Canceled` at about the same time the
 signal arrives used to be dropped and the run exited 0; it now surfaces in
 `Run`'s result, and a program that maps a non-nil result to a non-zero exit
-code fails a shutdown that used to look clean. (`core/boot/app.go:37`,
-`core/boot/run.go:54-58`; the group's own filter is `core/task/group.go:377`)
+code fails a shutdown that used to look clean. (`core/boot/app.go:56`,
+`core/boot/run.go:193`; the group's own filter is `core/task/group_run.go:260`)
 
 ### `ErrorResponse.Code` is 0 for unclassified errors
 
@@ -407,7 +405,7 @@ carry. The code is now normalized: when the error does not implement
 `httpx.CodeError` and the parser returns `code == status`, `Code` becomes 0.
 A custom `SetDefaultErrorParser` can return a distinct application code, which
 is preserved. Clients that matched on status-like codes now see 0.
-(`server/httpz/error.go:76-79`)
+(`server/httpz/error.go:169`)
 
 ### Base32 identifiers changed alphabet — old values no longer decode
 
@@ -420,7 +418,7 @@ always claimed). This is a data-format change, not a constant rename:
 
 - A v0.0.3 string containing `L` fails to decode outright — `DecodeString`
   rejects any character outside the current alphabet with
-  `invalid character 'L'` (`utils/encoding/baseconv/baseconv.go:197-201`).
+  `invalid character 'L'` (`utils/encoding/baseconv/baseconv.go:200-204`).
 - Every other v0.0.3 string decodes to **different bytes**: removing `L` shifts
   the per-character value of `M`–`Z` by one, and the base itself changed 33→32,
   so the byte packing differs for every multi-character string. (Single
@@ -429,7 +427,7 @@ always claimed). This is a data-format change, not a constant rename:
 Any identifier persisted under v0.0.3 — an ID, a code, a cache key — is not
 readable under v0.0.4: it stops decoding or silently maps to different data.
 Re-encode, or keep the v0.0.3 alphabet around as a migration table.
-(`utils/encoding/baseconv/basenum.go:6`; the constant change is also in
+(`utils/encoding/baseconv/basenum.go:5`; the constant change is also in
 `api-incompatibilities.txt`)
 
 ### `afterStop` hooks no longer share an expired shutdown context
@@ -561,7 +559,7 @@ Contract test: `cache/redis`: `TestDelAllOnlyFlushesSelectedDatabase`, `TestKeys
 
 ### `cache/mcache`
 
-Contract test: `cache/mcache`: `TestConcurrentExpiredReads`, `TestConcurrentReadsDontBlock`, `TestKeys`.
+Contract test: `cache/mcache`: `TestConcurrentExpiredReads`, `TestReadsShareReadLock`, `TestKeys`.
 
 - TTL semantics for `0` and negative values are inverted relative to v0.0.3 —
   see above.
@@ -805,7 +803,7 @@ cancellation that this run actually caused.
 
 ### `mq/redis` `Consume` observes context cancellation
 
-Contract test: none.
+Contract test: `mq/test`: `TestQueueBlockingConsume`.
 
 `BLPOP` was issued with an unlimited timeout, and go-redis applies no read
 deadline to it, so cancelling the context did not interrupt a call already in
@@ -1025,7 +1023,7 @@ Contract test: `server/httpz`: `TestWithRecoverRepanicsAbortHandler`; `server/se
 
 ### Captcha
 
-Contract test: `utils/exp/captcha`: `TestVerifyLockoutPreservesOutstandingCodes`, `TestRateLimitWindowRolls`.
+Contract test: `utils/exp/captcha`: `TestVerifyLockoutPreservesOutstandingCodes`, `TestRateLimitWindowRolls`, `TestSaveCodeSupersedesPreviousCodes`, `TestSaveCodeLazySweepWithoutManager`.
 
 - **Too many failed attempts freeze verification for 15 minutes instead of
   invalidating the outstanding codes.** Destroying them let anyone who knew a
@@ -1035,6 +1033,11 @@ Contract test: `utils/exp/captcha`: `TestVerifyLockoutPreservesOutstandingCodes`
   already hit its limit, so a number used a couple of times a day accumulated
   across days until it was refused for a "daily" limit it never reached on any
   single day.
+- **Issuing a new code supersedes previous codes for that number, and
+  `SaveCode` lazily sweeps expired state.** At most one active code is kept per
+  number, preventing brute-force odds from multiplying across resends, and
+  `SaveCode` runs `CleanExpired` at most once per minute even when
+  `Manager.Start` is not started.
 
 ## Contract decisions
 
@@ -1242,8 +1245,7 @@ accept 504.
 
 ### Reverse-proxy cache keys include the Host
 
-Contract test: `server/service/reverseproxy`: the default-key tests in
-`proxy_test.go`.
+Contract test: `server/service/reverseproxy`: `TestDefaultCacheKey`, `TestServeCacheReverseProxy_HostIsPartOfDefaultKey`.
 
 The default cache key is the inbound Host followed by the request URI; it was
 the URI alone, which let one request with a forged Host (forwarded upstream as
@@ -1261,8 +1263,7 @@ were written, giving duplicate JSON keys in zap.
 
 ### `logbuffer` captures attr values when they are logged
 
-Contract tests: `log/logbuffer`: `TestBufferCapturesValuesWhenLogged`,
-`TestBufferEntryJSONIsUnchangedByCapture`.
+Contract test: `log/logbuffer`: `TestBufferCapturesValuesWhenLogged`, `TestBufferEntryJSONIsUnchangedByCapture`.
 
 `Entry.Attrs` keeps nil, strings, booleans, numbers, `time.Time` and
 `time.Duration` as they are and errors as their message; every other value is
@@ -1275,9 +1276,7 @@ must decode the `json.RawMessage` instead.
 
 ### Out-of-range log levels clamp to the nearest level
 
-Contract tests: `log`: `TestStdioBackendClampsOutOfRangeLevels`; `log/zapx`:
-`TestOutOfRangeLevelsClampToNearest`; `log/logbuffer`:
-`TestBufferClampsOutOfRangeLevels`.
+Contract test: `log`: `TestStdioBackendClampsOutOfRangeLevels`; `log/zapx`: `TestOutOfRangeLevelsClampToNearest`; `log/logbuffer`: `TestBufferClampsOutOfRangeLevels`.
 
 A level below `LevelDebug` is logged as debug and one above `LevelError` as
 error by every backend. zapx used to log both as info, and stdio and logbuffer
@@ -1285,8 +1284,7 @@ dropped levels below debug and printed others as "unknown".
 
 ### Public base URLs must be absolute http(s) URLs
 
-Contract tests: `storage/urlhandler`: `TestNewHandler`; `storage/qiniu`:
-`TestNewClientRequiresAbsolutePublicBase`.
+Contract test: `storage/urlhandler`: `TestNewHandler`; `storage/qiniu`: `TestNewClientRequiresAbsolutePublicBase`.
 
 `urlhandler.NewHandler` returns an error unless the base has an http or https
 scheme and a host. A relative base generated URLs that `ExtractKeyFromURL`
@@ -1333,6 +1331,114 @@ Tokens built with `NewRBACClaims` no longer carry `nbf`, which was the issue
 time and rejected a fresh token on a server whose clock ran behind the issuer's.
 They carry `iat`, which `ParseToken` does not validate. Existing tokens with
 `nbf` still validate as before.
+
+### `reverseproxy` bypasses shared cache lookup on credentialed requests
+
+Contract test: `server/service/reverseproxy`: `TestServeCacheReverseProxy_CredentialedRequestBypassesCachedAnonymousResponse`.
+
+`defaultCacheKey` now returns `""` when the inbound request carries
+`Authorization` or `Cookie` headers, matching `defaultResponseCacheCheck` on the
+write side so credentialed requests no longer replay cached anonymous GET
+responses.
+
+### `cors` rejects unbounded wildcard patterns with `AllowCredentials`
+
+Contract test: `server/middleware/cors`: `TestNewCORSRejectsBroadWildcardsWithCredentials`.
+
+When `WithAllowCredentials(true)` is enabled, `NewCORS` now returns
+`ErrWildcardWithCredentials` for any wildcard origin lacking a fixed
+non-wildcard host label (such as `"**"`, `"https://*"`, `"*://*"`, `"*:*"`,
+`"*.*"`), while concrete subdomain/port wildcards like `"https://*.example.com"`
+and `"http://localhost:*"` remain valid.
+
+### `urlhandler` rejects non-HTTP(S) schemes, protocol-relative URLs, and empty hosts
+
+Contract test: `storage/urlhandler`: `TestHandler_ExtractKeyFromURLWithMode`.
+
+`ExtractKeyFromURLWithMode` now rejects non-`http`/`https` URL schemes (e.g.
+`ftp://...`, `file:///...`), protocol-relative URLs (`//host/...`), and empty-host
+HTTP(S) URLs (`https:///...`) in both strict and non-strict modes.
+
+### `ratelimiter` defaults to `mcache` with throttled cleanup
+
+Contract test: `server/middleware/ratelimiter`: `TestNewRateLimiterDefaultMapCacheDeterministicAndTrims`.
+
+When `WithCache` is omitted, `NewRateLimiter` and `NewRateLimiterByClientIP`
+now default to `mcache.NewMapCache` trimmed lazily on writes at a 1-minute
+throttle instead of `memory.NewMemoryCache` (Ristretto), eliminating leaked
+background goroutines and probabilistic write admission drops under key bursts.
+
+### `authorizer` default error messages are now English
+
+Contract test: `server/auth/authorizer`: `TestAuthorizerSentinelErrorMessages`.
+
+`TokenNotFoundError`, `NeedLoginError`, `PermissionError`, and
+`MissingUIDError` now use English default messages while preserving their
+HTTP status codes, internal causes, and `errors.Is` identity.
+
+### `scheduler` `Start` returns `nil` on `Stop`, honors `WithMaxRetry(0)`, and rejects blank job names
+
+Contract test: `scheduler/test`: `TestSchedulerStartReturnsNilOnStopAndCtxErrOnCancel`, `TestCronContractValidationAndAfterStartErrors`; `scheduler/asynq`: `TestEnqueueWithMaxRetryZeroDisablesRetries`.
+
+- `scheduler/cron` and `scheduler/asynq` now return `nil` from `Start` when
+  stopped via `Stop` (while preserving `ctx.Err()` on external context
+  cancellation without `Stop`).
+- `scheduler.WithMaxRetry(0)` now sets `asynq.MaxRetry(0)` instead of falling
+  back to Asynq's default 25 retries.
+- `Register` in both `scheduler/cron` and `scheduler/asynq` now rejects empty or
+  whitespace-only job names.
+
+### `task.Group.Start` propagates parent `DeadlineExceeded` regardless of member mode
+
+Contract test: `core/task`: `TestGroupStartParentDeadlineExceededWithServerTasks`.
+
+When a parent context expires with a non-cancel error such as
+`context.DeadlineExceeded`, `Group.Start` now returns that error even if all
+members are `Stop`-driven server tasks that return `nil` on shutdown. Ordinary
+parent `context.Canceled` still resolves to `nil`.
+
+### Fail-fast dependency checks in `kvcache`/`nscache` and normalized `HashExt` input
+
+Contract test: `storage/kvcache`: `TestNewClientRequiresNonNilCache`; `cache/nscache`: `TestNewNSCacheCheckedValidatesNamespace`; `storage`: `TestBuildUploadFileName`.
+
+- `kvcache.NewClient` and `nscache.NewNSCacheChecked` now reject `nil` (and
+  typed-nil) caches at construction; `NewNSCacheChecked` also rejects empty
+  namespaces with `ErrInvalidNamespace`. `fileserver.NewCDNAdapter` likewise
+  guards against typed-nil dependencies before running cleanup.
+- `BuildUploadFileName` with `UploadNamingStrategyHashExt` now hashes
+  `path.Base(fileName)` instead of the unstripped path string, matching
+  `UploadNamingStrategyOriginal`.
+
+### Server handler and recovery response consistency
+
+Contract test: `server/httpz`: `TestWithText`, `TestWithFormOptionsDefaults`; `server/middleware/logger`: `TestRecoveryEntriesAgree`.
+
+- `httpz.WithText` now honors status codes in `200..599` set via `ctx.Status`
+  (writing `NoContent` for `204`/`304`), matching `httpz.WithJson`.
+- `httpz.WithFormAllowExtensions` now replaces earlier allowlists (and passing
+  none clears the allowlist) rather than merging them.
+- `logger.RecoveryLog` and `logger.RecoveryLogErr` now emit `httpz.ErrorResponse`
+  JSON 500 bodies via `httpz.AbortWithJsonError` instead of an empty 500 body.
+
+### `log.DisableStack()` and `zapx` `WithMinLevel` support
+
+Contract test: `log`: `TestStdioBackendDisableStackClearsInheritedStackAt`; `log/zapx`: `TestDisableStackAndWithMinLevelAcrossZapxPaths`.
+
+Added `log.DisableStack()` so child loggers can clear inherited `WithStackAt`
+thresholds across both `StdioBackend` and `zapx`. `zapx.NewBackend`, `With`,
+and `SlogHandler` now honor `log.WithMinLevel` (overriding `Config.Level` at
+construction and tightening thresholds on derived instances).
+
+### `baseconv.DecodeString` error order and `numconv` CSPRNG sampling
+
+Contract test: `utils/encoding/baseconv`: `TestDecodeStringInvalidCharPrecedesPaddingLength`; `utils/encoding/numconv`: `TestRandomGenerators`.
+
+- `baseconv.DecodeString` now validates alphabet characters before checking
+  canonical padding length, so strings like `"!=="` report the invalid
+  character rather than `ErrNonCanonical` (padding-only inputs like `"========"`
+  still fail with `ErrNonCanonical`).
+- `numconv.RandomBase32` and `numconv.RandomBase62` now draw uniformly from
+  `crypto/rand` via rejection sampling instead of `math/rand/v2`.
 
 ## Known limitations (unchanged since v0.0.3, not regressions)
 

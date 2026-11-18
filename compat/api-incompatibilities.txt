@@ -76,3 +76,24 @@
 # Semantic note: dead exported surface with no caller in the go-sphere workspace. ErrNoMessage
 # and redis.ErrorType were never returned; IsZero and the Field alias had no users; the captcha
 # storage type was unreachable because VerificationSystem keeps it in an unexported field.
+- package github.com/go-sphere/sphere/test/redistest: removed
+# Semantic note: internal test fixture moved to internal/redistest (widened to testing.TB) so
+# external callers cannot couple to miniredis test helpers.
+- ./storage.DefaultKeyBuilder: removed
+- ./storage.KeepFileNameKeyBuilder: removed
+- ./storage/urlhandler.ErrorNotVerifyHost: removed
+# Semantic note: Deprecated helpers/aliases removed in favour of BuildUploadFileName +
+# JoinUploadKey (DefaultKeyBuilder/KeepFileNameKeyBuilder collided on concurrent same-second
+# uploads) and ErrHostVerificationFailed.
+- ./utils/encoding/baseconv.StdRaw32Encoding: removed
+- ./utils/encoding/baseconv.StdRaw62Encoding: removed
+# Semantic note: "Raw" was inverted relative to stdlib encoding/base32 (meaning padded here);
+# replaced by StdPadded32Encoding (with '=' padding) and Std62Encoding (unpadded, matching
+# mathematical base62 encoding output).
+- ./cache.GetObject: changed from func[T any, D github.com/go-sphere/confstore/codec.Decoder](context.Context, ExpirableByteCache, D, string) (T, bool, error) to func[T any](context.Context, ExpirableByteCache, github.com/go-sphere/confstore/codec.Decoder, string) (T, bool, error)
+- ./cache.GetObjectEx: changed from func[T any, D github.com/go-sphere/confstore/codec.Decoder, E github.com/go-sphere/confstore/codec.Encoder](context.Context, ExpirableByteCache, D, E, string, FetchCached[T], ...Option) (T, bool, error) to func[T any](context.Context, ExpirableByteCache, github.com/go-sphere/confstore/codec.Decoder, github.com/go-sphere/confstore/codec.Encoder, string, FetchCached[T], ...Option) (T, bool, error)
+- ./cache.SetObject: changed from func[T any, E github.com/go-sphere/confstore/codec.Encoder](context.Context, ExpirableByteCache, E, string, T, ...Option) error to func[T any](context.Context, ExpirableByteCache, github.com/go-sphere/confstore/codec.Encoder, string, T, ...Option) error
+# Semantic note: dropped redundant Encoder/Decoder type parameters in favour of plain
+# codec.Encoder / codec.Decoder interface arguments, matching NewCodecCache[T]. Callers passing
+# un-converted json.Marshal/json.Unmarshal must wrap them in codec.EncoderFunc/codec.DecoderFunc
+# or omit extra type arguments in favour of SetJson/GetJson/GetJsonEx.

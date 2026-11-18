@@ -2,6 +2,8 @@ GO ?= go
 GOLANGCI_LINT ?= golangci-lint
 NILAWAY ?= nilaway
 
+export GOWORK := off
+
 DIRECT_DEPS_TEMPLATE := {{if and (not .Main) (not .Indirect) (not .Replace)}}{{.Path}}{{end}}
 
 # Resolve go-sphere modules straight from GitHub, bypassing the module proxy
@@ -57,7 +59,7 @@ verify: check
 # library packages; test-support packages are excluded so they do not dilute
 # the total.
 COVER_PROFILE ?= coverage.out
-COVER_PKGS = $(shell $(GO) list ./... | grep -Ev '/test(/|$$)|/tasktest$$|/internal/(compatconsumer|fake[^/]*)$$' | paste -sd, -)
+COVER_PKGS = $(shell $(GO) list ./... | grep -Ev '/test(/|$$)|/tasktest$$|/internal/(compatconsumer|qiniuplain|fake[^/]*)$$' | paste -sd, -)
 
 cover:
 	$(GO) test -coverpkg=$(COVER_PKGS) -coverprofile=$(COVER_PROFILE) ./...
