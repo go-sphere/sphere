@@ -14,7 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # Full history: the api-compat step resolves its baseline from the
+      # latest release tag, which a shallow clone does not contain.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -39,7 +43,9 @@ jobs:
       # Race detector over the whole module; a clean run takes about a minute.
       - name: Test (race)
         run: go test -race ./...
-      # apidiff is fetched with `go run`; the baseline release is resolved
-      # through the module proxy, so no extra tool install is needed.
+      # apidiff is fetched with `go run`; the baseline tag is resolved from
+      # local git history (which is why checkout uses fetch-depth: 0) and the
+      # baseline release through the module proxy, so no extra tool install is
+      # needed.
       - name: API compatibility
         run: make api-compat

@@ -5,14 +5,23 @@ set -euo pipefail
 export GOWORK=off
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+resolve_baseline() {
+	local revision=${1:-HEAD}
+	if ! git -C "$ROOT_DIR" describe --tags --abbrev=0 --match 'v[0-9]*' "$revision" 2>/dev/null; then
+		echo "Cannot resolve a baseline release tag from git history." >&2
+		echo "A shallow clone without tags is the usual cause: actions/checkout needs fetch-depth: 0." >&2
+		echo "Set API_BASELINE_VERSION to compare against a specific tag instead." >&2
+		exit 1
+	fi
+}
 # API_BASELINE_VERSION overrides the baseline; otherwise use the latest release
 # tag, falling back to the previous tag when HEAD itself is the release.
 if [[ -n "${API_BASELINE_VERSION:-}" ]]; then
 	BASELINE_VERSION="$API_BASELINE_VERSION"
 else
-	BASELINE_VERSION=$(git -C "$ROOT_DIR" describe --tags --abbrev=0 --match 'v[0-9]*')
+	BASELINE_VERSION=$(resolve_baseline)
 	if git -C "$ROOT_DIR" tag --points-at HEAD | grep -Fxq "$BASELINE_VERSION"; then
-		BASELINE_VERSION=$(git -C "$ROOT_DIR" describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^)
+		BASELINE_VERSION=$(resolve_baseline HEAD^)
 	fi
 fi
 APIDIFF_VERSION=${APIDIFF_VERSION:-v0.0.0-20261113113407-e3970619a1a4}
