@@ -33,8 +33,9 @@
 //   - Defaults: code length 6, expiry 300s, 1 send per minute and 100 per
 //     day per number, 5 failed verifications then a 15-minute freeze.
 //     Non-positive config values take these defaults.
-//   - Verify consumes a matching code. During a freeze outstanding codes are
-//     kept, not invalidated; issuing a new code lifts the freeze.
+//   - Verify consumes a matching code. During a freeze the active code is
+//     kept, not invalidated; issuing a new code supersedes any previous code
+//     for that number and lifts the freeze.
 //   - Empty codes are never stored or accepted.
 //   - If storing succeeds but the Sender fails, the code stays stored and the
 //     send still counts against the quota.

@@ -1,10 +1,10 @@
 package numconv
 
 import (
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/rand/v2"
 
 	"github.com/go-sphere/sphere/utils/encoding/baseconv"
 )
@@ -47,7 +47,9 @@ const (
 // It uses the standard base32 encoding with Crockford's alphabet. The result
 // always has 13 characters; Base32ToInt64 reverses it.
 func Int64ToBase32(n int64) string {
-	return baseconv.Std32Encoding.EncodeToString(int64ToBytes(n))
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], uint64(n))
+	return baseconv.Std32Encoding.EncodeToString(buf[:])
 }
 
 // Int64ToBase62 converts a 64-bit integer to its base62 string representation.
@@ -55,7 +57,9 @@ func Int64ToBase32(n int64) string {
 // length varies with the value, from 8 to 11 characters (small values keep
 // leading "0" characters for their zero bytes); Base62ToInt64 reverses it.
 func Int64ToBase62(n int64) string {
-	return baseconv.Std62Encoding.EncodeToString(int64ToBytes(n))
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], uint64(n))
+	return baseconv.Std62Encoding.EncodeToString(buf[:])
 }
 
 // Base32ToInt64 converts a base32 encoded string back to a 64-bit integer.
@@ -95,26 +99,48 @@ func Base62ToInt64(s string) (int64, error) {
 }
 
 // RandomBase32 generates a random base32 string of the specified length.
-// It uses math/rand/v2 and is not suitable for secrets.
-// Returns an empty string if length is non-positive.
+// Each character is drawn uniformly from crypto/rand using rejection sampling.
+// Returns an empty string if length is non-positive, and panics if the system
+// entropy source fails.
 func RandomBase32(length int) string {
 	return randomBase(baseconv.AlphabetBase32, length)
 }
 
 // RandomBase62 generates a random base62 string of the specified length.
-// It uses math/rand/v2 and is not suitable for secrets.
-// Returns an empty string if length is non-positive.
+// Each character is drawn uniformly from crypto/rand using rejection sampling.
+// Returns an empty string if length is non-positive, and panics if the system
+// entropy source fails.
 func RandomBase62(length int) string {
 	return randomBase(baseconv.AlphabetBase62, length)
 }
 
 func randomBase(alphabet string, length int) string {
-	if length <= 0 {
+	if length <= 0 || len(alphabet) == 0 {
 		return ""
 	}
+	base := len(alphabet)
+	maxByte := 256 - (256 % base)
 	result := make([]byte, length)
-	for i := range length {
-		result[i] = alphabet[rand.IntN(len(alphabet))]
+	var stackBuf [64]byte
+	buf := stackBuf[:]
+	if length > len(stackBuf) {
+		buf = make([]byte, min(length+length/8+8, 1024))
+	}
+	for i := 0; i < length; {
+		need := min(len(buf), (length-i)+(length-i)/8+4)
+		if _, err := rand.Read(buf[:need]); err != nil {
+			panic("numconv: crypto/rand failed: " + err.Error())
+		}
+		for _, b := range buf[:need] {
+			if int(b) >= maxByte {
+				continue
+			}
+			result[i] = alphabet[int(b)%base]
+			i++
+			if i == length {
+				break
+			}
+		}
 	}
 	return string(result)
 }

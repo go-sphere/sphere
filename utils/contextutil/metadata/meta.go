@@ -16,6 +16,9 @@ var metaContextKey = metaKey{}
 // Metadata from an earlier WithMeta on ctx is shadowed, not merged; to add a
 // key, copy MetaFrom(ctx) into a new map first.
 func WithMeta(ctx context.Context, m map[string]any) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	clone := make(map[string]any, len(m))
 	maps.Copy(clone, m)
 	return context.WithValue(ctx, metaContextKey, clone)

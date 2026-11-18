@@ -2,6 +2,7 @@ package captcha
 
 import (
 	"context"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -143,4 +144,32 @@ func (r *recordingSender) getNumber() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.number
+}
+
+func TestManagerNilGuardsAndExpiryClamp(t *testing.T) {
+	var nilManager *Manager
+	if err := nilManager.SendCode("13800000010"); err == nil {
+		t.Fatal("nil Manager.SendCode succeeded, want error")
+	}
+
+	noSender := NewManager(Config{}, nil)
+	if err := noSender.SendCode("13800000011"); err == nil {
+		t.Fatal("Manager(nil sender).SendCode succeeded, want error")
+	}
+	// Quota must not have been consumed by the failed SendCode above.
+	if err := noSender.verification.SaveCode("13800000011", "123456", time.Minute); err != nil {
+		t.Fatalf("SaveCode after nil sender error = %v, want nil (no quota consumed)", err)
+	}
+
+	sender := &recordingSender{}
+	clamped := NewManager(Config{CodeExpiresIn: math.MaxInt}, sender)
+	if time.Duration(clamped.config.CodeExpiresIn)*time.Second <= 0 {
+		t.Fatalf("clamped expiry overflowed Duration: %d", clamped.config.CodeExpiresIn)
+	}
+	if err := clamped.SendCode("13800000012"); err != nil {
+		t.Fatalf("SendCode with max CodeExpiresIn failed: %v", err)
+	}
+	if !clamped.Verify("13800000012", sender.getCode()) {
+		t.Fatal("code saved with clamped expiry failed verification")
+	}
 }

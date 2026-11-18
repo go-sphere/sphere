@@ -61,4 +61,8 @@ func TestMetaFromNilContext(t *testing.T) {
 	if meta != nil {
 		t.Errorf("MetaFrom(nil) = %v, want nil", meta)
 	}
+	ctx := WithMeta(nilCtx, map[string]any{"k": "v"})
+	if got := MetaFrom(ctx)["k"]; got != "v" {
+		t.Errorf("MetaFrom(WithMeta(nil)) = %v, want v", got)
+	}
 }

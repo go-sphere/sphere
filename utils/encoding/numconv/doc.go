@@ -23,9 +23,8 @@
 //     "5" does not decode. Base32 leftover-bit errors match both
 //     baseconv.ErrNonCanonical and ErrNonCanonical.
 //   - Characters outside the alphabet fail with a plain (non-sentinel) error.
-//   - [RandomBase32] and [RandomBase62] sample the alphabet with
-//     math/rand/v2. They are not encodings of int64s and are not
-//     cryptographically secure (use secure.RandString for secrets).
+//   - [RandomBase32] and [RandomBase62] sample the alphabet uniformly using
+//     crypto/rand with rejection sampling. They are not encodings of int64s.
 //
 // All functions are stateless and safe for concurrent use.
 package numconv

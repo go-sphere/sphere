@@ -112,6 +112,9 @@ func TestDistinctWorkerIDsProduceDistinctIDs(t *testing.T) {
 }
 
 func TestConcurrentIDGeneration(t *testing.T) {
+	resetGlobal(t)
+	t.Setenv("WORKER_ID", "")
+
 	const (
 		numGoroutines   = 16
 		idsPerGoroutine = 64

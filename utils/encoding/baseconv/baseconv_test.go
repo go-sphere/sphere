@@ -53,8 +53,8 @@ func TestStd32EncodingMatchesStdlib(t *testing.T) {
 		{0x00, 0xff, 0x10, 0x80},
 	}
 	for _, input := range inputs {
-		if got, want := StdRaw32Encoding.EncodeToString(input), ref.EncodeToString(input); got != want {
-			t.Errorf("StdRaw32Encoding.EncodeToString(%q) = %q, want %q", input, got, want)
+		if got, want := StdPadded32Encoding.EncodeToString(input), ref.EncodeToString(input); got != want {
+			t.Errorf("StdPadded32Encoding.EncodeToString(%q) = %q, want %q", input, got, want)
 		}
 		if got, want := Std32Encoding.EncodeToString(input), ref.WithPadding(base32.NoPadding).EncodeToString(input); got != want {
 			t.Errorf("Std32Encoding.EncodeToString(%q) = %q, want %q", input, got, want)
@@ -66,8 +66,8 @@ func TestStd32EncodingRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	for _, encoding := range map[string]*BaseEncoding{
-		"Std32Encoding":    Std32Encoding,
-		"StdRaw32Encoding": StdRaw32Encoding,
+		"Std32Encoding":       Std32Encoding,
+		"StdPadded32Encoding": StdPadded32Encoding,
 	} {
 		for _, want := range [][]byte{
 			[]byte("f"),
@@ -136,8 +136,8 @@ func TestMathematicalEncodingRoundTripLongInput(t *testing.T) {
 func TestDecodeStringRejectsNonCanonicalPadding(t *testing.T) {
 	t.Parallel()
 
-	canonical32 := StdRaw32Encoding.EncodeToString([]byte{0x00}) // two chars + six pads
-	if _, err := StdRaw32Encoding.DecodeString(canonical32); err != nil {
+	canonical32 := StdPadded32Encoding.EncodeToString([]byte{0x00}) // two chars + six pads
+	if _, err := StdPadded32Encoding.DecodeString(canonical32); err != nil {
 		t.Fatalf("DecodeString(%q) = %v, want nil", canonical32, err)
 	}
 	for _, input := range []string{
@@ -145,19 +145,38 @@ func TestDecodeStringRejectsNonCanonicalPadding(t *testing.T) {
 		canonical32 + "=",                   // extra padding
 		strings.Repeat("=", 8),              // padding only, collides with ""
 	} {
-		if _, err := StdRaw32Encoding.DecodeString(input); !errors.Is(err, ErrNonCanonical) {
+		if _, err := StdPadded32Encoding.DecodeString(input); !errors.Is(err, ErrNonCanonical) {
 			t.Errorf("DecodeString(%q) err = %v, want ErrNonCanonical", input, err)
 		}
 	}
 
 	// The mathematical path never emits padding, so any trailing '=' is
-	// non-canonical even though the encoding was constructed with a pad char.
-	canonical62 := StdRaw62Encoding.EncodeToString([]byte{0x01})
-	if _, err := StdRaw62Encoding.DecodeString(canonical62); err != nil {
+	// non-canonical even when the encoding was constructed with a pad char.
+	padded62, err := NewBaseEncodingWithPadding(AlphabetBase62, '=')
+	if err != nil {
+		t.Fatalf("NewBaseEncodingWithPadding(base62): %v", err)
+	}
+	canonical62 := padded62.EncodeToString([]byte{0x01})
+	if _, err := padded62.DecodeString(canonical62); err != nil {
 		t.Fatalf("DecodeString(%q) = %v, want nil", canonical62, err)
 	}
-	if _, err := StdRaw62Encoding.DecodeString(canonical62 + "="); !errors.Is(err, ErrNonCanonical) {
+	if _, err := padded62.DecodeString(canonical62 + "="); !errors.Is(err, ErrNonCanonical) {
 		t.Errorf("DecodeString(%q+\"=\") err = %v, want ErrNonCanonical", canonical62, err)
+	}
+}
+
+func TestDecodeStringInvalidCharPrecedesPaddingLength(t *testing.T) {
+	t.Parallel()
+
+	_, err := StdPadded32Encoding.DecodeString("!==")
+	if err == nil {
+		t.Fatal("DecodeString(\"!==\") succeeded, want invalid character error")
+	}
+	if errors.Is(err, ErrNonCanonical) {
+		t.Fatalf("DecodeString(\"!==\") = %v, want invalid character error before padding length check", err)
+	}
+	if !strings.Contains(err.Error(), "invalid character '!' at position 0") {
+		t.Fatalf("DecodeString(\"!==\") = %v, want invalid character message", err)
 	}
 }
 
@@ -234,5 +253,31 @@ func TestBaseEncodingFull256ByteAlphabetAndHighByteRejection(t *testing.T) {
 	}
 	if _, err := narrow.DecodeString("0\xff"); err == nil {
 		t.Fatal("expected invalid character error for high byte 0xff")
+	}
+}
+
+func TestBaseEncodingNilAndZeroValueGuards(t *testing.T) {
+	t.Parallel()
+
+	var nilEnc *BaseEncoding
+	if got := nilEnc.EncodeToString([]byte("hi")); got != "" {
+		t.Fatalf("nil EncodeToString = %q, want empty", got)
+	}
+	if _, err := nilEnc.DecodeString("hi"); err == nil {
+		t.Fatal("nil DecodeString succeeded, want error")
+	}
+
+	var zero BaseEncoding
+	if got := zero.EncodeToString([]byte("hi")); got != "" {
+		t.Fatalf("zero EncodeToString = %q, want empty", got)
+	}
+	if _, err := zero.DecodeString("hi"); err == nil {
+		t.Fatal("zero DecodeString succeeded, want error")
+	}
+	if _, bitwise := powerOfTwoBits(0); bitwise {
+		t.Fatal("powerOfTwoBits(0) = true, want false")
+	}
+	if _, bitwise := powerOfTwoBits(1); bitwise {
+		t.Fatal("powerOfTwoBits(1) = true, want false")
 	}
 }

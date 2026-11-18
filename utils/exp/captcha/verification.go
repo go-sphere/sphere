@@ -123,12 +123,14 @@ func (s *verificationStorage) rollWindow(number string, now time.Time, window ti
 
 // VerificationSystem provides thread-safe verification code management with rate limiting.
 // It handles code storage, expiration cleanup, and enforces sending limits per phone number.
-// Create it with NewVerificationSystem. Several codes may be outstanding for a
-// number at once; any unexpired one verifies.
+// Create it with NewVerificationSystem. Issuing a new code via SaveCode supersedes
+// any earlier unexpired code for that number, so at most one active code is valid
+// at a time.
 type VerificationSystem struct {
-	mu     sync.RWMutex
-	config VerificationConfig
-	store  *verificationStorage
+	mu        sync.RWMutex
+	config    VerificationConfig
+	store     *verificationStorage
+	lastSweep time.Time
 }
 
 // NewVerificationSystem creates a new verification system with the provided configuration.
@@ -190,20 +192,25 @@ func (s *VerificationSystem) SaveCode(number string, code string, expiresIn time
 	s.store.MinuteCounts[number]++
 	s.store.DailyCounts[number]++
 	s.store.FailedAttempts[number] = 0
-	// A freeze exists to protect the codes outstanding at the time of the
-	// failed guesses. Issuing a fresh code supersedes those old ones — the
+	// A freeze exists to protect the code outstanding at the time of the
+	// failed guesses. Issuing a fresh code supersedes that old one — the
 	// number now has a new credential the freeze would otherwise reject until
 	// it elapsed, which with a short code lifetime can outlive every code it
 	// was meant to protect. Clearing the freeze keeps the victim usable; the
 	// new code still gets a fresh failure budget because the counter reset
-	// above.
+	// above and the old code is replaced below.
 	delete(s.store.LockedUntil, number)
 
 	newCaptcha := VerificationCode{
 		Code:      code,
 		ExpiresAt: now.Add(expiresIn),
 	}
-	s.store.Store[number] = append(s.store.Store[number], newCaptcha)
+	s.store.Store[number] = []VerificationCode{newCaptcha}
+	if s.lastSweep.IsZero() {
+		s.lastSweep = now
+	} else if now.Sub(s.lastSweep) >= time.Minute {
+		s.cleanExpiredLocked(now)
+	}
 	return nil
 }
 
@@ -278,12 +285,17 @@ func (s *VerificationSystem) Verify(number, code string) bool {
 }
 
 // CleanExpired drops expired codes and idle rate-limit/failure bookkeeping.
-// Manager.Start calls it once a minute so the maps stay bounded.
+// Manager.Start calls it once a minute, and SaveCode triggers it lazily when at
+// least a minute has elapsed since the previous sweep, so the maps stay bounded
+// even if Manager.Start is not running.
 func (s *VerificationSystem) CleanExpired() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	now := time.Now()
+	s.cleanExpiredLocked(time.Now())
+}
 
+func (s *VerificationSystem) cleanExpiredLocked(now time.Time) {
+	s.lastSweep = now
 	numbers := make([]string, 0, len(s.store.Store))
 	for number := range s.store.Store {
 		numbers = append(numbers, number)

@@ -10,7 +10,7 @@ import (
 func ExampleBaseEncoding_EncodeToString() {
 	data := []byte("hi")
 	fmt.Println(baseconv.Std32Encoding.EncodeToString(data))
-	fmt.Println(baseconv.StdRaw32Encoding.EncodeToString(data)) // "Raw" means padded here
+	fmt.Println(baseconv.StdPadded32Encoding.EncodeToString(data))
 	fmt.Println(baseconv.Std62Encoding.EncodeToString(data))
 	// Output:
 	// D1MG

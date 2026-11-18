@@ -291,3 +291,50 @@ func TestRateLimitErrorsAreSentinels(t *testing.T) {
 		t.Fatalf("Manager.SendCode: got %v, want ErrMinuteLimitExceeded", err)
 	}
 }
+
+func TestSaveCodeSupersedesPreviousCodes(t *testing.T) {
+	const number = "13800000012"
+	s := newTestSystem()
+
+	if err := s.SaveCode(number, "111111", time.Minute); err != nil {
+		t.Fatalf("first SaveCode: %v", err)
+	}
+	if err := s.SaveCode(number, "222222", time.Minute); err != nil {
+		t.Fatalf("second SaveCode: %v", err)
+	}
+	if got := s.GetCaptchaCount(number); got != 1 {
+		t.Fatalf("GetCaptchaCount = %d, want 1", got)
+	}
+	if s.Verify(number, "111111") {
+		t.Fatal("superseded code must no longer verify after a new code is issued")
+	}
+	if !s.Verify(number, "222222") {
+		t.Fatal("newest issued code must verify")
+	}
+}
+
+func TestSaveCodeLazySweepWithoutManager(t *testing.T) {
+	s := newTestSystem()
+
+	if err := s.SaveCode("13800000013", "111111", time.Millisecond); err != nil {
+		t.Fatalf("first SaveCode: %v", err)
+	}
+	s.mu.Lock()
+	s.store.Store["13800000013"] = []VerificationCode{{Code: "111111", ExpiresAt: time.Now().Add(-time.Second)}}
+	s.store.DailyTimestamps["13800000013"] = time.Now().Add(-25 * time.Hour)
+	s.lastSweep = time.Now().Add(-2 * time.Minute)
+	s.mu.Unlock()
+
+	if err := s.SaveCode("13800000014", "222222", time.Minute); err != nil {
+		t.Fatalf("second SaveCode: %v", err)
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.store.Store["13800000013"]; ok {
+		t.Error("expired code for idle number was not lazily swept")
+	}
+	if _, ok := s.store.DailyCounts["13800000013"]; ok {
+		t.Error("idle rate-limit state for old number was not lazily swept")
+	}
+}

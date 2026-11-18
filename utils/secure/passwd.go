@@ -18,10 +18,10 @@ func CryptPassword(pwd string) (string, error) {
 }
 
 // IsPasswordMatch reports whether pwd matches the bcrypt hash cyPwd.
-// It returns false if pwd exceeds bcrypt's 72-byte limit or if the hash does not match.
-// Comparison is constant-time (bcrypt).
+// It returns false if pwd exceeds bcrypt's 72-byte limit (measured in UTF-8 bytes)
+// or if the hash does not match. Comparison is constant-time (bcrypt).
 func IsPasswordMatch(pwd, cyPwd string) bool {
-	if len([]byte(pwd)) > 72 {
+	if len(pwd) > 72 {
 		return false
 	}
 	err := bcrypt.CompareHashAndPassword([]byte(cyPwd), []byte(pwd))

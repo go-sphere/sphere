@@ -73,6 +73,9 @@ func NewBaseEncodingWithPadding(alphabet string, padChar byte) (*BaseEncoding, e
 // a padding character is set); other sizes use base conversion, where each
 // leading zero byte becomes one leading alphabet[0] character.
 func (e *BaseEncoding) EncodeToString(data []byte) string {
+	if e == nil || e.base < 2 || len(e.alphabet) != e.base {
+		return ""
+	}
 	if len(data) == 0 {
 		return ""
 	}
@@ -86,7 +89,20 @@ func (e *BaseEncoding) EncodeToString(data []byte) string {
 }
 
 func (e *BaseEncoding) encodeBitwise(data []byte, bitsPerChar int) string {
+	inputBits := len(data) * 8
+	outputChars := (inputBits + bitsPerChar - 1) / bitsPerChar
+	paddingNeeded := 0
+	if e.padChar != 0 {
+		switch bitsPerChar {
+		case 6: // base64
+			paddingNeeded = (4 - (outputChars % 4)) % 4
+		case 5: // base32
+			paddingNeeded = (8 - (outputChars % 8)) % 8
+		}
+	}
+
 	var result strings.Builder
+	result.Grow(outputChars + paddingNeeded)
 	var buffer uint32
 	var bitsInBuffer int
 
@@ -107,21 +123,8 @@ func (e *BaseEncoding) encodeBitwise(data []byte, bitsPerChar int) string {
 		result.WriteByte(e.alphabet[index])
 	}
 
-	if e.padChar != 0 {
-		inputBits := len(data) * 8
-		outputChars := (inputBits + bitsPerChar - 1) / bitsPerChar
-		paddingNeeded := 0
-
-		switch bitsPerChar {
-		case 6: // base64
-			paddingNeeded = (4 - (outputChars % 4)) % 4
-		case 5: // base32
-			paddingNeeded = (8 - (outputChars % 8)) % 8
-		}
-
-		for i := 0; i < paddingNeeded; i++ {
-			result.WriteByte(e.padChar)
-		}
+	for i := 0; i < paddingNeeded; i++ {
+		result.WriteByte(e.padChar)
 	}
 
 	return result.String()
@@ -167,11 +170,15 @@ func (e *BaseEncoding) encodeMathematical(data []byte) string {
 // length, leftover bits, or trailing characters differ from what
 // EncodeToString would produce fails with an error matching ErrNonCanonical.
 func (e *BaseEncoding) DecodeString(encoded string) ([]byte, error) {
+	if e == nil || e.base < 2 || len(e.alphabet) != e.base {
+		return nil, errors.New("baseconv: uninitialized encoding")
+	}
 	if len(encoded) == 0 {
 		return []byte{}, nil
 	}
 
 	data := encoded
+	padCount := 0
 	if e.padChar != 0 {
 		// Trim bytes, not runes: string(e.padChar) converts a byte >= 0x80
 		// into a multi-byte UTF-8 sequence that never matches the raw byte
@@ -179,22 +186,24 @@ func (e *BaseEncoding) DecodeString(encoded string) ([]byte, error) {
 		for len(data) > 0 && data[len(data)-1] == e.padChar {
 			data = data[:len(data)-1]
 		}
-		// The pad count must be exactly what the encoder emits for this many
-		// characters, or decoding becomes many-to-one ("00" and "00======"
-		// naming the same bytes) — see ErrNonCanonical.
-		if padCount := len(encoded) - len(data); padCount != e.expectedPadding(len(data)) {
-			return nil, fmt.Errorf("%w: invalid padding length %d", ErrNonCanonical, padCount)
-		}
-	}
-
-	if len(data) == 0 {
-		return []byte{}, nil
+		padCount = len(encoded) - len(data)
 	}
 
 	for i := 0; i < len(data); i++ {
 		if e.decodeTable[data[i]] < 0 {
 			return nil, fmt.Errorf("invalid character '%c' at position %d", data[i], i)
 		}
+	}
+
+	// The pad count must be exactly what the encoder emits for this many
+	// characters, or decoding becomes many-to-one ("00" and "00======"
+	// naming the same bytes) — see ErrNonCanonical.
+	if e.padChar != 0 && padCount != e.expectedPadding(len(data)) {
+		return nil, fmt.Errorf("%w: invalid padding length %d", ErrNonCanonical, padCount)
+	}
+
+	if len(data) == 0 {
+		return []byte{}, nil
 	}
 
 	bitsPerChar, bitwise := powerOfTwoBits(e.base)
@@ -225,14 +234,14 @@ func (e *BaseEncoding) expectedPadding(n int) int {
 }
 
 func powerOfTwoBits(base int) (int, bool) {
-	if base&(base-1) != 0 {
+	if base < 2 || base&(base-1) != 0 {
 		return 0, false
 	}
 	return bits.Len(uint(base)) - 1, true
 }
 
 func (e *BaseEncoding) decodeBitwise(data string, bitsPerChar int) ([]byte, error) {
-	var result []byte
+	result := make([]byte, 0, len(data)*bitsPerChar/8)
 	var buffer uint32
 	var bitsInBuffer int
 

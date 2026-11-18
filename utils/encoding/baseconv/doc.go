@@ -1,9 +1,10 @@
 // Package baseconv encodes and decodes byte slices with a caller-chosen
 // alphabet, such as Crockford base32 or base62 for compact identifiers.
 //
-// Use the predefined encodings ([Std32Encoding], [Std62Encoding]) or build
-// one with [NewBaseEncoding] / [NewBaseEncodingWithPadding]. A [BaseEncoding]
-// is immutable after construction and safe for concurrent use.
+// Use the predefined encodings ([Std32Encoding], [StdPadded32Encoding],
+// [Std62Encoding]) or build one with [NewBaseEncoding] /
+// [NewBaseEncodingWithPadding]. A [BaseEncoding] is immutable after
+// construction and safe for concurrent use.
 //
 // # Usage
 //
@@ -29,7 +30,7 @@
 // [ErrNonCanonical]. The big-integer path has no equivalent canonical check
 // beyond padding.
 //
-// [AlphabetBase32] is Crockford's set without I, L, O, or U. [StdRaw32Encoding]
-// and [StdRaw62Encoding] use '=' padding. That is the opposite of
-// encoding/base32.Raw*, which means unpadded.
+// [AlphabetBase32] is Crockford's set without I, L, O, or U.
+// [StdPadded32Encoding] uses '=' padding; [Std32Encoding] and [Std62Encoding]
+// are unpadded.
 package baseconv

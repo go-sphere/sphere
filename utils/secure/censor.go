@@ -1,6 +1,9 @@
 package secure
 
-import "strings"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 // CensorString masks a string by replacing middle characters with asterisks while preserving
 // the first and last characters for recognition. The output length is controlled by outLength parameter.
@@ -12,13 +15,17 @@ func CensorString(src string, outLength int) string {
 	if outLength < 2 {
 		return strings.Repeat("*", max(outLength, 0))
 	}
-	runs := []rune(src)
-	if len(runs) == 0 {
+	first, size := utf8.DecodeRuneInString(src)
+	if size == 0 {
 		return strings.Repeat("*", outLength)
 	}
-	last := runs[len(runs)-1]
-	if len(runs) == 1 {
-		last = runs[0]
+	last, _ := utf8.DecodeLastRuneInString(src)
+	var b strings.Builder
+	b.Grow(utf8.RuneLen(first) + (outLength - 2) + utf8.RuneLen(last))
+	b.WriteRune(first)
+	for range outLength - 2 {
+		b.WriteByte('*')
 	}
-	return string(runs[0]) + strings.Repeat("*", outLength-2) + string(last)
+	b.WriteRune(last)
+	return b.String()
 }

@@ -2,6 +2,8 @@ package captcha
 
 import (
 	"context"
+	"errors"
+	"math"
 	"sync"
 	"time"
 )
@@ -60,6 +62,10 @@ func NewManager(conf Config, sender Sender) *Manager {
 	if conf.CodeExpiresIn <= 0 {
 		conf.CodeExpiresIn = DefaultCodeExpiresIn
 	}
+	maxSeconds := int64(math.MaxInt64 / int64(time.Second))
+	if int64(conf.CodeExpiresIn) > maxSeconds {
+		conf.CodeExpiresIn = int(maxSeconds)
+	}
 	return &Manager{
 		done:         make(chan struct{}),
 		config:       conf,
@@ -75,6 +81,9 @@ func NewManager(conf Config, sender Sender) *Manager {
 // match them with errors.Is. When delivery fails, the stored code and the
 // consumed quota are not rolled back.
 func (m *Manager) SendCode(number string) error {
+	if m == nil || m.sender == nil || m.verification == nil {
+		return errors.New("captcha: manager is not initialized")
+	}
 	code := RandomCode(m.config.CodeLength)
 	if err := m.verification.SaveCode(number, code, time.Duration(m.config.CodeExpiresIn)*time.Second); err != nil {
 		return err
