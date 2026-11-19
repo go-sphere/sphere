@@ -8,6 +8,8 @@ changelog" below points at the ones most likely to surprise an upgrade.
 
 ## Unreleased
 
+## v0.0.8 (2026-11-19)
+
 ### Breaking changes
 
 Each is described under its own heading in `compat/behavior-changes.md`.
