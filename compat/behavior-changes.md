@@ -20,6 +20,16 @@ is measured from `v0.0.5`.
 
 ## Unreleased
 
+### Read-through loaders log a failed write-back
+
+Contract test: `TestGetExLogsFailedWriteBack` (`cache`).
+
+`cache.GetEx`, `GetObjectEx` and `GetJsonEx` used to drop the error of the
+cache write that follows a successful build. They now log it at Warn level as
+`cache: write-back failed` with the key and the error. The return values are
+unchanged: the built value, `found=true` and a nil error. A cache whose writes
+keep failing now produces one Warn entry per rebuilt key.
+
 ### Access and recovery logs carry `route` and the request context
 
 Contract test: `TestLogRouteAttr`, `TestLogUsesContextLogger` (`server/middleware/logger`).

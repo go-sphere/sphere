@@ -591,3 +591,53 @@ func TestNilBaseLoggerFallback(t *testing.T) {
 		t.Fatalf("RecoveryLogErr(nil) = %v, want *PanicError", err)
 	}
 }
+
+// queryOf runs one request through New(opts...) and returns the query attr of
+// its access entry, and whether the entry has one.
+func queryOf(t *testing.T, target string, opts ...Option) (string, bool) {
+	t.Helper()
+	rec := &recordingLogger{}
+	ctx := httpxmock.NewRequest(http.MethodGet, target, nil)
+	next := func(c httpx.Context) error {
+		c.Status(http.StatusOK)
+		return nil
+	}
+	if err := httpxmock.Run(ctx, next, New(rec, opts...)); err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if len(rec.entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(rec.entries))
+	}
+	if !hasAttr(rec.entries[0].attrs, "query") {
+		return "", false
+	}
+	return requireAttr(t, rec.entries[0].attrs, "query").String(), true
+}
+
+// TestNewQueryOptions pins what reaches the query attr: everything by default,
+// nothing with WithoutQuery, and with WithQueryKeys only the named parameters,
+// so a secret or an undecodable pair in the query string is never logged.
+func TestNewQueryOptions(t *testing.T) {
+	t.Parallel()
+
+	const target = "/search?token=s3cret&page=2&q=a+b&bad=%zz"
+
+	if got, ok := queryOf(t, target); !ok || got != "token=s3cret&page=2&q=a+b&bad=%zz" {
+		t.Errorf("default query = %q, %v; want the raw query", got, ok)
+	}
+	if got, ok := queryOf(t, target, WithoutQuery()); ok {
+		t.Errorf("WithoutQuery: query attr = %q, want none", got)
+	}
+	if got, ok := queryOf(t, target, WithQueryKeys("q", "page")); !ok || got != "page=2&q=a+b" {
+		t.Errorf("WithQueryKeys(q, page) = %q, %v; want page=2&q=a+b", got, ok)
+	}
+	if got, ok := queryOf(t, target, WithQueryKeys("bad")); !ok || got != "" {
+		t.Errorf("WithQueryKeys(bad) = %q, %v; want an empty query for the undecodable pair", got, ok)
+	}
+	if got, ok := queryOf(t, target, WithQueryKeys()); !ok || got != "" {
+		t.Errorf("WithQueryKeys() = %q, %v; want an empty query", got, ok)
+	}
+	if got, ok := queryOf(t, target, WithQueryKeys("q"), nil); !ok || got != "q=a+b" {
+		t.Errorf("nil option: query = %q, %v; want q=a+b", got, ok)
+	}
+}

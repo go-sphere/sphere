@@ -29,10 +29,21 @@
 //
 // # Queue
 //
-// Publish delivers to exactly one consumer, FIFO. memory Publish blocks when
-// the per-topic buffer is full; redis RPUSH is unbounded. TryConsume: check
-// the error first — a non-nil error means the message was not delivered, and
-// the bool must not be read as "nothing was waiting".
+// Publish appends one record to the topic, and Consume or TryConsume removes
+// it, so each record goes to exactly one consumer. FIFO is the order in which
+// records leave the queue; with several consumers, the order in which they
+// finish processing is up to the application. memory Publish blocks when the
+// per-topic buffer is full; redis RPUSH is unbounded. TryConsume: check the
+// error first — a non-nil error means the message was not delivered, and the
+// bool must not be read as "nothing was waiting".
+//
+// Removal is destructive and there is no acknowledgement. A record is gone
+// once a consumer has taken it: a consumer that crashes or fails while
+// processing it loses it, and so does a redis consumer that cannot decode it
+// (redis.DecodeError carries the raw bytes). Nothing is redelivered. A Publish
+// retried after an error can enqueue the record twice. Background jobs that
+// need retries belong in scheduler/asynq (scheduler.WithMaxRetry), with
+// idempotent handlers.
 //
 // Close is driver-split. memory Close stops the queue; Consume and TryConsume
 // drain remaining messages and then return an error. redis Close is a no-op:

@@ -33,8 +33,8 @@
 //
 // Lifecycle is split on purpose. task.Group starts and stops members; Run
 // decides when to ask the application to stop (signal or task exit) and runs
-// hooks around that. The exported Run always starts from context.Background();
-// it does not take a parent context. Stop is idempotent: if the group has
+// hooks around that. Run starts from context.Background(); RunContext takes a
+// parent context whose cancellation requests the same graceful shutdown. Stop is idempotent: if the group has
 // already stopped — a one-shot job that finished — Run's Stop is a no-op and
 // after-stop hooks still run.
 //

@@ -8,6 +8,30 @@ changelog" below points at the ones most likely to surprise an upgrade.
 
 ## Unreleased
 
+### Added
+
+- `boot.RunContext`: `Run` with a parent context. Cancelling it requests the
+  same graceful shutdown as a signal (before-stop hooks, `Stop` under the
+  shutdown budget, after-stop hooks) and returns nil when that is clean. The
+  tasks' `Start` context is cancelled only after `Stop` returns.
+- `server/middleware/deadline`: `deadline.New(d)` puts a deadline on the
+  request context. It is cooperative: nothing interrupts the handler, and an
+  error returned after the deadline renders as 504 unless it carries an
+  explicit status.
+- `logger.New(lg, opts...)` with `logger.WithoutQuery` and
+  `logger.WithQueryKeys`, to keep query strings, or all but named parameters,
+  out of the access log. `logger.Log(lg)` is unchanged and still logs the raw
+  query. `stack.WithAccessLog` passes these options to the stack's access-log
+  layer.
+
+### Changed
+
+- `cache.GetEx`, `GetObjectEx` and `GetJsonEx` log a Warn entry
+  (`cache: write-back failed`, with the key and the error) when storing a
+  freshly built value fails. The caller still gets the value and a nil error.
+- `mq`: the package and `Queue` documentation now state that consuming is
+  destructive, with no acknowledgement or redelivery. No behaviour changed.
+
 ## v0.0.8 (2026-11-19)
 
 ### Breaking changes

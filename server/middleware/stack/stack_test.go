@@ -12,6 +12,7 @@ import (
 	"github.com/go-sphere/httpx"
 	"github.com/go-sphere/httpx/stdx"
 	"github.com/go-sphere/sphere/log"
+	"github.com/go-sphere/sphere/server/middleware/logger"
 	"github.com/go-sphere/sphere/server/middleware/requestid"
 	"github.com/go-sphere/sphere/server/middleware/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -377,5 +378,18 @@ func TestStackOptionsCloneSlices(t *testing.T) {
 	}
 	if w.Header().Get("X-Custom-Req-ID") == "" {
 		t.Fatalf("expected X-Custom-Req-ID header, got %v", w.Header())
+	}
+}
+
+// TestAccessLogOptionsReachLogger pins that WithAccessLog configures the
+// access-log layer of the stack.
+func TestAccessLogOptionsReachLogger(t *testing.T) {
+	be := &capture{}
+	serve(t, []Option{WithLogger(log.NewLogger(be)), WithAccessLog(logger.WithoutQuery())}, nil, "/ok?token=s3cret")
+	if len(be.entries) != 1 {
+		t.Fatalf("entries = %+v", be.entries)
+	}
+	if q, ok := be.entries[0].attrs["query"]; ok {
+		t.Errorf("query attr = %q, want none", q)
 	}
 }

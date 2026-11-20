@@ -3,6 +3,7 @@ package logger
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/go-sphere/httpx"
@@ -36,7 +37,56 @@ func logWith(lg log.BaseLogger, ctx httpx.Context, level log.Level, msg string, 
 	}
 }
 
-// Log returns middleware that writes one access log after the downstream chain.
+type config struct {
+	noQuery   bool
+	queryKeys map[string]struct{} // nil logs the raw query
+}
+
+// Option configures [New]. A nil Option is ignored.
+type Option func(*config)
+
+// WithoutQuery drops the query attr from access entries. Use it when query
+// strings can carry credentials or personal data (tokens, signed URLs, search
+// terms) that must not reach the log sinks.
+func WithoutQuery() Option {
+	return func(c *config) { c.noQuery = true }
+}
+
+// WithQueryKeys logs only the named query parameters. The query attr becomes
+// those parameters re-encoded (sorted by name, percent-encoded); every other
+// parameter, and any pair that does not decode, is left out, so a request
+// carrying none of the names logs an empty query. Names are matched exactly.
+// Calling it with no names logs an empty query for every request.
+func WithQueryKeys(keys ...string) Option {
+	set := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		set[k] = struct{}{}
+	}
+	return func(c *config) { c.queryKeys = set }
+}
+
+// filterQuery returns the parameters of raw whose names are in keys.
+func filterQuery(raw string, keys map[string]struct{}) string {
+	if raw == "" || len(keys) == 0 {
+		return ""
+	}
+	// ParseQuery reports the first malformed pair but still returns the pairs
+	// that decoded; the malformed ones are simply not logged.
+	values, _ := url.ParseQuery(raw)
+	for name := range values {
+		if _, ok := keys[name]; !ok {
+			delete(values, name)
+		}
+	}
+	return values.Encode()
+}
+
+// Log is [New] without options: the raw query string is logged as received.
+func Log(lg log.BaseLogger) httpx.Middleware {
+	return New(lg)
+}
+
+// New returns middleware that writes one access log after the downstream chain.
 // Successful requests are logged with Info; a chain error is logged with Error
 // and returned to the caller. Each entry includes status, method, path, query,
 // client IP, user-agent, and latency; the message is the request path. Path and
@@ -47,9 +97,18 @@ func logWith(lg log.BaseLogger, ctx httpx.Context, level log.Level, msg string, 
 // the chain returns an error before the response is committed, the status
 // logged is the one httpz.ErrorStatus resolves, which consults a parser
 // installed with httpz.SetDefaultErrorParser.
-func Log(lg log.BaseLogger) httpx.Middleware {
+//
+// The query attr is the raw query string unless [WithoutQuery] or
+// [WithQueryKeys] narrows it. A nil lg logs to a stdio logger.
+func New(lg log.BaseLogger, opts ...Option) httpx.Middleware {
 	if lg == nil {
 		lg = log.NewLogger(log.NewStdioBackend())
+	}
+	var cfg config
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
 	}
 	return func(next httpx.Handler) httpx.Handler {
 		return func(ctx httpx.Context) error {
@@ -59,6 +118,9 @@ func Log(lg log.BaseLogger) httpx.Middleware {
 			// first.
 			path := ctx.Path()
 			query := ctx.RawQuery()
+			if cfg.queryKeys != nil {
+				query = filterQuery(query, cfg.queryKeys)
+			}
 			err := next(ctx)
 			// FullPath is read after the chain: routers resolve the pattern
 			// while routing, and middleware registered globally runs before
@@ -73,7 +135,11 @@ func Log(lg log.BaseLogger) httpx.Middleware {
 				log.String("method", ctx.Method()),
 				log.String("path", path),
 				log.String("route", route),
-				log.String("query", query),
+			)
+			if !cfg.noQuery {
+				attrs = append(attrs, log.String("query", query))
+			}
+			attrs = append(attrs,
 				log.String("ip", ctx.ClientIP()),
 				log.String("user-agent", ctx.Header("User-Agent")),
 				log.Duration("latency", time.Since(start)),

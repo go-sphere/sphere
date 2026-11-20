@@ -12,7 +12,8 @@
 //  1. telemetry.NewTracing (opt-in with [WithTracing])
 //  2. telemetry.NewMetrics (opt-in with [WithMetrics])
 //  3. requestid.New (default on; [WithoutRequestID] disables it)
-//  4. logger.Log, the access log (needs [WithLogger]; [WithoutAccessLog] disables it)
+//  4. logger.New, the access log (needs [WithLogger]; [WithAccessLog] configures
+//     it, [WithoutAccessLog] disables it)
 //  5. logger.RecoveryLog or RecoveryLogErr (default on; [WithoutRecovery] disables it)
 //
 // A disabled or skipped layer leaves the others in the same relative order.

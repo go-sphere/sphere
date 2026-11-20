@@ -686,3 +686,134 @@ func TestRun_HookAccessesValidContext(t *testing.T) {
 		})
 	}
 }
+
+// TestRun_ContextCancelIsGracefulShutdown pins that a cancelled parent context
+// is a shutdown request like a signal: the before-stop hook and Stop run while
+// the task's Start context is still live, and Start's context ends only after
+// Stop returned.
+func TestRun_ContextCancelIsGracefulShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	startCtx := make(chan context.Context, 1)
+	var liveInHook, liveInStop atomic.Bool
+	task := &mockTask{identifier: "test-task"}
+	task.startFunc = func(c context.Context) error {
+		startCtx <- c
+		<-c.Done()
+		return nil
+	}
+	var running context.Context
+	task.stopFunc = func(context.Context) error {
+		liveInStop.Store(running.Err() == nil)
+		return nil
+	}
+	opts := newOptions(
+		WithShutdownTimeout(time.Second),
+		WithShutdownSignals(),
+		AddBeforeStop(func(context.Context) error {
+			liveInHook.Store(running.Err() == nil)
+			return nil
+		}),
+	)
+
+	done := make(chan error, 1)
+	go func() { done <- run(ctx, task, opts) }()
+	select {
+	case running = <-startCtx:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Start was not called")
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("run = %v, want nil for a clean shutdown", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("run did not return after the context was cancelled")
+	}
+	if !liveInHook.Load() {
+		t.Error("Start context was already cancelled when the before-stop hook ran")
+	}
+	if !liveInStop.Load() {
+		t.Error("Start context was already cancelled when Stop ran")
+	}
+	if running.Err() == nil {
+		t.Error("Start context still live after run returned")
+	}
+}
+
+// TestRun_ContextCancelledBeforeStart pins that a context already cancelled
+// when run begins skips the before-start hooks, Start and Stop, and still runs
+// the after-stop hooks that release what the builder acquired.
+func TestRun_ContextCancelledBeforeStart(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var beforeStart, afterStop atomic.Bool
+	task := &mockTask{identifier: "test-task"}
+	opts := newOptions(
+		AddBeforeStart(func(context.Context) error { beforeStart.Store(true); return nil }),
+		AddAfterStop(func(context.Context) error { afterStop.Store(true); return nil }),
+	)
+	if err := run(ctx, task, opts); err != nil {
+		t.Fatalf("run = %v, want nil", err)
+	}
+	if beforeStart.Load() || task.startCalled.Load() || task.stopCalled.Load() {
+		t.Errorf("beforeStart=%v start=%v stop=%v, want none to run",
+			beforeStart.Load(), task.startCalled.Load(), task.stopCalled.Load())
+	}
+	if !afterStop.Load() {
+		t.Error("after-stop hook did not run")
+	}
+}
+
+// TestRunContext pins the exported entry: a context already done returns nil
+// without building, and cancelling a running application shuts it down cleanly.
+func TestRunContext(t *testing.T) {
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	built := false
+	err := RunContext(cancelled, &struct{}{}, func(*struct{}) (*Application, error) {
+		built = true
+		return NewApplication(&mockTask{identifier: "never"}), nil
+	})
+	if err != nil || built {
+		t.Fatalf("RunContext(done ctx) = %v, built = %v; want nil, false", err, built)
+	}
+
+	ctx, cancelRun := context.WithCancel(context.Background())
+	defer cancelRun()
+	task := &mockTask{identifier: "test-task"}
+	started := make(chan struct{})
+	task.startFunc = func(c context.Context) error {
+		close(started)
+		<-c.Done()
+		return nil
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- RunContext(ctx, &struct{}{}, func(*struct{}) (*Application, error) {
+			return NewApplication(task), nil
+		}, WithShutdownTimeout(time.Second), WithShutdownSignals())
+	}()
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("task did not start")
+	}
+	cancelRun()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("RunContext = %v, want nil", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("RunContext did not return after the context was cancelled")
+	}
+	if !task.stopCalled.Load() {
+		t.Error("Stop was not called")
+	}
+}

@@ -223,8 +223,8 @@ type FetchCached[T any] = func() (obj T, err error)
 
 // GetEx returns a cached value, or calls builder on a miss and stores the
 // result. A builder error is returned with found=false and nothing is stored.
-// A failed cache write after a successful builder is ignored: GetEx still
-// returns (obj, true, nil). A nil builder on a miss returns (zero, false, nil).
+// A failed cache write after a successful builder is logged at Warn level and
+// otherwise ignored: GetEx still returns (obj, true, nil). A nil builder on a miss returns (zero, false, nil).
 //
 // A cached entry that the getter reports as undecodable (an error wrapping
 // ErrDecode) is logged at Warn level and treated as a miss: builder runs and
@@ -245,7 +245,7 @@ func GetEx[T any](ctx context.Context, c ExpirableCache[T], key string, builder 
 }
 
 // GetObjectEx is GetEx for a byte cache with an explicit decoder/encoder.
-// Setter errors after a successful builder are ignored and an undecodable
+// Setter errors after a successful builder are logged and ignored, and an undecodable
 // entry is rebuilt and overwritten, same as GetEx.
 func GetObjectEx[T any](ctx context.Context, c ExpirableByteCache, d codec.Decoder, e codec.Encoder, key string, builder FetchCached[T], options ...Option) (T, bool, error) {
 	return load[T](
@@ -301,9 +301,21 @@ func load[T any](
 	}
 	newObj, err := builder()
 	if err == nil {
-		_ = setter(ctx, key, newObj, opts)
+		writeBack(ctx, key, newObj, setter, opts)
 	}
 	return newObj, err == nil, err
+}
+
+// writeBack stores a freshly built value. The caller already holds the value,
+// so a failed write only costs the next reader a rebuild: it is logged at Warn
+// level and not returned.
+func writeBack[T any](ctx context.Context, key string, obj T, setter func(context.Context, string, T, *loadOptions) error, opts *loadOptions) {
+	if err := setter(ctx, key, obj, opts); err != nil {
+		log.WarnContext(ctx, "cache: write-back failed",
+			log.String("key", key),
+			log.Err(err),
+		)
+	}
 }
 
 // loadShared runs builder at most once per key across concurrent callers of
@@ -344,7 +356,7 @@ func loadShared[T any](
 				writeCtx, cancel = context.WithDeadline(writeBase, deadline)
 				defer cancel()
 			}
-			_ = setter(writeCtx, key, nObj, opts)
+			writeBack(writeCtx, key, nObj, setter, opts)
 		}
 		return nObj, err
 	})

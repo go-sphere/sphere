@@ -30,7 +30,8 @@ type config struct {
 	noRequestID   bool
 	requestIDOpts []requestid.Option
 
-	noAccessLog bool
+	noAccessLog   bool
+	accessLogOpts []logger.Option
 
 	noRecovery    bool
 	noStack       bool
@@ -68,6 +69,13 @@ func WithRequestID(opts ...requestid.Option) Option {
 // WithoutRequestID removes the request-ID layer.
 func WithoutRequestID() Option {
 	return func(c *config) { c.noRequestID = true }
+}
+
+// WithAccessLog passes opts to logger.New for the access-log layer, for
+// example logger.WithoutQuery. The layer still needs [WithLogger].
+func WithAccessLog(opts ...logger.Option) Option {
+	cloned := slices.Clone(opts)
+	return func(c *config) { c.noAccessLog, c.accessLogOpts = false, cloned }
 }
 
 // WithoutAccessLog removes the access-log layer even when a logger is set.
@@ -123,7 +131,7 @@ func plan(opts []Option) ([]layer, error) {
 		layers = append(layers, layer{layerRequestID, requestid.New(c.requestIDOpts...)})
 	}
 	if c.lg != nil && !c.noAccessLog {
-		layers = append(layers, layer{layerAccessLog, logger.Log(c.lg)})
+		layers = append(layers, layer{layerAccessLog, logger.New(c.lg, c.accessLogOpts...)})
 	}
 	if !c.noRecovery {
 		lg := c.lg

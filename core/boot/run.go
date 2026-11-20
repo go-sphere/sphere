@@ -15,6 +15,19 @@ import (
 )
 
 func run(ctx context.Context, t task.Task, options *options) error {
+	if ctx.Err() != nil {
+		// Shutdown was requested before anything started. The builder has
+		// already acquired its resources, so the after-stop hooks still run.
+		log.Info("Context cancelled before start; skipping start")
+		hookCtx, hookCancel := newShutdownContext(options.shutdownTimeout)
+		defer hookCancel()
+		afterErr := runHooks(hookCtx, options.afterStop, "afterStop")
+		syncLoggerBackend(options.loggerBackend)
+		if afterErr != nil {
+			return fmt.Errorf("after stop hooks: %w", afterErr)
+		}
+		return nil
+	}
 	if err := runHooks(ctx, options.beforeStart, "beforeStart"); err != nil {
 		startErr := fmt.Errorf("before start hooks failed: %w", err)
 		// After-stop hooks release what the builder acquired (Wire-owned
@@ -29,7 +42,12 @@ func run(ctx context.Context, t task.Task, options *options) error {
 		return startErr
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	// The task runs under a context detached from the caller's cancellation. A
+	// cancelled parent is a shutdown request, handled below like a signal
+	// (before-stop hooks, then Stop with its budget); handing it to Start would
+	// tear the members down at once, before the hooks and without draining.
+	parentDone := ctx.Done()
+	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancel()
 
 	var quit chan os.Signal
@@ -80,7 +98,7 @@ func run(ctx context.Context, t task.Task, options *options) error {
 			shutdownReason = "task completed"
 			log.Info("Task completed normally")
 		}
-	case <-ctx.Done():
+	case <-parentDone:
 		shutdownReason = "context cancelled"
 		log.Info("Context cancelled")
 	}
@@ -176,9 +194,9 @@ func stopTask(t task.Task, ctx context.Context, taskID string) (err error) {
 // hooks still run. A builder that returns a nil Application without an error
 // is reported as a build failure.
 //
-// The exported Run always uses context.Background(); it stops on SIGTERM,
-// SIGQUIT, or SIGINT (override with WithShutdownSignals) or when Start
-// returns. Passing no signals to WithShutdownSignals disables boot's signal
+// Run uses context.Background(); use [RunContext] to also stop on a context.
+// It stops on SIGTERM, SIGQUIT, or SIGINT (override with WithShutdownSignals)
+// or when Start returns. Passing no signals to WithShutdownSignals disables boot's signal
 // handling rather than subscribing to every signal. Once the first shutdown
 // signal arrives, Run stops handling signals, so a second one gets the
 // operating system's default action (for SIGINT and SIGTERM, terminating the
@@ -191,8 +209,32 @@ func stopTask(t task.Task, ctx context.Context, taskID string) (err error) {
 // If the task is a Group that has already finished, Stop returns the same result
 // Start did; that error is reported once, not joined a second time as a start error.
 func Run[T any](conf *T, builder func(*T) (*Application, error), options ...Option) error {
+	return RunContext(context.Background(), conf, builder, options...)
+}
+
+// RunContext is [Run] with a parent context whose cancellation requests a
+// shutdown, for tests and for programs that embed the application.
+//
+// Cancelling ctx is handled like a shutdown signal: before-stop hooks, Stop
+// bounded by WithShutdownTimeout, after-stop hooks, and nil for a clean
+// shutdown. The tasks' Start context is not cancelled by ctx; it is cancelled
+// after Stop returns, so in-flight work drains under the shutdown budget
+// rather than being cut off. Signal handling stays active alongside ctx; pass
+// WithShutdownSignals() with no signals to stop on ctx alone.
+//
+// A ctx that is already done when RunContext is called returns nil without
+// calling builder. One that ends after the build but before Start skips
+// Start and Stop and runs the after-stop hooks. The before-build and
+// before-start hooks receive ctx; builder takes no context and is not
+// interrupted. A nil ctx is treated as context.Background().
+func RunContext[T any](ctx context.Context, conf *T, builder func(*T) (*Application, error), options ...Option) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if ctx.Err() != nil {
+		return nil
+	}
 	opts := newOptions(options...)
-	ctx := context.Background()
 	initLoggerBackend(opts.loggerBackend)
 	if err := runHooks(ctx, opts.beforeBuild, "beforeBuild"); err != nil {
 		buildErr := fmt.Errorf("before build hooks failed: %w", err)

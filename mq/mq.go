@@ -15,6 +15,11 @@ var ErrPubSubClosed = errors.New("mq: pubsub closed")
 // Queue is point-to-point messaging: one consumer, FIFO. Close semantics are
 // driver-split — memory stops the queue; redis Close is a no-op.
 //
+// Consuming removes the record and nothing acknowledges it: a record taken by
+// a consumer that then crashes, fails, or cannot decode it is not redelivered,
+// and a Publish retried after an error can enqueue it twice. See the package
+// comment for where to put work that needs retries.
+//
 // A ctx that is already done fails Publish and Consume with its error, without
 // enqueuing or taking a message.
 type Queue[T any] interface {

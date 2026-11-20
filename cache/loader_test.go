@@ -14,6 +14,8 @@ import (
 	"github.com/go-sphere/confstore/codec"
 	"github.com/go-sphere/sphere/cache"
 	"github.com/go-sphere/sphere/cache/mcache"
+	"github.com/go-sphere/sphere/log"
+	"github.com/go-sphere/sphere/log/logbuffer"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -811,5 +813,31 @@ func TestSetObjectValidatesTTLBeforeMarshaling(t *testing.T) {
 	}
 	if _, _, err := cache.GetObject[int](ctx, c, nil, "nil-dec"); err == nil {
 		t.Fatal("GetObject(nil decoder) succeeded, want error")
+	}
+}
+
+// TestGetExLogsFailedWriteBack pins that a failed write after a successful
+// build is reported at Warn level while the caller still gets the value, with
+// and without singleflight.
+func TestGetExLogsFailedWriteBack(t *testing.T) {
+	buf := logbuffer.New(16)
+	log.InitWithBackends(buf)
+	t.Cleanup(func() { log.InitWithBackends(log.NewStdioBackend()) })
+
+	c := newRecordingCache[int]()
+	c.setErr = errors.New("write failed")
+	for i, opts := range [][]cache.Option{nil, {cache.WithSingleflight(&singleflight.Group{})}} {
+		got, found, err := cache.GetEx(t.Context(), c, "k", func() (int, error) { return 7, nil }, opts...)
+		if err != nil || !found || got != 7 {
+			t.Fatalf("GetEx = (%d, %v, %v), want (7, true, nil)", got, found, err)
+		}
+		entries, _ := buf.History(0, 16, log.LevelDebug)
+		if len(entries) != i+1 {
+			t.Fatalf("log entries = %d, want %d: %+v", len(entries), i+1, entries)
+		}
+		last := entries[len(entries)-1]
+		if last.Level != "warn" || last.Message != "cache: write-back failed" || last.Attrs["key"] != "k" {
+			t.Errorf("entry = %+v, want a warn naming the key", last)
+		}
 	}
 }
